@@ -19,8 +19,6 @@ The shop owner. Logs in with email + password. Full access, no permissions neede
 | affiliate_id | integer | set if registered via affiliate link |
 | referred_by_id | integer | which admin referred this one |
 | referral_credit | numeric(14,2) | offsets subscription payments |
-| sync_mode | text | online / offline / hybrid |
-| sync_interval | integer | seconds between syncs |
 | otp | text | |
 | otp_expiry | bigint | unix ms |
 | email_verified | boolean | |
@@ -29,12 +27,8 @@ The shop owner. Logs in with email + password. Full access, no permissions neede
 | auto_print | boolean | auto-print receipts, default true |
 | platform | text | ios / android / web |
 | app_version | text | |
-| last_app_rating_date | timestamp | |
-| last_subscription_reminder | timestamp | |
-| last_subscription_reminder_count | integer | |
 | last_seen | timestamp | |
 | created_at | timestamp | |
-| sync | boolean | |
 
 ### attendants
 Cashier / staff. Logs in with PIN + password at the POS.  
@@ -51,4 +45,3 @@ Every admin gets one auto-created attendant for sale attribution — these have 
 | shop_id | integer | one attendant, one shop |
 | last_seen | timestamp | |
 | created_at | timestamp | |
-| sync | boolean | |

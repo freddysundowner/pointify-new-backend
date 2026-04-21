@@ -48,7 +48,6 @@ export const attendants = pgTable(
     shop: integer("shop_id"),
     lastSeen: timestamp("last_seen").defaultNow(),
     createdAt: timestamp("created_at").defaultNow(),
-    sync: boolean("sync").default(false),
   },
   (table) => [
     index("attendants_admin_id_idx").on(table.admin),
@@ -84,14 +83,6 @@ export const admins = pgTable(
     // Applied to offset subscription payments.
     referralCredit: numeric("referral_credit", { precision: 14, scale: 2 }).default("0"),
 
-    // ── Sync mode ─────────────────────────────────────────────────────────────
-    // Controls how data is synchronised between device and server:
-    //   online  → syncs in real time
-    //   offline → stores locally, syncs later
-    //   hybrid  → online when connected, offline fallback
-    syncMode: text("sync_mode").default("online"),
-    syncInterval: integer("sync_interval").default(0),
-
     // ── Verification ──────────────────────────────────────────────────────────
     otp: text("otp"),
     otpExpiry: bigint("otp_expiry", { mode: "number" }),
@@ -103,15 +94,9 @@ export const admins = pgTable(
     autoPrint: boolean("auto_print").default(true),
     platform: text("platform"),
     appVersion: text("app_version"),
-    lastAppRatingDate: timestamp("last_app_rating_date"),
-
-    // ── Subscription reminders ────────────────────────────────────────────────
-    lastSubscriptionReminder: timestamp("last_subscription_reminder").defaultNow(),
-    lastSubscriptionReminderCount: integer("last_subscription_reminder_count").default(0),
 
     lastSeen: timestamp("last_seen").defaultNow(),
     createdAt: timestamp("created_at").defaultNow(),
-    sync: boolean("sync").default(false),
   },
   (table) => [
     index("admins_affiliate_id_idx").on(table.affiliate),
