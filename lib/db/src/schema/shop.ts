@@ -2,6 +2,11 @@
  * Shop table
  * A shop is a single physical or virtual location operated by an Admin.
  * An admin may own multiple shops.
+ *
+ * Circular FK note:
+ *   shops.admin       → admins.id
+ *   shops.subscription → subscriptions.id
+ *   Both are plain integers (no .references()) to avoid boot-order conflicts.
  */
 import {
   pgTable,
@@ -22,30 +27,31 @@ export const shops = pgTable(
   "shops",
   {
     id: serial("id").primaryKey(),
-    name: text("name"),
+    name: text("name").notNull(),
     address: text("address"),
+    // Address line printed on customer receipts (may differ from shop address)
+    receiptAddress: text("receipt_address"),
     shopCategory: integer("shop_category_id").references(() => shopCategories.id),
 
-    // Plain integers to avoid circular imports with identity.ts / subscriptions.ts
-    admin: integer("admin_id"),           // FK → admins.id
-    subscription: integer("subscription_id"), // FK → subscriptions.id
-    affiliate: integer("affiliate_id"),   // FK → affiliates.id
+    // Circular FKs — resolved as plain integers
+    admin: integer("admin_id"),
+    subscription: integer("subscription_id"),   // FK → subscriptions.id (active subscription)
+    affiliate: integer("affiliate_id"),          // FK → affiliates.id
 
-    // GPS coordinates (replaces MongoDB 2dsphere GeoJSON Point)
+    // GPS coordinates
     locationLat: real("location_lat").default(0),
     locationLng: real("location_lng").default(0),
 
     currency: text("currency"),
     contact: text("contact"),
-    // VAT / sales-tax rate applied to taxable products (percentage)
+    // VAT / sales-tax percentage applied to taxable products
     taxRate: numeric("tax_rate", { precision: 6, scale: 2 }).default("0"),
 
-    // Mobile-money / M-Pesa configuration
+    // M-Pesa / mobile-money config
     paybillTill: text("paybill_till"),
     paybillAccount: text("paybill_account"),
 
-    // Receipt & backup email settings
-    receiptAddress: text("receipt_address"),
+    // Email config
     receiptEmail: text("receipt_email").default(""),
     warehouseEmail: text("warehouse_email"),
     backupEmail: text("backup_email"),
@@ -56,12 +62,14 @@ export const shops = pgTable(
     showStockOnline: boolean("show_stock_online").default(false),
     showPriceOnline: boolean("show_price_online").default(false),
     isWarehouse: boolean("is_warehouse").default(false),
+    isProduction: boolean("is_production").default(false),  // manufacturing/production unit
     allowBackup: boolean("allow_backup").default(true),
     useWarehouse: boolean("use_warehouse").default(false),
     trackBatches: boolean("track_batches").default(false),
     allowOnlineSelling: boolean("allow_online_selling").default(true),
     allowNegativeSelling: boolean("allow_negative_selling").default(false),
-    isProduction: boolean("is_production").default(false),
+
+    // Number of times the admin has been warned about deletion — safety counter
     deleteWarningCount: integer("delete_warning_count").default(0),
 
     createdAt: timestamp("created_at").defaultNow(),
