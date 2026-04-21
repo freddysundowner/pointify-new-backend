@@ -54,20 +54,17 @@ export const products = pgTable(
     supplier: integer("supplier_id").references(() => suppliers.id),
     shop: integer("shop_id").references(() => shops.id),
     createdBy: integer("created_by_id").notNull().references(() => attendants.id),
-    admin: integer("admin_id").references(() => admins.id),
 
     description: text("description"),
     thumbnailUrl: text("thumbnail_url"),
     images: text("images").array().default([]),
     barcode: text("barcode"),
-    serialNumber: text("serial_number"),
+    sku: text("sku"),
 
     // product | bundle | virtual | service
     type: text("product_type").default("product"),
 
     isDeleted: boolean("is_deleted").default(false),
-    isVirtual: boolean("is_virtual").default(false),
-    isBundle: boolean("is_bundle").default(false),
     manageByPrice: boolean("manage_by_price").default(false),
     isTaxable: boolean("is_taxable").default(false),
 
@@ -104,10 +101,30 @@ export const batches = pgTable(
   ]
 );
 
+// ─── Product serials ──────────────────────────────────────────────────────────
+// Tracks individual unit serial numbers for serialised products (phones, laptops, etc.)
+export const productSerials = pgTable(
+  "product_serials",
+  {
+    id: serial("id").primaryKey(),
+    product: integer("product_id").notNull().references(() => products.id),
+    shop: integer("shop_id").references(() => shops.id),
+    serialNumber: text("serial_number").notNull(),
+    // available | sold | returned | void
+    status: text("status").default("available"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("product_serials_product_idx").on(table.product),
+    index("product_serials_serial_number_idx").on(table.serialNumber),
+  ]
+);
+
 // ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertProductCategorySchema = createInsertSchema(productCategories).omit({ id: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true });
 export const insertBatchSchema = createInsertSchema(batches).omit({ id: true });
+export const insertProductSerialSchema = createInsertSchema(productSerials).omit({ id: true });
 
 export type ProductCategory = typeof productCategories.$inferSelect;
 export type InsertProductCategory = z.infer<typeof insertProductCategorySchema>;
@@ -115,3 +132,5 @@ export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Batch = typeof batches.$inferSelect;
 export type InsertBatch = z.infer<typeof insertBatchSchema>;
+export type ProductSerial = typeof productSerials.$inferSelect;
+export type InsertProductSerial = z.infer<typeof insertProductSerialSchema>;
