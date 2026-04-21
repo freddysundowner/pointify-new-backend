@@ -28,8 +28,7 @@ export const packages = pgTable("packages", {
   sortOrder: integer("sort_order").default(0),
   // trial | production
   type: text("type").notNull(),
-  maxShops: integer("max_shops"),
-  sync: boolean("sync").default(false),
+  shops: integer("shops"),
 });
 
 export const packageFeatures = pgTable("package_features", {
@@ -56,7 +55,6 @@ export const subscriptions = pgTable(
     startDate: timestamp("start_date").notNull(),
     endDate: timestamp("end_date"),
     createdAt: timestamp("created_at").defaultNow(),
-    sync: boolean("sync").default(false),
   },
   (table) => [
     index("subscriptions_admin_id_idx").on(table.admin),
