@@ -1,13 +1,12 @@
 /**
  * Identity tables: Admins and Attendants
  *
- * Circular dependency note:
- *   Admin.attendant → Attendant (created automatically on registration)
- *   Attendant.admin → Admin (set after the admin row is inserted)
+ * Circular FK note:
+ *   admins.attendant → attendants.id  (the attendant auto-created for this admin)
+ *   attendants.admin → admins.id      (which admin owns this attendant)
  *
- * Both are defined in this file. The direction that would create a boot-order
- * problem is expressed as a plain integer column (no .references()) so Drizzle
- * can generate both tables independently.
+ * Both FKs are plain integers (no .references()) to avoid a boot-order conflict
+ * since both tables live in the same file.
  */
 import {
   pgTable,
@@ -25,22 +24,22 @@ import { z } from "zod/v4";
 
 // ─── Attendants ───────────────────────────────────────────────────────────────
 // A cashier / staff account. One is created automatically for each new Admin
-// so the owner can also operate the POS. Additional attendants can be added.
+// so the owner can also operate the POS. Additional attendants can be added later.
 export const attendants = pgTable(
   "attendants",
   {
     id: serial("id").primaryKey(),
-    username: text("username"),
-    // 4-digit PIN used to switch cashiers at the POS screen.
-    // Stored as text to preserve any leading zeros.
+    username: text("username").notNull(),
+    // 4-digit PIN used together with the password to log in to the POS.
+    // Stored as text to preserve leading zeros.
     pin: text("pin").notNull(),
     password: text("password").notNull(),
     // Array of permission keys e.g. ["sales", "reports", "expenses"]
     permissions: text("permissions").array(),
     lastSeen: timestamp("last_seen").defaultNow(),
-    lastAppRatingDate: timestamp("last_app_rating_date"),
-    // FK → admins.id — plain integer (admin is defined below)
+    // FK → admins.id (plain integer — admins is defined below)
     admin: integer("admin_id"),
+    // FK → shops.id — attendants are tied to one shop
     shop: integer("shop_id"),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
@@ -52,7 +51,8 @@ export const attendants = pgTable(
 );
 
 // ─── Admins ───────────────────────────────────────────────────────────────────
-// The account owner. Manages one or more shops and their attendant staff.
+// The account owner. Has full access — no permission restrictions.
+// Manages one or more shops and their attendant staff.
 export const admins = pgTable(
   "admins",
   {
@@ -61,39 +61,43 @@ export const admins = pgTable(
     phone: text("phone").notNull(),
     username: text("username"),
     password: text("password").notNull(),
-    autoPrint: boolean("auto_print").default(true),
-    // Serialised JSON string or single-value role (e.g. "superadmin")
-    permissions: text("permissions"),
+
     // online | offline | hybrid
-    status: text("status").default("online"),
-    syncInterval: integer("sync_interval").default(0),
-    // FK → attendants.id — the attendant identity auto-created for this admin
+    operatingMode: text("operating_mode").default("online"),
+
+    // FK → attendants.id — attendant identity auto-created for this admin
     attendant: integer("attendant_id"),
-    // FK → shops.id — the admin's primary/default shop
+    // FK → shops.id — admin's primary/default shop
     primaryShop: integer("primary_shop_id"),
-    // OTP stored as text (numeric digits, may have leading zeros)
+    // FK → affiliates.id — set if registered through an affiliate link
+    affiliate: integer("affiliate_id"),
+    // Self-referential — which admin referred this admin
+    referredBy: integer("referred_by_id"),
+
+    referralCredit: numeric("referral_credit", { precision: 14, scale: 2 }).default("0"),
+
     otp: text("otp"),
-    // Unix timestamp (ms) when the OTP expires
     otpExpiry: bigint("otp_expiry", { mode: "number" }),
-    referralCredit: numeric("referral_credit", { precision: 14, scale: 2 }),
     emailVerified: boolean("email_verified").default(false),
     phoneVerified: boolean("phone_verified").default(false),
     emailVerificationDate: timestamp("email_verification_date"),
-    lastSeen: timestamp("last_seen").defaultNow(),
+
+    // Device / app metadata kept on the admin row
+    autoPrint: boolean("auto_print").default(true),
+    syncInterval: integer("sync_interval").default(0),
     platform: text("platform"),
     appVersion: text("app_version"),
     lastAppRatingDate: timestamp("last_app_rating_date"),
     lastSubscriptionReminder: timestamp("last_subscription_reminder").defaultNow(),
     lastSubscriptionReminderCount: integer("last_subscription_reminder_count").default(0),
-    // Self-referential: which admin referred this admin to the platform
-    referralAdmin: integer("referral_admin_id"),
-    // FK → affiliates.id — set if this admin registered through an affiliate link
-    affiliate: integer("affiliate_id"),
+
+    lastSeen: timestamp("last_seen").defaultNow(),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
     index("admins_affiliate_id_idx").on(table.affiliate),
+    index("admins_referred_by_id_idx").on(table.referredBy),
   ]
 );
 
