@@ -4,8 +4,8 @@
  * An admin may own multiple shops.
  *
  * Circular FK note:
- *   shops.admin       → admins.id
- *   shops.subscription → subscriptions.id
+ *   shops.admin         → admins.id
+ *   shops.subscription  → subscriptions.id
  *   Both are plain integers (no .references()) to avoid boot-order conflicts.
  */
 import {
@@ -30,13 +30,12 @@ export const shops = pgTable(
     name: text("name").notNull(),
     address: text("address"),
     // Address line printed on customer receipts (may differ from shop address)
-    receiptAddress: text("receipt_address"),
-    shopCategory: integer("shop_category_id").references(() => shopCategories.id),
+    receiptHeader: text("receipt_header"),
+    category: integer("shop_category_id").references(() => shopCategories.id),
 
     // Circular FKs — resolved as plain integers
     admin: integer("admin_id"),
     subscription: integer("subscription_id"),   // FK → subscriptions.id (active subscription)
-    affiliate: integer("affiliate_id"),          // FK → affiliates.id
 
     // GPS coordinates
     locationLat: real("location_lat").default(0),
@@ -53,7 +52,6 @@ export const shops = pgTable(
 
     // Email config
     receiptEmail: text("receipt_email").default(""),
-    warehouseEmail: text("warehouse_email"),
     backupEmail: text("backup_email"),
     backupInterval: text("backup_interval"),
     backupDate: timestamp("backup_date"),
@@ -61,23 +59,16 @@ export const shops = pgTable(
     // Feature flags
     showStockOnline: boolean("show_stock_online").default(false),
     showPriceOnline: boolean("show_price_online").default(false),
-    isWarehouse: boolean("is_warehouse").default(false),
-    isProduction: boolean("is_production").default(false),  // manufacturing/production unit
+    warehouse: boolean("warehouse").default(false),
     allowBackup: boolean("allow_backup").default(true),
-    useWarehouse: boolean("use_warehouse").default(false),
     trackBatches: boolean("track_batches").default(false),
-    allowOnlineSelling: boolean("allow_online_selling").default(true),
-    allowNegativeSelling: boolean("allow_negative_selling").default(false),
-
-    // Number of times the admin has been warned about deletion — safety counter
-    deleteWarningCount: integer("delete_warning_count").default(0),
+    onlineSelling: boolean("online_selling").default(true),
+    negativeSelling: boolean("negative_selling").default(false),
 
     createdAt: timestamp("created_at").defaultNow(),
-    sync: boolean("sync").default(false),
   },
   (table) => [
     index("shops_admin_id_idx").on(table.admin),
-    index("shops_affiliate_id_idx").on(table.affiliate),
   ]
 );
 
