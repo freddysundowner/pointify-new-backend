@@ -42,8 +42,8 @@ export const sales = pgTable(
     paymentTag: text("payment_tag").default("cash"),
     // cashed | credit | refunded | voided
     status: text("status").default("cashed"),
-    // Linked online/offline order reference string (if sale came from an order)
-    order: text("order"),
+    // Free-text order reference string, e.g. an external order number or label
+    orderRef: text("order_ref"),
     salesnote: text("salesnote"),
     dueDate: timestamp("due_date"),
     shopId: integer("shop_id").notNull().references(() => shops.id),
