@@ -81,3 +81,61 @@ A single physical or virtual location operated by an admin. One admin can own mu
 | online_selling | boolean | default true |
 | negative_selling | boolean | allow sales below zero stock, default false |
 | created_at | timestamp | |
+
+---
+
+## subscriptions.ts
+
+### packages
+Subscription plans available to admins.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | serial PK | |
+| title | text | |
+| description | text | |
+| duration_value | integer | e.g. 1, 3, 12 |
+| duration_unit | text | days / weeks / months / years |
+| amount | numeric(14,2) | local currency |
+| amount_usd | numeric(14,2) | USD equivalent |
+| discount | numeric(6,2) | |
+| is_active | boolean | |
+| sort_order | integer | display order |
+| type | text | trial / production |
+| shops | integer | max shops this plan covers |
+
+### package_features
+One row per feature per package.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | serial PK | |
+| package_id | integer | FK → packages, cascades on delete |
+| feature | text | |
+
+### subscriptions
+A billing record created when an admin subscribes.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | serial PK | |
+| admin_id | integer | owning admin |
+| package_id | integer | FK → packages |
+| mpesa_code | text | M-Pesa payment reference |
+| amount | numeric(14,2) | amount charged |
+| invoice_no | text | |
+| is_active | boolean | |
+| is_paid | boolean | |
+| currency | text | default kes |
+| start_date | timestamp | |
+| end_date | timestamp | |
+| created_at | timestamp | |
+
+### subscription_shops
+Maps one subscription to the shops it covers (multi-branch plans).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | serial PK | |
+| subscription_id | integer | FK → subscriptions, cascades on delete |
+| shop_id | integer | |
