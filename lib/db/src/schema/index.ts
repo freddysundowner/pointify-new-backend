@@ -13,8 +13,7 @@
  *   affiliates   → affiliate partners, awards, transactions
  *   customers    → shop customers
  *   suppliers    → product suppliers
- *   catalog      → product categories, products, batches
- *   inventory    → stock levels, adjustments, counts, requests, bundle items
+ *   catalog      → product categories, products, batches, serials, inventory, adjustments, stock counts & requests
  *   orders       → customer orders (pre-sale intent)
  *   sales        → POS sales, payments, returns
  *   purchases    → supplier purchases, payments, returns
@@ -31,7 +30,6 @@ export * from "./affiliates";
 export * from "./customers";
 export * from "./suppliers";
 export * from "./catalog";
-export * from "./inventory";
 export * from "./orders";
 export * from "./sales";
 export * from "./purchases";
