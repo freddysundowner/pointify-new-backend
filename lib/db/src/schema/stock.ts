@@ -6,45 +6,66 @@ import {
   integer,
   numeric,
   timestamp,
+  index,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { shops } from "./shops";
 import { attendants } from "./admins-attendants";
-import { products } from "./products";
-import { inventory } from "./products";
+import { products, inventory } from "./products";
 
-export const badStocks = pgTable("bad_stocks", {
-  id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull().references(() => products.id),
-  shopId: integer("shop_id").notNull().references(() => shops.id),
-  attendantId: integer("attendant_id").notNull().references(() => attendants.id),
-  quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
-  unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
-  reason: text("reason").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  sync: boolean("sync").default(false),
-});
+export const badStocks = pgTable(
+  "bad_stocks",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id").notNull().references(() => products.id),
+    shopId: integer("shop_id").notNull().references(() => shops.id),
+    attendantId: integer("attendant_id").notNull().references(() => attendants.id),
+    quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
+    unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+    sync: boolean("sync").default(false),
+  },
+  (table) => [
+    index("bad_stocks_shop_id_idx").on(table.shopId),
+    index("bad_stocks_product_id_idx").on(table.productId),
+  ]
+);
 
-export const adjustments = pgTable("adjustments", {
-  id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull().references(() => products.id),
-  shopId: integer("shop_id").notNull().references(() => shops.id),
-  type: text("type").default("add"), // add | remove
-  before: numeric("before", { precision: 14, scale: 4 }).notNull(),
-  after: numeric("after", { precision: 14, scale: 4 }).notNull(),
-  adjusted: numeric("adjusted", { precision: 14, scale: 4 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  sync: boolean("sync").default(false),
-});
+export const adjustments = pgTable(
+  "adjustments",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id").notNull().references(() => products.id),
+    shopId: integer("shop_id").notNull().references(() => shops.id),
+    // add | remove
+    type: text("type").default("add"),
+    before: numeric("before", { precision: 14, scale: 4 }).notNull(),
+    after: numeric("after", { precision: 14, scale: 4 }).notNull(),
+    adjusted: numeric("adjusted", { precision: 14, scale: 4 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+    sync: boolean("sync").default(false),
+  },
+  (table) => [
+    index("adjustments_product_shop_idx").on(table.productId, table.shopId),
+    index("adjustments_created_at_idx").on(table.createdAt),
+  ]
+);
 
-export const stockCounts = pgTable("stock_counts", {
-  id: serial("id").primaryKey(),
-  attendantId: integer("attendant_id").notNull().references(() => attendants.id),
-  shopId: integer("shop_id").notNull().references(() => shops.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  sync: boolean("sync").default(false),
-});
+export const stockCounts = pgTable(
+  "stock_counts",
+  {
+    id: serial("id").primaryKey(),
+    attendantId: integer("attendant_id").notNull().references(() => attendants.id),
+    shopId: integer("shop_id").notNull().references(() => shops.id),
+    createdAt: timestamp("created_at").defaultNow(),
+    sync: boolean("sync").default(false),
+  },
+  (table) => [
+    index("stock_counts_shop_id_idx").on(table.shopId),
+  ]
+);
 
 export const stockCountItems = pgTable("stock_count_items", {
   id: serial("id").primaryKey(),
@@ -56,21 +77,32 @@ export const stockCountItems = pgTable("stock_count_items", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const stockRequests = pgTable("stock_requests", {
-  id: serial("id").primaryKey(),
-  attendantId: integer("attendant_id").notNull().references(() => attendants.id),
-  acceptedById: integer("accepted_by_id").references(() => attendants.id),
-  approvedById: integer("approved_by_id").references(() => attendants.id),
-  status: text("status").default("pending"), // pending | processed | correction | void | completed
-  fromShopId: integer("from_shop_id").notNull().references(() => shops.id),
-  warehouseId: integer("warehouse_id").notNull().references(() => shops.id),
-  total: numeric("total", { precision: 14, scale: 2 }).default("0"),
-  invoiceNumber: text("invoice_number").default(""),
-  acceptedDate: timestamp("accepted_date"),
-  dispatchedDate: timestamp("dispatched_date"),
-  createdAt: timestamp("created_at").defaultNow(),
-  sync: boolean("sync").default(false),
-});
+export const stockRequests = pgTable(
+  "stock_requests",
+  {
+    id: serial("id").primaryKey(),
+    attendantId: integer("attendant_id").notNull().references(() => attendants.id),
+    acceptedById: integer("accepted_by_id").references(() => attendants.id),
+    approvedById: integer("approved_by_id").references(() => attendants.id),
+    // pending | processed | correction | void | completed
+    status: text("status").default("pending"),
+    // The shop that is requesting stock
+    fromShopId: integer("from_shop_id").notNull().references(() => shops.id),
+    // The warehouse shop fulfilling the request
+    warehouseId: integer("warehouse_id").notNull().references(() => shops.id),
+    total: numeric("total", { precision: 14, scale: 2 }).default("0"),
+    invoiceNumber: text("invoice_number").default("").unique(),
+    acceptedDate: timestamp("accepted_date"),
+    dispatchedDate: timestamp("dispatched_date"),
+    createdAt: timestamp("created_at").defaultNow(),
+    sync: boolean("sync").default(false),
+  },
+  (table) => [
+    index("stock_requests_from_shop_idx").on(table.fromShopId),
+    index("stock_requests_warehouse_idx").on(table.warehouseId),
+    index("stock_requests_status_idx").on(table.status),
+  ]
+);
 
 export const stockRequestItems = pgTable("stock_request_items", {
   id: serial("id").primaryKey(),

@@ -6,6 +6,7 @@ import {
   integer,
   numeric,
   timestamp,
+  index,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -13,15 +14,25 @@ import { shops } from "./shops";
 import { customers } from "./customers";
 import { products } from "./products";
 
-export const orders = pgTable("orders", {
-  id: serial("id").primaryKey(),
-  receiptNo: text("receipt_no"),
-  status: text("status").default("pending"), // pending | completed | cancelled
-  shopId: integer("shop_id").notNull().references(() => shops.id),
-  customerId: integer("customer_id").references(() => customers.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  sync: boolean("sync").default(false),
-});
+export const orders = pgTable(
+  "orders",
+  {
+    id: serial("id").primaryKey(),
+    // Unique reference printed/shared with the customer e.g. ORD123456
+    receiptNo: text("receipt_no").unique(),
+    // pending | completed | cancelled
+    status: text("status").default("pending"),
+    shopId: integer("shop_id").notNull().references(() => shops.id),
+    customerId: integer("customer_id").references(() => customers.id),
+    createdAt: timestamp("created_at").defaultNow(),
+    sync: boolean("sync").default(false),
+  },
+  (table) => [
+    index("orders_shop_id_idx").on(table.shopId),
+    index("orders_customer_id_idx").on(table.customerId),
+    index("orders_status_idx").on(table.status),
+  ]
+);
 
 export const orderItems = pgTable("order_items", {
   id: serial("id").primaryKey(),

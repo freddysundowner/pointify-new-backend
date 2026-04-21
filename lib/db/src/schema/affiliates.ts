@@ -4,6 +4,7 @@ import {
   text,
   boolean,
   integer,
+  bigint,
   numeric,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -22,9 +23,10 @@ export const affiliates = pgTable("affiliates", {
   wallet: numeric("wallet", { precision: 14, scale: 2 }).default("0"),
   blocked: boolean("blocked").default(false),
   active: boolean("active").default(false),
-  code: text("code"),
-  otp: integer("otp"),
-  otpExpiry: numeric("otp_expiry"),
+  // Unique referral/promo code for the affiliate
+  code: text("code").unique(),
+  otp: text("otp"),
+  otpExpiry: bigint("otp_expiry", { mode: "number" }),
   createdAt: timestamp("created_at").defaultNow(),
   sync: boolean("sync").default(false),
 });
