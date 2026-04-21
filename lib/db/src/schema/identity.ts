@@ -72,8 +72,8 @@ export const admins = pgTable(
     // ── Relationships ─────────────────────────────────────────────────────────
     // The attendant auto-created for this admin on registration
     attendant: integer("attendant_id"),
-    // The admin's default/primary shop
-    primaryShop: integer("primary_shop_id"),
+    // The admin's default shop
+    shop: integer("primary_shop_id"),
     // Set if this admin registered through an affiliate link
     affiliate: integer("affiliate_id"),
     // Which admin referred this admin to the platform (self-referential)
