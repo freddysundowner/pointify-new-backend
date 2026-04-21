@@ -9,7 +9,6 @@ import {
   integer,
   numeric,
   timestamp,
-  jsonb,
   index,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
@@ -25,36 +24,11 @@ export const productCategories = pgTable(
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
     admin: integer("admin_id").notNull().references(() => admins.id),
-    sync: boolean("sync").default(false),
   },
   (table) => [
     index("product_categories_admin_id_idx").on(table.admin),
   ]
 );
-
-// ─── Attributes ───────────────────────────────────────────────────────────────
-// title and name are i18n maps: { en: "Color", sw: "Rangi" }
-export const attributes = pgTable("attributes", {
-  id: serial("id").primaryKey(),
-  title: jsonb("title").notNull(),
-  name: jsonb("name").notNull(),
-  // Dropdown | Radio | Checkbox
-  inputType: text("input_type"),
-  // attribute | extra
-  type: text("type").default("attribute"),
-  // show | hide
-  status: text("status").default("show"),
-  sync: boolean("sync").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const attributeVariants = pgTable("attribute_variants", {
-  id: serial("id").primaryKey(),
-  attribute: integer("attribute_id").notNull().references(() => attributes.id, { onDelete: "cascade" }),
-  name: jsonb("name"),
-  status: text("status").default("show"),
-});
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 export const products = pgTable(
@@ -74,7 +48,7 @@ export const products = pgTable(
     lastCount: numeric("last_count", { precision: 14, scale: 4 }).default("0"),
     reorderLevel: numeric("reorder_level", { precision: 14, scale: 4 }).default("0"),
 
-    productCategory: integer("product_category_id").references(() => productCategories.id),
+    category: integer("product_category_id").references(() => productCategories.id),
     measureUnit: text("measure_unit").default(""),
     manufacturer: text("manufacturer").default(""),
     supplier: integer("supplier_id").references(() => suppliers.id),
@@ -89,7 +63,7 @@ export const products = pgTable(
     serialNumber: text("serial_number"),
 
     // product | bundle | virtual | service
-    productType: text("product_type").default("product"),
+    type: text("product_type").default("product"),
 
     isDeleted: boolean("is_deleted").default(false),
     isVirtual: boolean("is_virtual").default(false),
@@ -100,13 +74,12 @@ export const products = pgTable(
     lastCountDate: timestamp("last_count_date"),
     expiryDate: timestamp("expiry_date"),
     createdAt: timestamp("created_at").defaultNow(),
-    sync: boolean("sync").default(false),
   },
   (table) => [
     index("products_shop_id_idx").on(table.shop),
     index("products_barcode_idx").on(table.barcode),
     index("products_shop_deleted_idx").on(table.shop, table.isDeleted),
-    index("products_category_idx").on(table.productCategory),
+    index("products_category_idx").on(table.category),
     index("products_supplier_idx").on(table.supplier),
   ]
 );
@@ -124,7 +97,6 @@ export const batches = pgTable(
     expirationDate: timestamp("expiration_date"),
     batchCode: text("batch_code").unique(),
     createdAt: timestamp("created_at").defaultNow(),
-    sync: boolean("sync").default(false),
   },
   (table) => [
     index("batches_product_shop_idx").on(table.product, table.shop),
@@ -134,17 +106,11 @@ export const batches = pgTable(
 
 // ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertProductCategorySchema = createInsertSchema(productCategories).omit({ id: true });
-export const insertAttributeSchema = createInsertSchema(attributes).omit({ id: true });
-export const insertAttributeVariantSchema = createInsertSchema(attributeVariants).omit({ id: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true });
 export const insertBatchSchema = createInsertSchema(batches).omit({ id: true });
 
 export type ProductCategory = typeof productCategories.$inferSelect;
 export type InsertProductCategory = z.infer<typeof insertProductCategorySchema>;
-export type Attribute = typeof attributes.$inferSelect;
-export type InsertAttribute = z.infer<typeof insertAttributeSchema>;
-export type AttributeVariant = typeof attributeVariants.$inferSelect;
-export type InsertAttributeVariant = z.infer<typeof insertAttributeVariantSchema>;
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Batch = typeof batches.$inferSelect;

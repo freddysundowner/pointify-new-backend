@@ -13,7 +13,7 @@
  *   affiliates   → affiliate partners, awards, transactions
  *   customers    → shop customers
  *   suppliers    → product suppliers
- *   catalog      → product categories, attributes, products, batches
+ *   catalog      → product categories, products, batches
  *   inventory    → stock levels, adjustments, counts, requests, bundle items
  *   orders       → customer orders (pre-sale intent)
  *   sales        → POS sales, payments, returns
