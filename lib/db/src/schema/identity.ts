@@ -1,12 +1,18 @@
 /**
- * Identity tables: Admins and Attendants
+ * Identity domain: Admins and Attendants
+ *
+ * Admin = shop owner. Logs in with email + password. Has full access.
+ * Attendant = cashier / staff. Logs in with PIN + password at the POS.
+ *
+ * Every admin gets one attendant auto-created on registration. That attendant
+ * is not a login account — it is purely an attribution identity so that when
+ * the admin makes a sale themselves, it is recorded under their attendant ID.
+ * These auto-attendants have no PIN or password.
  *
  * Circular FK note:
- *   admins.attendant → attendants.id  (the attendant auto-created for this admin)
+ *   admins.attendant → attendants.id  (the auto-created attendant for this admin)
  *   attendants.admin → admins.id      (which admin owns this attendant)
- *
- * Both FKs are plain integers (no .references()) to avoid a boot-order conflict
- * since both tables live in the same file.
+ * Both sides are plain integers (no .references()) to avoid boot-order conflicts.
  */
 import {
   pgTable,
@@ -23,24 +29,24 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 // ─── Attendants ───────────────────────────────────────────────────────────────
-// A cashier / staff account. One is created automatically for each new Admin
-// so the owner can also operate the POS. Additional attendants can be added later.
 export const attendants = pgTable(
   "attendants",
   {
     id: serial("id").primaryKey(),
+    // Display name shown on receipts and reports
     username: text("username").notNull(),
-    // 4-digit PIN used together with the password to log in to the POS.
-    // Stored as text to preserve leading zeros.
-    pin: text("pin").notNull(),
-    password: text("password").notNull(),
-    // Array of permission keys e.g. ["sales", "reports", "expenses"]
+    // PIN + password used together to log in to the POS.
+    // Null on admin-owned attendants (they are attribution-only, not login accounts).
+    pin: text("pin"),
+    password: text("password"),
+    // Permission keys e.g. ["sales", "reports", "expenses"].
+    // Null on admin-owned attendants (they inherit full access via the admin).
     permissions: text("permissions").array(),
-    lastSeen: timestamp("last_seen").defaultNow(),
-    // FK → admins.id (plain integer — admins is defined below)
+    // FK → admins.id — which admin owns / created this attendant
     admin: integer("admin_id"),
-    // FK → shops.id — attendants are tied to one shop
+    // FK → shops.id — one attendant is always tied to one shop
     shop: integer("shop_id"),
+    lastSeen: timestamp("last_seen").defaultNow(),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
@@ -51,43 +57,55 @@ export const attendants = pgTable(
 );
 
 // ─── Admins ───────────────────────────────────────────────────────────────────
-// The account owner. Has full access — no permission restrictions.
-// Manages one or more shops and their attendant staff.
 export const admins = pgTable(
   "admins",
   {
     id: serial("id").primaryKey(),
+
+    // ── Credentials ──────────────────────────────────────────────────────────
     email: text("email").notNull().unique(),
     phone: text("phone").notNull(),
+    // Display name shown in the app UI
     username: text("username"),
     password: text("password").notNull(),
 
-    // online | offline | hybrid
-    operatingMode: text("operating_mode").default("online"),
-
-    // FK → attendants.id — attendant identity auto-created for this admin
+    // ── Relationships ─────────────────────────────────────────────────────────
+    // The attendant auto-created for this admin on registration
     attendant: integer("attendant_id"),
-    // FK → shops.id — admin's primary/default shop
+    // The admin's default/primary shop
     primaryShop: integer("primary_shop_id"),
-    // FK → affiliates.id — set if registered through an affiliate link
+    // Set if this admin registered through an affiliate link
     affiliate: integer("affiliate_id"),
-    // Self-referential — which admin referred this admin
+    // Which admin referred this admin to the platform (self-referential)
     referredBy: integer("referred_by_id"),
 
+    // ── Referral credit ───────────────────────────────────────────────────────
+    // Accumulated credit earned by referring other admins.
+    // Applied to offset subscription payments.
     referralCredit: numeric("referral_credit", { precision: 14, scale: 2 }).default("0"),
 
+    // ── Sync mode ─────────────────────────────────────────────────────────────
+    // Controls how data is synchronised between device and server:
+    //   online  → syncs in real time
+    //   offline → stores locally, syncs later
+    //   hybrid  → online when connected, offline fallback
+    syncMode: text("sync_mode").default("online"),
+    syncInterval: integer("sync_interval").default(0),
+
+    // ── Verification ──────────────────────────────────────────────────────────
     otp: text("otp"),
     otpExpiry: bigint("otp_expiry", { mode: "number" }),
     emailVerified: boolean("email_verified").default(false),
     phoneVerified: boolean("phone_verified").default(false),
     emailVerificationDate: timestamp("email_verification_date"),
 
-    // Device / app metadata kept on the admin row
+    // ── Device / app metadata ─────────────────────────────────────────────────
     autoPrint: boolean("auto_print").default(true),
-    syncInterval: integer("sync_interval").default(0),
     platform: text("platform"),
     appVersion: text("app_version"),
     lastAppRatingDate: timestamp("last_app_rating_date"),
+
+    // ── Subscription reminders ────────────────────────────────────────────────
     lastSubscriptionReminder: timestamp("last_subscription_reminder").defaultNow(),
     lastSubscriptionReminderCount: integer("last_subscription_reminder_count").default(0),
 
