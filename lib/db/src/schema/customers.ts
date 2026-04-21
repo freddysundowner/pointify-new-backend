@@ -1,3 +1,7 @@
+/**
+ * Customer table
+ * Customers are per-shop contacts who can have credit accounts and wallets.
+ */
 import {
   pgTable,
   serial,
@@ -11,8 +15,8 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { shops } from "./shops";
-import { attendants } from "./admins-attendants";
+import { shops } from "./shop";
+import { attendants } from "./identity";
 
 export const customers = pgTable(
   "customers",
@@ -22,14 +26,18 @@ export const customers = pgTable(
     phoneNumber: text("phone_number"),
     email: text("email"),
     address: text("address"),
-    // Hashed password for customers who have app/online access
+    // Hashed password for customers with app / online-store access
     password: text("password"),
+    // retail | wholesale | dealer — mirrors sale types for default pricing
     type: text("type"),
+    // Maximum credit balance this customer may carry
     creditLimit: numeric("credit_limit", { precision: 14, scale: 2 }),
+    // Prepaid wallet balance usable at checkout
     wallet: numeric("wallet", { precision: 14, scale: 2 }).default("0"),
     shopId: integer("shop_id").references(() => shops.id),
-    attendantId: integer("attendant_id").references(() => attendants.id),
-    // Auto-incremented display number per shop (handled in application layer)
+    // Attendant who registered this customer
+    createdById: integer("created_by_id").references(() => attendants.id),
+    // Auto-incrementing display number per shop (managed in application layer)
     customerNo: integer("customer_no").unique(),
     otp: text("otp"),
     otpExpiry: bigint("otp_expiry", { mode: "number" }),

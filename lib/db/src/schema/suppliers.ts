@@ -1,3 +1,7 @@
+/**
+ * Supplier table
+ * Suppliers are per-shop vendors from whom products are purchased.
+ */
 import {
   pgTable,
   serial,
@@ -10,7 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { shops } from "./shops";
+import { shops } from "./shop";
 
 export const suppliers = pgTable(
   "suppliers",
@@ -20,7 +24,7 @@ export const suppliers = pgTable(
     phoneNumber: text("phone_number"),
     email: text("email"),
     address: text("address"),
-    // Running credit balance owed to/from this supplier
+    // Running credit balance (positive = shop owes supplier, negative = supplier owes shop)
     wallet: numeric("wallet", { precision: 14, scale: 2 }).default("0"),
     shopId: integer("shop_id").notNull().references(() => shops.id),
     createdAt: timestamp("created_at").defaultNow(),

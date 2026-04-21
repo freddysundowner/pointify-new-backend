@@ -1,24 +1,40 @@
-export * from "./admins-attendants";
-export * from "./shop-categories";
+/**
+ * Schema barrel export
+ *
+ * Import order follows the dependency chain so that nothing is used before it
+ * is defined. Circular pairs (admins ↔ attendants) are handled inside their
+ * own file using plain integer columns rather than .references().
+ *
+ * Domain grouping:
+ *   system       → global lookup tables (no shop/admin scope)
+ *   identity     → admins & attendants
+ *   shop         → shops
+ *   subscriptions → billing packages & subscriptions
+ *   affiliates   → affiliate partners, awards, transactions
+ *   customers    → shop customers
+ *   suppliers    → product suppliers
+ *   catalog      → product categories, attributes, products, batches
+ *   inventory    → stock levels, adjustments, counts, requests, bundle items
+ *   orders       → customer orders (pre-sale intent)
+ *   sales        → POS sales, payments, returns
+ *   purchases    → supplier purchases, payments, returns
+ *   transfers    → direct inter-shop stock moves
+ *   finance      → expenses, cashflow, banks, general payments
+ *   communication → email campaigns, audit activity log
+ */
+
+export * from "./system";
+export * from "./identity";
+export * from "./shop";
+export * from "./subscriptions";
 export * from "./affiliates";
-export * from "./shops";
-export * from "./packages-subscriptions";
 export * from "./customers";
 export * from "./suppliers";
-export * from "./measures";
-export * from "./attributes";
-export * from "./languages";
-export * from "./settings";
-export * from "./categories";
-export * from "./products";
+export * from "./catalog";
+export * from "./inventory";
 export * from "./orders";
 export * from "./sales";
 export * from "./purchases";
-export * from "./expenses";
-export * from "./cashflow";
-export * from "./payments";
-export * from "./stock";
 export * from "./transfers";
-export * from "./awards-transactions";
-export * from "./activities";
-export * from "./email-messages";
+export * from "./finance";
+export * from "./communication";

@@ -1,3 +1,14 @@
+/**
+ * Identity tables: Admins and Attendants
+ *
+ * Circular dependency note:
+ *   Admin.attendantId → Attendant (created automatically on registration)
+ *   Attendant.adminId → Admin (set after the admin row is inserted)
+ *
+ * Both are defined in this file. The direction that would create a boot-order
+ * problem is expressed as a plain integer column (no .references()) so Drizzle
+ * can generate both tables independently.
+ */
 import {
   pgTable,
   serial,
@@ -5,31 +16,30 @@ import {
   boolean,
   integer,
   bigint,
-  timestamp,
   numeric,
+  timestamp,
   index,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-// Admins and Attendants live in the same file to resolve the circular
-// reference: Admin.attendantId → Attendant, Attendant.adminId → Admin.
-// The Admin is the account owner; an Attendant is the staff/cashier identity
-// automatically created when an Admin registers.
-
+// ─── Attendants ───────────────────────────────────────────────────────────────
+// A cashier / staff account. One is created automatically for each new Admin
+// so the owner can also operate the POS. Additional attendants can be added.
 export const attendants = pgTable(
   "attendants",
   {
     id: serial("id").primaryKey(),
     username: text("username"),
-    // 4-digit PIN used to switch cashiers at the POS screen
-    uniqueDigits: integer("unique_digits").notNull().unique(),
+    // 4-digit PIN used to switch cashiers at the POS screen.
+    // Stored as text to preserve any leading zeros.
+    pin: text("pin").notNull(),
     password: text("password").notNull(),
-    // Array of permission strings e.g. ["sales", "reports"]
+    // Array of permission keys e.g. ["sales", "reports", "expenses"]
     permissions: text("permissions").array(),
     lastSeen: timestamp("last_seen").defaultNow(),
     lastAppRatingDate: timestamp("last_app_rating_date"),
-    // FK → admins.id — plain integer here because admin table is defined below
+    // FK → admins.id — plain integer (admin is defined below)
     adminId: integer("admin_id"),
     shopId: integer("shop_id"),
     createdAt: timestamp("created_at").defaultNow(),
@@ -41,6 +51,8 @@ export const attendants = pgTable(
   ]
 );
 
+// ─── Admins ───────────────────────────────────────────────────────────────────
+// The account owner. Manages one or more shops and their attendant staff.
 export const admins = pgTable(
   "admins",
   {
@@ -50,18 +62,18 @@ export const admins = pgTable(
     username: text("username"),
     password: text("password").notNull(),
     autoPrint: boolean("auto_print").default(true),
-    // Serialized JSON string or a single role string
+    // Serialised JSON string or single-value role (e.g. "superadmin")
     permissions: text("permissions"),
     // online | offline | hybrid
     status: text("status").default("online"),
     syncInterval: integer("sync_interval").default(0),
-    // FK → attendants.id — created automatically on admin registration
+    // FK → attendants.id — the attendant identity auto-created for this admin
     attendantId: integer("attendant_id"),
-    // FK → shops.id — the shop the admin mainly operates from
+    // FK → shops.id — the admin's primary/default shop
     primaryShopId: integer("primary_shop_id"),
-    // OTP is always numeric digits; stored as text to preserve leading zeros
+    // OTP stored as text (numeric digits, may have leading zeros)
     otp: text("otp"),
-    // Unix timestamp in ms when OTP expires
+    // Unix timestamp (ms) when the OTP expires
     otpExpiry: bigint("otp_expiry", { mode: "number" }),
     referralCredit: numeric("referral_credit", { precision: 14, scale: 2 }),
     emailVerified: boolean("email_verified").default(false),
@@ -73,9 +85,9 @@ export const admins = pgTable(
     lastAppRatingDate: timestamp("last_app_rating_date"),
     lastSubscriptionReminder: timestamp("last_subscription_reminder").defaultNow(),
     lastSubscriptionReminderCount: integer("last_subscription_reminder_count").default(0),
-    // Self-referential: which admin referred this admin
+    // Self-referential: which admin referred this admin to the platform
     referralAdminId: integer("referral_admin_id"),
-    // FK → affiliates.id — set if this admin came through an affiliate
+    // FK → affiliates.id — set if this admin registered through an affiliate link
     affiliateId: integer("affiliate_id"),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
@@ -85,6 +97,7 @@ export const admins = pgTable(
   ]
 );
 
+// ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertAttendantSchema = createInsertSchema(attendants).omit({ id: true });
 export const insertAdminSchema = createInsertSchema(admins).omit({ id: true });
 

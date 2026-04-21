@@ -1,3 +1,8 @@
+/**
+ * Shop table
+ * A shop is a single physical or virtual location operated by an Admin.
+ * An admin may own multiple shops.
+ */
 import {
   pgTable,
   serial,
@@ -11,7 +16,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { shopCategories } from "./shop-categories";
+import { shopCategories } from "./system";
 
 export const shops = pgTable(
   "shops",
@@ -20,13 +25,11 @@ export const shops = pgTable(
     name: text("name"),
     address: text("address"),
     shopCategoryId: integer("shop_category_id").references(() => shopCategories.id),
-    // FK → admins.id (plain integer — circular dep with admins-attendants.ts)
-    adminId: integer("admin_id"),
-    // FK → subscriptions.id (plain integer — subscriptions file imports shops,
-    // so we cannot import subscriptions here)
-    subscriptionId: integer("subscription_id"),
-    // FK → affiliates.id
-    affiliateId: integer("affiliate_id"),
+
+    // Plain integers to avoid circular imports with identity.ts / subscriptions.ts
+    adminId: integer("admin_id"),          // FK → admins.id
+    subscriptionId: integer("subscription_id"), // FK → subscriptions.id
+    affiliateId: integer("affiliate_id"),  // FK → affiliates.id
 
     // GPS coordinates (replaces MongoDB 2dsphere GeoJSON Point)
     locationLat: real("location_lat").default(0),
@@ -34,15 +37,15 @@ export const shops = pgTable(
 
     currency: text("currency"),
     contact: text("contact"),
-    // VAT/tax rate applied to taxable products (percentage)
-    tax: numeric("tax", { precision: 6, scale: 2 }).default("0"),
+    // VAT / sales-tax rate applied to taxable products (percentage)
+    taxRate: numeric("tax_rate", { precision: 6, scale: 2 }).default("0"),
 
-    // M-Pesa / mobile money settings
+    // Mobile-money / M-Pesa configuration
     paybillTill: text("paybill_till"),
     paybillAccount: text("paybill_account"),
 
-    // Receipt & communication settings
-    addressReceipt: text("address_receipt"),
+    // Receipt & backup email settings
+    receiptAddress: text("receipt_address"),
     receiptEmail: text("receipt_email").default(""),
     warehouseEmail: text("warehouse_email"),
     backupEmail: text("backup_email"),
@@ -52,17 +55,14 @@ export const shops = pgTable(
     // Feature flags
     showStockOnline: boolean("show_stock_online").default(false),
     showPriceOnline: boolean("show_price_online").default(false),
-    // Is this shop acting as a warehouse for other shops?
-    warehouse: boolean("warehouse").default(false),
+    isWarehouse: boolean("is_warehouse").default(false),        // acts as a warehouse for other shops
     allowBackup: boolean("allow_backup").default(true),
     useWarehouse: boolean("use_warehouse").default(false),
     trackBatches: boolean("track_batches").default(false),
     allowOnlineSelling: boolean("allow_online_selling").default(true),
     allowNegativeSelling: boolean("allow_negative_selling").default(false),
-    // Is this a production/manufacturing shop?
-    production: boolean("production").default(false),
-    // Counter for deletion grace warnings sent
-    deleteWarning: integer("delete_warning").default(0),
+    isProduction: boolean("is_production").default(false),      // manufacturing/production shop
+    deleteWarningCount: integer("delete_warning_count").default(0),
 
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),

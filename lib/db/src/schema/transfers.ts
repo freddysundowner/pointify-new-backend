@@ -1,3 +1,9 @@
+/**
+ * Transfer tables
+ * Direct product movement between two shops (branch-to-branch stock transfer).
+ * Unlike stock requests (which go through a warehouse workflow), transfers are
+ * immediate peer-to-peer moves.
+ */
 import {
   pgTable,
   serial,
@@ -9,16 +15,15 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { shops } from "./shops";
-import { attendants } from "./admins-attendants";
-import { products } from "./products";
+import { shops } from "./shop";
+import { attendants } from "./identity";
+import { products } from "./catalog";
 
-// Records the movement of products from one shop to another
 export const productTransfers = pgTable(
   "product_transfers",
   {
     id: serial("id").primaryKey(),
-    attendantId: integer("attendant_id").notNull().references(() => attendants.id),
+    initiatedById: integer("initiated_by_id").notNull().references(() => attendants.id),
     fromShopId: integer("from_shop_id").notNull().references(() => shops.id),
     toShopId: integer("to_shop_id").notNull().references(() => shops.id),
     createdAt: timestamp("created_at").defaultNow(),
