@@ -2,8 +2,8 @@
  * Identity tables: Admins and Attendants
  *
  * Circular dependency note:
- *   Admin.attendantId → Attendant (created automatically on registration)
- *   Attendant.adminId → Admin (set after the admin row is inserted)
+ *   Admin.attendant → Attendant (created automatically on registration)
+ *   Attendant.admin → Admin (set after the admin row is inserted)
  *
  * Both are defined in this file. The direction that would create a boot-order
  * problem is expressed as a plain integer column (no .references()) so Drizzle
@@ -40,14 +40,14 @@ export const attendants = pgTable(
     lastSeen: timestamp("last_seen").defaultNow(),
     lastAppRatingDate: timestamp("last_app_rating_date"),
     // FK → admins.id — plain integer (admin is defined below)
-    adminId: integer("admin_id"),
-    shopId: integer("shop_id"),
+    admin: integer("admin_id"),
+    shop: integer("shop_id"),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("attendants_admin_id_idx").on(table.adminId),
-    index("attendants_shop_id_idx").on(table.shopId),
+    index("attendants_admin_id_idx").on(table.admin),
+    index("attendants_shop_id_idx").on(table.shop),
   ]
 );
 
@@ -68,9 +68,9 @@ export const admins = pgTable(
     status: text("status").default("online"),
     syncInterval: integer("sync_interval").default(0),
     // FK → attendants.id — the attendant identity auto-created for this admin
-    attendantId: integer("attendant_id"),
+    attendant: integer("attendant_id"),
     // FK → shops.id — the admin's primary/default shop
-    primaryShopId: integer("primary_shop_id"),
+    primaryShop: integer("primary_shop_id"),
     // OTP stored as text (numeric digits, may have leading zeros)
     otp: text("otp"),
     // Unix timestamp (ms) when the OTP expires
@@ -86,14 +86,14 @@ export const admins = pgTable(
     lastSubscriptionReminder: timestamp("last_subscription_reminder").defaultNow(),
     lastSubscriptionReminderCount: integer("last_subscription_reminder_count").default(0),
     // Self-referential: which admin referred this admin to the platform
-    referralAdminId: integer("referral_admin_id"),
+    referralAdmin: integer("referral_admin_id"),
     // FK → affiliates.id — set if this admin registered through an affiliate link
-    affiliateId: integer("affiliate_id"),
+    affiliate: integer("affiliate_id"),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("admins_affiliate_id_idx").on(table.affiliateId),
+    index("admins_affiliate_id_idx").on(table.affiliate),
   ]
 );
 

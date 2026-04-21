@@ -1,7 +1,5 @@
 /**
  * Inventory management tables
- * Tracks physical stock levels, adjustments, write-offs, stock counts,
- * inter-shop transfer requests, and bundle composition.
  */
 import {
   pgTable,
@@ -20,20 +18,18 @@ import { attendants } from "./identity";
 import { products, batches } from "./catalog";
 
 // ─── Inventory ────────────────────────────────────────────────────────────────
-// One record per product per shop — tracks the live quantity on hand.
 export const inventory = pgTable(
   "inventory",
   {
     id: serial("id").primaryKey(),
-    productId: integer("product_id").references(() => products.id),
-    shopId: integer("shop_id").references(() => shops.id),
-    // Attendant who last modified this record
-    updatedById: integer("updated_by_id").notNull().references(() => attendants.id),
+    product: integer("product_id").references(() => products.id),
+    shop: integer("shop_id").references(() => shops.id),
+    updatedBy: integer("updated_by_id").notNull().references(() => attendants.id),
     quantity: numeric("quantity", { precision: 14, scale: 4 }),
     lastCount: numeric("last_count", { precision: 14, scale: 4 }).default("0"),
     reorderLevel: numeric("reorder_level", { precision: 14, scale: 4 }).default("0"),
     isBundle: boolean("is_bundle").default(false),
-    // in | out | adjustment (movement type)
+    // in | out | adjustment
     type: text("type"),
     // active | low | out_of_stock
     status: text("status"),
@@ -44,43 +40,36 @@ export const inventory = pgTable(
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("inventory_product_shop_idx").on(table.productId, table.shopId),
+    index("inventory_product_shop_idx").on(table.product, table.shop),
     index("inventory_barcode_idx").on(table.barcode),
   ]
 );
 
 // ─── Bundle items ─────────────────────────────────────────────────────────────
-// Defines the component products that make up a bundle product.
-// inventoryId links to the bundle's inventory record.
-// productId = the bundle parent, itemProductId = the component.
-// To query all components for a bundle: SELECT * FROM bundle_items WHERE inventory_id = X
 export const bundleItems = pgTable(
   "bundle_items",
   {
     id: serial("id").primaryKey(),
-    inventoryId: integer("inventory_id").references(() => inventory.id),
-    // The bundle (parent) product
-    productId: integer("product_id").references(() => products.id),
-    // The component (child) product included in the bundle
-    componentProductId: integer("component_product_id").references(() => products.id),
+    inventory: integer("inventory_id").references(() => inventory.id),
+    product: integer("product_id").references(() => products.id),             // the bundle
+    componentProduct: integer("component_product_id").references(() => products.id), // the component
     quantity: numeric("quantity", { precision: 14, scale: 4 }),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("bundle_items_inventory_idx").on(table.inventoryId),
-    index("bundle_items_product_idx").on(table.productId),
+    index("bundle_items_inventory_idx").on(table.inventory),
+    index("bundle_items_product_idx").on(table.product),
   ]
 );
 
 // ─── Stock adjustments ────────────────────────────────────────────────────────
-// Manual quantity corrections (add or remove stock with an audit trail).
 export const adjustments = pgTable(
   "adjustments",
   {
     id: serial("id").primaryKey(),
-    productId: integer("product_id").notNull().references(() => products.id),
-    shopId: integer("shop_id").notNull().references(() => shops.id),
+    product: integer("product_id").notNull().references(() => products.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
     // add | remove
     type: text("type").default("add"),
     quantityBefore: numeric("quantity_before", { precision: 14, scale: 4 }).notNull(),
@@ -90,20 +79,19 @@ export const adjustments = pgTable(
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("adjustments_product_shop_idx").on(table.productId, table.shopId),
+    index("adjustments_product_shop_idx").on(table.product, table.shop),
     index("adjustments_created_at_idx").on(table.createdAt),
   ]
 );
 
 // ─── Bad stock (write-offs) ───────────────────────────────────────────────────
-// Records of damaged, expired, or otherwise unusable stock removed from inventory.
 export const badStocks = pgTable(
   "bad_stocks",
   {
     id: serial("id").primaryKey(),
-    productId: integer("product_id").notNull().references(() => products.id),
-    shopId: integer("shop_id").notNull().references(() => shops.id),
-    writtenOffById: integer("written_off_by_id").notNull().references(() => attendants.id),
+    product: integer("product_id").notNull().references(() => products.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
+    writtenOffBy: integer("written_off_by_id").notNull().references(() => attendants.id),
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
     reason: text("reason").notNull(),
@@ -111,32 +99,30 @@ export const badStocks = pgTable(
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("bad_stocks_shop_id_idx").on(table.shopId),
-    index("bad_stocks_product_id_idx").on(table.productId),
+    index("bad_stocks_shop_id_idx").on(table.shop),
+    index("bad_stocks_product_id_idx").on(table.product),
   ]
 );
 
 // ─── Stock counts ─────────────────────────────────────────────────────────────
-// A stock count session groups physical counts taken at a point in time.
 export const stockCounts = pgTable(
   "stock_counts",
   {
     id: serial("id").primaryKey(),
-    conductedById: integer("conducted_by_id").notNull().references(() => attendants.id),
-    shopId: integer("shop_id").notNull().references(() => shops.id),
+    conductedBy: integer("conducted_by_id").notNull().references(() => attendants.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("stock_counts_shop_id_idx").on(table.shopId),
+    index("stock_counts_shop_id_idx").on(table.shop),
   ]
 );
 
-// Individual product line within a stock count session
 export const stockCountItems = pgTable("stock_count_items", {
   id: serial("id").primaryKey(),
-  stockCountId: integer("stock_count_id").notNull().references(() => stockCounts.id, { onDelete: "cascade" }),
-  productId: integer("product_id").notNull().references(() => products.id),
+  stockCount: integer("stock_count_id").notNull().references(() => stockCounts.id, { onDelete: "cascade" }),
+  product: integer("product_id").notNull().references(() => products.id),
   physicalCount: numeric("physical_count", { precision: 14, scale: 4 }).notNull(),
   systemCount: numeric("system_count", { precision: 14, scale: 4 }).notNull(),
   variance: numeric("variance", { precision: 14, scale: 4 }).notNull(),
@@ -144,20 +130,17 @@ export const stockCountItems = pgTable("stock_count_items", {
 });
 
 // ─── Stock requests ───────────────────────────────────────────────────────────
-// A branch shop requests stock replenishment from a warehouse shop.
 export const stockRequests = pgTable(
   "stock_requests",
   {
     id: serial("id").primaryKey(),
-    requestedById: integer("requested_by_id").notNull().references(() => attendants.id),
-    acceptedById: integer("accepted_by_id").references(() => attendants.id),
-    approvedById: integer("approved_by_id").references(() => attendants.id),
+    requestedBy: integer("requested_by_id").notNull().references(() => attendants.id),
+    acceptedBy: integer("accepted_by_id").references(() => attendants.id),
+    approvedBy: integer("approved_by_id").references(() => attendants.id),
     // pending | processed | correction | void | completed
     status: text("status").default("pending"),
-    // The branch requesting the stock
-    fromShopId: integer("from_shop_id").notNull().references(() => shops.id),
-    // The warehouse shop fulfilling the request
-    warehouseId: integer("warehouse_id").notNull().references(() => shops.id),
+    fromShop: integer("from_shop_id").notNull().references(() => shops.id),
+    warehouse: integer("warehouse_id").notNull().references(() => shops.id),
     totalValue: numeric("total_value", { precision: 14, scale: 2 }).default("0"),
     invoiceNumber: text("invoice_number").default("").unique(),
     acceptedAt: timestamp("accepted_at"),
@@ -166,18 +149,17 @@ export const stockRequests = pgTable(
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("stock_requests_from_shop_idx").on(table.fromShopId),
-    index("stock_requests_warehouse_idx").on(table.warehouseId),
+    index("stock_requests_from_shop_idx").on(table.fromShop),
+    index("stock_requests_warehouse_idx").on(table.warehouse),
     index("stock_requests_status_idx").on(table.status),
   ]
 );
 
-// Line items within a stock request
 export const stockRequestItems = pgTable("stock_request_items", {
   id: serial("id").primaryKey(),
-  stockRequestId: integer("stock_request_id").notNull().references(() => stockRequests.id, { onDelete: "cascade" }),
-  inventoryId: integer("inventory_id").references(() => inventory.id),
-  productId: integer("product_id").references(() => products.id),
+  stockRequest: integer("stock_request_id").notNull().references(() => stockRequests.id, { onDelete: "cascade" }),
+  inventory: integer("inventory_id").references(() => inventory.id),
+  product: integer("product_id").references(() => products.id),
   quantityRequested: numeric("quantity_requested", { precision: 14, scale: 4 }).notNull(),
   quantityReceived: numeric("quantity_received", { precision: 14, scale: 4 }).default("0"),
   sync: boolean("sync").default(false),

@@ -1,6 +1,5 @@
 /**
  * Supplier table
- * Suppliers are per-shop vendors from whom products are purchased.
  */
 import {
   pgTable,
@@ -24,14 +23,13 @@ export const suppliers = pgTable(
     phoneNumber: text("phone_number"),
     email: text("email"),
     address: text("address"),
-    // Running credit balance (positive = shop owes supplier, negative = supplier owes shop)
     wallet: numeric("wallet", { precision: 14, scale: 2 }).default("0"),
-    shopId: integer("shop_id").notNull().references(() => shops.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("suppliers_shop_id_idx").on(table.shopId),
+    index("suppliers_shop_id_idx").on(table.shop),
   ]
 );
 

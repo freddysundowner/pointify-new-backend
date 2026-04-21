@@ -1,6 +1,5 @@
 /**
  * Customer table
- * Customers are per-shop contacts who can have credit accounts and wallets.
  */
 import {
   pgTable,
@@ -26,18 +25,13 @@ export const customers = pgTable(
     phoneNumber: text("phone_number"),
     email: text("email"),
     address: text("address"),
-    // Hashed password for customers with app / online-store access
     password: text("password"),
-    // retail | wholesale | dealer — mirrors sale types for default pricing
+    // retail | wholesale | dealer
     type: text("type"),
-    // Maximum credit balance this customer may carry
     creditLimit: numeric("credit_limit", { precision: 14, scale: 2 }),
-    // Prepaid wallet balance usable at checkout
     wallet: numeric("wallet", { precision: 14, scale: 2 }).default("0"),
-    shopId: integer("shop_id").references(() => shops.id),
-    // Attendant who registered this customer
-    createdById: integer("created_by_id").references(() => attendants.id),
-    // Auto-incrementing display number per shop (managed in application layer)
+    shop: integer("shop_id").references(() => shops.id),
+    createdBy: integer("created_by_id").references(() => attendants.id),
     customerNo: integer("customer_no").unique(),
     otp: text("otp"),
     otpExpiry: bigint("otp_expiry", { mode: "number" }),
@@ -45,7 +39,7 @@ export const customers = pgTable(
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("customers_shop_id_idx").on(table.shopId),
+    index("customers_shop_id_idx").on(table.shop),
     index("customers_phone_idx").on(table.phoneNumber),
   ]
 );

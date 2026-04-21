@@ -1,6 +1,5 @@
 /**
  * Communication tables
- * Email campaign management and the system activity/audit log.
  */
 import {
   pgTable,
@@ -16,7 +15,6 @@ import { z } from "zod/v4";
 import { shops } from "./shop";
 import { attendants } from "./identity";
 
-// ─── Email message templates ──────────────────────────────────────────────────
 export const emailMessages = pgTable("email_messages", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -35,12 +33,10 @@ export const emailMessages = pgTable("email_messages", {
   sync: boolean("sync").default(false),
 });
 
-// Log of each time a campaign was dispatched
 export const emailsSent = pgTable("emails_sent", {
   id: serial("id").primaryKey(),
   subject: text("subject").notNull(),
-  // SET NULL preserves the send log even when the source template is deleted
-  emailTemplateId: integer("email_template_id").references(
+  emailTemplate: integer("email_template_id").references(
     () => emailMessages.id,
     { onDelete: "set null" }
   ),
@@ -49,28 +45,23 @@ export const emailsSent = pgTable("emails_sent", {
   sync: boolean("sync").default(false),
 });
 
-// ─── Activities (audit log) ───────────────────────────────────────────────────
-// Records every significant action an attendant takes in a shop.
-// Used for accountability and offline-sync reconciliation.
 export const activities = pgTable(
   "activities",
   {
     id: serial("id").primaryKey(),
-    // Human-readable description of the action e.g. "Added product", "Voided sale"
     action: text("action").notNull(),
-    shopId: integer("shop_id").notNull().references(() => shops.id),
-    attendantId: integer("attendant_id").notNull().references(() => attendants.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
+    attendant: integer("attendant_id").notNull().references(() => attendants.id),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("activities_shop_id_idx").on(table.shopId),
-    index("activities_shop_date_idx").on(table.shopId, table.createdAt),
-    index("activities_attendant_id_idx").on(table.attendantId),
+    index("activities_shop_id_idx").on(table.shop),
+    index("activities_shop_date_idx").on(table.shop, table.createdAt),
+    index("activities_attendant_id_idx").on(table.attendant),
   ]
 );
 
-// ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertEmailMessageSchema = createInsertSchema(emailMessages).omit({ id: true });
 export const insertEmailSentSchema = createInsertSchema(emailsSent).omit({ id: true });
 export const insertActivitySchema = createInsertSchema(activities).omit({ id: true });

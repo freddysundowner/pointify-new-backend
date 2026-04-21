@@ -24,12 +24,12 @@ export const shops = pgTable(
     id: serial("id").primaryKey(),
     name: text("name"),
     address: text("address"),
-    shopCategoryId: integer("shop_category_id").references(() => shopCategories.id),
+    shopCategory: integer("shop_category_id").references(() => shopCategories.id),
 
     // Plain integers to avoid circular imports with identity.ts / subscriptions.ts
-    adminId: integer("admin_id"),          // FK → admins.id
-    subscriptionId: integer("subscription_id"), // FK → subscriptions.id
-    affiliateId: integer("affiliate_id"),  // FK → affiliates.id
+    admin: integer("admin_id"),           // FK → admins.id
+    subscription: integer("subscription_id"), // FK → subscriptions.id
+    affiliate: integer("affiliate_id"),   // FK → affiliates.id
 
     // GPS coordinates (replaces MongoDB 2dsphere GeoJSON Point)
     locationLat: real("location_lat").default(0),
@@ -55,21 +55,21 @@ export const shops = pgTable(
     // Feature flags
     showStockOnline: boolean("show_stock_online").default(false),
     showPriceOnline: boolean("show_price_online").default(false),
-    isWarehouse: boolean("is_warehouse").default(false),        // acts as a warehouse for other shops
+    isWarehouse: boolean("is_warehouse").default(false),
     allowBackup: boolean("allow_backup").default(true),
     useWarehouse: boolean("use_warehouse").default(false),
     trackBatches: boolean("track_batches").default(false),
     allowOnlineSelling: boolean("allow_online_selling").default(true),
     allowNegativeSelling: boolean("allow_negative_selling").default(false),
-    isProduction: boolean("is_production").default(false),      // manufacturing/production shop
+    isProduction: boolean("is_production").default(false),
     deleteWarningCount: integer("delete_warning_count").default(0),
 
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("shops_admin_id_idx").on(table.adminId),
-    index("shops_affiliate_id_idx").on(table.affiliateId),
+    index("shops_admin_id_idx").on(table.admin),
+    index("shops_affiliate_id_idx").on(table.affiliate),
   ]
 );
 

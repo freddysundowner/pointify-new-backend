@@ -1,7 +1,5 @@
 /**
  * Finance tables
- * Expenses, cashflow (cashin/cashout), bank accounts, and the general-purpose
- * payment ledger for customer/supplier wallet movements.
  */
 import {
   pgTable,
@@ -20,49 +18,45 @@ import { attendants, admins } from "./identity";
 import { customers } from "./customers";
 import { suppliers } from "./suppliers";
 
-// ─── Expense categories ───────────────────────────────────────────────────────
 export const expenseCategories = pgTable(
   "expense_categories",
   {
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
-    shopId: integer("shop_id").references(() => shops.id),
+    shop: integer("shop_id").references(() => shops.id),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("expense_categories_shop_id_idx").on(table.shopId),
+    index("expense_categories_shop_id_idx").on(table.shop),
   ]
 );
 
-// ─── Cashflow categories ──────────────────────────────────────────────────────
 export const cashflowCategories = pgTable(
   "cashflow_categories",
   {
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
-    shopId: integer("shop_id").references(() => shops.id),
+    shop: integer("shop_id").references(() => shops.id),
     // cashin | cashout
     type: text("type").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("cashflow_categories_shop_id_idx").on(table.shopId),
+    index("cashflow_categories_shop_id_idx").on(table.shop),
   ]
 );
 
-// ─── Expenses ─────────────────────────────────────────────────────────────────
 export const expenses = pgTable(
   "expenses",
   {
     id: serial("id").primaryKey(),
     description: text("description"),
     amount: numeric("amount", { precision: 14, scale: 2 }),
-    shopId: integer("shop_id").references(() => shops.id),
-    recordedById: integer("recorded_by_id").notNull().references(() => attendants.id),
-    categoryId: integer("category_id").references(() => expenseCategories.id),
-    // Whether this is a recurring expense auto-saved on a schedule
+    shop: integer("shop_id").references(() => shops.id),
+    recordedBy: integer("recorded_by_id").notNull().references(() => attendants.id),
+    category: integer("category_id").references(() => expenseCategories.id),
     isRecurring: boolean("is_recurring").default(false),
     // daily | weekly | monthly
     frequency: text("frequency"),
@@ -71,86 +65,74 @@ export const expenses = pgTable(
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("expenses_shop_id_idx").on(table.shopId),
-    index("expenses_shop_date_idx").on(table.shopId, table.createdAt),
-    index("expenses_category_id_idx").on(table.categoryId),
+    index("expenses_shop_id_idx").on(table.shop),
+    index("expenses_shop_date_idx").on(table.shop, table.createdAt),
+    index("expenses_category_id_idx").on(table.category),
   ]
 );
 
-// ─── Banks ────────────────────────────────────────────────────────────────────
-// Bank / mobile-money accounts whose balances the shop tracks manually.
 export const banks = pgTable(
   "banks",
   {
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
-    // Current tracked balance of this account
     balance: numeric("balance", { precision: 14, scale: 2 }).notNull(),
-    shopId: integer("shop_id").notNull().references(() => shops.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("banks_shop_id_idx").on(table.shopId),
+    index("banks_shop_id_idx").on(table.shop),
   ]
 );
 
-// ─── Cashflows ────────────────────────────────────────────────────────────────
-// Individual cashin / cashout transaction records.
 export const cashflows = pgTable(
   "cashflows",
   {
     id: serial("id").primaryKey(),
     description: text("description").notNull(),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
-    categoryId: integer("category_id").references(() => cashflowCategories.id),
-    recordedById: integer("recorded_by_id").notNull().references(() => attendants.id),
-    shopId: integer("shop_id").notNull().references(() => shops.id),
-    // Optional: which bank account this cashflow is associated with
-    bankId: integer("bank_id").references(() => banks.id),
+    category: integer("category_id").references(() => cashflowCategories.id),
+    recordedBy: integer("recorded_by_id").notNull().references(() => attendants.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
+    bank: integer("bank_id").references(() => banks.id),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("cashflows_shop_id_idx").on(table.shopId),
-    index("cashflows_shop_date_idx").on(table.shopId, table.createdAt),
-    index("cashflows_category_id_idx").on(table.categoryId),
+    index("cashflows_shop_id_idx").on(table.shop),
+    index("cashflows_shop_date_idx").on(table.shop, table.createdAt),
+    index("cashflows_category_id_idx").on(table.category),
   ]
 );
 
-// ─── User payments ────────────────────────────────────────────────────────────
-// General-purpose ledger entry for customer wallet top-ups, supplier payments,
-// refunds, and other manual financial transactions not tied to a specific sale.
 export const userPayments = pgTable(
   "user_payments",
   {
     id: serial("id").primaryKey(),
-    // Unique auto-generated payment reference code
     paymentNo: text("payment_no").unique(),
     totalAmount: numeric("total_amount", { precision: 14, scale: 2 }),
     balance: numeric("balance", { precision: 14, scale: 2 }),
     mpesaCode: text("mpesa_code"),
-    // cash | mpesa | bank | card …
     paymentType: text("payment_type"),
     // deposit | withdraw | payment | refund
     type: text("type").notNull(),
-    shopId: integer("shop_id").references(() => shops.id),
-    processedById: integer("processed_by_id").references(() => attendants.id),
-    customerId: integer("customer_id").references(() => customers.id),
-    supplierId: integer("supplier_id").references(() => suppliers.id),
-    adminId: integer("admin_id").references(() => admins.id),
+    shop: integer("shop_id").references(() => shops.id),
+    processedBy: integer("processed_by_id").references(() => attendants.id),
+    customer: integer("customer_id").references(() => customers.id),
+    supplier: integer("supplier_id").references(() => suppliers.id),
+    admin: integer("admin_id").references(() => admins.id),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("user_payments_shop_id_idx").on(table.shopId),
-    index("user_payments_customer_id_idx").on(table.customerId),
-    index("user_payments_supplier_id_idx").on(table.supplierId),
-    index("user_payments_shop_date_idx").on(table.shopId, table.createdAt),
+    index("user_payments_shop_id_idx").on(table.shop),
+    index("user_payments_customer_id_idx").on(table.customer),
+    index("user_payments_supplier_id_idx").on(table.supplier),
+    index("user_payments_shop_date_idx").on(table.shop, table.createdAt),
   ]
 );
 
-// ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertExpenseCategorySchema = createInsertSchema(expenseCategories).omit({ id: true });
 export const insertCashflowCategorySchema = createInsertSchema(cashflowCategories).omit({ id: true });
 export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true });

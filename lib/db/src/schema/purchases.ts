@@ -1,7 +1,5 @@
 /**
  * Purchase tables
- * A Purchase records stock bought from a supplier.
- * Related: purchase line items, instalment payments, and supplier returns.
  */
 import {
   pgTable,
@@ -20,40 +18,37 @@ import { suppliers } from "./suppliers";
 import { attendants } from "./identity";
 import { products } from "./catalog";
 
-// ─── Purchases ────────────────────────────────────────────────────────────────
 export const purchases = pgTable(
   "purchases",
   {
     id: serial("id").primaryKey(),
-    // Unique human-readable reference e.g. PUR-1234567
     purchaseNo: text("purchase_no").unique(),
     totalAmount: numeric("total_amount", { precision: 14, scale: 2 }).default("0"),
     amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }).default("0"),
     outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).default("0"),
     // cash | credit | mpesa | bank
     paymentType: text("payment_type").notNull(),
-    shopId: integer("shop_id").notNull().references(() => shops.id),
-    supplierId: integer("supplier_id").references(() => suppliers.id),
-    createdById: integer("created_by_id").references(() => attendants.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
+    supplier: integer("supplier_id").references(() => suppliers.id),
+    createdBy: integer("created_by_id").references(() => attendants.id),
     createdAt: timestamp("created_at").defaultNow(),
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("purchases_shop_id_idx").on(table.shopId),
-    index("purchases_supplier_id_idx").on(table.supplierId),
+    index("purchases_shop_id_idx").on(table.shop),
+    index("purchases_supplier_id_idx").on(table.supplier),
     index("purchases_created_at_idx").on(table.createdAt),
   ]
 );
 
-// ─── Purchase items ───────────────────────────────────────────────────────────
 export const purchaseItems = pgTable(
   "purchase_items",
   {
     id: serial("id").primaryKey(),
-    purchaseId: integer("purchase_id").references(() => purchases.id, { onDelete: "cascade" }),
-    productId: integer("product_id").notNull().references(() => products.id),
-    shopId: integer("shop_id").references(() => shops.id),
-    receivedById: integer("received_by_id").notNull().references(() => attendants.id),
+    purchase: integer("purchase_id").references(() => purchases.id, { onDelete: "cascade" }),
+    product: integer("product_id").notNull().references(() => products.id),
+    shop: integer("shop_id").references(() => shops.id),
+    receivedBy: integer("received_by_id").notNull().references(() => attendants.id),
     quantity: numeric("quantity", { precision: 14, scale: 4 }).default("0"),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
     lineDiscount: numeric("line_discount", { precision: 14, scale: 2 }).default("0"),
@@ -61,39 +56,35 @@ export const purchaseItems = pgTable(
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("purchase_items_purchase_id_idx").on(table.purchaseId),
-    index("purchase_items_product_id_idx").on(table.productId),
+    index("purchase_items_purchase_id_idx").on(table.purchase),
+    index("purchase_items_product_id_idx").on(table.product),
   ]
 );
 
-// ─── Purchase payments ────────────────────────────────────────────────────────
-// Instalment records for credit purchases.
 export const purchasePayments = pgTable(
   "purchase_payments",
   {
     id: serial("id").primaryKey(),
-    purchaseId: integer("purchase_id").notNull().references(() => purchases.id, { onDelete: "cascade" }),
-    paidById: integer("paid_by_id").notNull().references(() => attendants.id),
+    purchase: integer("purchase_id").notNull().references(() => purchases.id, { onDelete: "cascade" }),
+    paidBy: integer("paid_by_id").notNull().references(() => attendants.id),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
     balance: numeric("balance", { precision: 14, scale: 2 }),
     paymentNo: text("payment_no"),
     paidAt: timestamp("paid_at").defaultNow(),
   },
   (table) => [
-    index("purchase_payments_purchase_id_idx").on(table.purchaseId),
+    index("purchase_payments_purchase_id_idx").on(table.purchase),
   ]
 );
 
-// ─── Purchase returns ─────────────────────────────────────────────────────────
 export const purchaseReturns = pgTable(
   "purchase_returns",
   {
     id: serial("id").primaryKey(),
-    purchaseId: integer("purchase_id").notNull().references(() => purchases.id),
-    supplierId: integer("supplier_id").references(() => suppliers.id),
-    processedById: integer("processed_by_id").notNull().references(() => attendants.id),
-    shopId: integer("shop_id").notNull().references(() => shops.id),
-    // cash | credit | mpesa | bank
+    purchase: integer("purchase_id").notNull().references(() => purchases.id),
+    supplier: integer("supplier_id").references(() => suppliers.id),
+    processedBy: integer("processed_by_id").notNull().references(() => attendants.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
     paymentType: text("payment_type"),
     refundAmount: numeric("refund_amount", { precision: 14, scale: 2 }).notNull(),
     reason: text("reason"),
@@ -102,20 +93,18 @@ export const purchaseReturns = pgTable(
     sync: boolean("sync").default(false),
   },
   (table) => [
-    index("purchase_returns_shop_id_idx").on(table.shopId),
+    index("purchase_returns_shop_id_idx").on(table.shop),
   ]
 );
 
-// Products included in a purchase return
 export const purchaseReturnItems = pgTable("purchase_return_items", {
   id: serial("id").primaryKey(),
-  purchaseReturnId: integer("purchase_return_id").notNull().references(() => purchaseReturns.id, { onDelete: "cascade" }),
-  productId: integer("product_id").notNull().references(() => products.id),
+  purchaseReturn: integer("purchase_return_id").notNull().references(() => purchaseReturns.id, { onDelete: "cascade" }),
+  product: integer("product_id").notNull().references(() => products.id),
   quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
   unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
 });
 
-// ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertPurchaseSchema = createInsertSchema(purchases).omit({ id: true });
 export const insertPurchaseItemSchema = createInsertSchema(purchaseItems).omit({ id: true });
 export const insertPurchasePaymentSchema = createInsertSchema(purchasePayments).omit({ id: true });
