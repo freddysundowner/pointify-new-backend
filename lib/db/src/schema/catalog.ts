@@ -17,7 +17,6 @@ import { z } from "zod/v4";
 import { shops } from "./shop";
 import { admins, attendants } from "./identity";
 import { suppliers } from "./suppliers";
-import { measures } from "./system";
 
 // ─── Product categories ───────────────────────────────────────────────────────
 export const productCategories = pgTable(
@@ -76,8 +75,7 @@ export const products = pgTable(
     reorderLevel: numeric("reorder_level", { precision: 14, scale: 4 }).default("0"),
 
     productCategory: integer("product_category_id").references(() => productCategories.id),
-    measureUnit: integer("measure_unit_id").references(() => measures.id),
-    measureText: text("measure_text").default(""),
+    measureUnit: text("measure_unit").default(""),
     manufacturer: text("manufacturer").default(""),
     supplier: integer("supplier_id").references(() => suppliers.id),
     shop: integer("shop_id").references(() => shops.id),
