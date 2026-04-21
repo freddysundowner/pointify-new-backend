@@ -45,3 +45,39 @@ Every admin gets one auto-created attendant for sale attribution — these have 
 | shop_id | integer | one attendant, one shop |
 | last_seen | timestamp | |
 | created_at | timestamp | |
+
+---
+
+## shop.ts
+
+### shops
+A single physical or virtual location operated by an admin. One admin can own multiple shops.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | serial PK | |
+| name | text | |
+| address | text | physical address |
+| receipt_header | text | address/text printed on customer receipts |
+| category | integer | FK → shop_categories.id |
+| admin_id | integer | owning admin |
+| subscription_id | integer | active subscription (circular FK) |
+| location_lat | real | GPS latitude |
+| location_lng | real | GPS longitude |
+| currency | text | |
+| contact | text | |
+| tax_rate | numeric(6,2) | VAT / sales-tax % applied to taxable products |
+| paybill_till | text | M-Pesa till number |
+| paybill_account | text | M-Pesa account |
+| receipt_email | text | email receipts are sent from |
+| backup_email | text | email for data backups |
+| backup_interval | text | how often backups run |
+| backup_date | timestamp | last backup time |
+| show_stock_online | boolean | |
+| show_price_online | boolean | |
+| warehouse | boolean | is this shop a warehouse |
+| allow_backup | boolean | default true |
+| track_batches | boolean | enables batch/expiry tracking |
+| online_selling | boolean | default true |
+| negative_selling | boolean | allow sales below zero stock, default false |
+| created_at | timestamp | |
