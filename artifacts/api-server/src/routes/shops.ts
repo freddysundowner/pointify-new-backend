@@ -31,23 +31,28 @@ router.post("/", requireAdmin, async (req, res, next) => {
     } = req.body ?? {};
     if (!name) throw badRequest("name is required");
 
+    // Treat empty strings as "not provided" so numeric columns don't blow up
+    // with `invalid input syntax for type numeric: ""`.
+    const blank = (v: unknown) => v === undefined || v === null || v === "";
+    const numOrZero = (v: unknown) => (blank(v) ? 0 : Number(v));
+
     const [shop] = await db.insert(shops).values({
       name,
-      address: address ?? null,
-      receiptAddress: receiptAddress ?? null,
-      category: categoryId ? Number(categoryId) : null,
+      address: blank(address) ? null : String(address),
+      receiptAddress: blank(receiptAddress) ? null : String(receiptAddress),
+      category: blank(categoryId) ? null : Number(categoryId),
       admin: req.admin!.id,
-      currency: currency ?? "KES",
-      contact: phone ?? null,
-      taxRate: taxRate !== undefined ? String(taxRate) : "0",
-      paybillTill: paybillTill ?? null,
-      paybillAccount: paybillAccount ?? null,
-      ...(receiptEmail !== undefined && { receiptEmail: String(receiptEmail) }),
-      warehouseEmail: warehouseEmail ?? null,
-      backupEmail: backupEmail ?? null,
-      backupInterval: backupInterval ?? null,
-      ...(locationLat !== undefined && { locationLat: Number(locationLat) }),
-      ...(locationLng !== undefined && { locationLng: Number(locationLng) }),
+      currency: blank(currency) ? "KES" : String(currency),
+      contact: blank(phone) ? null : String(phone),
+      taxRate: blank(taxRate) ? "0" : String(taxRate),
+      paybillTill: blank(paybillTill) ? null : String(paybillTill),
+      paybillAccount: blank(paybillAccount) ? null : String(paybillAccount),
+      ...(receiptEmail !== undefined && { receiptEmail: blank(receiptEmail) ? "" : String(receiptEmail) }),
+      warehouseEmail: blank(warehouseEmail) ? null : String(warehouseEmail),
+      backupEmail: blank(backupEmail) ? null : String(backupEmail),
+      backupInterval: blank(backupInterval) ? null : String(backupInterval),
+      ...(locationLat !== undefined && { locationLat: numOrZero(locationLat) }),
+      ...(locationLng !== undefined && { locationLng: numOrZero(locationLng) }),
       ...(showStockOnline !== undefined && { showStockOnline: Boolean(showStockOnline) }),
       ...(showPriceOnline !== undefined && { showPriceOnline: Boolean(showPriceOnline) }),
       ...(isWarehouse !== undefined && { isWarehouse: Boolean(isWarehouse) }),
@@ -102,24 +107,27 @@ router.put("/:shopId", requireAdmin, async (req, res, next) => {
       isWarehouse, allowBackup, useWarehouse, trackBatches,
       allowOnlineSelling, allowNegativeSelling, isProduction } = req.body ?? {};
 
+    const blank = (v: unknown) => v === undefined || v === null || v === "";
+    const numOrZero = (v: unknown) => (blank(v) ? 0 : Number(v));
+
     const [updated] = await db.update(shops).set({
       ...(name && { name }),
-      ...(categoryId !== undefined && { category: categoryId === null ? null : Number(categoryId) }),
-      ...(address !== undefined && { address }),
+      ...(categoryId !== undefined && { category: blank(categoryId) ? null : Number(categoryId) }),
+      ...(address !== undefined && { address: blank(address) ? null : String(address) }),
       ...(currency && { currency }),
-      ...(phone !== undefined && { contact: phone }),
-      ...(taxRate !== undefined && { taxRate: String(taxRate) }),
-      ...(receiptAddress !== undefined && { receiptAddress }),
-      ...(paybillTill !== undefined && { paybillTill }),
-      ...(paybillAccount !== undefined && { paybillAccount }),
-      ...(receiptEmail !== undefined && { receiptEmail: String(receiptEmail) }),
-      ...(warehouseEmail !== undefined && { warehouseEmail }),
-      ...(backupEmail !== undefined && { backupEmail }),
-      ...(backupInterval !== undefined && { backupInterval }),
+      ...(phone !== undefined && { contact: blank(phone) ? null : String(phone) }),
+      ...(taxRate !== undefined && { taxRate: blank(taxRate) ? "0" : String(taxRate) }),
+      ...(receiptAddress !== undefined && { receiptAddress: blank(receiptAddress) ? null : String(receiptAddress) }),
+      ...(paybillTill !== undefined && { paybillTill: blank(paybillTill) ? null : String(paybillTill) }),
+      ...(paybillAccount !== undefined && { paybillAccount: blank(paybillAccount) ? null : String(paybillAccount) }),
+      ...(receiptEmail !== undefined && { receiptEmail: blank(receiptEmail) ? "" : String(receiptEmail) }),
+      ...(warehouseEmail !== undefined && { warehouseEmail: blank(warehouseEmail) ? null : String(warehouseEmail) }),
+      ...(backupEmail !== undefined && { backupEmail: blank(backupEmail) ? null : String(backupEmail) }),
+      ...(backupInterval !== undefined && { backupInterval: blank(backupInterval) ? null : String(backupInterval) }),
       ...(showStockOnline !== undefined && { showStockOnline: Boolean(showStockOnline) }),
       ...(showPriceOnline !== undefined && { showPriceOnline: Boolean(showPriceOnline) }),
-      ...(locationLat !== undefined && { locationLat: Number(locationLat) }),
-      ...(locationLng !== undefined && { locationLng: Number(locationLng) }),
+      ...(locationLat !== undefined && { locationLat: numOrZero(locationLat) }),
+      ...(locationLng !== undefined && { locationLng: numOrZero(locationLng) }),
       ...(isWarehouse !== undefined && { isWarehouse: Boolean(isWarehouse) }),
       ...(allowBackup !== undefined && { allowBackup: Boolean(allowBackup) }),
       ...(useWarehouse !== undefined && { useWarehouse: Boolean(useWarehouse) }),
