@@ -52,7 +52,6 @@ router.post("/admin/register", async (req, res, next) => {
     const { password: _, otp: __, ...safeAdmin } = admin;
 
     notifyAdminWelcome(safeAdmin);
-    notifyAdminEmailVerification(safeAdmin, otp, 10);
 
     return created(res, {
       ...safeAdmin,

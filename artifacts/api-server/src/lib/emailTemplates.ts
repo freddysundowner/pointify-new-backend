@@ -62,13 +62,23 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "admin_welcome",
     "auth",
     "Sent to a new admin immediately after they register an account.",
-    "Welcome to {{shopName}}, {{adminName}}!",
-    "Welcome aboard 🎉",
+    "Welcome to Pointify, {{adminName}} — your shop, simplified",
+    "You're in. Here's what Pointify can do for you.",
     `<p>Hi {{adminName}},</p>
-     <p>Your admin account has been created successfully.</p>
-     <p><strong>Account details</strong><br/>Email: {{adminEmail}}<br/>Username: {{adminUsername}}</p>
-     <p>Next steps: sign in and start adding your products so you can begin selling.</p>`,
-    "Hi {{adminName}}, your account has been created. Sign in and start adding your products to begin selling.",
+     <p>Welcome to Pointify — we're glad to have you. Pointify is built to help small and growing shops sell faster, keep stock under control, and understand the numbers behind the day.</p>
+     <p><strong>What you can do from day one:</strong></p>
+     <ul style="padding-left:18px;line-height:1.7">
+       <li><strong>Sell in seconds</strong> — a clean point-of-sale that works on any device, with cash, M-Pesa, card or split payments.</li>
+       <li><strong>Know your stock</strong> — real-time inventory, low-stock alerts and supplier purchase orders, all in one place.</li>
+       <li><strong>Grow loyal customers</strong> — built-in customer profiles, wallets, loyalty points and digital receipts by email.</li>
+       <li><strong>Run more than one shop</strong> — manage multiple branches and attendants from a single dashboard.</li>
+       <li><strong>See the full picture</strong> — daily sales summaries, profit reports and shift summaries that actually make sense.</li>
+       <li><strong>Earn while you grow</strong> — invite other shops with your referral link and earn commission on every signup.</li>
+     </ul>
+     <p><strong>Your account</strong><br/>Email: {{adminEmail}}<br/>Username: {{adminUsername}}</p>
+     <p>Sign in whenever you're ready and add your first product — most shops are ringing up their first sale within 10 minutes.</p>
+     <p>Welcome aboard,<br/>The Pointify team</p>`,
+    "Hi {{adminName}}, welcome to Pointify. Sell faster, track stock in real time, run loyalty and wallets, manage multiple shops, and see clear sales reports — all from one dashboard. Sign in any time to add your first product.",
   ),
   make(
     "admin_email_verification",
