@@ -19,6 +19,8 @@ import {
   jobNoSalesNudge,
   jobSubscriptionRenewalReminder,
   jobWelcomeFeaturesPitch,
+  jobSmsSubscriptionExpiryReminders,
+  jobSmsShopDormant,
 } from "./scheduledNotifications.js";
 import { jobDailyReport } from "./dailyReport.js";
 
@@ -50,11 +52,17 @@ export function startScheduler() {
   cron.schedule("25 9 * * *", () => {
     void jobWelcomeFeaturesPitch();
   });
+  cron.schedule("30 9 * * *", () => {
+    void jobSmsSubscriptionExpiryReminders();
+  });
+  cron.schedule("35 9 * * *", () => {
+    void jobSmsShopDormant();
+  });
 
   // Nightly admin digest with CSV attachments — 20:00 server time.
   cron.schedule("0 20 * * *", () => {
     void jobDailyReport();
   });
 
-  logger.info("scheduler: registered 7 daily jobs (morning nudges + 20:00 daily report)");
+  logger.info("scheduler: registered 9 daily jobs (morning nudges + SMS jobs + 20:00 daily report)");
 }

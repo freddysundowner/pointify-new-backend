@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health.js";
+import receiptsRouter from "./receipts.js";
 import authRouter from "./auth.js";
 import measuresRouter from "./measures.js";
 import shopCategoriesRouter from "./shop-categories.js";
@@ -36,6 +37,7 @@ import emailTemplatesRouter from "./email-templates.js";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use("/r", receiptsRouter);
 router.use("/auth", authRouter);
 router.use("/measures", measuresRouter);
 router.use("/shop-categories", shopCategoriesRouter);

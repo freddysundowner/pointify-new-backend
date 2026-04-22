@@ -9,6 +9,8 @@ import { notFound, badRequest, unauthorized } from "../lib/errors.js";
 import { requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifySubscriptionActivated, notifySubscriptionPaymentSuccess } from "../lib/emailEvents.js";
+import { smsSubscriptionPaymentSuccess } from "../lib/smsEvents.js";
+import { admins, shops } from "@workspace/db";
 
 const router = Router();
 
@@ -218,6 +220,18 @@ async function markSubscriptionPaid(id: number, mpesaCode?: string | null) {
       amount: String(updated.amount ?? ""),
       reference: mpesaCode ?? `PAY${Date.now()}`,
     });
+    // SMS to admin
+    void (async () => {
+      try {
+        const shop = updated.shop ? await db.query.shops.findFirst({ where: eq(shops.id, updated.shop) }) : null;
+        if (!shop?.admin) return;
+        const adm = await db.query.admins.findFirst({ where: eq(admins.id, shop.admin) });
+        if (!adm?.phone) return;
+        const pkg = updated.package ? await db.query.packages.findFirst({ where: eq(packages.id, updated.package) }) : null;
+        const shopCount = await db.$count(shops, eq(shops.admin, adm.id));
+        smsSubscriptionPaymentSuccess(adm.id, adm.phone, adm.username ?? adm.email, pkg?.name ?? "plan", shopCount);
+      } catch {}
+    })();
   }
   return updated;
 }

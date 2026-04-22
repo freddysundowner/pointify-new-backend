@@ -9,6 +9,7 @@ import { requireAdmin, requireAffiliate } from "../middlewares/auth.js";
 import { signToken } from "../lib/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifyAffiliateWelcome, notifyAffiliateCommissionEarned, notifyAffiliatePayout } from "../lib/emailEvents.js";
+import { smsAffiliateCommissionEarned } from "../lib/smsEvents.js";
 
 const router = Router();
 
@@ -192,6 +193,9 @@ router.post("/awards", requireAdmin, async (req, res, next) => {
     await db.update(affiliates).set({ wallet: newBalance }).where(eq(affiliates.id, Number(affiliateId)));
 
     notifyAffiliateCommissionEarned(affiliate, { commissionAmount, availableBalance: newBalance });
+    if (affiliate.phone) {
+      smsAffiliateCommissionEarned(affiliate.id, affiliate.phone, affiliate.name, req.admin!.email ?? "an admin", commissionAmount, newBalance);
+    }
 
     return created(res, award);
   } catch (e) { next(e); }

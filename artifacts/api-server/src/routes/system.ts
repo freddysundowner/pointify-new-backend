@@ -7,6 +7,7 @@ import { badRequest, notFound } from "../lib/errors.js";
 import { requireSuperAdmin, requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { clearEmailConfigCache } from "../lib/email.js";
+import { clearSmsConfigCache } from "../lib/sms.js";
 
 const router = Router();
 
@@ -61,10 +62,12 @@ router.put("/settings/:name", requireSuperAdmin, async (req, res, next) => {
         .where(eq(settings.name, name))
         .returning();
       if (name === "email") clearEmailConfigCache();
+      if (name === "sms") clearSmsConfigCache();
       return ok(res, updated);
     }
     const [created] = await db.insert(settings).values({ name, setting: merged }).returning();
     if (name === "email") clearEmailConfigCache();
+      if (name === "sms") clearSmsConfigCache();
     return ok(res, created);
   } catch (e) { next(e); }
 });
@@ -75,6 +78,7 @@ router.delete("/settings/:name", requireSuperAdmin, async (req, res, next) => {
     const [deleted] = await db.delete(settings).where(eq(settings.name, name)).returning();
     if (!deleted) throw notFound("Setting not found");
     if (name === "email") clearEmailConfigCache();
+      if (name === "sms") clearSmsConfigCache();
     return noContent(res);
   } catch (e) { next(e); }
 });

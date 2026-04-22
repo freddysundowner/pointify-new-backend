@@ -319,4 +319,106 @@ export async function runAllScheduledJobs() {
   await jobNoSalesNudge();
   await jobSubscriptionRenewalReminder();
   await jobWelcomeFeaturesPitch();
+  await jobSmsSubscriptionExpiryReminders();
+  await jobSmsShopDormant();
+}
+
+
+// ── Job: SMS subscription expiry reminders (5d → 1d before, then expired day) ──
+import { sendSms } from "./sms.js";
+
+export async function jobSmsSubscriptionExpiryReminders() {
+  try {
+    const now = Date.now();
+    const start = new Date(now - 0.5 * DAY);
+    const end = new Date(now + 5.5 * DAY);
+
+    const rows = await db
+      .select({
+        adminId: subscriptions.admin,
+        endDate: subscriptions.endDate,
+        username: admins.username,
+        email: admins.email,
+        phone: admins.phone,
+      })
+      .from(subscriptions)
+      .innerJoin(admins, eq(admins.id, subscriptions.admin))
+      .where(and(eq(subscriptions.isActive, true), gte(subscriptions.endDate, start), lte(subscriptions.endDate, end)));
+
+    for (const r of rows) {
+      if (!r.phone || !r.adminId) continue;
+      const ms = (r.endDate?.getTime() ?? now) - now;
+      const daysLeft = Math.round(ms / DAY);
+
+      if (daysLeft <= 0) {
+        // Expired today — send once and stop.
+        if (await alreadySent("sms_subscription_expired", r.adminId, 90)) continue;
+        const res = await sendSms({
+          adminId: r.adminId,
+          to: r.phone,
+          key: "subscription_expired",
+          vars: { adminName: r.username ?? r.email ?? "there" },
+          system: true,
+        });
+        if (res.ok) await markSent("sms_subscription_expired", r.adminId);
+      } else if (daysLeft >= 1 && daysLeft <= 5) {
+        // One reminder per day in the 5-day window — dedupe per (key+day).
+        const key = `sms_subscription_expiring_${daysLeft}d`;
+        if (await alreadySent(key, r.adminId, 1)) continue;
+        const res = await sendSms({
+          adminId: r.adminId,
+          to: r.phone,
+          key: "subscription_expiry_reminder",
+          vars: { adminName: r.username ?? r.email ?? "there", daysLeft },
+          system: true,
+        });
+        if (res.ok) await markSent(key, r.adminId);
+      }
+    }
+    logger.info({ scanned: rows.length }, "scheduler: sms subscription expiry done");
+  } catch (err) {
+    logger.error({ err }, "scheduler: jobSmsSubscriptionExpiryReminders failed");
+  }
+}
+
+// ── Job: Dormant shop SMS (no sales in last 30 days) ─────────────────────────
+export async function jobSmsShopDormant() {
+  try {
+    const now = Date.now();
+    const cutoff = new Date(now - 30 * DAY);
+
+    // Admins with at least one shop
+    const adminRows = await db
+      .selectDistinct({ id: admins.id, phone: admins.phone, username: admins.username, email: admins.email })
+      .from(admins)
+      .innerJoin(shops, eq(shops.admin, admins.id));
+
+    for (const a of adminRows) {
+      if (!a.phone) continue;
+      // Most-recent non-voided/non-refunded sale across this admin's shops
+      const [{ lastSaleAt } = { lastSaleAt: null as Date | null }] = await db
+        .select({ lastSaleAt: sql<Date | null>`MAX(${sales.createdAt})` })
+        .from(sales)
+        .innerJoin(shops, eq(shops.id, sales.shop))
+        .where(and(eq(shops.admin, a.id), inArray(sales.status, ["cashed", "credit"])));
+
+      // Dormant only if there is no sale at all OR the last sale is older than 30 days
+      const lastMs = lastSaleAt ? new Date(lastSaleAt).getTime() : 0;
+      if (lastMs && lastMs >= cutoff.getTime()) continue;
+
+      // Send at most once per 30 days per admin
+      if (await alreadySent("sms_shop_dormant_30d", a.id, 30)) continue;
+      const res = await sendSms({
+        adminId: a.id,
+        to: a.phone,
+        key: "shop_dormant_30d",
+        vars: { adminName: a.username ?? a.email ?? "there" },
+        system: true,
+      });
+      if (res.ok) await markSent("sms_shop_dormant_30d", a.id);
+    }
+    logger.info({ scanned: adminRows.length }, "scheduler: sms shop dormant done");
+  } catch (err) {
+    logger.error({ err }, "scheduler: jobSmsShopDormant failed");
+  }
 }

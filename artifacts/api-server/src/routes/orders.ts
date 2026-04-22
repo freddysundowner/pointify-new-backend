@@ -7,6 +7,7 @@ import { notFound, badRequest } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifyOrderConfirmation, notifyOrderShipped, notifyOrderDelivered, notifyOrderCancelled, notifySaleReceipt } from "../lib/emailEvents.js";
+import { notifySaleReceiptSms } from "../lib/smsEvents.js";
 
 const router = Router();
 
@@ -161,6 +162,7 @@ router.post("/:id/fulfill", requireAdminOrAttendant, async (req, res, next) => {
     });
 
     void notifySaleReceipt(result.sale.id);
+    void notifySaleReceiptSms(result.sale.id);
     return ok(res, result);
   } catch (e) { next(e); }
 });
