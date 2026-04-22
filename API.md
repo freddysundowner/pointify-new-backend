@@ -46,12 +46,14 @@ Every protected endpoint requires a Bearer token in the `Authorization` header:
 Authorization: Bearer <token>
 ```
 
-Two token types exist:
+Four token types exist:
 
 | Token type | Who | How obtained |
 |---|---|---|
 | **Admin token** | Shop owner | `POST /api/auth/admin/login` |
 | **Attendant token** | Cashier / staff | `POST /api/auth/attendant/login` |
+| **Customer token** | Online storefront customer | `POST /api/auth/customer/login` or `POST /api/auth/customer/register` |
+| **Affiliate token** | Referral partner | `POST /api/affiliates/login` |
 
 ### Roles & Permissions
 
@@ -171,11 +173,12 @@ Register a new admin account. Sends an OTP to the provided email for verificatio
 { "success": true, "data": { "admin": { ... }, "token": "<jwt>" } }
 ```
 
-**Side Effects**:
+**Side Effects** (single transaction):
 1. Insert row into `admins`.
 2. Auto-create one row in `attendants` with `username` = admin's username, no PIN/password. Link back: `admins.attendant_id` = new attendant ID, `attendants.admin_id` = new admin ID.
 3. If `affiliateCode` provided: look up `affiliates.code`, set `admins.affiliate_id`.
-4. Generate OTP, set `admins.otp` and `admins.otp_expiry` (15 minutes from now in Unix ms), send email.
+4. If `referredBy` provided: verify the referring admin exists, set `admins.referred_by_id`. **Referral credit**: when the referred admin pays their **first subscription**, increment `admins.referral_credit` on the referring admin by a configured amount (see Settings for `referral_credit_amount`). This increment happens inside `POST /api/subscriptions/:id/pay`, not at registration.
+5. Generate OTP, set `admins.otp` and `admins.otp_expiry` (15 minutes from now in Unix ms), send email.
 
 ---
 
@@ -240,6 +243,8 @@ Resend email verification OTP.
 
 **Side Effects**: Update `admins.last_seen`.
 
+**Guard**: If `admins.email_verified = false`, return `403` with code `EMAIL_NOT_VERIFIED` and a message prompting the user to verify their email. Do not issue a token.
+
 ---
 
 ### POST /api/auth/admin/forgot-password
@@ -295,10 +300,12 @@ Login a cashier/staff at the POS.
 **Response** `200`:
 
 ```json
-{ "success": true, "data": { "attendant": { ... }, "token": "<jwt>" } }
+{ "success": true, "data": { "attendant": { ... }, "token": "<jwt>", "shop": { ... } } }
 ```
 
 **Side Effects**: Update `attendants.last_seen`.
+
+**Guard**: If the matched attendant has `pin IS NULL` (it is an admin-owned attribution attendant, not a login account), return `401` with code `NOT_A_LOGIN_ACCOUNT`.
 
 ---
 
@@ -315,6 +322,32 @@ Return the currently authenticated user (admin or attendant).
 **Auth**: Admin or Attendant token
 
 **Response** `200`: Full admin or attendant object depending on token type.
+
+---
+
+### POST /api/auth/customer/register
+
+Self-registration for online customers via the public storefront. Creates a `type = online` customer account.
+
+**Auth**: Public
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | ✓ | |
+| `email` | string | ✓ | Must be unique within the shop |
+| `password` | string | ✓ | Min 6 chars, stored as bcrypt hash |
+| `phone` | string | ✗ | |
+| `shopId` | integer | ✓ | The shop (storefront) the customer is registering for |
+
+**Response** `201`:
+
+```json
+{ "success": true, "data": { "customer": { ... }, "token": "<jwt>" } }
+```
+
+**Side Effects**: Insert `customers` (`type = online`). Auto-assign `customer_no` (next sequential number for the shop).
 
 ---
 
@@ -1789,16 +1822,16 @@ Mark a subscription as paid after verifying payment.
 
 **Request Body**:
 
-| Field | Type | Required |
-|---|---|---|
-| `name` | string | ✓ |
-| `phone` | string | ✗ |
-| `email` | string | ✗ |
-| `address` | string | ✗ |
-| `country` | string | ✗ |
-| `password` | string | ✓ |
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | ✓ | |
+| `email` | string | ✓ | Used as login credential — must be unique |
+| `password` | string | ✓ | Min 6 chars, stored as bcrypt hash |
+| `phone` | string | ✗ | |
+| `address` | string | ✗ | |
+| `country` | string | ✗ | |
 
-**Side Effects**: Insert `affiliates` (`is_active = false` until admin approves). Auto-generate unique `code`.
+**Side Effects**: Insert `affiliates` (`is_active = false` until a super-admin approves via `PUT /api/admin/affiliates/:id`). Auto-generate unique `affiliates.code`.
 
 ---
 
@@ -2362,7 +2395,7 @@ Several parent records cache derived totals. These **must** be kept in sync:
 | `suppliers.wallet` | Wallet deposit/withdraw |
 | `purchases.amount_paid` | Purchase payment added |
 | `purchases.outstanding_balance` | Purchase payment added |
-| `affiliates.wallet` | Award created or withdrawal processed |
+| `affiliates.wallet` | **Incremented** when an award is created (subscription commission or manual bonus). **Decremented only when an admin approves a withdrawal** (`is_completed = true`), never on withdrawal request. |
 | `banks.balance` | Cashflow linked to bank created or deleted |
 | `email_messages.sent_count` | Campaign dispatched |
 
@@ -2398,11 +2431,11 @@ All reference numbers follow a consistent pattern and must be unique within thei
 
 These pairs reference each other. Both sides are plain integers (no `.references()`) to avoid circular dependency issues at the DB level. The application layer must maintain referential integrity:
 
-| Table A | Field | Table B | Field |
-|---|---|---|---|
-| `admins` | `attendant_id` | `attendants` | `admin_id` |
-| `shops` | `admin_id` | `admins` | `primary_shop_id` |
-| `shops` | `subscription_id` | `subscriptions` | — |
+| Table A | Field | Table B | Field | Why plain integer |
+|---|---|---|---|---|
+| `admins` | `attendant_id` | `attendants` | `admin_id` | True bidirectional reference — each row links to the other |
+| `shops` | `admin_id` | `admins` | `primary_shop_id` | True bidirectional reference — shop owns admin, admin defaults to shop |
+| `shops` | `subscription_id` | `subscription_shops` | `shop_id` | `shops.subscription_id` is a **denormalized cache** of the active subscription. Shops must be insertable before any subscription exists, so this cannot be a real FK. `subscription_shops.shop_id` IS a real FK to `shops.id`. |
 
 ### Soft Delete — Products
 

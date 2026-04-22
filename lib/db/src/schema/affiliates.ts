@@ -38,18 +38,20 @@ export const affiliates = pgTable("affiliates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   phone: text("phone"),
-  email: text("email"),
+  // Required — used as login credential
+  email: text("email").notNull().unique(),
   address: text("address"),
   country: text("country"),
-  password: text("password"),
+  // Hashed with bcrypt — required for portal login
+  password: text("password").notNull(),
   // Commission percentage earned on each subscription payment (e.g. 20 = 20%)
   commission: numeric("commission", { precision: 10, scale: 2 }).notNull().default("20"),
   // Running wallet balance — incremented on each award, decremented on withdrawals
   wallet: numeric("wallet", { precision: 14, scale: 2 }).notNull().default("0"),
   isBlocked: boolean("is_blocked").notNull().default(false),
   isActive: boolean("is_active").notNull().default(false),
-  // Unique referral code — shared with admins to use during signup
-  code: text("code").unique(),
+  // Unique referral code — auto-generated at registration, shared with admins during signup
+  code: text("code").notNull().unique(),
   otp: text("otp"),
   otpExpiry: bigint("otp_expiry", { mode: "number" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),

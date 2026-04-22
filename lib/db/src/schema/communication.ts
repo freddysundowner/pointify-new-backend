@@ -17,13 +17,15 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { shops } from "./shop";
-import { attendants } from "./identity";
+import { admins, attendants } from "./identity";
 
 // ─── Email / SMS message templates ───────────────────────────────────────────
 // Stores reusable campaign templates. A template can be sent immediately or
 // scheduled to fire at a recurring interval.
 export const emailMessages = pgTable("email_messages", {
   id: serial("id").primaryKey(),
+  // Admin who owns this template — scopes campaigns to their account
+  admin: integer("admin_id").notNull().references(() => admins.id),
   // Human-readable template name (internal label)
   name: text("name").notNull(),
   subject: text("subject").notNull(),
@@ -47,6 +49,8 @@ export const emailMessages = pgTable("email_messages", {
 // recipients received it.
 export const emailsSent = pgTable("emails_sent", {
   id: serial("id").primaryKey(),
+  // Admin who sent this campaign (nullable — retained even if admin is deleted)
+  admin: integer("admin_id").references(() => admins.id, { onDelete: "set null" }),
   subject: text("subject").notNull(),
   emailTemplate: integer("email_template_id").references(
     () => emailMessages.id,

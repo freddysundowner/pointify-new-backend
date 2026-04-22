@@ -41,7 +41,7 @@ Every admin gets one auto-created attendant for sale attribution — these have 
 | pin | text | null on admin-owned attendants |
 | password | text | null on admin-owned attendants |
 | permissions | text[] | flat `"group.subkey"` tokens e.g. `["pos.can_sell","stocks.view_products"]`. empty `[]` on creation; null on admin-owned attribution attendants |
-| admin_id | integer | owning admin |
+| admin_id | integer | NOT NULL — owning admin (always set, even for attribution-only attendants) |
 | shop_id | integer | one attendant, one shop |
 | last_seen | timestamp | |
 | created_at | timestamp | |
@@ -945,15 +945,15 @@ affiliates.code
 | id | serial PK | NO | |
 | name | text | NO | |
 | phone | text | YES | |
-| email | text | YES | |
+| email | text unique | NO | login credential — must be unique |
 | address | text | YES | |
 | country | text | YES | |
-| password | text | YES | hashed |
+| password | text | NO | bcrypt hash — required for portal login |
 | commission | numeric(10,2) | YES | % earned per subscription, default 20 |
 | wallet | numeric(14,2) | YES | running balance, default 0 |
 | is_blocked | boolean | YES | default false |
 | is_active | boolean | YES | default false |
-| code | text unique | YES | referral code — shared with admins at signup |
+| code | text unique | NO | referral code — auto-generated at registration, shared with admins at signup |
 | otp | text | YES | |
 | otp_expiry | bigint | YES | unix ms — OTP expiry timestamp |
 | created_at | timestamp | YES | |
@@ -1121,6 +1121,7 @@ Three tables covering outbound messaging and internal audit logging.
 | Field | Type | Nullable | Notes |
 |---|---|---|---|
 | id | serial PK | NO | |
+| admin_id | integer | NO | FK → admins — scopes templates to their account; all queries must filter by admin_id |
 | name | text | NO | internal template label |
 | subject | text | NO | email subject line |
 | body | text | NO | email/SMS body — supports `{username}` placeholder |
@@ -1150,6 +1151,7 @@ Three tables covering outbound messaging and internal audit logging.
 | Field | Type | Nullable | Notes |
 |---|---|---|---|
 | id | serial PK | NO | |
+| admin_id | integer | YES | FK → admins, set null on delete — retained for historical records even if admin is deleted |
 | subject | text | NO | snapshot of subject at send time |
 | email_template_id | integer | YES | FK → email_messages, set null on delete |
 | recipient_count | integer | NO | default 0 — how many were sent to |

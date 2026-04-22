@@ -44,8 +44,8 @@ export const attendants = pgTable(
     // Starts as empty array on creation. Admin populates it from the `permissions`
     // master table. Null on admin-owned attendants (attribution-only, no login).
     permissions: text("permissions").array(),
-    // FK → admins.id — which admin owns / created this attendant
-    admin: integer("admin_id"),
+    // FK → admins.id — which admin owns / created this attendant (always set)
+    admin: integer("admin_id").notNull(),
     // FK → shops.id — one attendant is always tied to one shop
     shop: integer("shop_id"),
     lastSeen: timestamp("last_seen").defaultNow(),
