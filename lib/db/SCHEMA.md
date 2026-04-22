@@ -1087,6 +1087,23 @@ The business's bank accounts. Balance is a running total updated by cashflow ent
 
 ---
 
+### payment_methods
+Shop-defined custom payment methods shown in the POS checkout screen beyond the standard enum. Examples: "Equity Bank Paybill", "Till 123456", "Lipa Number".
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| name | text | NO | label shown at POS checkout |
+| description | text | YES | optional detail |
+| is_active | boolean | NO | default true — inactive methods hidden from checkout |
+| shop_id | integer | NO | FK → shops onDelete cascade |
+| created_at | timestamp | NO | |
+
+**API notes:**
+- Cannot delete a method referenced by a `sale_payments` row — return `409`.
+
+---
+
 ### cashflows
 The main money ledger. Every money event — cash received, paid out, deposited to a bank, withdrawn from a bank — is one row.
 
@@ -1291,6 +1308,19 @@ System-wide labels for business types, shown during shop registration.
 | id | serial PK | NO | |
 | name | text | NO | e.g. Supermarket, Pharmacy, Restaurant |
 | is_active | boolean | NO | default true — inactive categories are hidden from registration |
+
+---
+
+### measures
+Global (non-shop-scoped) lookup table of unit-of-measure labels. Rendered as a dropdown when creating/editing products.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| name | text unique | NO | full label e.g. `Kilograms`, `Pieces`, `Litres` |
+| abbreviation | text | YES | short label shown on product cards e.g. `kg`, `pcs`, `L` |
+| is_active | boolean | NO | default true — inactive measures hidden from product form |
+| created_at | timestamp | NO | |
 
 ---
 

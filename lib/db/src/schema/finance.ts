@@ -126,12 +126,32 @@ export const cashflows = pgTable(
   ]
 );
 
+// ─── Custom Payment Methods ───────────────────────────────────────────────────
+// Shop-defined payment methods shown in the POS checkout screen, beyond the
+// standard enum (cash, mpesa, card, bank, credit, split).
+// Examples: "Equity Bank Paybill", "Till 123456", "M-Pesa Lipa Number".
+export const paymentMethods = pgTable(
+  "payment_methods",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    isActive: boolean("is_active").notNull().default(true),
+    shop: integer("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("payment_methods_shop_id_idx").on(table.shop),
+  ]
+);
+
 // ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertExpenseCategorySchema = createInsertSchema(expenseCategories).omit({ id: true });
 export const insertCashflowCategorySchema = createInsertSchema(cashflowCategories).omit({ id: true });
 export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true });
 export const insertBankSchema = createInsertSchema(banks).omit({ id: true });
 export const insertCashflowSchema = createInsertSchema(cashflows).omit({ id: true });
+export const insertPaymentMethodSchema = createInsertSchema(paymentMethods).omit({ id: true });
 
 export type ExpenseCategory = typeof expenseCategories.$inferSelect;
 export type InsertExpenseCategory = z.infer<typeof insertExpenseCategorySchema>;
@@ -143,3 +163,5 @@ export type Bank = typeof banks.$inferSelect;
 export type InsertBank = z.infer<typeof insertBankSchema>;
 export type Cashflow = typeof cashflows.$inferSelect;
 export type InsertCashflow = z.infer<typeof insertCashflowSchema>;
+export type PaymentMethod = typeof paymentMethods.$inferSelect;
+export type InsertPaymentMethod = z.infer<typeof insertPaymentMethodSchema>;

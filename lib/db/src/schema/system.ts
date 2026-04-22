@@ -44,6 +44,19 @@ export const shopCategories = pgTable("shop_categories", {
   isActive: boolean("is_active").notNull().default(true),
 });
 
+// ─── Measure Units ────────────────────────────────────────────────────────────
+// Global (non-shop-scoped) lookup table of unit-of-measure labels.
+// Rendered as a dropdown when creating/editing products.
+// Examples: Pieces, Kilograms, Litres, Crates, Dozens, Metres.
+export const measures = pgTable("measures", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  // Short label shown in product cards (e.g. "kg", "pcs", "L")
+  abbreviation: text("abbreviation"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 // Free-form key/value config store for platform-wide configuration.
 // `setting` is JSONB — can hold any structure (boolean, array, nested object).
@@ -60,11 +73,14 @@ export const settings = pgTable("settings", {
 // ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertPermissionSchema = createInsertSchema(permissions).omit({ id: true });
 export const insertShopCategorySchema = createInsertSchema(shopCategories).omit({ id: true });
+export const insertMeasureSchema = createInsertSchema(measures).omit({ id: true });
 export const insertSettingSchema = createInsertSchema(settings).omit({ id: true });
 
 export type Permission = typeof permissions.$inferSelect;
 export type InsertPermission = z.infer<typeof insertPermissionSchema>;
 export type ShopCategory = typeof shopCategories.$inferSelect;
 export type InsertShopCategory = z.infer<typeof insertShopCategorySchema>;
+export type Measure = typeof measures.$inferSelect;
+export type InsertMeasure = z.infer<typeof insertMeasureSchema>;
 export type Setting = typeof settings.$inferSelect;
 export type InsertSetting = z.infer<typeof insertSettingSchema>;
