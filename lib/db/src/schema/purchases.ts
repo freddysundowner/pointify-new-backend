@@ -15,7 +15,7 @@ import { z } from "zod/v4";
 import { shops } from "./shop";
 import { suppliers } from "./suppliers";
 import { attendants } from "./identity";
-import { products } from "./catalog";
+import { products, batches } from "./catalog";
 
 // ─── Purchases ────────────────────────────────────────────────────────────────
 // Records stock received from a supplier. The financial mirror of a sale —
@@ -65,6 +65,8 @@ export const purchaseItems = pgTable(
     batchCode: text("batch_code"),
     // Expiry date for this lot — stored on the batch when batch is created
     expiryDate: timestamp("expiry_date"),
+    // Set after the batch is created from this item — closes the purchase → batch traceability chain
+    batch: integer("batch_id").references(() => batches.id),
 
     createdAt: timestamp("created_at").defaultNow(),
   },
