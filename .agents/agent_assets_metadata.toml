@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "iyvobgCXgEJqBt6LqdvXx"
+uri = "file://flutter_report.md"
+type = "text"
+title = "Flutter Migration Report"
