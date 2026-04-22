@@ -27,15 +27,16 @@ export const shops = pgTable(
   "shops",
   {
     id: serial("id").primaryKey(),
-    name: text("name").notNull(),
+    name: text("name"),
     address: text("address"),
-    // Address line printed on customer receipts (may differ from shop address)
-    receiptHeader: text("receipt_header"),
+    // Address line printed on customer receipts
+    receiptAddress: text("receipt_address"),
     category: integer("shop_category_id").references(() => shopCategories.id, { onDelete: "set null" }),
 
     // Circular FKs — resolved as plain integers
     admin: integer("admin_id"),
-    subscription: integer("subscription_id"),   // FK → subscriptions.id (active subscription)
+    subscription: integer("subscription_id"),
+    affiliate: integer("affiliate_id"),
 
     // GPS coordinates
     locationLat: real("location_lat").notNull().default(0),
@@ -43,7 +44,6 @@ export const shops = pgTable(
 
     currency: text("currency"),
     contact: text("contact"),
-    // VAT / sales-tax percentage applied to taxable products
     taxRate: numeric("tax_rate", { precision: 6, scale: 2 }).notNull().default("0"),
 
     // M-Pesa / mobile-money config
@@ -52,6 +52,7 @@ export const shops = pgTable(
 
     // Email config
     receiptEmail: text("receipt_email").notNull().default(""),
+    warehouseEmail: text("warehouse_email"),
     backupEmail: text("backup_email"),
     backupInterval: text("backup_interval"),
     backupDate: timestamp("backup_date"),
@@ -59,20 +60,21 @@ export const shops = pgTable(
     // Feature flags
     showStockOnline: boolean("show_stock_online").notNull().default(false),
     showPriceOnline: boolean("show_price_online").notNull().default(false),
-    warehouse: boolean("warehouse").notNull().default(false),
-    // When true, this shop runs a production/manufacturing line.
-    // Unlocks the "production" permission group in the admin UI.
-    production: boolean("production").notNull().default(false),
+    isWarehouse: boolean("is_warehouse").notNull().default(false),
     allowBackup: boolean("allow_backup").notNull().default(true),
+    useWarehouse: boolean("use_warehouse").notNull().default(false),
     trackBatches: boolean("track_batches").notNull().default(false),
-    onlineSelling: boolean("online_selling").notNull().default(true),
-    negativeSelling: boolean("negative_selling").notNull().default(false),
+    allowOnlineSelling: boolean("allow_online_selling").notNull().default(true),
+    allowNegativeSelling: boolean("allow_negative_selling").notNull().default(false),
+    isProduction: boolean("is_production").notNull().default(false),
+    deleteWarningCount: integer("delete_warning_count").notNull().default(0),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("shops_admin_id_idx").on(table.admin),
     index("shops_subscription_id_idx").on(table.subscription),
+    index("shops_affiliate_id_idx").on(table.affiliate),
   ]
 );
 

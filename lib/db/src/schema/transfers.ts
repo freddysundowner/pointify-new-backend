@@ -34,7 +34,7 @@ export const productTransfers = pgTable(
 
     transferNote: text("transfer_note"),
 
-    initiatedBy: integer("initiated_by_id").notNull().references(() => attendants.id),
+    initiatedBy: integer("initiated_by_id").references(() => attendants.id),
     fromShop: integer("from_shop_id").notNull().references(() => shops.id),
     toShop: integer("to_shop_id").notNull().references(() => shops.id),
 

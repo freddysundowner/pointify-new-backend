@@ -8,6 +8,13 @@
       "when": 1776860002853,
       "tag": "0000_loose_sway",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776862607970,
+      "tag": "0001_shocking_stryfe",
+      "breakpoints": true
     }
   ]
 }

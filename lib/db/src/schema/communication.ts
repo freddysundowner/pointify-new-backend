@@ -109,24 +109,22 @@ export const smsCreditTransactions = pgTable(
 // scheduled to fire at a recurring interval. Scoped per admin.
 export const emailMessages = pgTable("email_messages", {
   id: serial("id").primaryKey(),
-  // Admin who owns this campaign — scopes all queries by admin_id
-  admin: integer("admin_id").notNull().references(() => admins.id, { onDelete: "cascade" }),
   // Human-readable template name (internal label)
   name: text("name").notNull(),
   subject: text("subject").notNull(),
   body: text("body").notNull(),
-  isScheduled: boolean("is_scheduled").notNull().default(false),
+  isScheduled: boolean("is_scheduled").default(false),
   // daily | once_weekly | monthly — only relevant when is_scheduled = true
-  interval: text("interval").notNull().default("monthly"),
+  interval: text("interval").default("monthly"),
   campaign: text("campaign"),
   // email | sms
-  type: text("type").notNull().default("email"),
+  type: text("type").default("email"),
   // subscribers | all | expired | dormant | custom
-  audience: text("audience").notNull().default("custom"),
+  audience: text("audience").default("custom"),
   // Comma-separated email addresses or phone numbers for audience = custom
-  audienceEmails: text("audience_emails").notNull().default(""),
-  sentCount: integer("sent_count").notNull().default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  audienceAddress: text("audience_address").default(""),
+  sentCount: integer("sent_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ─── Emails sent log ──────────────────────────────────────────────────────────
@@ -154,7 +152,6 @@ export const activities = pgTable(
   {
     id: serial("id").primaryKey(),
     action: text("action").notNull(),
-    details: text("details"),
     shop: integer("shop_id").notNull().references(() => shops.id),
     attendant: integer("attendant_id").notNull().references(() => attendants.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),

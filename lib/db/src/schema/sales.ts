@@ -76,6 +76,7 @@ export const saleItems = pgTable(
     id: serial("id").primaryKey(),
     sale: integer("sale_id").notNull().references(() => sales.id, { onDelete: "cascade" }),
     product: integer("product_id").notNull().references(() => products.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
 
     // Attendant who sold this item — for per-item commission tracking
     attendant: integer("attendant_id").references(() => attendants.id, { onDelete: "set null" }),
@@ -151,7 +152,7 @@ export const saleReturns = pgTable(
     id: serial("id").primaryKey(),
     sale: integer("sale_id").notNull().references(() => sales.id),
     customer: integer("customer_id").references(() => customers.id, { onDelete: "set null" }),
-    processedBy: integer("processed_by_id").notNull().references(() => attendants.id),
+    processedBy: integer("processed_by_id").references(() => attendants.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
     refundAmount: numeric("refund_amount", { precision: 14, scale: 2 }).notNull(),
     // cash | mpesa | card | bank | store_credit

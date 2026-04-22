@@ -39,7 +39,7 @@ import { shops } from "./shop";
 export const affiliates = pgTable("affiliates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  phone: text("phone"),
+  phone: text("phone_number"),
   // Required — used as login credential
   email: text("email").notNull().unique(),
   address: text("address"),
@@ -85,13 +85,19 @@ export const awards = pgTable(
     fromAdmin: integer("from_admin_id").references(() => admins.id, { onDelete: "set null" }),
 
     // Snapshot of the subscription amount at time of award
-    amount: numeric("amount", { precision: 14, scale: 2 }),
+    totalAmount: numeric("total_amount", { precision: 14, scale: 2 }),
     // affiliate.commission% × amount — what the affiliate actually receives
     commissionAmount: numeric("commission_amount", { precision: 14, scale: 2 }),
+    // Running affiliate wallet balance after this award
+    balance: numeric("balance", { precision: 14, scale: 2 }),
 
+    mpesaCode: text("mpesa_code"),
     paymentNo: text("payment_no").unique(),
     paymentReference: text("payment_reference"),
     currency: text("currency").notNull().default("kes"),
+
+    // Owner/admin reference
+    ownerId: integer("owner_id"),
 
     // earnings = credit to wallet | usage = debit from wallet
     type: text("type").notNull(),
@@ -122,7 +128,7 @@ export const affiliateTransactions = pgTable(
     // Wallet balance after this transaction
     balance: numeric("balance", { precision: 14, scale: 2 }).notNull(),
     transId: text("trans_id"),
-    paymentReference: text("payment_reference"),
+    mpesaCode: text("mpesa_code"),
     // withdraw = payout to affiliate | subscription = commission earned
     type: text("type").notNull(),
     isCompleted: boolean("is_completed").notNull().default(false),

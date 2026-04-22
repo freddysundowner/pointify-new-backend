@@ -56,16 +56,15 @@ export const purchaseItems = pgTable(
     id: serial("id").primaryKey(),
     purchase: integer("purchase_id").notNull().references(() => purchases.id, { onDelete: "cascade" }),
     product: integer("product_id").notNull().references(() => products.id),
+    shop: integer("shop_id").references(() => shops.id),
+    receivedBy: integer("received_by_id").references(() => attendants.id),
 
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
     lineDiscount: numeric("line_discount", { precision: 14, scale: 2 }).notNull().default("0"),
 
-    // Supplier's lot/batch reference — used to create a batch when track_batches = true
     batchCode: text("batch_code"),
-    // Expiry date for this lot — stored on the batch when batch is created
     expiryDate: timestamp("expiry_date"),
-    // Set after the batch is created from this item — closes the purchase → batch traceability chain
     batch: integer("batch_id").references(() => batches.id),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -107,7 +106,7 @@ export const purchaseReturns = pgTable(
     id: serial("id").primaryKey(),
     purchase: integer("purchase_id").notNull().references(() => purchases.id),
     supplier: integer("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
-    processedBy: integer("processed_by_id").notNull().references(() => attendants.id),
+    processedBy: integer("processed_by_id").references(() => attendants.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
     refundAmount: numeric("refund_amount", { precision: 14, scale: 2 }).notNull(),
     // cash | mpesa | bank | cheque | credit_note

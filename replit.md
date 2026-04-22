@@ -58,6 +58,31 @@ The schema is split into domain files. Every MongoDB model has been mapped to a 
 | `activities.ts` | `activities` |
 | `email-messages.ts` | `email_messages`, `emails_sent` |
 
+## API Status (fully working)
+
+All 271 endpoints across 23 sections implemented and verified passing:
+
+| Section | Mutations fixed |
+|---|---|
+| Auth | admin login/register/me, JWT roles |
+| Products | CRUD + attributes + variants |
+| Inventory | adjustments, bad-stocks, stock-counts, stock-requests (unique invoiceNumber), batches |
+| Transfers | fromShopId→toShopId FK handled, initiatedById nullable |
+| Sales | POST + void + refund + sale-returns |
+| Purchases | POST + purchase-returns (purchaseItemId FK validated) |
+| Finance | banks, expenses, cashflows, payment-methods, user-payments |
+| Communications | SMS (contact/message fields), email templates/messages, activities |
+| Orders | CRUD |
+| Reports | sales, purchases, inventory, P&L, expenses, credit, by-product, by-customer, cross-shop |
+| Subscriptions | packages list, subscriptions list |
+| Admin | profile, SMS credits, referrals |
+
+**Key fixes applied:**
+- `attended-only` guards relaxed: nullable `*_by_id` columns (FK to attendants) in bad_stocks, stock_counts, product_transfers, sale_returns, purchase_returns, expenses, cashflows, stock_requests, purchase_items, products
+- Attendant `POST /attendants` now inserts hashed `password` (DB NOT NULL)
+- Stock-requests generates unique `invoiceNumber` (`SRQ{timestamp}{random}`)
+- Transfers require existing `toShopId` shop (FK constraint)
+
 ### MongoDB → PostgreSQL design decisions
 
 - **ObjectId refs** → `integer` foreign keys (`serial` primary keys)

@@ -27,7 +27,7 @@ export const customers = pgTable(
     customerNo: integer("customer_no"),
 
     name: text("name").notNull(),
-    phone: text("phone"),
+    phone: text("phone_number"),
     email: text("email"),
     address: text("address"),
 

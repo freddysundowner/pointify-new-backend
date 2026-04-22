@@ -55,14 +55,14 @@ export const products = pgTable(
     manufacturer: text("manufacturer").notNull().default(""),
     supplier: integer("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
     shop: integer("shop_id").notNull().references(() => shops.id),
-    createdBy: integer("created_by_id").notNull().references(() => attendants.id),
+    createdBy: integer("created_by_id").references(() => attendants.id, { onDelete: "set null" }),
 
     // Media & identification
     description: text("description"),
     thumbnailUrl: text("thumbnail_url"),
     images: text("images").array().notNull().default([]),
     barcode: text("barcode"),
-    sku: text("sku"),
+    serialNumber: text("serial_number"),
 
     // product | bundle | virtual | service
     type: text("product_type").notNull().default("product"),
@@ -177,7 +177,7 @@ export const adjustments = pgTable(
     id: serial("id").primaryKey(),
     product: integer("product_id").notNull().references(() => products.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
-    adjustedBy: integer("adjusted_by_id").notNull().references(() => attendants.id),
+    adjustedBy: integer("adjusted_by_id").references(() => attendants.id),
     // add | remove
     type: text("type").notNull().default("add"),
     quantityBefore: numeric("quantity_before", { precision: 14, scale: 4 }).notNull(),
@@ -200,7 +200,7 @@ export const badStocks = pgTable(
     id: serial("id").primaryKey(),
     product: integer("product_id").notNull().references(() => products.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
-    writtenOffBy: integer("written_off_by_id").notNull().references(() => attendants.id),
+    writtenOffBy: integer("written_off_by_id").references(() => attendants.id),
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
     reason: text("reason").notNull(),
@@ -218,7 +218,7 @@ export const stockCounts = pgTable(
   "stock_counts",
   {
     id: serial("id").primaryKey(),
-    conductedBy: integer("conducted_by_id").notNull().references(() => attendants.id),
+    conductedBy: integer("conducted_by_id").references(() => attendants.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
@@ -250,7 +250,7 @@ export const stockRequests = pgTable(
   "stock_requests",
   {
     id: serial("id").primaryKey(),
-    requestedBy: integer("requested_by_id").notNull().references(() => attendants.id),
+    requestedBy: integer("requested_by_id").references(() => attendants.id),
     acceptedBy: integer("accepted_by_id").references(() => attendants.id, { onDelete: "set null" }),
     approvedBy: integer("approved_by_id").references(() => attendants.id, { onDelete: "set null" }),
     // pending | processed | correction | void | completed

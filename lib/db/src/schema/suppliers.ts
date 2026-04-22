@@ -21,7 +21,7 @@ export const suppliers = pgTable(
   {
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
-    phone: text("phone"),
+    phone: text("phone_number"),
     email: text("email"),
     address: text("address"),
 

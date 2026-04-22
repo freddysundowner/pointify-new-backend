@@ -29,7 +29,7 @@ export const packages = pgTable("packages", {
   isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   type: text("type").notNull(), // trial | production
-  shops: integer("shops"),     // max shops this plan covers
+  maxShops: integer("max_shops"),   // max shops this plan covers
 });
 
 export const packageFeatures = pgTable("package_features", {
@@ -43,11 +43,14 @@ export const subscriptions = pgTable(
   {
     id: serial("id").primaryKey(),
     admin: integer("admin_id").notNull().references(() => admins.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
     package: integer("package_id").notNull().references(() => packages.id),
-    paymentReference: text("payment_reference"),
+    mpesaCode: text("mpesa_code"),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull().default("0"),
-    invoiceNo: text("invoice_no").unique(),
+    invoiceNo: text("invoice_no"),
+    type: text("type"),
     isActive: boolean("is_active").notNull().default(false),
+    commission: numeric("commission", { precision: 14, scale: 2 }).notNull().default("0"),
     isPaid: boolean("is_paid").notNull().default(false),
     currency: text("currency").notNull().default("kes"),
     startDate: timestamp("start_date").notNull(),
@@ -56,6 +59,7 @@ export const subscriptions = pgTable(
   },
   (table) => [
     index("subscriptions_admin_id_idx").on(table.admin),
+    index("subscriptions_shop_id_idx").on(table.shop),
     index("subscriptions_end_date_idx").on(table.endDate),
   ]
 );

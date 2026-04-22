@@ -78,7 +78,7 @@ export const admins = pgTable(
     // Set if this admin registered through an affiliate link
     affiliate: integer("affiliate_id"),
     // Which admin referred this admin to the platform (self-referential)
-    referredBy: integer("referred_by_id"),
+    referredBy: integer("referral_admin_id"),
 
     // ── Referral credit ───────────────────────────────────────────────────────
     // Accumulated credit earned by referring other admins.

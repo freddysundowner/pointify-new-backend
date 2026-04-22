@@ -1,0 +1,300 @@
+import { Router } from "express";
+import { eq, and } from "drizzle-orm";
+import {
+  inventory, batches, adjustments, badStocks,
+  stockCounts, stockCountItems, stockRequests, stockRequestItems
+} from "@workspace/db";
+import { db } from "../lib/db.js";
+import { ok, created, noContent, paginated } from "../lib/response.js";
+import { notFound, badRequest } from "../lib/errors.js";
+import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
+import { getPagination } from "../lib/paginate.js";
+
+const router = Router();
+
+// ── Inventory ─────────────────────────────────────────────────────────────────
+
+router.get("/", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const productId = req.query["productId"] ? Number(req.query["productId"]) : null;
+
+    const conditions = [];
+    if (shopId) conditions.push(eq(inventory.shop, shopId));
+    if (productId) conditions.push(eq(inventory.product, productId));
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const rows = await db.query.inventory.findMany({ where, limit, offset, with: { product: true } });
+    const total = await db.$count(inventory, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.get("/item/:id", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const row = await db.query.inventory.findFirst({ where: eq(inventory.id, Number(req.params["id"])) });
+    if (!row) throw notFound("Inventory record not found");
+    return ok(res, row);
+  } catch (e) { next(e); }
+});
+
+// ── Batches ───────────────────────────────────────────────────────────────────
+
+router.get("/batches", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const productId = req.query["productId"] ? Number(req.query["productId"]) : null;
+
+    const conditions = [];
+    if (shopId) conditions.push(eq(batches.shop, shopId));
+    if (productId) conditions.push(eq(batches.product, productId));
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const rows = await db.query.batches.findMany({ where, limit, offset, orderBy: (b, { asc }) => [asc(b.expirationDate)] });
+    const total = await db.$count(batches, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+// ── Adjustments ───────────────────────────────────────────────────────────────
+
+router.get("/adjustments", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const where = shopId ? eq(adjustments.shop, shopId) : undefined;
+
+    const rows = await db.query.adjustments.findMany({ where, limit, offset, orderBy: (a, { desc }) => [desc(a.createdAt)] });
+    const total = await db.$count(adjustments, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.post("/adjustments", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { shopId, productId, quantityBefore, quantityAfter, quantity, reason, type } = req.body;
+    if (!shopId || !productId) {
+      throw badRequest("shopId and productId required");
+    }
+    const qBefore = quantityBefore ?? (quantity !== undefined ? 0 : undefined);
+    const qAfter = quantityAfter ?? (quantity !== undefined ? quantity : undefined);
+    if (qBefore === undefined || qAfter === undefined) {
+      throw badRequest("quantityBefore/quantityAfter (or quantity) required");
+    }
+
+    const diff = parseFloat(String(qAfter)) - parseFloat(String(qBefore));
+
+    const [adj] = await db.insert(adjustments).values({
+      shop: Number(shopId),
+      product: Number(productId),
+      type: type ?? (diff >= 0 ? "add" : "remove"),
+      quantityBefore: String(qBefore),
+      quantityAfter: String(qAfter),
+      quantityAdjusted: String(Math.abs(diff)),
+      reason,
+      adjustedBy: req.attendant?.id ?? undefined,
+    }).returning();
+    return created(res, adj);
+  } catch (e) { next(e); }
+});
+
+router.delete("/adjustments/:id", requireAdmin, async (req, res, next) => {
+  try {
+    await db.delete(adjustments).where(eq(adjustments.id, Number(req.params["id"])));
+    return noContent(res);
+  } catch (e) { next(e); }
+});
+
+// ── Bad Stocks ────────────────────────────────────────────────────────────────
+
+router.get("/bad-stocks", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const where = shopId ? eq(badStocks.shop, shopId) : undefined;
+
+    const rows = await db.query.badStocks.findMany({ where, limit, offset, orderBy: (b, { desc }) => [desc(b.createdAt)] });
+    const total = await db.$count(badStocks, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.post("/bad-stocks", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { shopId, productId, quantity, unitPrice, reason } = req.body;
+    if (!shopId || !productId || quantity === undefined || !reason) {
+      throw badRequest("shopId, productId, quantity and reason required");
+    }
+
+    const [row] = await db.insert(badStocks).values({
+      shop: Number(shopId),
+      product: Number(productId),
+      quantity: String(quantity),
+      unitPrice: String(unitPrice ?? 0),
+      reason,
+      writtenOffBy: req.attendant?.id ?? undefined,
+    }).returning();
+    return created(res, row);
+  } catch (e) { next(e); }
+});
+
+router.delete("/bad-stocks/:id", requireAdmin, async (req, res, next) => {
+  try {
+    await db.delete(badStocks).where(eq(badStocks.id, Number(req.params["id"])));
+    return noContent(res);
+  } catch (e) { next(e); }
+});
+
+// ── Stock Counts ──────────────────────────────────────────────────────────────
+
+router.get("/stock-counts", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const where = shopId ? eq(stockCounts.shop, shopId) : undefined;
+
+    const rows = await db.query.stockCounts.findMany({
+      where,
+      limit,
+      offset,
+      orderBy: (sc, { desc }) => [desc(sc.createdAt)],
+      with: { stockCountItems: true },
+    });
+    const total = await db.$count(stockCounts, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.post("/stock-counts", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { shopId, items } = req.body;
+    if (!shopId || !items?.length) throw badRequest("shopId and items required");
+
+    const [count] = await db.insert(stockCounts).values({
+      shop: Number(shopId),
+      conductedBy: req.attendant?.id ?? undefined,
+    }).returning();
+
+    const itemRows = await db.insert(stockCountItems).values(
+      items.map((item: any) => ({
+        stockCount: count.id,
+        product: Number(item.productId),
+        physicalCount: String(item.physicalCount ?? 0),
+        systemCount: String(item.systemCount ?? 0),
+        variance: String((parseFloat(String(item.physicalCount ?? 0)) - parseFloat(String(item.systemCount ?? 0))).toFixed(4)),
+      }))
+    ).returning();
+
+    return created(res, { ...count, items: itemRows });
+  } catch (e) { next(e); }
+});
+
+router.get("/stock-counts/:id", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const row = await db.query.stockCounts.findFirst({
+      where: eq(stockCounts.id, Number(req.params["id"])),
+      with: { stockCountItems: true },
+    });
+    if (!row) throw notFound("Stock count not found");
+    return ok(res, row);
+  } catch (e) { next(e); }
+});
+
+router.delete("/stock-counts/:id", requireAdmin, async (req, res, next) => {
+  try {
+    await db.delete(stockCounts).where(eq(stockCounts.id, Number(req.params["id"])));
+    return noContent(res);
+  } catch (e) { next(e); }
+});
+
+// ── Stock Requests ────────────────────────────────────────────────────────────
+
+router.get("/stock-requests", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const where = shopId ? eq(stockRequests.fromShop, shopId) : undefined;
+
+    const rows = await db.query.stockRequests.findMany({
+      where,
+      limit,
+      offset,
+      orderBy: (sr, { desc }) => [desc(sr.createdAt)],
+      with: { stockRequestItems: true },
+    });
+    const total = await db.$count(stockRequests, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.post("/stock-requests", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { fromShopId, warehouseId, items } = req.body;
+    if (!fromShopId || !warehouseId || !items?.length) throw badRequest("fromShopId, warehouseId and items required");
+
+    const invoiceNumber = `SRQ${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const [request] = await db.insert(stockRequests).values({
+      fromShop: Number(fromShopId),
+      warehouse: Number(warehouseId),
+      requestedBy: req.attendant?.id ?? undefined,
+      status: "pending",
+      totalValue: "0",
+      invoiceNumber,
+    }).returning();
+
+    const itemRows = await db.insert(stockRequestItems).values(
+      items.map((item: any) => ({
+        stockRequest: request.id,
+        product: Number(item.productId),
+        quantityRequested: String(item.quantity ?? 1),
+        quantityReceived: "0",
+      }))
+    ).returning();
+
+    return created(res, { ...request, items: itemRows });
+  } catch (e) { next(e); }
+});
+
+router.get("/stock-requests/:id", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const row = await db.query.stockRequests.findFirst({
+      where: eq(stockRequests.id, Number(req.params["id"])),
+      with: { stockRequestItems: true },
+    });
+    if (!row) throw notFound("Stock request not found");
+    return ok(res, row);
+  } catch (e) { next(e); }
+});
+
+router.put("/stock-requests/:id/approve", requireAdmin, async (req, res, next) => {
+  try {
+    const [updated] = await db.update(stockRequests)
+      .set({ status: "processed" })
+      .where(eq(stockRequests.id, Number(req.params["id"])))
+      .returning();
+    if (!updated) throw notFound("Stock request not found");
+    return ok(res, updated);
+  } catch (e) { next(e); }
+});
+
+router.put("/stock-requests/:id/reject", requireAdmin, async (req, res, next) => {
+  try {
+    const [updated] = await db.update(stockRequests)
+      .set({ status: "void" })
+      .where(eq(stockRequests.id, Number(req.params["id"])))
+      .returning();
+    if (!updated) throw notFound("Stock request not found");
+    return ok(res, updated);
+  } catch (e) { next(e); }
+});
+
+router.delete("/stock-requests/:id", requireAdmin, async (req, res, next) => {
+  try {
+    await db.delete(stockRequests).where(eq(stockRequests.id, Number(req.params["id"])));
+    return noContent(res);
+  } catch (e) { next(e); }
+});
+
+export default router;

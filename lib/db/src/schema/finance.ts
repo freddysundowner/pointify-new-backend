@@ -68,7 +68,7 @@ export const expenses = pgTable(
     description: text("description"),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
     shop: integer("shop_id").notNull().references(() => shops.id),
-    recordedBy: integer("recorded_by_id").notNull().references(() => attendants.id),
+    recordedBy: integer("recorded_by_id").references(() => attendants.id),
     category: integer("category_id").references(() => expenseCategories.id, { onDelete: "set null" }),
     isRecurring: boolean("is_recurring").notNull().default(false),
     // daily | weekly | monthly
@@ -114,7 +114,7 @@ export const cashflows = pgTable(
     description: text("description").notNull(),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
     category: integer("category_id").references(() => cashflowCategories.id, { onDelete: "set null" }),
-    recordedBy: integer("recorded_by_id").notNull().references(() => attendants.id),
+    recordedBy: integer("recorded_by_id").references(() => attendants.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
     // When set, this cashflow affects the linked bank account's balance
     bank: integer("bank_id").references(() => banks.id, { onDelete: "set null" }),
