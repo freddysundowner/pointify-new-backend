@@ -151,6 +151,12 @@ Maps one subscription to the shops it covers (multi-branch plans).
 | name | text | |
 | admin_id | integer | FK → admins |
 
+**API notes:**
+- Scoped per admin — an admin only sees their own categories. Always filter by `admin_id`.
+- Categories are shared across all of an admin's shops (not per-shop).
+
+---
+
 ### products
 Defines what a product IS. One record per product per shop. Stock levels live in `inventory`, not here.
 
@@ -158,14 +164,14 @@ Defines what a product IS. One record per product per shop. Stock levels live in
 |---|---|---|
 | id | serial PK | |
 | name | text | |
-| buying_price | numeric(14,2) | |
-| selling_price | numeric(14,2) | |
-| wholesale_price | numeric(14,2) | |
-| dealer_price | numeric(14,2) | |
-| min_selling_price | numeric(14,2) | |
-| max_discount | numeric(14,2) | |
+| buying_price | numeric(14,2) | cost price / purchase price |
+| selling_price | numeric(14,2) | default retail price |
+| wholesale_price | numeric(14,2) | wholesale tier price |
+| dealer_price | numeric(14,2) | dealer tier price |
+| min_selling_price | numeric(14,2) | floor price — no sale_item.unit_price can go below this |
+| max_discount | numeric(14,2) | maximum discount allowed as a percentage |
 | product_category_id | integer | FK → product_categories |
-| measure_unit | text | |
+| measure_unit | text | e.g. kg, pcs, litres |
 | manufacturer | text | |
 | supplier_id | integer | FK → suppliers |
 | shop_id | integer | FK → shops |
@@ -176,11 +182,23 @@ Defines what a product IS. One record per product per shop. Stock levels live in
 | barcode | text | |
 | sku | text | model / reference code |
 | product_type | text | product / bundle / virtual / service |
-| is_deleted | boolean | |
-| manage_by_price | boolean | |
-| is_taxable | boolean | |
+| is_deleted | boolean | soft delete — never hard delete products with sales history |
+| manage_by_price | boolean | if true, inventory changes are tracked by value not qty |
+| is_taxable | boolean | if true, apply shop.tax_rate to this product's sale_items |
 | expiry_date | timestamp | fallback when batch tracking is off |
 | created_at | timestamp | |
+
+**API notes:**
+- Products are per-shop (`shop_id`). A product in Shop A and the same product in Shop B are two separate rows.
+- When creating a product, always create its `inventory` record in the same transaction. The product without an inventory row is incomplete.
+- `is_deleted = true` is the only way to remove a product — hard delete will break sales history. Filter out `is_deleted = true` in all listing endpoints.
+- `min_selling_price` must be enforced at the API layer when building a sale: reject any `sale_items.unit_price` below this value.
+- `max_discount` is a percentage cap on `line_discount`. Validate at sale creation.
+- For bundles (`product_type = bundle`): when a bundle is sold, also decrement inventory for each component in `bundle_items` by (component.quantity × sold quantity).
+- For virtual / service products: skip inventory decrement on sale — they have no physical stock.
+- `is_taxable`: if true, compute `sale_items.tax = shop.tax_rate / 100 × unit_price × quantity`.
+
+---
 
 ### inventory
 Per-shop stock record. Always created alongside its product (1:1 with products).  
@@ -192,12 +210,20 @@ Single source of truth for stock levels — never products.
 | product_id | integer | FK → products |
 | shop_id | integer | FK → shops |
 | updated_by_id | integer | FK → attendants |
-| quantity | numeric(14,4) | current stock |
-| reorder_level | numeric(14,4) | alert threshold |
-| last_count | numeric(14,4) | last physical count qty |
-| last_count_date | timestamp | |
+| quantity | numeric(14,4) | current stock — this is the number to read and update |
+| reorder_level | numeric(14,4) | alert threshold — trigger low stock alert when quantity ≤ this |
+| last_count | numeric(14,4) | quantity recorded during last physical stock count |
+| last_count_date | timestamp | when last_count was taken |
 | status | text | active / low / out_of_stock |
 | created_at | timestamp | |
+
+**API notes:**
+- `quantity` is the single source of truth for stock. Never read or display product stock from anywhere else.
+- `status` should be auto-computed and updated whenever `quantity` changes: `quantity = 0` → out_of_stock, `quantity ≤ reorder_level` → low, else → active.
+- When `shop.track_batches = true`: `inventory.quantity` must always equal `SUM(batches.quantity)` for that product+shop. Update both in the same transaction whenever stock changes.
+- Never allow `quantity` to go below 0 unless `shop.negative_selling = true`.
+
+---
 
 ### batches
 Individual stock lots per product per shop. Used when `shop.track_batches = true`.  
@@ -208,26 +234,45 @@ Individual stock lots per product per shop. Used when `shop.track_batches = true
 | id | serial PK | |
 | product_id | integer | FK → products |
 | shop_id | integer | FK → shops |
-| buying_price | numeric(14,2) | cost for this lot |
-| quantity | numeric(14,4) | remaining in this batch |
-| total_quantity | numeric(14,4) | original received qty |
-| expiration_date | timestamp | |
-| batch_code | text | unique |
+| buying_price | numeric(14,2) | cost for this specific lot — may differ from product.buying_price |
+| quantity | numeric(14,4) | remaining stock in this batch |
+| total_quantity | numeric(14,4) | original quantity received — never changes after insert |
+| expiration_date | timestamp | used for FEFO ordering and expiry alerts |
+| batch_code | text | unique — can be supplier lot number or auto-generated |
 | created_at | timestamp | |
+
+**API notes:**
+- Batches are only relevant when `shop.track_batches = true`. Ignore this table otherwise.
+- `total_quantity` is set once at insert and never updated — it is the audit record of what arrived. `quantity` is what remains.
+- FEFO (First Expiry First Out): always allocate from the batch with the earliest `expiration_date` first when selling.
+- A batch with `quantity = 0` is exhausted — filter it out from available stock queries.
+- When a batch is added (purchase received), increment `inventory.quantity` by the batch's quantity in the same transaction.
+- `buying_price` on the batch is the correct cost to use for `sale_items.cost_price` when batch tracking is on — not `product.buying_price`.
+- Cannot delete a batch that has been referenced in `sale_item_batches` — the FK will block it.
+
+---
 
 ### product_serials
 Individual unit serials for serialised products (phones, laptops, etc.).  
-Serial tracking is implicit — if a product has rows here, it is serialised.  
-Sales line items reference the serial sold.
+Serial tracking is implicit — if a product has rows here, it is serialised.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | serial PK | |
 | product_id | integer | FK → products |
 | shop_id | integer | FK → shops |
-| serial_number | text | |
+| serial_number | text | IMEI, serial no, licence key, etc. |
 | status | text | available / sold / returned / void |
 | created_at | timestamp | |
+
+**API notes:**
+- A product is considered serialised if it has any rows in this table — no flag needed on the product itself.
+- On sale: validate serial exists, belongs to the correct product, and `status = available`. Set `status = sold` after sale is confirmed.
+- On return: set `status = returned`. It can then be resold (set back to `available` when restocked).
+- `void` is for serials that are damaged, lost, or otherwise removed from saleable stock.
+- Only one serial can map to one `sale_items` row at a time — enforce this at the API layer.
+
+---
 
 ### bundle_items
 Defines the components that make up a bundle product.
@@ -235,13 +280,21 @@ Defines the components that make up a bundle product.
 | Field | Type | Notes |
 |---|---|---|
 | id | serial PK | |
-| product_id | integer | the bundle product |
-| component_product_id | integer | the component product |
-| quantity | numeric(14,4) | how many of this component |
+| product_id | integer | the bundle product (product_type = bundle) |
+| component_product_id | integer | FK → products — the component |
+| quantity | numeric(14,4) | how many units of this component per bundle |
 | created_at | timestamp | |
 
+**API notes:**
+- When selling a bundle, deduct stock from each component: for each `bundle_items` row, decrement `inventory.quantity` by `bundle_items.quantity × sale_items.quantity`.
+- A component product can belong to multiple bundles.
+- Do not allow a bundle to reference itself as a component (circular bundle).
+- When checking stock availability for a bundle, check each component's `inventory.quantity` is sufficient before allowing the sale.
+
+---
+
 ### adjustments
-Audit log of manual stock changes outside of sales or purchases.
+Audit log of manual stock changes made outside of sales or purchases.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -250,11 +303,20 @@ Audit log of manual stock changes outside of sales or purchases.
 | shop_id | integer | FK → shops |
 | adjusted_by_id | integer | FK → attendants |
 | type | text | add / remove |
-| quantity_before | numeric(14,4) | |
-| quantity_after | numeric(14,4) | |
-| quantity_adjusted | numeric(14,4) | |
+| quantity_before | numeric(14,4) | snapshot before adjustment |
+| quantity_after | numeric(14,4) | snapshot after adjustment |
+| quantity_adjusted | numeric(14,4) | the delta |
 | reason | text | |
 | created_at | timestamp | |
+
+**API notes:**
+- Adjustments are the correct route for manual corrections, damage write-offs found during a count, or initial stock loading.
+- Always populate `quantity_before` from the current `inventory.quantity` before applying the change.
+- After inserting an adjustment, update `inventory.quantity` in the same transaction: add for `type = add`, subtract for `type = remove`.
+- `quantity_after` = `quantity_before + quantity_adjusted` (add) or `quantity_before - quantity_adjusted` (remove). Store both for auditability.
+- If batch tracking is on, also update the relevant batch quantity and note the batch in the reason or use a separate flow.
+
+---
 
 ### bad_stocks
 Records damaged, expired, or lost stock written off.
@@ -265,10 +327,17 @@ Records damaged, expired, or lost stock written off.
 | product_id | integer | FK → products |
 | shop_id | integer | FK → shops |
 | written_off_by_id | integer | FK → attendants |
-| quantity | numeric(14,4) | |
-| unit_price | numeric(14,2) | |
-| reason | text | |
+| quantity | numeric(14,4) | units written off |
+| unit_price | numeric(14,2) | cost value of each written-off unit |
+| reason | text | damaged / expired / lost |
 | created_at | timestamp | |
+
+**API notes:**
+- Writing off bad stock must also decrement `inventory.quantity` by the written-off quantity in the same transaction.
+- `unit_price` is used to calculate the financial loss: `quantity × unit_price` = value written off. Use `product.buying_price` or `batch.buying_price` if batches are tracked.
+- If batch tracking is on, identify and decrement the specific batch being written off.
+
+---
 
 ### stock_counts + stock_count_items
 A physical stock count session with its line items.
@@ -285,24 +354,32 @@ A physical stock count session with its line items.
 | id | serial PK | |
 | stock_count_id | integer | FK → stock_counts, cascades |
 | product_id | integer | FK → products |
-| physical_count | numeric(14,4) | what was physically counted |
-| system_count | numeric(14,4) | what the system recorded |
-| variance | numeric(14,4) | difference |
+| physical_count | numeric(14,4) | what was physically counted on the floor |
+| system_count | numeric(14,4) | what inventory.quantity showed at count time |
+| variance | numeric(14,4) | physical_count − system_count |
 | created_at | timestamp | |
 
+**API notes:**
+- `system_count` must be captured at the time the count item is created — snapshot `inventory.quantity` then. Do not derive it later.
+- `variance` = `physical_count − system_count`. Positive = more stock than expected (unrecorded receive). Negative = stock missing (theft, unrecorded sale, damage).
+- Applying a stock count: update `inventory.quantity = physical_count` and set `inventory.last_count = physical_count` + `inventory.last_count_date = now()` for each item.
+- Stock count application is optional — a count can be saved as a record without applying it. Provide a separate "apply count" endpoint.
+
+---
+
 ### stock_requests + stock_request_items
-A shop requests stock from a warehouse.
+A shop requests stock from a warehouse shop.
 
 | stock_requests | Type | Notes |
 |---|---|---|
 | id | serial PK | |
-| requested_by_id | integer | FK → attendants |
-| accepted_by_id | integer | FK → attendants |
-| approved_by_id | integer | FK → attendants |
+| requested_by_id | integer | FK → attendants — who raised the request |
+| accepted_by_id | integer | FK → attendants — who accepted at the warehouse |
+| approved_by_id | integer | FK → attendants — who approved dispatch |
 | status | text | pending / processed / correction / void / completed |
-| from_shop_id | integer | requesting shop |
-| warehouse_id | integer | supplying warehouse |
-| total_value | numeric(14,2) | |
+| from_shop_id | integer | the requesting shop |
+| warehouse_id | integer | the supplying warehouse (shop where warehouse = true) |
+| total_value | numeric(14,2) | value of goods requested |
 | invoice_number | text | unique |
 | accepted_at | timestamp | |
 | dispatched_at | timestamp | |
@@ -313,8 +390,15 @@ A shop requests stock from a warehouse.
 | id | serial PK | |
 | stock_request_id | integer | FK → stock_requests, cascades |
 | product_id | integer | FK → products |
-| quantity_requested | numeric(14,4) | |
-| quantity_received | numeric(14,4) | |
+| quantity_requested | numeric(14,4) | how many the shop asked for |
+| quantity_received | numeric(14,4) | how many were actually sent (may differ) |
+
+**API notes:**
+- Status flow: `pending` → `processed` (warehouse confirms) → `completed` (shop receives) or `void` (cancelled).
+- `correction` status is used when the warehouse sends a different quantity than requested — `quantity_received` is updated and status set to correction before the shop acknowledges.
+- When `completed`: increment `inventory.quantity` at `from_shop_id` by `quantity_received` for each item, and decrement `inventory.quantity` at `warehouse_id` in the same transaction.
+- `total_value` = SUM(`quantity_requested × product.buying_price`) — computed at request creation, not updated after.
+- Only shops with `warehouse = true` can be set as `warehouse_id`.
 
 ---
 
