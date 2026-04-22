@@ -33,6 +33,7 @@
 20. [System](#20-system)
 21. [Attendants](#21-attendants)
 22. [Reports](#22-reports)
+23. [Sync — Offline Data Dump](#23-sync--offline-data-dump)
 
 ---
 
@@ -322,6 +323,18 @@ Return the currently authenticated user (admin or attendant).
 **Auth**: Admin or Attendant token
 
 **Response** `200`: Full admin or attendant object depending on token type.
+
+---
+
+### PUT /api/auth/me/last-seen
+
+Update the authenticated user's `last_seen` timestamp. Called by the mobile/desktop app on startup and periodically while active.
+
+**Auth**: Admin or Attendant token
+
+**Request Body**: None.
+
+**Side Effects**: Set `admins.last_seen = NOW()` (or `attendants.last_seen`) in a single query.
 
 ---
 
@@ -725,6 +738,72 @@ Update component quantity.
 Remove a component from a bundle.
 
 **Auth**: Admin or Attendant
+
+---
+
+### Product History
+
+Per-product movement and performance analytics, all scoped to a single `productId`.
+
+#### GET /api/products/:id/sales-history
+
+All sale line items for this product across all time (or filtered by date).
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `from` + `to` + `shopId` + pagination
+
+**Response** `200`: Paginated list of `sale_items` rows joined with sale date, receipt number, attendant name, and customer name.
+
+---
+
+#### GET /api/products/:id/purchases-history
+
+All purchase line items for this product.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `from` + `to` + `shopId` + pagination
+
+**Response** `200`: Paginated list of `purchase_items` rows joined with purchase date, purchase number, and supplier name.
+
+---
+
+#### GET /api/products/:id/stock-history
+
+Stock movement history for this product — all events that changed its quantity (sales, purchases, adjustments, transfers, bad stocks, stock counts).
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `from` + `to` + `shopId` + pagination
+
+**Response** `200`: Paginated list `{ date, type, quantityChange, quantityAfter, reference }`.
+
+---
+
+#### GET /api/products/:id/summary
+
+Aggregated performance summary for this product.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `from` + `to` + `shopId`
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "totalUnitsSold": 340,
+    "totalRevenue": "...",
+    "totalUnitsPurchased": 500,
+    "totalPurchaseCost": "...",
+    "currentStock": 160,
+    "stockValue": "...",
+    "grossProfit": "..."
+  }
+}
+```
 
 ---
 
@@ -1677,6 +1756,18 @@ Create a stock transfer.
 
 ---
 
+### GET /api/products/:id/transfer-history
+
+All transfers (sent and received) involving a specific product.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `shopId` + `from` + `to` + pagination
+
+**Response** `200`: Paginated list of `transfer_items` joined with transfer metadata (date, from/to shop names, transfer number, attendant).
+
+---
+
 ## 14. Stock Operations
 
 ### Stock Adjustments
@@ -1736,6 +1827,52 @@ Damaged, expired, or lost stock written off permanently.
 #### GET /api/shops/:shopId/bad-stocks
 
 **Auth**: Admin or Attendant
+
+**Query Params**: `from` + `to` + `productId` + pagination
+
+---
+
+#### DELETE /api/bad-stocks/:id
+
+Delete a bad stock write-off record. Restores inventory.
+
+**Auth**: Admin
+
+**Side Effects**: Delete `bad_stocks` row, increment `inventory.quantity` by the written-off amount, re-evaluate `inventory.status`.
+
+---
+
+#### GET /api/shops/:shopId/bad-stocks/summary
+
+Aggregated bad stock totals — total quantity and value written off, grouped by product or date.
+
+**Auth**: Admin
+
+**Query Params**: `from` + `to` + `groupBy` (`product`|`day`|`month`, default `product`)
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "totalQuantity": 55,
+    "totalValue": "...",
+    "breakdown": [{ "productId": 1, "name": "...", "quantity": 10, "value": "..." }]
+  }
+}
+```
+
+---
+
+#### GET /api/shops/:shopId/bad-stocks/analysis
+
+Time-series analysis of bad stock write-offs, used for trend charts.
+
+**Auth**: Admin
+
+**Query Params**: `from` + `to` + `groupBy` (`day`|`week`|`month`)
+
+**Response** `200`: Array of `{ period, totalQuantity, totalValue }` data points.
 
 ---
 
@@ -1854,6 +1991,54 @@ A shop requests stock from a warehouse shop.
 
 ---
 
+#### PUT /api/stock-requests/:id
+
+Update the metadata or item quantities on a pending stock request. Only allowed when `status = pending`.
+
+**Auth**: Admin or Attendant
+
+**Request Body**: Any subset of `{ items[].stockRequestItemId, items[].quantityRequested }` or top-level request note.
+
+---
+
+#### DELETE /api/stock-requests/:id
+
+Cancel and delete a pending stock request. Only allowed when `status = pending`.
+
+**Auth**: Admin
+
+**Side Effects**: Delete `stock_request_items`, then delete `stock_requests` row.
+
+---
+
+#### DELETE /api/stock-requests/:id/items/:itemId
+
+Remove a single product line from a pending stock request.
+
+**Auth**: Admin or Attendant
+
+---
+
+#### GET /api/stock-requests/by-product/:productId
+
+All stock requests that include a specific product.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `shopId` + `status` + pagination
+
+---
+
+#### PUT /api/stock-requests/:id/status
+
+Manually set the status of a stock request.
+
+**Auth**: Admin
+
+**Request Body**: `{ "status": "pending" | "processed" | "completed" | "cancelled" }`
+
+---
+
 #### PUT /api/stock-requests/:id/accept
 
 Warehouse accepts the request and confirms available quantities.
@@ -1936,6 +2121,40 @@ Warehouse dispatches (ships) the goods.
 #### GET /api/expenses/:id / PUT /api/expenses/:id / DELETE /api/expenses/:id
 
 **Auth**: Admin
+
+---
+
+#### GET /api/shops/:shopId/expenses/stats
+
+Aggregated expense statistics for the shop — total spend, top categories, month-over-month trend.
+
+**Auth**: Admin
+
+**Query Params**: `from` + `to`
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "totalExpenses": "...",
+    "topCategories": [{ "categoryId": 1, "name": "Rent", "total": "..." }],
+    "trend": [{ "period": "2024-01", "total": "..." }]
+  }
+}
+```
+
+---
+
+#### GET /api/expense-categories/:categoryId/transactions
+
+All expense entries for a specific category.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `from` + `to` + pagination
+
+**Response** `200`: Paginated list of `expenses` rows filtered by `category_id`.
 
 ---
 
@@ -2027,6 +2246,36 @@ The main money ledger — every cash-in and cash-out event.
 #### GET /api/cashflows/:id / DELETE /api/cashflows/:id
 
 **Auth**: Admin
+
+---
+
+#### PUT /api/cashflows/:id
+
+Update the description, amount, category, or bank link on an existing cashflow entry.
+
+**Auth**: Admin
+
+**Request Body**: Any subset of `{ description, amount, categoryId, bankId }`.
+
+**Side Effects**: If `bankId` or `amount` changes, reverse the old bank balance adjustment and apply the new one in the same transaction.
+
+---
+
+#### GET /api/shops/:shopId/cashflows/total-by-category
+
+Total cashin and cashout grouped by category for a date range. Used for the cashflow summary dashboard.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `from` + `to` + `type` (`cashin`|`cashout`)
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": [{ "categoryId": 1, "categoryName": "Sales", "type": "cashin", "total": "..." }]
+}
+```
 
 ---
 
@@ -3265,6 +3514,217 @@ Suppliers the shop owes money to (credit purchases not yet fully paid).
 **Query Params**: `search` · pagination
 
 **Response** `200`: Paginated list of `suppliers` where `outstanding_balance > 0` with a breakdown of the unpaid purchases.
+
+---
+
+### GET /api/shops/:shopId/reports/profit/yearly/:year
+
+Monthly net profit breakdown for a full calendar year. Returns 12 monthly rows with revenue, COGS, bad stock write-off value, expenses, and net profit per month.
+
+**Auth**: Admin
+
+**Path Param**: `year` — 4-digit year e.g. `2024`.
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "year": 2024,
+    "months": [
+      { "month": 1, "totalSales": "...", "profitOnSales": "...", "badStockValue": "...", "totalExpenses": "...", "netProfit": "..." }
+    ],
+    "yearTotals": { "totalSales": "...", "netProfit": "..." }
+  }
+}
+```
+
+---
+
+### GET /api/shops/:shopId/reports/stock-value
+
+Total current stock value (quantity × buying price) and estimated gross profit (quantity × selling–buying price difference) across all products.
+
+**Auth**: Admin or Attendant
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "totalStockValue": "...",
+    "profitEstimate": "...",
+    "productCount": 120,
+    "outOfStockCount": 5
+  }
+}
+```
+
+---
+
+### GET /api/shops/:shopId/reports/stock-count-analysis
+
+Cross-session analysis of stock count results — total variances, most over-counted and under-counted products, and value discrepancy.
+
+**Auth**: Admin
+
+**Query Params**: `from` + `to`
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "sessionsReviewed": 12,
+    "totalVarianceQty": -34,
+    "totalVarianceValue": "...",
+    "topDiscrepancies": [{ "productId": 1, "name": "...", "totalVariance": -8 }]
+  }
+}
+```
+
+---
+
+### GET /api/shops/:shopId/reports/out-of-stock/export
+
+Export a list of all current out-of-stock (or low-stock) products to an Excel (.xlsx) file for purchase ordering.
+
+**Auth**: Admin
+
+**Query Params**: `status` (`out_of_stock`|`low`, default `out_of_stock`)
+
+**Response** `200`: Binary `.xlsx` file download with headers `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` and `Content-Disposition: attachment; filename="out-of-stock.xlsx"`.
+
+Columns: Product Name · SKU · Category · Current Qty · Reorder Level · Buying Price · Preferred Supplier.
+
+---
+
+### GET /api/shops/:shopId/reports/backup
+
+Send the shop's current data dump as an email attachment to the admin's registered email. Used as a simple backup mechanism.
+
+**Auth**: Admin
+
+**Side Effects**: Generates a JSON snapshot of the shop's core tables (products, inventory, sales, purchases, customers, suppliers) and sends it via the transactional email service.
+
+**Response** `200`: `{ "success": true, "message": "Backup sent to admin@example.com" }`
+
+---
+
+## 23. Sync — Offline Data Dump
+
+The Pointify POS supports **offline-first** operation on mobile and desktop. This section covers the data-sync endpoints that let a local device download a full shop snapshot and push back accumulated offline changes.
+
+---
+
+### GET /api/sync/:shopId
+
+Download a complete data dump for a shop — all products, inventory, customers, suppliers, sale/purchase records, settings, and lookup tables. The mobile/desktop app uses this to seed its local SQLite database on first install or after a reset.
+
+**Auth**: Admin or Attendant
+
+**Response** `200`: A large JSON object keyed by table name:
+```json
+{
+  "success": true,
+  "data": {
+    "products": [...],
+    "inventory": [...],
+    "customers": [...],
+    "suppliers": [...],
+    "sales": [...],
+    "saleItems": [...],
+    "purchases": [...],
+    "purchaseItems": [...],
+    "categories": [...],
+    "measures": [...],
+    "paymentMethods": [...],
+    "cashflowCategories": [...],
+    "expenseCategories": [...],
+    "settings": { ... },
+    "syncMeta": { "generatedAt": "2024-01-01T00:00:00Z", "shopId": 1 }
+  }
+}
+```
+
+---
+
+### POST /api/sync/dump
+
+Push a batch of offline changes from the local device to the server. The client sends all locally created/updated records since the last sync. The server applies them in the correct dependency order inside a transaction.
+
+**Auth**: Admin or Attendant token
+
+**Request Body**:
+```json
+{
+  "shopId": 1,
+  "syncedAt": "2024-01-01T12:00:00Z",
+  "sales": [...],
+  "saleItems": [...],
+  "purchases": [...],
+  "purchaseItems": [...],
+  "customers": [...],
+  "expenses": [...],
+  "cashflows": [...],
+  "adjustments": [...],
+  "badStocks": [...]
+}
+```
+
+**Side Effects**: For each record: upsert by local device-generated ID (treated as idempotent). After each upsert, apply the same inventory/balance side effects as the individual REST endpoints. Return a `conflicts` array for records that could not be applied cleanly (e.g. insufficient stock at time of sync).
+
+**Response** `200`:
+```json
+{ "success": true, "applied": 42, "skipped": 0, "conflicts": [] }
+```
+
+---
+
+### POST /api/sync/dump/online
+
+Upload a full export file (`.json` or `.csv`) from a standalone desktop database for import into the online account. Accepts `multipart/form-data` with a `file` field.
+
+**Auth**: Admin
+
+**Request Body**: `multipart/form-data`, field `file` — the export file.
+
+**Response** `200`: `{ "success": true, "imported": { "sales": 120, "purchases": 45, ... } }`
+
+---
+
+### DELETE /api/sync/:shopId
+
+Remove any temporary dump files generated for this shop on the server (cleanup after download).
+
+**Auth**: Admin or Attendant
+
+**Response** `200`: `{ "success": true }`
+
+---
+
+### GET /api/sync/database/init
+
+Returns the minimal bootstrap data needed to initialize a fresh local database (lookup tables only — measures, categories, settings, payment methods). Does **not** include transaction history.
+
+**Auth**: Admin or Attendant
+
+**Response** `200`: Subset of the full dump containing only reference/lookup tables.
+
+---
+
+### GET /api/sync/checkupdate/desktop
+
+Check whether a new version of the desktop app is available.
+
+**Auth**: Public (or Admin token)
+
+**Query Params**: `version` — the client's current semver string e.g. `1.4.2`
+
+**Response** `200`:
+```json
+{ "hasUpdate": true, "latestVersion": "1.5.0", "downloadUrl": "https://..." }
+```
 
 ---
 
