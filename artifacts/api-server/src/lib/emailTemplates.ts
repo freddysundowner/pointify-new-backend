@@ -88,9 +88,9 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "Reset your password",
     "Password reset request",
     `<p>We received a request to reset the password for <strong>{{adminEmail}}</strong>.</p>
-     <p>Click the button below to choose a new password. The link expires in {{expiryMinutes}} minutes.</p>`,
+     <p>Open this link to choose a new password (expires in {{expiryMinutes}} minutes):<br/><a href="{{resetUrl}}">{{resetUrl}}</a></p>
+     <p>If you didn't request this, you can safely ignore this email.</p>`,
     "Reset your password: {{resetUrl}} (expires in {{expiryMinutes}} minutes)",
-    { label: "Reset password", url: "{{resetUrl}}" },
   ),
   make(
     "admin_password_changed",
@@ -113,9 +113,8 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     `<p>Hi {{attendantName}},</p>
      <p>{{adminName}} has added you as an attendant at <strong>{{shopName}}</strong>.</p>
      <p><strong>Your login</strong><br/>Username: {{attendantUsername}}<br/>Temporary password: {{tempPassword}}</p>
-     <p>Please change your password after your first sign-in.</p>`,
+     <p>Sign in and change your password right after your first login.</p>`,
     "You've been added to {{shopName}} as an attendant. Username: {{attendantUsername}}, temp password: {{tempPassword}}.",
-    { label: "Sign in", url: "{{loginUrl}}" },
   ),
   make(
     "attendant_password_reset",
@@ -123,9 +122,8 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "Password reset link for an attendant.",
     "Reset your attendant password",
     "Reset your password",
-    `<p>Click below to set a new password for your attendant account at {{shopName}}.</p>`,
+    `<p>Use this link to set a new password for your attendant account at {{shopName}} (expires in {{expiryMinutes}} minutes):<br/><a href="{{resetUrl}}">{{resetUrl}}</a></p>`,
     "Reset password: {{resetUrl}}",
-    { label: "Reset password", url: "{{resetUrl}}" },
   ),
 
   // ── Customers ───────────────────────────────────────────────────────────────
@@ -136,9 +134,8 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "Welcome to {{shopName}}",
     "Thanks for joining us",
     `<p>Hi {{customerName}},</p>
-     <p>Your customer account is ready. Track your orders, view receipts, and manage loyalty rewards from your dashboard.</p>`,
+     <p>Your account at <strong>{{shopName}}</strong> is ready. Going forward you'll receive your receipts, order updates, and loyalty rewards by email.</p>`,
     "Welcome to {{shopName}}, {{customerName}}! Your account is ready.",
-    { label: "View account", url: "{{accountUrl}}" },
   ),
   make(
     "customer_otp_login",
@@ -156,9 +153,9 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "Password reset link for a customer.",
     "Reset your password",
     "Reset your password",
-    `<p>Use the link below to reset your password.</p>`,
+    `<p>Use this link to set a new password (expires in {{expiryMinutes}} minutes):<br/><a href="{{resetUrl}}">{{resetUrl}}</a></p>
+     <p>If you didn't request this, you can safely ignore this email.</p>`,
     "Reset: {{resetUrl}}",
-    { label: "Reset password", url: "{{resetUrl}}" },
   ),
 
   // ── Sales / receipts ────────────────────────────────────────────────────────
@@ -203,7 +200,6 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
      <p>Thanks for your order. We'll let you know when it ships.</p>
      <p><strong>Order #{{orderNo}}</strong> · {{itemCount}} items · {{total}}</p>`,
     "Order {{orderNo}} confirmed. Total {{total}}.",
-    { label: "Track order", url: "{{orderUrl}}" },
   ),
   make(
     "order_shipped",
@@ -212,9 +208,9 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "Order #{{orderNo}} is on the way",
     "Your order has shipped",
     `<p>Your order is on the way 🚚</p>
-     <p>Carrier: {{carrier}}<br/>Tracking: {{trackingNumber}}<br/>Estimated delivery: {{eta}}</p>`,
-    "Order {{orderNo}} shipped via {{carrier}} ({{trackingNumber}}).",
-    { label: "Track shipment", url: "{{trackingUrl}}" },
+     <p>Carrier: {{carrier}}<br/>Tracking number: <strong>{{trackingNumber}}</strong><br/>Estimated delivery: {{eta}}</p>
+     <p>Track your shipment with the carrier using the tracking number above.</p>`,
+    "Order {{orderNo}} shipped via {{carrier}} ({{trackingNumber}}). ETA {{eta}}.",
   ),
   make(
     "order_delivered",
@@ -247,7 +243,6 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     `<p>Stock for <strong>{{productName}}</strong> is running low.</p>
      <p>Current quantity: {{currentQty}} {{unit}}<br/>Threshold: {{threshold}} {{unit}}<br/>Location: {{locationName}}</p>`,
     "Low stock: {{productName}} — {{currentQty}} {{unit}} (threshold {{threshold}}).",
-    { label: "Reorder now", url: "{{reorderUrl}}" },
   ),
   make(
     "bad_stock_alert",
@@ -270,7 +265,6 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     `<p>Your <strong>{{planName}}</strong> plan is now active.</p>
      <p>Next billing date: {{nextBillingDate}}<br/>Amount: {{amount}}</p>`,
     "{{planName}} active. Next billing: {{nextBillingDate}}.",
-    { label: "Manage subscription", url: "{{billingUrl}}" },
   ),
   make(
     "subscription_renewal_reminder",
@@ -280,7 +274,6 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "Subscription renewal coming up",
     `<p>Heads up — your <strong>{{planName}}</strong> subscription will renew on {{nextBillingDate}} for {{amount}}.</p>`,
     "{{planName}} renews on {{nextBillingDate}} ({{amount}}).",
-    { label: "Manage subscription", url: "{{billingUrl}}" },
   ),
   make(
     "subscription_payment_success",
@@ -291,7 +284,6 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     `<p>We've received your payment of <strong>{{amount}}</strong> for the {{planName}} plan.</p>
      <p>Reference: {{reference}}<br/>Next billing: {{nextBillingDate}}</p>`,
     "Payment of {{amount}} received. Ref {{reference}}.",
-    { label: "Download invoice", url: "{{invoiceUrl}}" },
   ),
   make(
     "subscription_payment_failed",
@@ -301,9 +293,8 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "Payment failed",
     `<p>We couldn't process your payment of <strong>{{amount}}</strong> for {{planName}}.</p>
      <p>Reason: {{failureReason}}</p>
-     <p>Please update your payment method to avoid service interruption.</p>`,
-    "Payment of {{amount}} failed: {{failureReason}}.",
-    { label: "Update payment method", url: "{{billingUrl}}" },
+     <p>Please sign in and update your payment method to avoid service interruption.</p>`,
+    "Payment of {{amount}} failed: {{failureReason}}. Update your payment method to avoid service interruption.",
   ),
   make(
     "subscription_expired",
@@ -312,8 +303,7 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "Your subscription has expired",
     "Subscription expired",
     `<p>Your <strong>{{planName}}</strong> plan expired on {{expiredOn}}. Renew to keep using premium features.</p>`,
-    "{{planName}} expired on {{expiredOn}}.",
-    { label: "Renew now", url: "{{billingUrl}}" },
+    "{{planName}} expired on {{expiredOn}}. Renew to keep using premium features.",
   ),
 
   // ── Suppliers / purchases ───────────────────────────────────────────────────
@@ -345,7 +335,6 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
        <li>Cash on hand: {{cashOnHand}}</li>
      </ul>`,
     "Daily summary {{summaryDate}}: sales {{salesTotal}} ({{salesCount}} txns).",
-    { label: "Open report", url: "{{reportUrl}}" },
   ),
   make(
     "shift_summary",
@@ -397,9 +386,9 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "You're an affiliate now",
     `<p>Hi {{affiliateName}},</p>
      <p>Your affiliate account is live. Share your unique link to start earning commissions.</p>
-     <p>Your referral link:<br/><code>{{referralUrl}}</code></p>`,
+     <p>Your referral link:<br/><code>{{referralUrl}}</code></p>
+     <p>Sign in any time to track referrals, commissions, and payouts.</p>`,
     "Welcome! Your affiliate link: {{referralUrl}}",
-    { label: "Open dashboard", url: "{{dashboardUrl}}" },
   ),
   make(
     "affiliate_commission_earned",
