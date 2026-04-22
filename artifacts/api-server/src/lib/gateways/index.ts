@@ -37,11 +37,11 @@ export const GATEWAY_CATALOG: GatewayCatalogEntry[] = [
   {
     gateway: "sunpay",
     label: "SunPay (M-Pesa STK push)",
-    description: "Charges M-Pesa numbers via SunPay's STK push API. Used for SMS credit top-ups and admin subscription payments.",
+    description: "Charges M-Pesa numbers via SunPay's STK push API (https://sunpay.co.ke/docs). Used for SMS credit top-ups and admin subscription payments. Per-transaction callbacks land at /api/payments/sunpay/callback/:ref (no signature, scoped to one txn). Registered (account-wide) webhooks land at /api/payments/sunpay/webhook and are HMAC-verified against the webhook secret below.",
     configFields: [
-      { key: "apiKey",        label: "API key",        type: "password", required: true,  placeholder: "sk_live_…", help: "Your SunPay merchant API key. Required." },
-      { key: "baseUrl",       label: "API base URL",   type: "url",      required: false, placeholder: "https://api.sunpay.co.ke/api/v1", help: "Override only if SunPay gives you a different host." },
-      { key: "webhookSecret", label: "Webhook secret", type: "password", required: false, help: "If set, incoming SunPay webhooks must carry an HMAC-SHA256 of the raw body in the x-webhook-signature header." },
+      { key: "apiKey",        label: "API key",        type: "password", required: true,  placeholder: "sp_…", help: "SunPay merchant API key from your dashboard. Required. Sent as `Authorization: Bearer <apiKey>`." },
+      { key: "baseUrl",       label: "API base URL",   type: "url",      required: false, placeholder: "https://api.sunpay.co.ke/api/v1", help: "Defaults to SunPay's production host. Override only if you've been issued a different one." },
+      { key: "webhookSecret", label: "Webhook secret", type: "password", required: false, help: "Set this to the secret you configured in SunPay → Settings → Webhooks. We verify HMAC-SHA256 of the raw body in the X-Webhook-Signature header. Leave blank only if you have NOT registered an account-wide webhook in SunPay." },
     ],
   },
 ];
