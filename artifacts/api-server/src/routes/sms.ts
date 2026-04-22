@@ -43,18 +43,25 @@ router.get("/balance", requireAdmin, async (req, res, next) => {
 });
 
 // ── Top-up: initiate via a configured payment method ──────────────────────────
-// Body: { credits, paymentGatewayId, phone? }
-//   - credits         : how many SMS credits to buy
-//   - paymentGatewayId : id of a row in payment_methods. The row's `gateway`
-//                       drives how the charge is dispatched (only "sunpay"
-//                       currently triggers a real STK push; others reject).
-//   - phone           : M-Pesa phone to charge (defaults to admin.phone)
+// Body: { credits | amount, paymentGatewayId, phone? }
+//   - credits          : how many SMS credits (=SMSes) to buy. Charge will be
+//                        credits * pricePerCredit (KES). Provide this OR amount.
+//   - amount           : how much money (KES) to spend. Credits awarded will be
+//                        floor(amount / pricePerCredit). Provide this OR credits.
+//   - paymentGatewayId : id of a row in payment_gateways. Drives how the charge
+//                        is dispatched (only "sunpay" currently triggers STK push).
+//   - phone            : M-Pesa phone to charge (defaults to admin.phone)
 
 router.post("/top-up", requireAdmin, async (req, res, next) => {
   try {
-    const credits = Number(req.body?.credits);
+    const rawCredits = req.body?.credits;
+    const rawAmount = req.body?.amount;
+    const hasCredits = rawCredits !== undefined && rawCredits !== null && rawCredits !== "";
+    const hasAmount = rawAmount !== undefined && rawAmount !== null && rawAmount !== "";
+    if (hasCredits && hasAmount) throw badRequest("Provide either credits or amount, not both");
+    if (!hasCredits && !hasAmount) throw badRequest("Provide credits or amount");
+
     const paymentGatewayId = Number(req.body?.paymentGatewayId);
-    if (!Number.isFinite(credits) || credits <= 0) throw badRequest("credits must be a positive number");
     if (!Number.isFinite(paymentGatewayId) || paymentGatewayId <= 0) throw badRequest("paymentGatewayId required");
 
     const admin = await db.query.admins.findFirst({ where: eq(admins.id, req.admin!.id) });
@@ -68,7 +75,24 @@ router.post("/top-up", requireAdmin, async (req, res, next) => {
     const phone = String(req.body?.phone ?? admin.phone ?? "");
 
     const pricePerCredit = await getPricePerCredit();
-    const amount = Math.round(credits * pricePerCredit);
+
+    const toPositiveInt = (v: unknown, field: string): number => {
+      if (typeof v === "boolean") throw badRequest(`${field} must be a positive integer`);
+      const n = typeof v === "number" ? v : Number(String(v).trim());
+      if (!Number.isInteger(n) || n <= 0) throw badRequest(`${field} must be a positive integer`);
+      return n;
+    };
+
+    let credits: number;
+    let amount: number;
+    if (hasCredits) {
+      credits = toPositiveInt(rawCredits, "credits");
+      amount = Math.round(credits * pricePerCredit);
+    } else {
+      amount = toPositiveInt(rawAmount, "amount");
+      credits = Math.floor(amount / pricePerCredit);
+      if (credits < 1) throw badRequest(`amount KES ${amount} is below the price of one SMS (KES ${pricePerCredit})`);
+    }
     if (amount < 1) throw badRequest("computed amount is below KES 1");
 
     const externalRef = `SMSTOPUP-${admin.id}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
@@ -129,9 +153,9 @@ router.post("/top-up", requireAdmin, async (req, res, next) => {
       transactionId: result.transactionId,
       checkoutRequestId: result.checkoutRequestId,
       paymentGateway: { id: gw.id, name: gw.name, gateway: gw.gateway },
-      amount, credits, phone,
+      amount, credits, pricePerCredit, phone,
       status: "pending",
-      message: "STK push sent — confirm on your phone. Credits will be added once payment is confirmed.",
+      message: `STK push sent for KES ${amount} (${credits} SMS @ KES ${pricePerCredit} each). Confirm on your phone.`,
     });
   } catch (e) { next(e); }
 });

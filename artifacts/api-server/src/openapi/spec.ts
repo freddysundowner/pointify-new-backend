@@ -3109,10 +3109,10 @@ export const openApiSpec = {
       post: {
         tags: ["Communications"],
         summary: "Initiate SMS credit top-up via SunPay M-Pesa STK push",
-        description: "Triggers an STK push to the supplied phone for KES = credits × pricePerCredit (default 1). Credits are added only after SunPay confirms payment via webhook or status poll.",
+        description: "Triggers an STK push. Provide EITHER `credits` (number of SMSes — charge = credits × pricePerCredit) OR `amount` (KES to spend — credits awarded = floor(amount / pricePerCredit)). `pricePerCredit` is the global setting `system/settings/sms_pricing` (default 1 KES). Credits are added only after SunPay confirms payment.",
         ...auth(["Admin"]),
-        ...body({ credits: { type: "integer", minimum: 1 }, paymentGatewayId: { type: "integer", description: "id of an active payment_gateways row (e.g. SunPay) used to charge the admin" }, phone: { type: "string", description: "Defaults to admin.phone" } }, ["credits", "paymentGatewayId"]),
-        responses: ok("STK push initiated — returns externalRef for polling"),
+        ...body({ credits: { type: "integer", minimum: 1, description: "Number of SMSes to buy. Mutually exclusive with `amount`." }, amount: { type: "integer", minimum: 1, description: "KES to spend. Mutually exclusive with `credits`. Credits awarded = floor(amount / pricePerCredit)." }, paymentGatewayId: { type: "integer", description: "id of an active payment_gateways row (e.g. SunPay) used to charge the admin" }, phone: { type: "string", description: "Defaults to admin.phone" } }, ["paymentGatewayId"]),
+        responses: { 201: { description: "STK push initiated — returns externalRef for polling" } },
       },
     },
     "/sms/top-up/{ref}": {
