@@ -14,10 +14,36 @@
  */
 
 import { db } from "./db.js";
-import { admins, communications, settings, smsCreditTransactions } from "@workspace/db";
+import { admins, communications, settings, smsCreditTransactions, smsTemplates } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { logger } from "./logger.js";
 import { SMS_TEMPLATES_BY_KEY, renderSms } from "./smsTemplates.js";
+
+// Template body cache — refreshed every 60s so super-admin edits propagate
+// without needing a server restart.
+let tplCache: { value: Map<string, { body: string; isActive: boolean }>; loadedAt: number } = {
+  value: new Map(),
+  loadedAt: 0,
+};
+const TPL_CACHE_TTL_MS = 60 * 1000;
+
+async function loadTemplateBody(key: string): Promise<{ body: string; isActive: boolean } | null> {
+  if (Date.now() - tplCache.loadedAt > TPL_CACHE_TTL_MS) {
+    try {
+      const rows = await db.query.smsTemplates.findMany();
+      const map = new Map<string, { body: string; isActive: boolean }>();
+      for (const r of rows) map.set(r.name, { body: r.body, isActive: r.isActive });
+      tplCache = { value: map, loadedAt: Date.now() };
+    } catch (err) {
+      logger.warn({ err }, "sms: failed to refresh template cache");
+    }
+  }
+  return tplCache.value.get(key) ?? null;
+}
+
+export function clearSmsTemplateCache() {
+  tplCache = { value: new Map(), loadedAt: 0 };
+}
 
 type SmsConfig = {
   provider?: string;
@@ -105,9 +131,15 @@ async function chargeCredit(adminId: number) {
 
 export async function sendSms(input: SendSmsInput): Promise<SendSmsResult> {
   const { adminId, to, key, vars, system } = input;
-  const tpl = SMS_TEMPLATES_BY_KEY[key];
-  if (!tpl) return { ok: false, skipped: `unknown sms template: ${key}` };
-  const message = renderSms(tpl.body, vars ?? {});
+
+  // Prefer the editable DB row; fall back to the in-code default if the row
+  // hasn't been seeded yet or the DB lookup failed.
+  const dbTpl = await loadTemplateBody(key);
+  if (dbTpl && !dbTpl.isActive) return { ok: false, skipped: `sms template inactive: ${key}` };
+  const codeTpl = SMS_TEMPLATES_BY_KEY[key];
+  const body = dbTpl?.body ?? codeTpl?.body;
+  if (!body) return { ok: false, skipped: `unknown sms template: ${key}` };
+  const message = renderSms(body, vars ?? {});
   if (!to) return { ok: false, skipped: "no recipient phone" };
 
   const cfg = await loadConfig();

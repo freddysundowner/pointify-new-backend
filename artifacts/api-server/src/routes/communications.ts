@@ -8,6 +8,7 @@ import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant, requireSuperAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
+import { clearSmsTemplateCache } from "../lib/sms.js";
 
 const router = Router();
 
@@ -154,6 +155,7 @@ router.post("/sms-templates", requireSuperAdmin, async (req, res, next) => {
     const isActive = req.body?.isActive === undefined ? true : Boolean(req.body.isActive);
 
     const [row] = await db.insert(smsTemplates).values({ name, body, description, isActive }).returning();
+    clearSmsTemplateCache();
     return created(res, row);
   } catch (e) { next(e); }
 });
@@ -171,6 +173,7 @@ router.put("/sms-templates/:id", requireSuperAdmin, async (req, res, next) => {
     if (req.body?.isActive !== undefined) patch["isActive"] = Boolean(req.body.isActive);
 
     const [row] = await db.update(smsTemplates).set(patch).where(eq(smsTemplates.id, id)).returning();
+    clearSmsTemplateCache();
     return ok(res, row);
   } catch (e) { next(e); }
 });
@@ -180,6 +183,7 @@ router.delete("/sms-templates/:id", requireSuperAdmin, async (req, res, next) =>
     const id = Number(req.params["id"]);
     const [row] = await db.delete(smsTemplates).where(eq(smsTemplates.id, id)).returning();
     if (!row) throw notFound("SMS template not found");
+    clearSmsTemplateCache();
     return ok(res, { id });
   } catch (e) { next(e); }
 });

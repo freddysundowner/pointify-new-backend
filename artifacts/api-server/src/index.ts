@@ -1,7 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./lib/scheduler";
-import { seedDefaultPaymentMethods } from "./lib/seedDefaults";
+import { seedDefaultPaymentMethods, seedDefaultSmsTemplates } from "./lib/seedDefaults";
 
 const rawPort = process.env["PORT"];
 
@@ -25,5 +25,6 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   void seedDefaultPaymentMethods();
+  void seedDefaultSmsTemplates();
   startScheduler();
 });
