@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { sales, saleItems, salePayments, products, inventory, customers } from "@workspace/db";
+import { sales, saleItems, salePayments, products, inventory, customers, paymentMethods } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -10,6 +10,26 @@ import { notifySaleReceipt } from "../lib/emailEvents.js";
 import { notifySaleReceiptSms } from "../lib/smsEvents.js";
 
 const router = Router();
+
+// Resolve a free-form payment-method label to a row in the global
+// payment_methods catalog. Case-insensitive match on `name`. Throws 400
+// if the method is unknown or inactive — keeps sales.paymentType /
+// sale_payments.paymentType honest and consistent across reports.
+async function resolvePaymentMethodName(input: string | undefined | null): Promise<string> {
+  const wanted = (input ?? "Cash").trim();
+  if (!wanted) throw badRequest("paymentMethod required");
+  const row = await db.query.paymentMethods.findFirst({
+    where: and(eq(sql`lower(${paymentMethods.name})`, wanted.toLowerCase()), eq(paymentMethods.isActive, true)),
+  });
+  if (!row) {
+    const active = await db.query.paymentMethods.findMany({
+      where: eq(paymentMethods.isActive, true),
+      columns: { name: true },
+    });
+    throw badRequest(`unknown payment method "${wanted}". allowed: ${active.map((m) => m.name).join(", ")}`);
+  }
+  return row.name;
+}
 
 router.get("/cross-shop", requireAdmin, async (req, res, next) => {
   try {
@@ -62,6 +82,8 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     } = req.body;
     if (!shopId || !items?.length) throw badRequest("shopId and items required");
 
+    const methodName = await resolvePaymentMethodName(paymentMethod);
+
     let totalAmount = 0;
     for (const item of items) {
       totalAmount += (item.price ?? 0) * (item.quantity ?? 1);
@@ -83,7 +105,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       amountPaid: String(paid),
       outstandingBalance: String(outstanding),
       saleType: saleType ?? "Retail",
-      paymentType: paymentMethod ?? "cash",
+      paymentType: methodName,
       status: outstanding > 0 ? "credit" : "cashed",
       saleNote: note,
       receiptNo,
@@ -110,7 +132,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         receivedBy: req.attendant.id,
         amount: String(paid),
         balance: String(outstanding),
-        paymentType: paymentMethod ?? "cash",
+        paymentType: methodName,
       });
     }
 
@@ -189,6 +211,7 @@ router.post("/:id/payments", requireAdminOrAttendant, async (req, res, next) => 
     const sale = await db.query.sales.findFirst({ where: eq(sales.id, saleId) });
     if (!sale) throw notFound("Sale not found");
 
+    const methodName = await resolvePaymentMethodName(method);
     const payerId = req.attendant?.id ?? undefined;
 
     const newPaid = (parseFloat(sale.amountPaid) + parseFloat(String(amount))).toFixed(2);
@@ -199,7 +222,7 @@ router.post("/:id/payments", requireAdminOrAttendant, async (req, res, next) => 
       receivedBy: payerId,
       amount: String(amount),
       balance: String(newOutstanding.toFixed(2)),
-      paymentType: method,
+      paymentType: methodName,
       paymentReference: reference,
     }).returning();
 
