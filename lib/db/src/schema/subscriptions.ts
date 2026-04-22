@@ -26,7 +26,7 @@ export const packages = pgTable("packages", {
   amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
   amountUsd: numeric("amount_usd", { precision: 14, scale: 2 }).notNull(),
   discount: numeric("discount", { precision: 6, scale: 2 }).notNull().default("0"),
-  isActive: boolean("is_active").default(true),
+  isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   type: text("type").notNull(), // trial | production
   shops: integer("shops"),     // max shops this plan covers
@@ -47,9 +47,9 @@ export const subscriptions = pgTable(
     paymentReference: text("payment_reference"),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull().default("0"),
     invoiceNo: text("invoice_no").unique(),
-    isActive: boolean("is_active").default(false),
-    isPaid: boolean("is_paid").default(false),
-    currency: text("currency").default("kes"),
+    isActive: boolean("is_active").notNull().default(false),
+    isPaid: boolean("is_paid").notNull().default(false),
+    currency: text("currency").notNull().default("kes"),
     startDate: timestamp("start_date").notNull(),
     endDate: timestamp("end_date"),
     createdAt: timestamp("created_at").defaultNow(),

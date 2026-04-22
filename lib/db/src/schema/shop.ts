@@ -51,19 +51,19 @@ export const shops = pgTable(
     paybillAccount: text("paybill_account"),
 
     // Email config
-    receiptEmail: text("receipt_email").default(""),
+    receiptEmail: text("receipt_email").notNull().default(""),
     backupEmail: text("backup_email"),
     backupInterval: text("backup_interval"),
     backupDate: timestamp("backup_date"),
 
     // Feature flags
-    showStockOnline: boolean("show_stock_online").default(false),
-    showPriceOnline: boolean("show_price_online").default(false),
-    warehouse: boolean("warehouse").default(false),
-    allowBackup: boolean("allow_backup").default(true),
-    trackBatches: boolean("track_batches").default(false),
-    onlineSelling: boolean("online_selling").default(true),
-    negativeSelling: boolean("negative_selling").default(false),
+    showStockOnline: boolean("show_stock_online").notNull().default(false),
+    showPriceOnline: boolean("show_price_online").notNull().default(false),
+    warehouse: boolean("warehouse").notNull().default(false),
+    allowBackup: boolean("allow_backup").notNull().default(true),
+    trackBatches: boolean("track_batches").notNull().default(false),
+    onlineSelling: boolean("online_selling").notNull().default(true),
+    negativeSelling: boolean("negative_selling").notNull().default(false),
 
     createdAt: timestamp("created_at").defaultNow(),
   },

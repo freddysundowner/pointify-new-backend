@@ -86,12 +86,12 @@ export const admins = pgTable(
     // ── Verification ──────────────────────────────────────────────────────────
     otp: text("otp"),
     otpExpiry: bigint("otp_expiry", { mode: "number" }),
-    emailVerified: boolean("email_verified").default(false),
-    phoneVerified: boolean("phone_verified").default(false),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    phoneVerified: boolean("phone_verified").notNull().default(false),
     emailVerificationDate: timestamp("email_verification_date"),
 
     // ── Device / app metadata ─────────────────────────────────────────────────
-    autoPrint: boolean("auto_print").default(true),
+    autoPrint: boolean("auto_print").notNull().default(true),
     platform: text("platform"),
     appVersion: text("app_version"),
 

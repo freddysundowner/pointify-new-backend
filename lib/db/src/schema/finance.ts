@@ -68,7 +68,7 @@ export const expenses = pgTable(
     shop: integer("shop_id").notNull().references(() => shops.id),
     recordedBy: integer("recorded_by_id").notNull().references(() => attendants.id),
     category: integer("category_id").references(() => expenseCategories.id),
-    isRecurring: boolean("is_recurring").default(false),
+    isRecurring: boolean("is_recurring").notNull().default(false),
     // daily | weekly | monthly
     frequency: text("frequency"),
     nextOccurrenceAt: timestamp("next_occurrence_at"),

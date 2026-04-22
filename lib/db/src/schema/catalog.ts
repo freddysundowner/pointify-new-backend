@@ -50,8 +50,8 @@ export const products = pgTable(
 
     // Classification
     category: integer("product_category_id").references(() => productCategories.id),
-    measureUnit: text("measure_unit").default(""),
-    manufacturer: text("manufacturer").default(""),
+    measureUnit: text("measure_unit").notNull().default(""),
+    manufacturer: text("manufacturer").notNull().default(""),
     supplier: integer("supplier_id").references(() => suppliers.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
     createdBy: integer("created_by_id").notNull().references(() => attendants.id),
@@ -59,16 +59,16 @@ export const products = pgTable(
     // Media & identification
     description: text("description"),
     thumbnailUrl: text("thumbnail_url"),
-    images: text("images").array().default([]),
+    images: text("images").array().notNull().default([]),
     barcode: text("barcode"),
     sku: text("sku"),
 
     // product | bundle | virtual | service
-    type: text("product_type").default("product"),
+    type: text("product_type").notNull().default("product"),
 
-    isDeleted: boolean("is_deleted").default(false),
-    manageByPrice: boolean("manage_by_price").default(false),
-    isTaxable: boolean("is_taxable").default(false),
+    isDeleted: boolean("is_deleted").notNull().default(false),
+    manageByPrice: boolean("manage_by_price").notNull().default(false),
+    isTaxable: boolean("is_taxable").notNull().default(false),
 
     expiryDate: timestamp("expiry_date"),
     createdAt: timestamp("created_at").defaultNow(),
@@ -115,7 +115,7 @@ export const productSerials = pgTable(
     shop: integer("shop_id").notNull().references(() => shops.id),
     serialNumber: text("serial_number").notNull(),
     // available | sold | returned | void
-    status: text("status").default("available"),
+    status: text("status").notNull().default("available"),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
@@ -140,7 +140,7 @@ export const inventory = pgTable(
     lastCount: numeric("last_count", { precision: 14, scale: 4 }).notNull().default("0"),
     lastCountDate: timestamp("last_count_date"),
     // active | low | out_of_stock
-    status: text("status").default("active"),
+    status: text("status").notNull().default("active"),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
@@ -178,7 +178,7 @@ export const adjustments = pgTable(
     shop: integer("shop_id").notNull().references(() => shops.id),
     adjustedBy: integer("adjusted_by_id").notNull().references(() => attendants.id),
     // add | remove
-    type: text("type").default("add"),
+    type: text("type").notNull().default("add"),
     quantityBefore: numeric("quantity_before", { precision: 14, scale: 4 }).notNull(),
     quantityAfter: numeric("quantity_after", { precision: 14, scale: 4 }).notNull(),
     quantityAdjusted: numeric("quantity_adjusted", { precision: 14, scale: 4 }).notNull(),
@@ -253,7 +253,7 @@ export const stockRequests = pgTable(
     acceptedBy: integer("accepted_by_id").references(() => attendants.id),
     approvedBy: integer("approved_by_id").references(() => attendants.id),
     // pending | processed | correction | void | completed
-    status: text("status").default("pending"),
+    status: text("status").notNull().default("pending"),
     fromShop: integer("from_shop_id").notNull().references(() => shops.id),
     warehouse: integer("warehouse_id").notNull().references(() => shops.id),
     totalValue: numeric("total_value", { precision: 14, scale: 2 }).notNull().default("0"),

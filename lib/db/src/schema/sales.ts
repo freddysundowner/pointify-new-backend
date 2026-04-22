@@ -40,11 +40,11 @@ export const sales = pgTable(
     outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).notNull().default("0"),
 
     // Retail | Dealer | Wholesale | Order
-    saleType: text("sale_type").default("Retail"),
+    saleType: text("sale_type").notNull().default("Retail"),
     // cash | credit | mpesa | card | bank | split
-    paymentType: text("payment_type").default("cash"),
+    paymentType: text("payment_type").notNull().default("cash"),
     // cashed | credit | refunded | voided
-    status: text("status").default("cashed"),
+    status: text("status").notNull().default("cashed"),
 
     saleNote: text("sale_note"),
     dueDate: timestamp("due_date"),   // for credit sales
@@ -91,9 +91,9 @@ export const saleItems = pgTable(
     saleNote: text("sale_note"),
 
     // Retail | Dealer | Wholesale — which pricing tier was applied to this item
-    saleType: text("sale_type").default("Retail"),
+    saleType: text("sale_type").notNull().default("Retail"),
     // cashed | returned — item-level status for tracking partial returns
-    status: text("status").default("cashed"),
+    status: text("status").notNull().default("cashed"),
 
     createdAt: timestamp("created_at").defaultNow(),
   },

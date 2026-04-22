@@ -29,7 +29,7 @@ export const orders = pgTable(
     orderNo: text("order_no").unique(),
 
     // pending | completed | cancelled
-    status: text("status").default("pending"),
+    status: text("status").notNull().default("pending"),
 
     orderNote: text("order_note"),
 

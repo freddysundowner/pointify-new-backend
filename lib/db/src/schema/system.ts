@@ -12,7 +12,7 @@ import { z } from "zod/v4";
 export const shopCategories = pgTable("shop_categories", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  isActive: boolean("is_active").default(true),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 // ─── Settings ─────────────────────────────────────────────────────────────────

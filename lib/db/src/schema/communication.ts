@@ -28,17 +28,17 @@ export const emailMessages = pgTable("email_messages", {
   name: text("name").notNull(),
   subject: text("subject").notNull(),
   body: text("body").notNull(),
-  isScheduled: boolean("is_scheduled").default(false),
+  isScheduled: boolean("is_scheduled").notNull().default(false),
   // daily | once_weekly | monthly — only relevant when is_scheduled = true
-  interval: text("interval").default("monthly"),
+  interval: text("interval").notNull().default("monthly"),
   campaign: text("campaign"),
   // email | sms
-  type: text("type").default("email"),
+  type: text("type").notNull().default("email"),
   // subscribers | all | expired | dormant | custom
-  audience: text("audience").default("custom"),
+  audience: text("audience").notNull().default("custom"),
   // Comma-separated email addresses or phone numbers for audience = custom
-  audienceEmails: text("audience_emails").default(""),
-  sentCount: integer("sent_count").default(0),
+  audienceEmails: text("audience_emails").notNull().default(""),
+  sentCount: integer("sent_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
