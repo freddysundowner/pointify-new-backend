@@ -1008,3 +1008,96 @@ affiliates.code
 - On withdrawal approval by admin: set `is_completed = true`, set `payment_reference`, decrement `affiliates.wallet` — all in one transaction.
 - `balance` must be calculated and stored at insert time: previous balance ± affiliate_amount.
 - `balance` after a `withdraw` row must never go below 0 — validate before inserting.
+
+---
+
+## finance.ts
+
+### Overview
+
+Five tables forming the business money ledger. The owner can see all money flowing in and out, track bank account balances, and record operational expenses.
+
+**Removed from original stub:** `user_payments` table — replaced by `customer_wallet_transactions` (customers.ts) and `supplier_wallet_transactions` (suppliers.ts).
+
+---
+
+### expense_categories
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| name | text | NO | |
+| shop_id | integer | YES | FK → shops |
+| created_at | timestamp | YES | |
+
+---
+
+### cashflow_categories
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| name | text | NO | |
+| shop_id | integer | YES | FK → shops |
+| type | text | NO | `cashin` \| `cashout` |
+| created_at | timestamp | YES | |
+
+---
+
+### expenses
+Operational outgoings — rent, salaries, utilities, etc.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| expense_no | text unique | YES | auto-generate on insert (e.g. EXP12345) |
+| description | text | YES | |
+| amount | numeric(14,2) | NO | |
+| shop_id | integer | YES | FK → shops |
+| recorded_by_id | integer | NO | FK → attendants |
+| category_id | integer | YES | FK → expense_categories |
+| is_recurring | boolean | YES | default false |
+| frequency | text | YES | `daily` \| `weekly` \| `monthly` — required when is_recurring = true |
+| next_occurrence_at | timestamp | YES | when to auto-create the next recurrence |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- When `is_recurring = true`, `frequency` is required and `next_occurrence_at` must be calculated and set on insert.
+- A background job should query `expenses WHERE is_recurring = true AND next_occurrence_at <= NOW()`, auto-create a new expense row, and advance `next_occurrence_at` to the next interval.
+
+---
+
+### banks
+The business's bank accounts. Balance is a running total updated by cashflow entries.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| name | text | NO | account name / label |
+| balance | numeric(14,2) | NO | running total, default 0 |
+| shop_id | integer | NO | FK → shops |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- `balance` must only be updated via cashflow entries that reference this bank — never updated directly.
+- When a cashflow with `bank_id` is inserted: if `cashflow_categories.type = cashin`, increment `banks.balance`; if `cashout`, decrement. Both in the same transaction.
+
+---
+
+### cashflows
+The main money ledger. Every money event — cash received, paid out, deposited to a bank, withdrawn from a bank — is one row.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| cashflow_no | text unique | YES | auto-generate on insert (e.g. CF12345) |
+| description | text | NO | |
+| amount | numeric(14,2) | NO | |
+| category_id | integer | YES | FK → cashflow_categories — determines cashin or cashout |
+| recorded_by_id | integer | NO | FK → attendants |
+| shop_id | integer | NO | FK → shops |
+| bank_id | integer | YES | FK → banks — when set, update banks.balance in same transaction |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- `category_id` is the source of truth for direction (cashin/cashout). Always join to `cashflow_categories` to get the type when building reports.
+- When `bank_id` is set: update `banks.balance` atomically with the cashflow insert — cashin increments, cashout decrements.
+- Never allow a cashout that would push `banks.balance` below zero — validate before insert.
