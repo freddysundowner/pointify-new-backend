@@ -26,8 +26,20 @@ app.use(
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
+
+// Skip JSON parsing for payment-gateway webhook routes — those handlers mount
+// their own `express.raw()` so signature verification can hash the exact bytes
+// the provider sent. If we let the global JSON parser run first it consumes
+// the stream and the route-level raw parser sees an empty body.
+const WEBHOOK_PATH_RE = /^\/api\/payments\/[^/]+\/webhook\/?$/;
+app.use((req, res, next) => {
+  if (WEBHOOK_PATH_RE.test(req.path)) return next();
+  return express.json({ limit: "10mb" })(req, res, next);
+});
+app.use((req, res, next) => {
+  if (WEBHOOK_PATH_RE.test(req.path)) return next();
+  return express.urlencoded({ extended: true })(req, res, next);
+});
 
 app.get("/api/openapi.json", (_req, res) => res.json(openApiSpec));
 
