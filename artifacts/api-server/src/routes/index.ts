@@ -30,6 +30,7 @@ import syncRouter from "./sync.js";
 import permissionsRouter from "./permissions.js";
 import activitiesRouter from "./activities.js";
 import shopScopedRouter from "./shop-scoped.js";
+import systemRouter from "./system.js";
 
 const router: IRouter = Router();
 
@@ -39,6 +40,7 @@ router.use("/measures", measuresRouter);
 router.use("/shop-categories", shopCategoriesRouter);
 router.use("/shops", shopsRouter);
 router.use("/settings", settingsRouter);
+router.use("/system", systemRouter);
 router.use("/product-categories", productCategoriesRouter);
 router.use("/products", productsRouter);
 router.use("/bundle-items", bundleItemsRouter);
