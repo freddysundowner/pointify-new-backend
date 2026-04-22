@@ -562,3 +562,76 @@ Line items for a return — which products were returned and how many.
 - `quantity` must be ≤ `sale_items.quantity`. Validate before insert.
 - Cannot return the same `sale_item_id` more than once across all return records (prevent double-return). Check existing `sale_return_items` for the same `sale_item_id` before inserting.
 - After insert, increment `inventory.quantity` by the returned quantity for each product.
+
+---
+
+## customers.ts
+
+### Overview
+
+Two tables: `customers` (main record) and `customer_wallet_transactions` (audit log of wallet activity).
+
+`wallet` = pre-paid store credit the customer has deposited (always ≥ 0).  
+`outstanding_balance` = total unpaid debt from credit sales (cached from `sales`).  
+These are two distinct concepts — never mix them.
+
+---
+
+### customers
+One record per customer per shop. Customers are not shared across shops.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| customer_no | integer | YES | sequential reference number, unique per shop. Auto-generate on insert |
+| name | text | NO | |
+| phone | text | YES | |
+| email | text | YES | |
+| address | text | YES | |
+| password | text | YES | only set when type = online. Must be bcrypt hashed before insert |
+| otp | text | YES | |
+| otp_expiry | bigint | YES | unix ms — check against Date.now() |
+| type | text | YES | retail / wholesale / dealer / online |
+| credit_limit | numeric(14,2) | YES | max credit allowed. NULL = no credit for this customer |
+| wallet | numeric(14,2) | YES | pre-paid store credit. default 0. never goes below 0 |
+| outstanding_balance | numeric(14,2) | YES | cached — SUM(sales.outstanding_balance) for this customer |
+| shop_id | integer | NO | FK → shops |
+| created_by_id | integer | YES | FK → attendants |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- `customer_no` must be auto-generated at insert time: SELECT MAX(customer_no) WHERE shop_id = ? and increment by 1. Do this inside the insert transaction.
+- `type` auto-sets the pricing tier at the POS: retail → `product.selling_price`, wholesale → `product.wholesale_price`, dealer → `product.dealer_price`. The attendant can still override per item.
+- `credit_limit` enforcement: before creating a credit sale, check that `outstanding_balance + new_sale_amount ≤ credit_limit`. Reject if exceeded (unless credit_limit is NULL, which means no credit allowed at all).
+- `outstanding_balance` must be updated (incremented) when a credit sale is created, and decremented when a `sale_payments` row is inserted against one of their credit sales.
+- `wallet` must never go below 0 — validate before any deduction.
+- Cannot delete a customer with `outstanding_balance > 0`. Block at the API layer.
+- For online customers: `password` is required, `shop_id` is not required (online customers are global). `type = online`.
+- `customerVerify` endpoint: check if phone or email already exists before creating — return `exists: true/false`.
+
+---
+
+### customer_wallet_transactions
+Audit log of every change to a customer's wallet. One row per transaction.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| customer_id | integer | NO | FK → customers |
+| shop_id | integer | NO | FK → shops |
+| handled_by_id | integer | YES | FK → attendants — who processed this transaction |
+| type | text | NO | deposit / withdraw / payment / refund |
+| amount | numeric(14,2) | NO | the transaction amount |
+| balance | numeric(14,2) | NO | wallet balance after this transaction (running balance) |
+| payment_no | text | YES | auto-generated reference (e.g. REC1234567) |
+| payment_reference | text | YES | external ref — M-Pesa code, bank ref |
+| payment_type | text | YES | cash / mpesa / card / bank |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- Every change to `customers.wallet` must be accompanied by an insert into this table in the same transaction — this is the audit trail.
+- `balance` = `customers.wallet` value after the transaction is applied. Snapshot it at insert time.
+- `type` meanings: `deposit` = customer pays money in (wallet increases). `withdraw` = customer takes money out (wallet decreases). `payment` = wallet used to settle a credit sale (wallet decreases, `sales.outstanding_balance` decreases). `refund` = refund credited to wallet (wallet increases).
+- When `type = payment`: also update `sales.outstanding_balance` and `sales.amount_paid` for the sale being settled, and update `customers.outstanding_balance` — all in the same transaction.
+- Wallet payment flow (paying off credit sales with wallet): apply to oldest unpaid credit sales first (ordered by `sales.created_at ASC`). If wallet amount exceeds all debt, remainder stays in wallet.
+- `payment_no`: auto-generate if not provided (e.g. `REC` + random 7-digit number).
