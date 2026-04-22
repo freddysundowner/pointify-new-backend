@@ -2733,9 +2733,6 @@ export const openApiSpec = {
     "/admin/shops": {
       get: { tags: ["Admin"], summary: "List shops across admins (super-admin)", ...auth(["Admin"]), parameters: [...paginationParams, { name: "adminId", in: "query", schema: { type: "integer" } }], responses: list("Shops") },
     },
-    "/admin/subscriptions/summary": {
-      get: { tags: ["Subscriptions"], summary: "Admin subscription dashboard summary", ...auth(["Admin"]), responses: ok("Summary") },
-    },
     "/admin/affiliates": {
       get: { tags: ["Affiliates"], summary: "List affiliates (super-admin)", ...auth(["Admin"]), parameters: [...paginationParams, searchParam], responses: list("Affiliates") },
       post: {
@@ -2825,10 +2822,6 @@ export const openApiSpec = {
         responses: ok("Adjusted"),
       },
     },
-    "/admin/subscriptions": {
-      get: { tags: ["Subscriptions"], summary: "All subscriptions (super-admin)", ...auth(["Admin"]), parameters: [...paginationParams], responses: list("Subscriptions") },
-    },
-
     // ── Affiliates (self-service) ─────────────────────────────────────────────
     "/affiliates/register": {
       post: {
