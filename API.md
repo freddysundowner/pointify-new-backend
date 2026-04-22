@@ -1805,7 +1805,7 @@ Mark a subscription as paid after verifying payment.
 **Side Effects** (one DB transaction):
 1. Set `subscriptions.is_paid = true`, `is_active = true`, `payment_reference`.
 2. For each shop in `subscription_shops`: set `shops.subscription_id = subscription.id`.
-3. **Affiliate commission**: look up `admins.affiliate_id`. If set, check `affiliates` record. Calculate `commission_amount = affiliates.commission% × amount`. Insert `awards` (`type = earnings`, `award_type = subscription`). Increment `affiliates.wallet`. Insert `affiliate_transactions` (`type = subscription`).
+3. **Affiliate commission**: look up `admins.affiliate_id`. If set, check `affiliates` record. Calculate `commission_amount = affiliates.commission% × amount`. Insert `awards` (`type = earnings`, `award_type = subscription`). Increment `affiliates.wallet`. Insert `affiliate_transactions` (`type = subscription`, `is_completed = true` — earnings are immediately settled).
 4. **Referral credit**: if `admins.referral_credit > 0`, apply it as a discount: effective payment = `amount − referral_credit` (floor at 0). Deduct the used amount from `admins.referral_credit` in the same transaction.
 
 ---

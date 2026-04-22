@@ -11,8 +11,10 @@
  *     → admin pays subscription → awards record created
  *     → affiliates.wallet += awards.commission_amount
  *     → affiliate_transactions row written (type = subscription)
- *     → affiliate requests payout → affiliate_transactions row (type = withdraw)
- *                                  → affiliates.wallet -= amount
+ *     → affiliate requests payout → affiliate_transactions row (type = withdraw, is_completed = false)
+ *                                  → affiliates.wallet UNCHANGED at this point
+ *       → admin approves withdrawal → is_completed = true
+ *                                   → affiliates.wallet -= amount
  */
 import {
   pgTable,

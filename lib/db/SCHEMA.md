@@ -931,8 +931,10 @@ affiliates.code
   → admin pays subscription → awards row created
   → affiliates.wallet += awards.commission_amount
   → affiliate_transactions row (type = subscription)
-  → affiliate requests payout → affiliate_transactions row (type = withdraw)
-                               → affiliates.wallet -= amount
+  → affiliate requests payout → affiliate_transactions row (type = withdraw, is_completed = false)
+                               → affiliates.wallet UNCHANGED at this point
+    → admin approves withdrawal → is_completed = true
+                                → affiliates.wallet -= amount
 ```
 
 **Circular FK note:** `admins.affiliate_id` is a plain integer (no `.references()`) because `affiliates.ts` imports from `identity.ts`, making a reverse FK a circular import. The relationship is enforced at the application layer.
@@ -949,10 +951,10 @@ affiliates.code
 | address | text | YES | |
 | country | text | YES | |
 | password | text | NO | bcrypt hash — required for portal login |
-| commission | numeric(10,2) | YES | % earned per subscription, default 20 |
-| wallet | numeric(14,2) | YES | running balance, default 0 |
-| is_blocked | boolean | YES | default false |
-| is_active | boolean | YES | default false |
+| commission | numeric(10,2) | NO | % earned per subscription, default 20 |
+| wallet | numeric(14,2) | NO | running balance, default 0 |
+| is_blocked | boolean | NO | default false |
+| is_active | boolean | NO | default false — set to true only after super-admin approval |
 | code | text unique | NO | referral code — auto-generated at registration, shared with admins at signup |
 | otp | text | YES | |
 | otp_expiry | bigint | YES | unix ms — OTP expiry timestamp |
@@ -977,7 +979,7 @@ affiliates.code
 | commission_amount | numeric(14,2) | YES | `amount × affiliate.commission%` at time of award |
 | payment_no | text unique | YES | unique reference for this award |
 | payment_reference | text | YES | e.g. M-Pesa transaction code |
-| currency | text | YES | default 'kes' |
+| currency | text | NO | default 'kes' |
 | type | text | NO | `earnings` = credit to wallet \| `usage` = debit from wallet |
 | award_type | text | YES | `subscription` = recurring commission \| `open_shop` = one-time bonus |
 | created_at | timestamp | YES | |
@@ -993,14 +995,14 @@ affiliates.code
 | Field | Type | Nullable | Notes |
 |---|---|---|---|
 | id | serial PK | NO | |
-| amount | numeric(14,2) | YES | total amount of the transaction |
+| amount | numeric(14,2) | NO | total amount of the transaction |
 | affiliate_amount | numeric(14,2) | YES | affiliate's cut (= commission_amount for earnings; = amount for withdrawals) |
-| balance | numeric(14,2) | YES | wallet balance after this transaction |
+| balance | numeric(14,2) | NO | wallet balance after this transaction |
 | trans_id | text | YES | internal transaction ID |
 | payment_reference | text | YES | e.g. M-Pesa code for withdrawals |
 | type | text | NO | `subscription` = commission earned \| `withdraw` = payout requested |
-| is_completed | boolean | YES | false = withdrawal pending approval; true = paid out |
-| affiliate_id | integer | YES | FK → affiliates |
+| is_completed | boolean | NO | default false — set to true when admin approves a withdrawal; always true for subscription earnings |
+| affiliate_id | integer | NO | FK → affiliates |
 | admin_id | integer | YES | FK → admins — who approved/processed the withdrawal |
 | created_at | timestamp | YES | |
 
