@@ -39,7 +39,7 @@ export const emailMessages = pgTable("email_messages", {
   // Comma-separated email addresses or phone numbers for audience = custom
   audienceEmails: text("audience_emails").notNull().default(""),
   sentCount: integer("sent_count").notNull().default(0),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // ─── Emails sent log ──────────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ export const emailsSent = pgTable("emails_sent", {
     { onDelete: "set null" }
   ),
   recipientCount: integer("recipient_count").notNull().default(0),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // ─── Activities ───────────────────────────────────────────────────────────────
@@ -68,7 +68,7 @@ export const activities = pgTable(
     details: text("details"),
     shop: integer("shop_id").notNull().references(() => shops.id),
     attendant: integer("attendant_id").notNull().references(() => attendants.id),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("activities_shop_id_idx").on(table.shop),

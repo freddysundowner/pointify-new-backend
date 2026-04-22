@@ -34,7 +34,7 @@ export const suppliers = pgTable(
     outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).notNull().default("0"),
 
     shop: integer("shop_id").notNull().references(() => shops.id),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("suppliers_shop_id_idx").on(table.shop),
@@ -70,7 +70,7 @@ export const supplierWalletTransactions = pgTable(
     // cash | mpesa | card | bank | cheque
     paymentType: text("payment_type"),
 
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("swt_supplier_id_idx").on(table.supplier),

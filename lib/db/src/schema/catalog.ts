@@ -71,7 +71,7 @@ export const products = pgTable(
     isTaxable: boolean("is_taxable").notNull().default(false),
 
     expiryDate: timestamp("expiry_date"),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("products_shop_id_idx").on(table.shop),
@@ -97,7 +97,7 @@ export const batches = pgTable(
     totalQuantity: numeric("total_quantity", { precision: 14, scale: 4 }).notNull().default("0"),
     expirationDate: timestamp("expiration_date"),
     batchCode: text("batch_code").unique(),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("batches_product_shop_idx").on(table.product, table.shop),
@@ -116,7 +116,7 @@ export const productSerials = pgTable(
     serialNumber: text("serial_number").notNull(),
     // available | sold | returned | void
     status: text("status").notNull().default("available"),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     unique("product_serials_number_shop_unique").on(table.serialNumber, table.shop),
@@ -141,7 +141,7 @@ export const inventory = pgTable(
     lastCountDate: timestamp("last_count_date"),
     // active | low | out_of_stock
     status: text("status").notNull().default("active"),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     unique("inventory_product_shop_unique").on(table.product, table.shop),
@@ -159,7 +159,7 @@ export const bundleItems = pgTable(
     product: integer("product_id").notNull().references(() => products.id),           // the bundle
     componentProduct: integer("component_product_id").notNull().references(() => products.id), // the component
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     unique("bundle_items_product_component_unique").on(table.product, table.componentProduct),
@@ -183,7 +183,7 @@ export const adjustments = pgTable(
     quantityAfter: numeric("quantity_after", { precision: 14, scale: 4 }).notNull(),
     quantityAdjusted: numeric("quantity_adjusted", { precision: 14, scale: 4 }).notNull(),
     reason: text("reason"),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("adjustments_product_shop_idx").on(table.product, table.shop),
@@ -203,7 +203,7 @@ export const badStocks = pgTable(
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
     reason: text("reason").notNull(),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("bad_stocks_shop_id_idx").on(table.shop),
@@ -219,7 +219,7 @@ export const stockCounts = pgTable(
     id: serial("id").primaryKey(),
     conductedBy: integer("conducted_by_id").notNull().references(() => attendants.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("stock_counts_shop_id_idx").on(table.shop),
@@ -235,7 +235,7 @@ export const stockCountItems = pgTable(
     physicalCount: numeric("physical_count", { precision: 14, scale: 4 }).notNull(),
     systemCount: numeric("system_count", { precision: 14, scale: 4 }).notNull(),
     variance: numeric("variance", { precision: 14, scale: 4 }).notNull(),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     unique("stock_count_items_count_product_unique").on(table.stockCount, table.product),
@@ -260,7 +260,7 @@ export const stockRequests = pgTable(
     invoiceNumber: text("invoice_number").unique(),
     acceptedAt: timestamp("accepted_at"),
     dispatchedAt: timestamp("dispatched_at"),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("stock_requests_from_shop_idx").on(table.fromShop),

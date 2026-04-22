@@ -42,7 +42,7 @@ export const productTransfers = pgTable(
     // created at the receiving shop for this transfer
     purchase: integer("purchase_id").references(() => purchases.id),
 
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("product_transfers_from_shop_idx").on(table.fromShop),

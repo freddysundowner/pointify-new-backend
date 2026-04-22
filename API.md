@@ -317,6 +317,57 @@ Return the currently authenticated user (admin or attendant).
 
 ---
 
+### POST /api/auth/customer/login
+
+Login for online customers (`customers.type = online`). Used by the public storefront, not the POS.
+
+**Auth**: Public
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `email` | string | ✓ | |
+| `password` | string | ✓ | |
+
+**Response** `200`:
+
+```json
+{ "success": true, "data": { "customer": { ... }, "token": "<jwt>" } }
+```
+
+**Side Effects**: None.
+
+---
+
+### POST /api/auth/customer/forgot-password
+
+Send password-reset OTP to the customer's email.
+
+**Auth**: Public
+
+**Request Body**: `{ "email": "string" }`
+
+**Side Effects**: Generate OTP, set `customers.otp` and `customers.otp_expiry` (15 min), send email.
+
+---
+
+### POST /api/auth/customer/reset-password
+
+**Auth**: Public
+
+**Request Body**:
+
+| Field | Type | Required |
+|---|---|---|
+| `email` | string | ✓ |
+| `otp` | string | ✓ |
+| `newPassword` | string | ✓ |
+
+**Side Effects**: Update `customers.password` (bcrypt hash), clear OTP fields.
+
+---
+
 ## 3. Shops
 
 ### GET /api/shops
@@ -351,6 +402,7 @@ Create a new shop for the authenticated admin.
 | `paybillTill` | string | ✗ | M-Pesa till number |
 | `paybillAccount` | string | ✗ | M-Pesa account |
 | `warehouse` | boolean | ✗ | Is this shop a warehouse hub |
+| `production` | boolean | ✗ | Runs a production/manufacturing line — unlocks `production` permission group |
 | `trackBatches` | boolean | ✗ | Enable batch/expiry tracking |
 | `negativeSelling` | boolean | ✗ | Allow sales when stock = 0 |
 | `onlineSelling` | boolean | ✗ | Default `true` |
@@ -1764,7 +1816,7 @@ Request payout.
 | `paymentType` | string | ✓ | Preferred payout method |
 | `paymentReference` | string | ✗ | Bank account, M-Pesa number, etc. |
 
-**Side Effects**: Insert `affiliate_transactions` (`type = withdraw`, `is_completed = false`). Decrement `affiliates.wallet`. Admin must then mark as completed.
+**Side Effects**: Insert `affiliate_transactions` (`type = withdraw`, `is_completed = false`). **Do NOT decrement `affiliates.wallet` yet** — wallet is only decremented when an admin approves the withdrawal (`is_completed = true`).
 
 ---
 

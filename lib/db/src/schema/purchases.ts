@@ -38,7 +38,7 @@ export const purchases = pgTable(
     shop: integer("shop_id").notNull().references(() => shops.id),
     supplier: integer("supplier_id").references(() => suppliers.id),
     createdBy: integer("created_by_id").references(() => attendants.id),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("purchases_shop_id_idx").on(table.shop),
@@ -68,7 +68,7 @@ export const purchaseItems = pgTable(
     // Set after the batch is created from this item — closes the purchase → batch traceability chain
     batch: integer("batch_id").references(() => batches.id),
 
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("purchase_items_purchase_id_idx").on(table.purchase),
@@ -92,7 +92,7 @@ export const purchasePayments = pgTable(
     paymentReference: text("payment_reference"),
     // cash | mpesa | bank | cheque
     paymentType: text("payment_type"),
-    paidAt: timestamp("paid_at").defaultNow(),
+    paidAt: timestamp("paid_at").notNull().defaultNow(),
   },
   (table) => [
     index("purchase_payments_purchase_id_idx").on(table.purchase),
@@ -115,7 +115,7 @@ export const purchaseReturns = pgTable(
     refundReference: text("refund_reference"),
     reason: text("reason"),
     returnNo: text("return_no").notNull().unique(),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("purchase_returns_shop_id_idx").on(table.shop),

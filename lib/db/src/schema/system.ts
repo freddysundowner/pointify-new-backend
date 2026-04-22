@@ -53,8 +53,8 @@ export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   setting: jsonb("setting"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // ─── Schemas / types ──────────────────────────────────────────────────────────

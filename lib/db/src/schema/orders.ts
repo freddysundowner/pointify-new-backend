@@ -37,7 +37,7 @@ export const orders = pgTable(
     customer: integer("customer_id").references(() => customers.id),
     attendant: integer("attendant_id").references(() => attendants.id),
 
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("orders_shop_id_idx").on(table.shop),

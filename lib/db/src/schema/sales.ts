@@ -54,7 +54,7 @@ export const sales = pgTable(
     attendant: integer("attendant_id").references(() => attendants.id),
     order: integer("order_id").references(() => orders.id),
 
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("sales_shop_id_idx").on(table.shop),
@@ -95,7 +95,7 @@ export const saleItems = pgTable(
     // cashed | returned — item-level status for tracking partial returns
     status: text("status").notNull().default("cashed"),
 
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("sale_items_sale_id_idx").on(table.sale),
@@ -136,7 +136,7 @@ export const salePayments = pgTable(
     paymentReference: text("payment_reference"),
     // cash | mpesa | card | bank | wallet
     paymentType: text("payment_type").notNull(),
-    paidAt: timestamp("paid_at").defaultNow(),
+    paidAt: timestamp("paid_at").notNull().defaultNow(),
   },
   (table) => [
     index("sale_payments_sale_id_idx").on(table.sale),
@@ -159,7 +159,7 @@ export const saleReturns = pgTable(
     refundReference: text("refund_reference"),
     reason: text("reason"),
     returnNo: text("return_no").notNull().unique(),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("sale_returns_shop_id_idx").on(table.shop),

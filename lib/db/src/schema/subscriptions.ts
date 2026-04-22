@@ -52,7 +52,7 @@ export const subscriptions = pgTable(
     currency: text("currency").notNull().default("kes"),
     startDate: timestamp("start_date").notNull(),
     endDate: timestamp("end_date"),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("subscriptions_admin_id_idx").on(table.admin),

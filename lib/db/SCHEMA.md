@@ -40,7 +40,7 @@ Every admin gets one auto-created attendant for sale attribution — these have 
 | username | text | display name on receipts |
 | pin | text | null on admin-owned attendants |
 | password | text | null on admin-owned attendants |
-| permissions | text[] | e.g. ["sales","reports"]. null on admin-owned |
+| permissions | text[] | flat `"group.subkey"` tokens e.g. `["pos.can_sell","stocks.view_products"]`. empty `[]` on creation; null on admin-owned attribution attendants |
 | admin_id | integer | owning admin |
 | shop_id | integer | one attendant, one shop |
 | last_seen | timestamp | |
@@ -75,7 +75,8 @@ A single physical or virtual location operated by an admin. One admin can own mu
 | backup_date | timestamp | last backup time |
 | show_stock_online | boolean | |
 | show_price_online | boolean | |
-| warehouse | boolean | is this shop a warehouse |
+| warehouse | boolean | is this shop a warehouse hub — enables stock requests |
+| production | boolean | runs a production/manufacturing line — unlocks the `production` permission group |
 | allow_backup | boolean | default true |
 | track_batches | boolean | enables batch/expiry tracking |
 | online_selling | boolean | default true |
@@ -121,7 +122,7 @@ A billing record created when an admin subscribes.
 | id | serial PK | |
 | admin_id | integer | owning admin |
 | package_id | integer | FK → packages |
-| mpesa_code | text | M-Pesa payment reference |
+| payment_reference | text | payment reference (e.g. M-Pesa code, bank ref) |
 | amount | numeric(14,2) | amount charged |
 | invoice_no | text | |
 | is_active | boolean | |
@@ -954,7 +955,7 @@ affiliates.code
 | is_active | boolean | YES | default false |
 | code | text unique | YES | referral code — shared with admins at signup |
 | otp | text | YES | |
-| otp_expiry | text | YES | |
+| otp_expiry | bigint | YES | unix ms — OTP expiry timestamp |
 | created_at | timestamp | YES | |
 
 **API notes:**
@@ -1179,7 +1180,27 @@ Audit log — one row per notable attendant action in a shop.
 
 ### Overview
 
-Two global reference/config tables with no shop or admin scope. Seeded by platform admins.
+Three global reference/config tables with no shop or admin scope. Seeded or managed by super-admins.
+
+---
+
+### permissions
+
+Master catalogue of all permission groups and their sub-permissions. The admin UI reads this table to render the permission checklist when editing an attendant's profile.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| key | text unique | NO | machine-readable group name e.g. `pos`, `stocks`, `warehouse` |
+| label | text | NO | human-readable label shown in the admin UI |
+| values | text[] | NO | ordered list of sub-permission strings for this group |
+| condition | text | YES | `null` = always visible · `"warehouse"` = only when `shop.warehouse = true` · `"production"` = only when `shop.production = true` |
+| sort_order | integer | NO | display order in the checklist, default 0 |
+
+**API notes:**
+- Seed this table on first deployment with all 14 default groups (see the permission tree in API.md §1).
+- The `condition` column controls UI visibility only — the server always enforces the token regardless of condition.
+- A token stored on `attendants.permissions` is `"key.value"` e.g. `"pos.can_sell"`. Both parts must exist in this table — validate on write.
 
 ---
 

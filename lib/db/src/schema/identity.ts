@@ -49,7 +49,7 @@ export const attendants = pgTable(
     // FK → shops.id — one attendant is always tied to one shop
     shop: integer("shop_id"),
     lastSeen: timestamp("last_seen").defaultNow(),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("attendants_admin_id_idx").on(table.admin),
@@ -98,7 +98,7 @@ export const admins = pgTable(
     appVersion: text("app_version"),
 
     lastSeen: timestamp("last_seen").defaultNow(),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("admins_affiliate_id_idx").on(table.affiliate),

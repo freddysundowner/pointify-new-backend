@@ -30,7 +30,7 @@ export const expenseCategories = pgTable(
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
     shop: integer("shop_id").references(() => shops.id),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("expense_categories_shop_id_idx").on(table.shop),
@@ -46,7 +46,7 @@ export const cashflowCategories = pgTable(
     shop: integer("shop_id").references(() => shops.id),
     // cashin | cashout
     type: text("type").notNull(),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("cashflow_categories_shop_id_idx").on(table.shop),
@@ -72,7 +72,7 @@ export const expenses = pgTable(
     // daily | weekly | monthly
     frequency: text("frequency"),
     nextOccurrenceAt: timestamp("next_occurrence_at"),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("expenses_shop_id_idx").on(table.shop),
@@ -91,7 +91,7 @@ export const banks = pgTable(
     name: text("name").notNull(),
     balance: numeric("balance", { precision: 14, scale: 2 }).notNull().default("0"),
     shop: integer("shop_id").notNull().references(() => shops.id),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("banks_shop_id_idx").on(table.shop),
@@ -116,7 +116,7 @@ export const cashflows = pgTable(
     shop: integer("shop_id").notNull().references(() => shops.id),
     // When set, this cashflow affects the linked bank account's balance
     bank: integer("bank_id").references(() => banks.id),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("cashflows_shop_id_idx").on(table.shop),

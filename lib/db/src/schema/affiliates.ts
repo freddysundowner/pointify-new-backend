@@ -52,7 +52,7 @@ export const affiliates = pgTable("affiliates", {
   code: text("code").unique(),
   otp: text("otp"),
   otpExpiry: bigint("otp_expiry", { mode: "number" }),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // ─── Awards ───────────────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ export const awards = pgTable(
     // open_shop = one-time bonus on first shop | subscription = recurring commission
     awardType: text("award_type"),
 
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("awards_affiliate_id_idx").on(table.affiliate),
@@ -125,7 +125,7 @@ export const affiliateTransactions = pgTable(
     affiliate: integer("affiliate_id").notNull().references(() => affiliates.id),
     // Admin who processed/approved the transaction
     admin: integer("admin_id").references(() => admins.id),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("affiliate_transactions_affiliate_id_idx").on(table.affiliate),

@@ -60,12 +60,15 @@ export const shops = pgTable(
     showStockOnline: boolean("show_stock_online").notNull().default(false),
     showPriceOnline: boolean("show_price_online").notNull().default(false),
     warehouse: boolean("warehouse").notNull().default(false),
+    // When true, this shop runs a production/manufacturing line.
+    // Unlocks the "production" permission group in the admin UI.
+    production: boolean("production").notNull().default(false),
     allowBackup: boolean("allow_backup").notNull().default(true),
     trackBatches: boolean("track_batches").notNull().default(false),
     onlineSelling: boolean("online_selling").notNull().default(true),
     negativeSelling: boolean("negative_selling").notNull().default(false),
 
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("shops_admin_id_idx").on(table.admin),

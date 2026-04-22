@@ -52,7 +52,7 @@ export const customers = pgTable(
 
     shop: integer("shop_id").notNull().references(() => shops.id),
     createdBy: integer("created_by_id").references(() => attendants.id),
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     unique("customers_no_shop_unique").on(table.customerNo, table.shop),
@@ -90,7 +90,7 @@ export const customerWalletTransactions = pgTable(
     // cash | mpesa | card | bank
     paymentType: text("payment_type"),
 
-    createdAt: timestamp("created_at").defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("cwt_customer_id_idx").on(table.customer),
