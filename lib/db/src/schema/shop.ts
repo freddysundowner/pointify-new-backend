@@ -69,6 +69,7 @@ export const shops = pgTable(
   },
   (table) => [
     index("shops_admin_id_idx").on(table.admin),
+    index("shops_subscription_id_idx").on(table.subscription),
   ]
 );
 

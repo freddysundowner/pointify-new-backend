@@ -112,17 +112,17 @@ export const affiliateTransactions = pgTable(
   {
     id: serial("id").primaryKey(),
     // Total amount involved in the transaction
-    amount: numeric("amount", { precision: 14, scale: 2 }),
+    amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
     // Affiliate's cut (same as amount for withdrawals; commission_amount for earnings)
     affiliateAmount: numeric("affiliate_amount", { precision: 14, scale: 2 }),
     // Wallet balance after this transaction
-    balance: numeric("balance", { precision: 14, scale: 2 }),
+    balance: numeric("balance", { precision: 14, scale: 2 }).notNull(),
     transId: text("trans_id"),
     paymentReference: text("payment_reference"),
     // withdraw = payout to affiliate | subscription = commission earned
     type: text("type").notNull(),
     isCompleted: boolean("is_completed").default(false),
-    affiliate: integer("affiliate_id").references(() => affiliates.id),
+    affiliate: integer("affiliate_id").notNull().references(() => affiliates.id),
     // Admin who processed/approved the transaction
     admin: integer("admin_id").references(() => admins.id),
     createdAt: timestamp("created_at").defaultNow(),

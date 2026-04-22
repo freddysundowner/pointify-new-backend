@@ -45,7 +45,7 @@ export const subscriptions = pgTable(
     admin: integer("admin_id").notNull().references(() => admins.id),
     package: integer("package_id").notNull().references(() => packages.id),
     paymentReference: text("payment_reference"),
-    amount: numeric("amount", { precision: 14, scale: 2 }).default("0"),
+    amount: numeric("amount", { precision: 14, scale: 2 }).notNull().default("0"),
     invoiceNo: text("invoice_no").unique(),
     isActive: boolean("is_active").default(false),
     isPaid: boolean("is_paid").default(false),

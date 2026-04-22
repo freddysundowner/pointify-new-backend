@@ -119,6 +119,7 @@ export const productSerials = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
+    unique("product_serials_number_shop_unique").on(table.serialNumber, table.shop),
     index("product_serials_product_idx").on(table.product),
     index("product_serials_serial_number_idx").on(table.serialNumber),
   ]
