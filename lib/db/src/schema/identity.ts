@@ -92,12 +92,15 @@ export const admins = pgTable(
     phoneVerified: boolean("phone_verified").notNull().default(false),
     emailVerificationDate: timestamp("email_verification_date"),
 
-    // ── SMS credit balance ────────────────────────────────────────────────────
+    // ── SMS settings ──────────────────────────────────────────────────────────
     // Running count of SMS messages this admin is allowed to send.
     // Decremented by 1 on each SMS dispatch. Topped up via the top-up endpoint.
     // The server must check smsCredit > 0 before every SMS send and return 402
     // if insufficient credits.
     smsCredit: integer("sms_credit").notNull().default(0),
+    // When true, send an SMS receipt to the customer's phone on every completed
+    // sale across ALL of this admin's shops. Requires smsCredit > 0.
+    saleSmsEnabled: boolean("sale_sms_enabled").notNull().default(false),
 
     // ── Device / app metadata ─────────────────────────────────────────────────
     autoPrint: boolean("auto_print").notNull().default(true),

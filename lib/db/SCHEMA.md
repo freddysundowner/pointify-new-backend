@@ -25,6 +25,7 @@ The shop owner. Logs in with email + password. Full access, no permissions neede
 | phone_verified | boolean | |
 | email_verification_date | timestamp | |
 | sms_credit | integer | remaining SMS messages the admin can send; default 0. Decremented by 1 per SMS sent; topped up via the `/sms/top-up` endpoint. Server must reject sends with `402` when 0. |
+| sale_sms_enabled | boolean | when true, send an SMS receipt to the customer on every completed sale **across all of this admin's shops**; requires `sms_credit > 0`; default false |
 | auto_print | boolean | auto-print receipts, default true |
 | platform | text | ios / android / web |
 | app_version | text | |
@@ -76,7 +77,6 @@ A single physical or virtual location operated by an admin. One admin can own mu
 | backup_date | timestamp | last backup time |
 | show_stock_online | boolean | |
 | show_price_online | boolean | |
-| sale_sms_enabled | boolean | send an SMS receipt to the customer's phone on every completed sale; requires `admins.sms_credit > 0`; deducts 1 credit per send; default false |
 | warehouse | boolean | is this shop a warehouse hub — enables stock requests |
 | production | boolean | runs a production/manufacturing line — unlocks the `production` permission group |
 | allow_backup | boolean | default true |

@@ -411,7 +411,7 @@ List sales = response["data"];
 | `json['emailVerified']` | `json['email_verified']` |
 | `json['phoneVerified']` | `json['phone_verified']` |
 | `json['smscredit']` | `json['sms_credit']` — now on the admin object; shows remaining SMS balance |
-| `json['saleSmsEnabled']` | `json['sale_sms_enabled']` — now a **shop-level** field, not admin-level; read from the shop object |
+| `json['saleSmsEnabled']` | `json['sale_sms_enabled']` — stays on the admin object; applies to all shops |
 | `json['emailVerificationDate']` | `json['email_verification_date']` |
 | `json['lastAppRatingDate']` | `json['last_app_rating_date']` |
 | `json['referalCredit']` | `json['referral_credit']` |
@@ -662,10 +662,10 @@ New Dart models to create:
 - `json['smscredit']` → `json['sms_credit']` *(int, default 0)*
 - Display this value in the admin settings screen as "SMS Credits Remaining"
 
-**`shop.dart`** — add `sale_sms_enabled` field:
-- `json['saleSmsEnabled']` was **removed from admin** and **moved to shop**
-- Read it from the shop object: `json['sale_sms_enabled']` *(bool, default false)*
-- When `sale_sms_enabled = true` and `admin.sms_credit > 0`, the app should show that an SMS receipt will be sent
+**`usermodel.dart`** — update `sale_sms_enabled` field:
+- `json['saleSmsEnabled']` → `json['sale_sms_enabled']` *(bool, default false)*
+- Stays on the **admin** object — one setting that applies to all shops this admin owns
+- When `sale_sms_enabled = true` and `admin.sms_credit > 0`, show a notice on the POS sale screen that an SMS receipt will be sent to the customer
 
 **New endpoints to call:**
 
@@ -872,7 +872,7 @@ These fields exist only in the new PG schema and were not in the old MongoDB API
 | `usermodel.dart` | `status` (online/offline/hybrid) | Sync concept removed |
 | `usermodel.dart` | `syncInterval` | Sync concept removed |
 | `usermodel.dart` | `smscredit` | **Renamed to `sms_credit`** — field stays on admin object (credit balance) |
-| `shop.dart` | `saleSmsEnabled` | **Moved + renamed to `sale_sms_enabled`** — now on the shop object, not the admin |
+| `usermodel.dart` | `saleSmsEnabled` | **Renamed to `sale_sms_enabled`** — stays on the admin object, applies to all shops |
 | `usermodel.dart` | `lastAppRatingDate` | Not in new schema |
 | `product.dart` | `virtual` (boolean) | Encoded in `type = 'virtual'` |
 | `product.dart` | `bundle` (boolean) | Encoded in `type = 'bundle'` |

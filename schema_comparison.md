@@ -756,8 +756,8 @@ The old MongoDB `Admin` model had a `smscredit` integer field tracking available
 
 | Old Admin field | New location | Notes |
 |---|---|---|
-| `smscredit` (Number) | `admins.sms_credit` (integer) | ➜ renamed + proper column |
-| `saleSmsEnabled` (Boolean) | `shops.sale_sms_enabled` (boolean) | ➜ **moved from admin to shop level** |
+| `smscredit` (Number) | `admins.sms_credit` (integer) | ➜ renamed; stays on admin |
+| `saleSmsEnabled` (Boolean) | `admins.sale_sms_enabled` (boolean) | ➜ renamed; stays on admin — applies to all shops |
 
 **New `sms_credit_transactions` table** (no MongoDB equivalent):
 | PG column | Type | Notes |
