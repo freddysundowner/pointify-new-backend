@@ -276,6 +276,36 @@ Send password reset OTP.
 
 ---
 
+### POST /api/auth/admin/reset-password-sms
+
+Reset admin password using an OTP delivered via SMS instead of email.
+
+**Auth**: Public
+
+**Request Body**:
+
+| Field | Type | Required |
+|---|---|---|
+| `phone` | string | ✓ |
+| `otp` | string | ✓ |
+| `newPassword` | string | ✓ |
+
+**Side Effects**: Verify OTP against `admins.sms_otp` and expiry, update `admins.password` (bcrypt hash), clear OTP fields.
+
+---
+
+### POST /api/auth/admin/save-local
+
+Save a trimmed admin profile snapshot to the device for offline authentication. Called when the app first goes online with valid credentials; the client stores the response in local storage.
+
+**Auth**: Admin token
+
+**Request Body**: None.
+
+**Response** `200`: A compact admin profile object (id, username, email, shops list, permissions) safe to cache locally.
+
+---
+
 ### POST /api/auth/admin/logout
 
 **Auth**: Admin token
@@ -679,6 +709,18 @@ Soft delete — sets `is_deleted = true`. Does not remove from DB.
 **Auth**: Admin or Attendant
 
 **Note**: Products with active sales or purchase records can be soft-deleted but not hard-deleted.
+
+---
+
+#### PUT /api/products/:id/images
+
+Replace the product's image set. Accepts an array of image URLs (pre-uploaded to object storage) and updates `products.images`.
+
+**Auth**: Admin or Attendant
+
+**Request Body**: `{ "images": ["https://...", "https://..."] }`
+
+**Response** `200`: Updated product object.
 
 ---
 
@@ -1176,6 +1218,23 @@ Import customers from an uploaded CSV or Excel file.
 
 ---
 
+#### POST /api/customers/verify
+
+Verify a customer's identity at the POS — checks that the provided phone, email, or customer number matches an active customer record in the shop.
+
+**Auth**: Admin or Attendant
+
+**Request Body**:
+
+| Field | Type | Required |
+|---|---|---|
+| `shopId` | integer | ✓ |
+| `phone` \| `email` \| `customerNo` | string | At least one |
+
+**Response** `200`: `{ "verified": true, "customer": { ... } }` or `{ "verified": false }`.
+
+---
+
 ## 9. Suppliers
 
 ### GET /api/shops/:shopId/suppliers
@@ -1547,6 +1606,53 @@ Delete a sale return. Re-deducts the previously restored inventory (i.e. reverse
 
 ---
 
+### GET /api/shops/:shopId/sales/cross-shop
+
+Aggregate sales view across **all** shops owned by the same admin. Useful for multi-branch dashboards.
+
+**Auth**: Admin
+
+**Query Params**: `from` + `to` + `groupBy` (`shop`|`day`, default `shop`)
+
+**Response** `200`: Array of `{ shopId, shopName, totalRevenue, totalTransactions, grossProfit }` totals.
+
+---
+
+### GET /api/shops/:shopId/sales/statement
+
+Generate a timestamped customer account statement — a chronological list of all sales and payments for a customer, with opening and closing balance.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `customerId` (required) + `from` + `to`
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "customer": { "id": 1, "name": "...", "phone": "..." },
+    "openingBalance": "...",
+    "closingBalance": "...",
+    "transactions": [{ "date": "...", "type": "sale|payment", "debit": "...", "credit": "...", "balance": "..." }]
+  }
+}
+```
+
+---
+
+### POST /api/shops/:shopId/sales/email-report
+
+Email a sales summary report (for the requested date range) to the admin's registered email address.
+
+**Auth**: Admin
+
+**Request Body**: `{ "from": "ISO date", "to": "ISO date" }`
+
+**Response** `200`: `{ "success": true, "message": "Report sent to admin@example.com" }`
+
+---
+
 ## 12. Purchases
 
 Receiving stock from a supplier. Mirrors a sale in the opposite direction — money goes out, stock comes in.
@@ -1703,6 +1809,30 @@ Delete a purchase return. Re-increments the inventory that was decremented by th
 **Auth**: Admin
 
 **Side Effects**: Delete `purchase_return_items`, restore `inventory.quantity`, restore batch quantities, restore `suppliers.outstanding_balance` if refund was applied, then delete `purchase_returns` row.
+
+---
+
+### GET /api/shops/:shopId/purchases/monthly-analysis
+
+Purchases grouped and aggregated by month — total spend per month over a date range. Used for trend charts.
+
+**Auth**: Admin
+
+**Query Params**: `year` (4-digit, default current year)
+
+**Response** `200`: Array of 12 items `{ month: 1..12, totalSpend, totalItems, totalPurchases }`.
+
+---
+
+### POST /api/shops/:shopId/purchases/email-report
+
+Email a purchases summary report to the admin's email.
+
+**Auth**: Admin
+
+**Request Body**: `{ "from": "ISO date", "to": "ISO date" }`
+
+**Response** `200`: `{ "success": true, "message": "Report sent to admin@example.com" }`
 
 ---
 
@@ -1922,6 +2052,42 @@ Delete a stock count session. Only allowed if the count has **not** been applied
 **Auth**: Admin
 
 **Side Effects**: Delete `stock_count_items`, then delete `stock_counts` row. Does **not** affect `inventory.last_count` or `inventory.last_count_date` because those were already updated at creation time (they track the last time a count was initiated, not applied).
+
+---
+
+#### GET /api/shops/:shopId/stock-counts/product-search
+
+Search for products by name to quickly locate them during a stock count session.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `name` (required, partial match)
+
+**Response** `200`: Array of matching products with current `inventory.quantity` and `inventory.last_count_date`.
+
+---
+
+#### GET /api/products/:productId/stock-counts
+
+All count sessions that included this product.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `shopId` + `from` + `to` + pagination
+
+**Response** `200`: Paginated list of `{ countId, countDate, systemCount, physicalCount, variance, applied }`.
+
+---
+
+#### GET /api/products/:productId/stock-counts/yearly/:year
+
+Monthly variance totals for a product across count sessions in a given year. Used for trend charts.
+
+**Auth**: Admin
+
+**Path Params**: `productId`, `year` (4-digit)
+
+**Response** `200`: Array of 12 items `{ month, totalSessions, totalVariance, avgPhysicalCount }`.
 
 ---
 
@@ -2380,6 +2546,18 @@ Update a plan.
 List the authenticated admin's subscriptions.
 
 **Auth**: Admin
+
+---
+
+#### GET /api/subscriptions/by-shops
+
+Look up the active subscription for a given set of shop IDs. Used by the app to determine subscription status at startup.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `shopIds` — comma-separated list of shop IDs
+
+**Response** `200`: Array of `{ shopId, subscriptionId, status, expiresAt, packageName }`.
 
 ---
 
@@ -3444,6 +3622,26 @@ Units sold and revenue per product for the period.
 **Query Params**: `from` · `to` · `categoryId` · `search` · pagination
 
 **Response** `200`: Paginated list. Each row: `{ productId, productName, quantity, revenue, saleType }`.
+
+---
+
+### GET /api/shops/:shopId/reports/top-products
+
+Most-selling products ranked by units sold or by revenue for a date range.
+
+**Query Params**: `from` · `to` · `limit` (default 10) · `sortBy` (`units`|`revenue`, default `units`) · `categoryId`
+
+**Response** `200`: Ranked array of `{ rank, productId, productName, unitsSold, revenue, grossProfit }`.
+
+---
+
+### GET /api/shops/:shopId/reports/monthly-product-sales
+
+Monthly sales breakdown per product — how many units of each product were sold each month. Used for product-level trend analysis.
+
+**Query Params**: `year` (4-digit, default current year) · `productId` (optional, filter to one product) · `categoryId`
+
+**Response** `200`: Array of `{ productId, productName, monthlySales: [{ month: 1..12, units, revenue }] }`.
 
 ---
 
