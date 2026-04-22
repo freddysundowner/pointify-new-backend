@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import {
-  subscriptions, subscriptionShops, packages, packageFeatures, admins, shops
+  subscriptions, subscriptionShops, packages, packageFeatures,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -11,7 +11,7 @@ import { getPagination } from "../lib/paginate.js";
 import { notifySubscriptionActivated, notifySubscriptionPaymentSuccess } from "../lib/emailEvents.js";
 import { smsSubscriptionPaymentSuccess } from "../lib/smsEvents.js";
 import { admins, shops, paymentMethods, settings } from "@workspace/db";
-import { initiateStkPush, loadSunPayMethod, normaliseKePhone } from "../lib/sunpay.js";
+import { chargeWithMethod, loadMethod } from "../lib/gateways/index.js";
 import crypto from "node:crypto";
 
 const router = Router();
@@ -244,68 +244,77 @@ router.post("/:id/pay", requireAdmin, async (req, res, next) => {
     const sub = await loadSubscriptionForPayment(id);
     const { paymentMethodId, paymentMethod, paymentReference, mpesaCode, phone } = req.body ?? {};
 
-    // ── Online gateway path (SunPay STK push) ──────────────────────────────
+    // ── Payment method path: dispatch via gateway adapter or record manually
     if (paymentMethodId) {
-      const methodRow = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.id, Number(paymentMethodId)) });
-      if (!methodRow) throw badRequest("paymentMethodId not found");
-      if (methodRow.gateway === "sunpay") {
-        const method = await loadSunPayMethod(Number(paymentMethodId));
-        if (!method) throw badRequest("SunPay payment method is not active or missing apiKey");
-        const payerPhone = normaliseKePhone(String(phone ?? ""));
-        if (!payerPhone) throw badRequest("phone required for SunPay STK push");
+      const method = await loadMethod(Number(paymentMethodId));
+      if (method) {
+        // Online gateway path — initiate a charge and return pending state.
         const amount = Math.round(Number(sub.amount ?? 0));
-        if (amount < 1) throw badRequest("subscription amount is below KES 1");
-
+        if (amount < 1) throw badRequest("subscription amount is below 1");
         const externalRef = `SUBPAY-${id}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
-        const intentName = `sunpay_intent:${externalRef}`;
+        const intentName = `pay_intent:${externalRef}`;
         await db.insert(settings).values({
           name: intentName,
           setting: {
             kind: "sub_payment",
             subscriptionId: id,
             paymentMethodId: method.id,
+            gateway: method.gateway,
             amount,
-            phone: payerPhone,
+            phone: phone ?? null,
             status: "pending",
             createdAt: new Date().toISOString(),
           },
         });
 
         const baseUrl = process.env["PUBLIC_URL"] ?? (process.env["REPLIT_DEV_DOMAIN"] ? `https://${process.env["REPLIT_DEV_DOMAIN"]}` : "");
-        const callbackUrl = baseUrl ? `${baseUrl.replace(/\/+$/, "")}/api/payments/sunpay/callback/${externalRef}` : undefined;
+        const callbackUrl = baseUrl ? `${baseUrl.replace(/\/+$/, "")}/api/payments/${method.gateway}/callback/${externalRef}` : undefined;
 
-        const result = await initiateStkPush(method.config, { phone: payerPhone, amount, externalRef, callbackUrl });
+        const result = await chargeWithMethod(method.id, {
+          amount,
+          phone: phone ?? undefined,
+          externalRef,
+          callbackUrl,
+          description: `Subscription #${id}`,
+        });
         if (!result.ok) {
           await db.update(settings)
-            .set({ setting: { kind: "sub_payment", subscriptionId: id, paymentMethodId: method.id, amount, phone: payerPhone, status: "init_failed", error: result.message, createdAt: new Date().toISOString() } })
+            .set({ setting: { kind: "sub_payment", subscriptionId: id, paymentMethodId: method.id, gateway: method.gateway, amount, phone: phone ?? null, status: "init_failed", error: result.message, createdAt: new Date().toISOString() } })
             .where(eq(settings.name, intentName));
-          throw badRequest(`Could not start STK push: ${result.message ?? "unknown error"}`);
+          throw badRequest(`Could not initiate payment: ${result.message ?? "unknown error"}`);
         }
         await db.update(settings)
-          .set({ setting: { kind: "sub_payment", subscriptionId: id, paymentMethodId: method.id, amount, phone: payerPhone, status: "pending", transactionId: result.transactionId, checkoutRequestId: result.checkoutRequestId, createdAt: new Date().toISOString() } })
+          .set({ setting: { kind: "sub_payment", subscriptionId: id, paymentMethodId: method.id, gateway: method.gateway, amount, phone: phone ?? null, status: "pending", transactionId: result.transactionId, checkoutRequestId: result.checkoutRequestId, createdAt: new Date().toISOString() } })
           .where(eq(settings.name, intentName));
 
         return ok(res, {
           subscription: sub,
           payment: {
-            gateway: "sunpay",
+            gateway: method.gateway,
             status: "pending",
             externalRef,
             transactionId: result.transactionId,
             checkoutRequestId: result.checkoutRequestId,
+            checkoutUrl: result.checkoutUrl,
             amount,
             currency: sub.currency,
             paymentMethod: { id: method.id, name: method.name },
           },
-          note: "STK push sent — confirm on your phone. Subscription will activate once payment is confirmed.",
         });
       }
-      // Other gateways: fall through to manual marking using the method's name as the gateway label.
+      // No adapter for this method — only allow manual recording when the
+      // method exists, is active, and explicitly uses gateway="manual".
+      const methodRow = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.id, Number(paymentMethodId)) });
+      if (!methodRow) throw badRequest("paymentMethodId not found");
+      if (!methodRow.isActive) throw badRequest("payment method is inactive");
+      if (methodRow.gateway !== "manual") {
+        throw badRequest(`gateway "${methodRow.gateway}" is not configured (missing apiKey or unsupported)`);
+      }
       const updatedManual = await markSubscriptionPaid(id, mpesaCode ?? paymentReference ?? null);
       return ok(res, {
         subscription: updatedManual,
         payment: {
-          gateway: methodRow.gateway,
+          gateway: "manual",
           status: "completed",
           reference: paymentReference ?? mpesaCode ?? `PAY${Date.now()}`,
           amount: sub.amount,

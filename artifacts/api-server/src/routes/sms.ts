@@ -1,18 +1,12 @@
 import { Router } from "express";
 import { eq, and, gte, lte } from "drizzle-orm";
-import { admins, smsCreditTransactions, settings, paymentMethods } from "@workspace/db";
+import { admins, smsCreditTransactions, settings } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
 import { requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
-import {
-  initiateStkPush,
-  getPaymentStatus,
-  loadSunPayMethod,
-  parseSunPayConfig,
-  normaliseKePhone,
-} from "../lib/sunpay.js";
+import { chargeWithMethod, getStatusWithMethod, loadMethod } from "../lib/gateways/index.js";
 import { logger } from "../lib/logger.js";
 import crypto from "node:crypto";
 
@@ -68,19 +62,17 @@ router.post("/top-up", requireAdmin, async (req, res, next) => {
 
     // Resolve the payment method and ensure it's a SunPay one (only online
     // gateway wired for credit purchases right now).
-    const method = await loadSunPayMethod(paymentMethodId);
-    if (!method) throw badRequest("paymentMethodId is not an active SunPay payment method");
+    const method = await loadMethod(paymentMethodId);
+    if (!method) throw badRequest("paymentMethodId is not an active payment method with a supported gateway");
 
-    const phoneRaw = req.body?.phone ?? admin.phone;
-    if (!phoneRaw) throw badRequest("phone required (no phone on admin profile)");
-    const phone = normaliseKePhone(String(phoneRaw));
+    const phone = String(req.body?.phone ?? admin.phone ?? "");
 
     const pricePerCredit = await getPricePerCredit();
     const amount = Math.round(credits * pricePerCredit);
     if (amount < 1) throw badRequest("computed amount is below KES 1");
 
     const externalRef = `SMSTOPUP-${admin.id}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
-    const intentName = `sunpay_intent:${externalRef}`;
+    const intentName = `pay_intent:${externalRef}`;
     await db.insert(settings).values({
       name: intentName,
       setting: {
@@ -97,9 +89,9 @@ router.post("/top-up", requireAdmin, async (req, res, next) => {
     });
 
     const baseUrl = publicBaseUrl();
-    const callbackUrl = baseUrl ? `${baseUrl}/api/payments/sunpay/callback/${externalRef}` : undefined;
+    const callbackUrl = baseUrl ? `${baseUrl}/api/payments/${method.gateway}/callback/${externalRef}` : undefined;
 
-    const result = await initiateStkPush(method.config, { phone, amount, externalRef, callbackUrl });
+    const result = await chargeWithMethod(method.id, { phone, amount, externalRef, callbackUrl, description: `SMS credits x${credits}` });
     if (!result.ok) {
       await db.update(settings)
         .set({
@@ -136,7 +128,7 @@ router.post("/top-up", requireAdmin, async (req, res, next) => {
       externalRef,
       transactionId: result.transactionId,
       checkoutRequestId: result.checkoutRequestId,
-      paymentMethod: { id: method.id, name: method.name, gateway: "sunpay" },
+      paymentMethod: { id: method.id, name: method.name, gateway: method.gateway },
       amount, credits, phone,
       status: "pending",
       message: "STK push sent — confirm on your phone. Credits will be added once payment is confirmed.",
@@ -149,7 +141,7 @@ router.post("/top-up", requireAdmin, async (req, res, next) => {
 router.get("/top-up/:ref", requireAdmin, async (req, res, next) => {
   try {
     const externalRef = String(req.params["ref"]);
-    const intentName = `sunpay_intent:${externalRef}`;
+    const intentName = `pay_intent:${externalRef}`;
     const intentRow = await db.query.settings.findFirst({ where: eq(settings.name, intentName) });
     if (!intentRow) throw notFound("Top-up intent not found");
     const intent = intentRow.setting as Record<string, unknown>;
@@ -157,15 +149,11 @@ router.get("/top-up/:ref", requireAdmin, async (req, res, next) => {
 
     if (intent["status"] === "pending" && intent["transactionId"] && intent["paymentMethodId"]) {
       try {
-        const method = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.id, Number(intent["paymentMethodId"])) });
-        const cfg = method ? parseSunPayConfig(method.config) : null;
-        if (cfg) {
-          const live = await getPaymentStatus(cfg, String(intent["transactionId"]));
-          if (live.ok && live.status && live.status !== "pending") {
-            await applyResolution(externalRef, live.status, live.mpesaRef);
-            const refreshed = await db.query.settings.findFirst({ where: eq(settings.name, intentName) });
-            return ok(res, refreshed?.setting ?? intent);
-          }
+        const live = await getStatusWithMethod(Number(intent["paymentMethodId"]), String(intent["transactionId"]));
+        if (live.ok && live.status && live.status !== "pending") {
+          await applyResolution(externalRef, live.status, live.reference);
+          const refreshed = await db.query.settings.findFirst({ where: eq(settings.name, intentName) });
+          return ok(res, refreshed?.setting ?? intent);
         }
       } catch (err) {
         logger.warn({ err, externalRef }, "sunpay status poll failed");
@@ -180,7 +168,7 @@ router.get("/top-up/:ref", requireAdmin, async (req, res, next) => {
 // Used by the SunPay webhook handler. Applies an SMS top-up if and only if
 // the intent is still pending. Safe to call repeatedly.
 export async function applyResolution(externalRef: string, status: string, mpesaRef?: string): Promise<{ credited: boolean; reason?: string }> {
-  const intentName = `sunpay_intent:${externalRef}`;
+  const intentName = `pay_intent:${externalRef}`;
   const intentRow = await db.query.settings.findFirst({ where: eq(settings.name, intentName) });
   if (!intentRow) return { credited: false, reason: "intent not found" };
   const intent = intentRow.setting as Record<string, unknown>;
@@ -224,7 +212,7 @@ export async function applyResolution(externalRef: string, status: string, mpesa
       type: "top_up",
       amount: credits,
       balanceAfter: newBalance,
-      description: `Purchased ${credits} credits via SunPay M-Pesa for KES ${amount}${mpesaRef ? ` (M-Pesa: ${mpesaRef})` : ""}`,
+      description: `Purchased ${credits} credits via payment method #${intent["paymentMethodId"]} for KES ${amount}${mpesaRef ? ` (M-Pesa: ${mpesaRef})` : ""}`,
     });
     await tx.update(settings)
       .set({ setting: { ...intent, status: "completed", completedAt: new Date().toISOString(), mpesaRef, balanceAfter: newBalance } })
