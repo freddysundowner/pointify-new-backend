@@ -2610,6 +2610,42 @@ Mark a subscription as paid after verifying payment.
 
 ---
 
+#### DELETE /api/subscriptions/:id
+
+Hard-delete a subscription record. Only allowed when the subscription is unpaid or has been superseded by a newer one.
+
+**Auth**: Admin (super-admin)
+
+**Side Effects**:
+1. Delete `subscription_shops` rows for this subscription.
+2. For each shop that had `shops.subscription_id = this subscription`: set `shops.subscription_id = NULL`.
+3. Delete `subscriptions` row.
+
+---
+
+#### PUT /api/subscriptions/assign-shops
+
+Assign one or more shops to an existing subscription after it has been created. Used when the admin selects their shops in a second step after generating the invoice, or when adding branches mid-cycle.
+
+**Auth**: Admin
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `subscriptionId` | integer | ✓ | |
+| `shopIds` | integer[] | ✓ | Shops to add (merged with existing, not replaced) |
+| `mpesaCode` | string | ✗ | M-Pesa transaction code — used to deduplicate affiliate commission awards |
+
+**Side Effects**:
+1. Insert new rows into `subscription_shops` for each `shopId` not already linked.
+2. Set `shops.subscription_id = subscriptionId` for each newly added shop.
+3. **Affiliate award** (only if `mpesaCode` supplied and not yet awarded for that code): calculate affiliate commission on the subscription amount, create `affiliate_awards` row, increment `affiliates.wallet`.
+
+**Response** `200`: Updated subscription object with full shops list.
+
+---
+
 #### PUT /api/subscriptions/:id/extend
 
 Manually extend a subscription's end date (super-admin or admin with override permission).
