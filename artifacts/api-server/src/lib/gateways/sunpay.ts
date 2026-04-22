@@ -11,7 +11,7 @@ function parse(config: Record<string, unknown>): ParsedConfig | null {
   if (!apiKey) return null;
   return {
     apiKey,
-    baseUrl: String(config?.["baseUrl"] ?? "https://api.sunpay.co.ke/api/v1").replace(/\/+$/, ""),
+    baseUrl: String(config?.["baseUrl"] ?? "https://sunpay.co.ke/api/v1").replace(/\/+$/, ""),
     webhookSecret: config?.["webhookSecret"] ? String(config["webhookSecret"]) : undefined,
   };
 }
