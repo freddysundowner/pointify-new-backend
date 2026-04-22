@@ -9,7 +9,7 @@ import {
   customers,
   paymentGateways,
 } from "@workspace/db";
-import { SUPPORTED_GATEWAYS } from "../lib/gateways/index.js";
+import { SUPPORTED_GATEWAYS, GATEWAY_CATALOG } from "../lib/gateways/index.js";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest, unauthorized, forbidden, conflict } from "../lib/errors.js";
@@ -866,6 +866,16 @@ router.get("/subscriptions/stats", requireSuperAdmin, async (_req, res, next) =>
 // Online providers Pointify uses to charge admins for subscriptions and
 // SMS credits (SunPay, Stripe, Paystack, M-Pesa Daraja). Credentials live
 // here and are dispatched through the gateway adapter at charge time.
+
+// Discovery — list every gateway type the server knows how to dispatch,
+// along with the credential fields its config needs. Used by the
+// super-admin "add payment gateway" form to render the right inputs
+// after the provider is picked.
+router.get("/payment-gateways/catalog", requireSuperAdmin, async (_req, res, next) => {
+  try {
+    return ok(res, GATEWAY_CATALOG);
+  } catch (e) { next(e); }
+});
 
 router.get("/payment-gateways", requireSuperAdmin, async (_req, res, next) => {
   try {

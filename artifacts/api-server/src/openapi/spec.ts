@@ -1865,6 +1865,15 @@ export const openApiSpec = {
         responses: ok("Created", {}),
       },
     },
+    "/admin/payment-gateways/catalog": {
+      get: {
+        tags: ["Payment Gateways"],
+        summary: "List supported gateway types and their config schema",
+        description: "Returns every gateway adapter the server can dispatch to (e.g. SunPay) along with the credential fields each one expects. Use this to render the 'add payment gateway' form in the super-admin UI: pick a `gateway`, then render the `configFields` it requires.",
+        ...auth(["SuperAdmin"]),
+        responses: ok("Gateway catalog"),
+      },
+    },
     "/admin/payment-gateways/active": {
       get: {
         tags: ["Payment Gateways"],

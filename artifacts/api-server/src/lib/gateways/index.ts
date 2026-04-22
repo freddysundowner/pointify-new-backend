@@ -16,6 +16,36 @@ const ADAPTERS: Record<string, GatewayAdapter> = {
 
 export const SUPPORTED_GATEWAYS = Object.keys(ADAPTERS);
 
+// Catalog of supported gateways for the admin UI. Each entry advertises
+// the credential fields the adapter expects so the frontend can render
+// the right form when a super-admin picks a gateway type.
+export interface GatewayConfigField {
+  key: string;
+  label: string;
+  type: "text" | "password" | "url";
+  required: boolean;
+  placeholder?: string;
+  help?: string;
+}
+export interface GatewayCatalogEntry {
+  gateway: string;
+  label: string;
+  description: string;
+  configFields: GatewayConfigField[];
+}
+export const GATEWAY_CATALOG: GatewayCatalogEntry[] = [
+  {
+    gateway: "sunpay",
+    label: "SunPay (M-Pesa STK push)",
+    description: "Charges M-Pesa numbers via SunPay's STK push API. Used for SMS credit top-ups and admin subscription payments.",
+    configFields: [
+      { key: "apiKey",        label: "API key",        type: "password", required: true,  placeholder: "sk_live_…", help: "Your SunPay merchant API key. Required." },
+      { key: "baseUrl",       label: "API base URL",   type: "url",      required: false, placeholder: "https://api.sunpay.co.ke/api/v1", help: "Override only if SunPay gives you a different host." },
+      { key: "webhookSecret", label: "Webhook secret", type: "password", required: false, help: "If set, incoming SunPay webhooks must carry an HMAC-SHA256 of the raw body in the x-webhook-signature header." },
+    ],
+  },
+];
+
 export function getAdapter(gateway: string): GatewayAdapter | null {
   return ADAPTERS[gateway] ?? null;
 }
