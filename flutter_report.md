@@ -372,7 +372,8 @@ List sales = response["data"];
 | `json['receiptemail']` | `json['receipt_email']` |
 | `json['backupInterval']` | `json['backup_interval']` |
 | `json['backupemail']` | `json['backup_email']` |
-| `json['warehouseemail']` | `json['warehouse_email']` |
+| `json['warehouseemail']` | **REMOVED** — no equivalent field in new schema |
+| `json['useWarehouse']` | **REMOVED** — derived from `json['warehouse']` flag |
 | `json['shopCategoryId']` | `json['shop_category_id']` |
 | `json['adminId']` (owner expand) | `json['admin_id']` |
 
@@ -399,7 +400,7 @@ List sales = response["data"];
 | `json['supplierId']` | `json['supplier_id']` |
 | `json['shopId']` | `json['shop_id']` |
 | `json['attendantId']` | `json['attendant_id']` |
-| `json['uploadImage']` | `json['upload_image']` |
+| `json['uploadImage']` | `json['thumbnail_url']` |
 | `json['lastcoundate']` | `json['last_count_date']` |
 
 ### `usermodel.dart`
@@ -414,7 +415,7 @@ List sales = response["data"];
 | `json['emailVerificationDate']` | `json['email_verification_date']` |
 | `json['lastAppRatingDate']` | `json['last_app_rating_date']` |
 | `json['referalCredit']` | `json['referral_credit']` |
-| `json['primaryShop']` | `json['primary_shop']` |
+| `json['primaryShop']` | `json['primary_shop_id']` |
 | `json['usertype']` | `json['user_type']` |
 | `json['uniqueDigits']` | `json['pin']` |
 | `json['attendantId']` | `json['attendant_id']` |
@@ -425,19 +426,19 @@ List sales = response["data"];
 | Old `json[key]` | New `json[key]` |
 |---|---|
 | `json['creditLimit']` | `json['credit_limit']` |
-| `json['phonenumber']` | `json['phone_number']` |
+| `json['phonenumber']` | `json['phone']` |
 | `json['shopId']` | `json['shop_id']` |
-| `json['attendantId']` | `json['attendant_id']` |
+| `json['attendantId']` | `json['created_by_id']` |
 | `json['customerNo']` | `json['customer_no']` |
 | `json['createAt']` | `json['created_at']` |
-| `json['totalDebt']` | `json['total_debt']` |
+| `json['totalDebt']` | `json['outstanding_balance']` |
 
 ### `supplier.dart`
 
 | Old `json[key]` | New `json[key]` |
 |---|---|
-| `json['phoneNumber']` | `json['phone_number']` |
-| `json['totalDebt']` | `json['total_debt']` |
+| `json['phoneNumber']` | `json['phone']` |
+| `json['totalDebt']` | `json['outstanding_balance']` |
 | `json['shopId']` | `json['shop_id']` |
 
 ### `invoice.dart` (purchase)
@@ -449,7 +450,7 @@ List sales = response["data"];
 | `json['totalAmount']` | `json['total_amount']` |
 | `json['outstandingBalance']` | `json['outstanding_balance']` |
 | `json['purchaseNo']` | `json['purchase_no']` |
-| `json['purchaseReturnNo']` | `json['purchase_return_no']` |
+| `json['purchaseReturnNo']` | `json['return_no']` |
 | `json['shopId']` | `json['shop_id']` |
 | `json['supplierId']` | `json['supplier_id']` |
 | `json['attendantId']` | `json['attendant_id']` |
@@ -475,10 +476,13 @@ List sales = response["data"];
 | `json['bankTotal']` | `json['bank_total']` |
 | `json['paymentType']` | `json['payment_type']` |
 | `json['saleType']` | `json['sale_type']` |
-| `json['paymentTag']` | `json['payment_tag']` |
+| `json['paymentTag']` | **REMOVED** — no equivalent field in new schema |
+| `json['salesnote']` | `json['sale_note']` |
 | `json['outstandingBalance']` | `json['outstanding_balance']` |
 | `json['duedate']` | `json['due_date']` |
 | `json['orderId']` | `json['order_id']` |
+| `json['order']` (String status) | `json['order_id']` (integer FK) — semantics changed |
+| `json['mpesaTotal']` (old) + `json['mpesaNewTotal']` (new) | `json['mpesa_total']` — consolidated |
 
 ### `saleitem.dart`
 
@@ -495,35 +499,39 @@ List sales = response["data"];
 |---|---|
 | `json['saleId']` | `json['sale_id']` |
 | `json['customerId']` | `json['customer_id']` |
-| `json['attendantId']` | `json['attendant_id']` |
+| `json['attendantId']` | `json['processed_by_id']` |
 | `json['refundAmount']` | `json['refund_amount']` |
-| `json['saleReturnNo']` | `json['sale_return_no']` |
+| `json['saleReturnNo']` | `json['return_no']` |
 
 ### `payment.dart`
 
 | Old `json[key]` | New `json[key]` |
 |---|---|
 | `json['totalAmount']` / `json['amount']` | `json['amount']` |
-| `json['attendantId']` | `json['attendant_id']` |
+| `json['attendantId']` | `json['received_by_id']` or `json['handled_by_id']` |
 | `json['customerId']` | `json['customer_id']` |
-| `json['mpesaCode']` | `json['mpesa_code']` |
+| `json['mpesaCode']` | `json['payment_reference']` |
 | `json['paymentType']` | `json['payment_type']` |
 | `json['paymentNo']` | `json['payment_no']` |
+| `json['supplierId']` | `json['supplier_id']` |
 
 ### `expense.dart`
 
 | Old `json[key]` | New `json[key]` |
 |---|---|
 | `json['createAt']` | `json['created_at']` |
-| `json['nextOccurrence']` | `json['next_occurrence']` |
-| `json['autoSave']` | `json['auto_save']` |
+| `json['nextOccurrence']` | `json['next_occurrence_at']` |
+| `json['autoSave']` | `json['is_recurring']` |
+| `json['attendant']` (attendant id) | `json['recorded_by_id']` |
 
 ### `cashflow.dart`
 
 | Old `json[key]` | New `json[key]` |
 |---|---|
-| `json['attendantId']` | `json['attendant_id']` |
+| `json['name']` | `json['description']` |
+| `json['attendantId']` | `json['recorded_by_id']` |
 | `json['shopId']` | `json['shop_id']` |
+| `json['bank']` | `json['bank_id']` |
 | `json['createAt']` | `json['created_at']` |
 
 ### `cashflowcategory.dart` and `expensecategory.dart`
@@ -572,11 +580,49 @@ List sales = response["data"];
 | Old `json[key]` | New `json[key]` |
 |---|---|
 | `json['requestData']` | `json['items']` |
-| `json['fromShop']` | `json['shop_id']` |
+| `json['fromShop']` | `json['from_shop_id']` |
 | `json['invoiceNumber']` | `json['invoice_number']` |
-| `json['acceptedBy']` | `json['accepted_by']` |
-| `json['acceptedDate']` | `json['accepted_date']` |
-| `json['dispatchedDate']` | `json['dispatched_date']` |
+| `json['acceptedBy']` | `json['accepted_by_id']` |
+| `json['acceptedDate']` | `json['accepted_at']` |
+| `json['dispatchedDate']` | `json['dispatched_at']` |
+
+### `bank.dart`
+
+| Old `json[key]` | New `json[key]` |
+|---|---|
+| `json['amount']` | `json['balance']` |
+| `json['shop']` | `json['shop_id']` |
+| `json['createAt']` | `json['created_at']` |
+
+### `adjustment.dart`
+
+| Old `json[key]` | New `json[key]` |
+|---|---|
+| `json['before']` | `json['quantity_before']` |
+| `json['after']` | `json['quantity_after']` |
+| `json['adjusted']` | `json['quantity_adjusted']` |
+| `json['shop']` | `json['shop_id']` |
+| `json['product']` | `json['product_id']` |
+
+### `counthistory.dart` (StockCount + embedded ProductCount)
+
+| Old `json[key]` | New `json[key]` |
+|---|---|
+| `json['attendantId']` | `json['conducted_by_id']` |
+| `json['shopId']` | `json['shop_id']` |
+| ProductCount: `json['productId']` | `json['product_id']` |
+| ProductCount: `json['physicalCount']` | `json['physical_count']` |
+| ProductCount: `json['initialCount']` | `json['system_count']` |
+| ProductCount: `json['variance']` | `json['variance']` |
+
+### `awards.dart` — additional renames
+
+| Old `json[key]` | New `json[key]` |
+|---|---|
+| `json['mpesaCode']` | `json['payment_reference']` |
+| `json['user']` / `json['affliate']` | `json['affiliate_id']` |
+| `json['fromUser']` | `json['from_admin_id']` |
+| `json['shops']` (array) | **REMOVED** |
 
 ### `badstock.dart` — hardcoded nested path reads
 
@@ -662,7 +708,7 @@ Every `toJson()` used in POST/PUT bodies also needs updating:
 
 | Model | Old body keys | New body keys |
 |---|---|---|
-| `Customer.toJson()` | `_id`, `phonenumber`, `shopId`, `attendantId`, `customerNo`, `createAt` | `id`, `phone_number`, `shop_id`, `attendant_id`, `customer_no`, `created_at` |
+| `Customer.toJson()` | `_id`, `phonenumber`, `shopId`, `attendantId`, `customerNo`, `createAt` | `id`, `phone`, `shop_id`, `created_by_id`, `customer_no`, `created_at` |
 | `Product.toJson()` | `measure`, `buyingPrice`, `sellingPrice`, `minSellingPrice`, `reorderLevel`, `maxDiscount`, `productCategoryId`, `supplierId`, `shopId`, `attendantId`, `uploadImage`, `lastcoundate` | all snake_case equivalents |
 | `SaleModel.toJson()` | `shopId`, `customerId`, `attendantId`, `paymentType`, `outstandingBalance` | `shop_id`, `customer_id`, `attendant_id`, `payment_type`, `outstanding_balance` |
 | `Supplier.toJson()` | `_id`, `shopId` | `id`, `shop_id` |
@@ -715,7 +761,66 @@ These integrations no longer exist in the new backend:
 
 ---
 
-## 12. Recommended Migration Order
+## 12. New Required Fields — Flutter Must Send or Handle
+
+These fields exist only in the new PG schema and were not in the old MongoDB API. They affect either what the Flutter app must **include in request bodies** or what it can now **read from responses**.
+
+### Fields Flutter must now send in request bodies
+
+| Endpoint | New required field | Notes |
+|---|---|---|
+| `POST /sale-returns` | `refund_method` (text) | cash / mpesa / card / bank / store_credit — was not required in old API |
+| `POST /purchase-returns` | `refund_method` optional but supported | |
+| `POST /sales` | `card_total` (number) | Include when payment includes card |
+| `POST /expenses` | no new required fields | `is_recurring` replaces `autoSave` |
+| `POST /cashflows` | `description` (required) | Was `name` in old API |
+
+### New fields available in API responses (add to Flutter models)
+
+| Model / table | New field | What it means |
+|---|---|---|
+| `customer` | `outstanding_balance` | Total unpaid credit across all sales — add to `customer.dart` |
+| `supplier` | `outstanding_balance` | Total unpaid credit across all purchases — add to `supplier.dart` |
+| `sale` | `card_total` | Portion paid by card — add to `salemodel.dart` |
+| `sale_return` | `refund_method`, `refund_reference` | How refund was issued — add to `salereturn.dart` |
+| `expense` | `expense_no` | Auto-generated reference code — add to `expense.dart` |
+| `cashflow` | `cashflow_no` | Auto-generated reference code — add to `cashflow.dart` |
+| `product_transfer` | `transfer_no`, `transfer_note`, `purchase_id` | Reference and warehouse purchase link — add to `transferhistory.dart` |
+| `product` | `sku` | Stock-keeping unit code — optional addition to `product.dart` |
+| `sale_item` | `cost_price` | Buying price at time of sale — add to `saleitem.dart` for margin tracking |
+| `adjustment` | `adjusted_by_id`, `reason` | Who adjusted and why — add to `adjustment.dart` |
+| `stock_count_items` | `system_count` | System stock at time of count — replaces old `initialCount` |
+| `subscription` | `is_active` + `is_paid` | Replaces old boolean `status` and `paid` — update `subscription.dart` |
+| `affiliate_transaction` | `is_completed`, `type` (withdraw/subscription) | New wallet ledger — new Dart model needed |
+
+### Fields REMOVED from API responses — remove from Flutter models
+
+| Model | Removed field | Why |
+|---|---|---|
+| `shop.dart` | `warehouseemail` | Not in new schema |
+| `shop.dart` | `useWarehouse` | Derive from `warehouse` flag |
+| `shop.dart` | `deletewarning` | Not in new schema |
+| `salemodel.dart` | `paymentTag` | Replaced by `payment_type` |
+| `salemodel.dart` | `mpesaNewTotal` | Merged into `mpesa_total` |
+| `salemodel.dart` | `batchId` | Batch tracking is per sale item |
+| `usermodel.dart` | `permissions` (on admin) | Admins no longer have their own permissions string |
+| `usermodel.dart` | `status` (online/offline/hybrid) | Sync concept removed |
+| `usermodel.dart` | `syncInterval` | Sync concept removed |
+| `usermodel.dart` | `smscredit` | Not in new schema |
+| `usermodel.dart` | `saleSmsEnabled` | Not in new schema |
+| `usermodel.dart` | `lastAppRatingDate` | Not in new schema |
+| `product.dart` | `virtual` (boolean) | Encoded in `type = 'virtual'` |
+| `product.dart` | `bundle` (boolean) | Encoded in `type = 'bundle'` |
+| `product.dart` | `quantity`, `lastCount`, `reorderLevel` | Moved to inventory table/endpoint |
+| `awards.dart` | `balance` | Not tracked on award rows |
+| `awards.dart` | `shops` (array) | Not in new schema |
+| `subscription.dart` | `commission` | Affiliate commission is in awards system |
+| `subscription.dart` | `type` | Not in new schema |
+| `payment.dart` | all fields | The `UserPayment` model is split across 4 tables — the Flutter `payment.dart` model needs refactoring for each context |
+
+---
+
+## 13. Recommended Migration Order
 
 1. **`end_points.dart`** — new URL map (unblocks everything)
 2. **`usermodel.dart`** — login works first

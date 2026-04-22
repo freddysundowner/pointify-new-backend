@@ -5,4 +5,10 @@ generated = []
 id = "iyvobgCXgEJqBt6LqdvXx"
 uri = "file://flutter_report.md"
 type = "text"
-title = "Flutter Migration Report"
+title = "Flutter Migration Report (Updated)"
+
+[[outputs]]
+id = "gjlgQ41uFIdqECEoLy0k9"
+uri = "file://schema_comparison.md"
+type = "text"
+title = "MongoDB → PostgreSQL Schema Comparison"
