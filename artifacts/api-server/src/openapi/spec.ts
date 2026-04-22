@@ -478,6 +478,73 @@ export const openApiSpec = {
       },
     },
 
+    // ── System (global config) ────────────────────────────────────────────────
+    "/system/settings": {
+      get: {
+        tags: ["System"],
+        summary: "List global system settings",
+        description: "Paginated list of all global key/value settings (e.g. mpesa, smtp, email). Super-admin only.",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams, searchParam],
+        responses: list("Global settings"),
+      },
+    },
+    "/system/settings/{name}": {
+      get: {
+        tags: ["System"],
+        summary: "Get a global setting by name",
+        description: "Returns `{ name, setting: {} }` if the setting does not yet exist.",
+        ...auth(["Admin"]),
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
+        responses: ok("Setting"),
+      },
+      put: {
+        tags: ["System"],
+        summary: "Upsert a global setting (shallow-merge JSONB)",
+        description: "Body may be the raw value object or `{ setting: {...} }`. Existing keys are preserved and overwritten only by incoming keys.",
+        ...auth(["Admin"]),
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
+        ...body({ setting: { type: "object", additionalProperties: true } }),
+        responses: ok("Updated setting"),
+      },
+      delete: {
+        tags: ["System"],
+        summary: "Delete a global setting",
+        ...auth(["Admin"]),
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
+        responses: ok("Deleted"),
+      },
+    },
+    "/system/shop-categories": {
+      get: {
+        tags: ["System"],
+        summary: "List shop categories (system alias)",
+        parameters: [...paginationParams, searchParam],
+        responses: list("Shop categories"),
+      },
+    },
+    "/system/shop-categories/{id}": {
+      get: {
+        tags: ["System"],
+        summary: "Get shop category by id (system alias)",
+        parameters: [idParam()],
+        responses: ok("Shop category"),
+      },
+    },
+    "/system/shop-metrics": {
+      get: {
+        tags: ["System"],
+        summary: "Platform-wide metrics",
+        description: "Counts of shops and admins. Super-admin only.",
+        ...auth(["Admin"]),
+        responses: ok("Platform metrics", {
+          shops: { type: "integer" },
+          admins: { type: "integer" },
+          generatedAt: { type: "string", format: "date-time" },
+        }),
+      },
+    },
+
     // ── Measures ──────────────────────────────────────────────────────────────
     "/measures": {
       get: {
