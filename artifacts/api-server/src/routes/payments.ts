@@ -1,6 +1,8 @@
-import { Router } from "express";
+import { Router, raw } from "express";
 import { ok } from "../lib/response.js";
 import { logger } from "../lib/logger.js";
+import { applyResolution } from "./sms.js";
+import { getSunPayConfig, verifyWebhookSignature } from "../lib/sunpay.js";
 
 const router = Router();
 
@@ -56,5 +58,58 @@ router.post("/stripe/webhook", (req, res) => {
     note: "Stub Stripe webhook — payload logged.",
   });
 });
+
+
+// ── SunPay (https://sunpay.co.ke) ────────────────────────────────────────────
+// Two delivery modes documented by SunPay:
+//   1) Per-transaction `callbackUrl` — plain POST, no signature, fires only
+//      for that specific transaction. We register one of these per top-up
+//      keyed by externalRef so we can credit the right admin idempotently.
+//   2) Registered webhook — signed with HMAC-SHA256 in X-Webhook-Signature,
+//      account-wide. Verified against system/settings/sunpay.webhookSecret.
+
+router.post("/sunpay/callback/:ref", async (req, res, next) => {
+  try {
+    const externalRef = String(req.params["ref"]);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    logWebhook("sunpay", `callback:${externalRef}`, body, req.headers);
+    // Per-transaction callback payload is the raw `data` object directly.
+    const status = String(body["status"] ?? "");
+    const mpesaRef = body["mpesaRef"] ? String(body["mpesaRef"]) : undefined;
+    const result = await applyResolution(externalRef, status, mpesaRef);
+    return ok(res, { received: true, ...result });
+  } catch (err) { next(err); }
+});
+
+router.post(
+  "/sunpay/webhook",
+  raw({ type: "application/json", limit: "1mb" }),
+  async (req, res, next) => {
+    try {
+      const cfg = await getSunPayConfig();
+      const rawBody = (req.body as Buffer) ?? Buffer.alloc(0);
+      const sig = String(req.headers["x-webhook-signature"] ?? "");
+      if (cfg?.webhookSecret) {
+        if (!verifyWebhookSignature(rawBody, sig, cfg.webhookSecret)) {
+          logger.warn({ sig }, "sunpay webhook signature invalid");
+          return res.status(401).json({ error: "invalid signature" });
+        }
+      }
+      let parsed: any = null;
+      try { parsed = JSON.parse(rawBody.toString("utf8") || "{}"); } catch { parsed = {}; }
+      logWebhook("sunpay", "webhook", parsed, req.headers);
+      const data = parsed?.data ?? {};
+      const externalRef = String(data?.externalRef ?? "");
+      if (externalRef.startsWith("SMSTOPUP-")) {
+        const status = String(data?.status ?? "");
+        const mpesaRef = data?.mpesaRef ? String(data.mpesaRef) : undefined;
+        const result = await applyResolution(externalRef, status, mpesaRef);
+        return ok(res, { received: true, ...result });
+      }
+      // Other event types (subscriptions, manual C2B, etc.) — just log.
+      return ok(res, { received: true, ignored: true });
+    } catch (err) { next(err); }
+  },
+);
 
 export default router;

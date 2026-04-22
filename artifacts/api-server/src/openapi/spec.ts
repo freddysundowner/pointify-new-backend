@@ -3048,9 +3048,22 @@ export const openApiSpec = {
     },
     "/sms/top-up": {
       post: {
-        tags: ["Communications"], summary: "Top-up SMS credits (M-Pesa stub)", ...auth(["Admin"]),
-        ...body({ amount: { type: "number" }, credits: { type: "integer" }, phone: { type: "string" } }, ["amount", "credits"]),
-        responses: ok("Top-up recorded"),
+        tags: ["Communications"],
+        summary: "Initiate SMS credit top-up via SunPay M-Pesa STK push",
+        description: "Triggers an STK push to the supplied phone for KES = credits × pricePerCredit (default 1). Credits are added only after SunPay confirms payment via webhook or status poll.",
+        ...auth(["Admin"]),
+        ...body({ credits: { type: "integer", minimum: 1 }, phone: { type: "string", description: "Defaults to admin.phone" } }, ["credits"]),
+        responses: ok("STK push initiated — returns externalRef for polling"),
+      },
+    },
+    "/sms/top-up/{ref}": {
+      get: {
+        tags: ["Communications"],
+        summary: "Check status of a SunPay top-up",
+        description: "Returns the intent state. If still pending, polls SunPay so credits are applied without waiting for the webhook.",
+        ...auth(["Admin"]),
+        parameters: [{ name: "ref", in: "path", required: true, schema: { type: "string" } }],
+        responses: ok("Top-up status"),
       },
     },
     "/sms/transactions": {
@@ -3109,6 +3122,23 @@ export const openApiSpec = {
     },
     "/payments/stripe/webhook": {
       post: { tags: ["Subscriptions"], summary: "Stripe webhook", responses: ok("Acknowledged") },
+    },
+    "/payments/sunpay/callback/{ref}": {
+      post: {
+        tags: ["Subscriptions"],
+        summary: "SunPay per-transaction callback (plain, no signature)",
+        description: "Called by SunPay for the specific top-up identified by externalRef. Credits the admin and writes the ledger row idempotently.",
+        parameters: [{ name: "ref", in: "path", required: true, schema: { type: "string" } }],
+        responses: ok("Acknowledged"),
+      },
+    },
+    "/payments/sunpay/webhook": {
+      post: {
+        tags: ["Subscriptions"],
+        summary: "SunPay account-wide webhook (HMAC-SHA256 signed)",
+        description: "X-Webhook-Signature header verified against system/settings/sunpay.webhookSecret. Routes SMSTOPUP-* refs into the credit flow.",
+        responses: ok("Acknowledged"),
+      },
     },
 
     // ── Reports (additional) ──────────────────────────────────────────────────
