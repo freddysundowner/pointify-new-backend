@@ -728,6 +728,43 @@ Remove a component from a bundle.
 
 ---
 
+### Measure Units
+
+A global (non-shop-scoped) lookup table of unit-of-measure labels (`pcs`, `kg`, `litres`, `crates`, etc.) rendered as a dropdown when creating products.
+
+#### GET /api/measures
+
+**Auth**: Admin or Attendant
+
+**Response** `200`: Array of `{ id, name, abbreviation, isActive }`.
+
+---
+
+#### POST /api/measures
+
+**Auth**: Super-Admin
+
+**Request Body**:
+
+| Field | Type | Required |
+|---|---|---|
+| `name` | string | ✓ |
+| `abbreviation` | string | ✗ |
+
+---
+
+#### GET /api/measures/:id
+
+**Auth**: Admin or Attendant
+
+---
+
+#### PUT /api/measures/:id / DELETE /api/measures/:id
+
+**Auth**: Super-Admin. Cannot delete a measure referenced by a product.
+
+---
+
 ## 5. Inventory
 
 ### GET /api/shops/:shopId/inventory
@@ -990,6 +1027,76 @@ Apply wallet credit to pay off an outstanding credit sale.
 
 ---
 
+### Customer Extras
+
+#### GET /api/customers/by-number
+
+Look up a customer by their auto-generated `customer_no` within a shop.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: `shopId` (required), `no` (required)
+
+**Response** `200`: Single customer object.
+
+---
+
+#### DELETE /api/sale-payments/:id
+
+Delete a single payment row from `sale_payments`. Only allowed when the associated sale is not fully settled (i.e. the payment being removed is a partial payment that can be reversed).
+
+**Auth**: Admin
+
+**Side Effects**: Delete the `sale_payments` row, increment `sales.outstanding_balance` by the deleted amount, decrement `sales.amount_paid`, and if the customer was a credit customer increment `customers.outstanding_balance`.
+
+---
+
+#### GET /api/shops/:shopId/customers/analysis
+
+Per-customer purchase frequency and revenue analytics for a shop.
+
+**Auth**: Admin
+
+**Query Params**: `from` + `to` (ISO dates) + pagination
+
+**Response** `200`: Array of `{ customerId, name, totalSales, totalRevenue, lastPurchaseDate }`.
+
+---
+
+#### GET /api/shops/:shopId/customers/overdue
+
+Customers with credit sales whose `dueDate` has passed and still have an outstanding balance.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: Pagination + `daysOverdue` (filter to customers overdue by at least N days)
+
+**Response** `200`: Paginated list with `{ customerId, name, phone, outstandingBalance, dueDate, daysOverdue }`.
+
+---
+
+#### GET /api/shops/:shopId/customers/debtors/export
+
+Export the full debtor list to Excel (`.xlsx`).
+
+**Auth**: Admin
+
+**Response** `200`: Binary `.xlsx` file download (`Content-Disposition: attachment`).
+
+---
+
+#### POST /api/shops/:shopId/customers/bulk-import
+
+Import customers from an uploaded CSV or Excel file.
+
+**Auth**: Admin
+
+**Request**: `multipart/form-data` with a single `file` field (`.csv` or `.xlsx`).
+
+**Response** `200`: `{ imported, skipped, errors[] }` — rows that already existed (matched by `phone` or `email`) are skipped.
+
+---
+
 ## 9. Suppliers
 
 ### GET /api/shops/:shopId/suppliers
@@ -1028,6 +1135,18 @@ Apply wallet credit to pay off an outstanding credit sale.
 ### DELETE /api/suppliers/:id
 
 **Auth**: Admin. Only if no purchases reference this supplier.
+
+---
+
+### POST /api/shops/:shopId/suppliers/bulk-import
+
+Import suppliers from an uploaded CSV or Excel file.
+
+**Auth**: Admin
+
+**Request**: `multipart/form-data` with a single `file` field (`.csv` or `.xlsx`).
+
+**Response** `200`: `{ imported, skipped, errors[] }` — rows matched by `name` are skipped as duplicates.
 
 ---
 
@@ -1259,6 +1378,26 @@ Record a partial payment against a credit sale.
 
 ---
 
+### PUT /api/sales/:id
+
+Update a sale's metadata (note, sale date, or attendant attribution). Does **not** allow changing items or payment type after creation — void and re-create for structural changes.
+
+**Auth**: Admin
+
+**Request Body**: Any subset of `{ saleNote, saleDate, attendantId }`.
+
+---
+
+### DELETE /api/sales/:id
+
+Hard-delete a sale and all its items and payments. Restores inventory. Only allowed for sales in `voided` status.
+
+**Auth**: Admin
+
+**Side Effects**: Restore `inventory.quantity`, restore batch quantities, restore serial statuses, delete `sale_items`, `sale_payments`, `sale_returns`, `sale_return_items`, then delete the `sales` row.
+
+---
+
 ### POST /api/sales/:id/returns
 
 Create a return / refund against a completed sale.
@@ -1286,6 +1425,46 @@ Create a return / refund against a completed sale.
 4. Update `sale_items.status = returned` for fully returned items.
 5. If `refundMethod = store_credit`: increment `customers.wallet`, insert `customer_wallet_transactions` (type=`refund`).
 6. Log activity.
+
+---
+
+### Sale Returns — Read / Update / Delete
+
+#### GET /api/shops/:shopId/sale-returns
+
+List all returns for a shop.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: Pagination + `saleId` + `customerId` + `attendantId` + `productId` + `from` + `to`
+
+---
+
+#### GET /api/sale-returns/:id
+
+**Auth**: Admin or Attendant
+
+**Response** `200`: Return object with `sale_return_items`.
+
+---
+
+#### PUT /api/sale-returns/:id
+
+Correct metadata on an existing return (e.g. reason or refund reference). Does not allow changing items — delete and re-create for structural changes.
+
+**Auth**: Admin
+
+**Request Body**: Any subset of `{ reason, refundReference, refundMethod }`.
+
+---
+
+#### DELETE /api/sale-returns/:id
+
+Delete a sale return. Re-deducts the previously restored inventory (i.e. reverses the return reversal).
+
+**Auth**: Admin
+
+**Side Effects**: Delete `sale_return_items`, restore inventory back to post-sale state, restore serial/batch state, then delete `sale_returns` row.
 
 ---
 
@@ -1356,6 +1535,26 @@ Record a payment to the supplier against a credit purchase.
 
 ---
 
+### PUT /api/purchases/:id
+
+Update a purchase's metadata (note, purchase date, or attendant attribution). Does **not** allow changing items — delete and re-create for structural changes.
+
+**Auth**: Admin
+
+**Request Body**: Any subset of `{ purchaseNote, purchaseDate, attendantId }`.
+
+---
+
+### DELETE /api/purchases/:id
+
+Hard-delete a purchase. Restores inventory. Only allowed when `outstanding_balance = 0` (fully paid or not on credit).
+
+**Auth**: Admin
+
+**Side Effects**: Decrement `inventory.quantity` for each item, decrement batch quantities if applicable, delete `purchase_items`, `purchase_payments`, then delete `purchases` row.
+
+---
+
 ### POST /api/purchases/:id/returns
 
 Return goods to supplier.
@@ -1385,6 +1584,46 @@ Return goods to supplier.
 6. Decrement `suppliers.outstanding_balance` by `refundAmount`.
 7. If `refundMethod = credit_note`: no cash movement — supplier reduces what you owe them. Stop here.
 8. If `refundMethod = cash | mpesa | bank | cheque`: insert a `supplier_wallet_transactions` row (`type = refund`) and increment `suppliers.wallet`.
+
+---
+
+### Purchase Returns — Read / Update / Delete
+
+#### GET /api/shops/:shopId/purchase-returns
+
+List all purchase returns for a shop.
+
+**Auth**: Admin or Attendant
+
+**Query Params**: Pagination + `purchaseId` + `supplierId` + `from` + `to`
+
+---
+
+#### GET /api/purchase-returns/:id
+
+**Auth**: Admin or Attendant
+
+**Response** `200`: Return object with `purchase_return_items`.
+
+---
+
+#### PUT /api/purchase-returns/:id
+
+Correct metadata (reason, refund reference, or method) on an existing return.
+
+**Auth**: Admin
+
+**Request Body**: Any subset of `{ reason, refundReference, refundMethod }`.
+
+---
+
+#### DELETE /api/purchase-returns/:id
+
+Delete a purchase return. Re-increments the inventory that was decremented by the original return (i.e. reverses the return reversal).
+
+**Auth**: Admin
+
+**Side Effects**: Delete `purchase_return_items`, restore `inventory.quantity`, restore batch quantities, restore `suppliers.outstanding_balance` if refund was applied, then delete `purchase_returns` row.
 
 ---
 
@@ -1536,6 +1775,35 @@ Start a new count session.
 #### GET /api/stock-counts/:id
 
 **Auth**: Admin or Attendant
+
+---
+
+#### DELETE /api/stock-counts/:id
+
+Delete a stock count session. Only allowed if the count has **not** been applied (i.e. `applied = false`).
+
+**Auth**: Admin
+
+**Side Effects**: Delete `stock_count_items`, then delete `stock_counts` row. Does **not** affect `inventory.last_count` or `inventory.last_count_date` because those were already updated at creation time (they track the last time a count was initiated, not applied).
+
+---
+
+#### GET /api/shops/:shopId/stock-counts/product-filter
+
+Find products by their counting status within a shop. Useful for identifying products that need to be counted.
+
+**Auth**: Admin or Attendant
+
+**Query Params** (at least one required):
+
+| Param | Type | Description |
+|---|---|---|
+| `neverCounted` | boolean | Products with no `stock_count_items` rows in this shop |
+| `countedToday` | boolean | Products counted today (`inventory.last_count_date = today`) |
+| `notCountedToday` | boolean | Products with a `last_count_date` before today (or null) |
+| `searchName` | string | Filter by product name within the results |
+
+**Response** `200`: Array of inventory rows with product info.
 
 ---
 
@@ -1695,6 +1963,18 @@ Bank accounts with running balances.
 
 ---
 
+#### GET /api/banks/:id/transactions
+
+Full transaction history for a bank account (all cashflow entries linked to this bank).
+
+**Auth**: Admin
+
+**Query Params**: Pagination + `from` + `to` + `type` (`cashin`|`cashout`)
+
+**Response** `200`: Paginated list of cashflow rows joined with category info, ordered by `created_at DESC`.
+
+---
+
 ### Cashflow Categories
 
 #### GET /api/shops/:shopId/cashflow-categories
@@ -1747,6 +2027,43 @@ The main money ledger — every cash-in and cash-out event.
 #### GET /api/cashflows/:id / DELETE /api/cashflows/:id
 
 **Auth**: Admin
+
+---
+
+### Custom Payment Methods
+
+Shop-defined payment methods (beyond the standard enum) shown in the POS checkout screen (e.g. "Equity Bank Paybill", "Till Number 123456").
+
+#### GET /api/shops/:shopId/payment-methods
+
+**Auth**: Admin or Attendant
+
+**Response** `200`: Array of `{ id, name, description, isActive }`.
+
+---
+
+#### POST /api/shops/:shopId/payment-methods
+
+**Auth**: Admin
+
+**Request Body**:
+
+| Field | Type | Required |
+|---|---|---|
+| `name` | string | ✓ |
+| `description` | string | ✗ |
+
+---
+
+#### GET /api/payment-methods/:id
+
+**Auth**: Admin or Attendant
+
+---
+
+#### PUT /api/payment-methods/:id / DELETE /api/payment-methods/:id
+
+**Auth**: Admin. Cannot delete a method that has been used in a `sale_payments` row.
 
 ---
 
