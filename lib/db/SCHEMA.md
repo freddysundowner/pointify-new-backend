@@ -695,3 +695,50 @@ Audit log of every payment to or from a supplier.
 - `balance` = `suppliers.wallet` after the transaction. Snapshot at insert time.
 - `type` meanings: `payment` = business pays supplier (reduces `outstanding_balance`). `deposit` = advance paid to supplier (increases wallet). `withdraw` = advance reclaimed (decreases wallet). `refund` = supplier sends money back (increases wallet or reduces outstanding).
 - When `type = payment`: also update `purchases.outstanding_balance` for the relevant purchase and `suppliers.outstanding_balance` in the same transaction.
+
+---
+
+## orders.ts
+
+### Overview
+
+Two tables: `orders` (header) and `order_items` (line items).
+
+Orders are customer-facing requests placed before fulfillment. They are **not** financial records — no money is tracked here. When an order is fulfilled, a `sale` is created with `sales.order_id` pointing back to the order, and `orders.status` is set to `completed`.
+
+---
+
+### orders
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| order_no | text | YES | unique — auto-generate on insert (e.g. ORD12345) |
+| status | text | YES | pending / completed / cancelled — default pending |
+| order_note | text | YES | delivery instructions, special requests |
+| shop_id | integer | NO | FK → shops |
+| customer_id | integer | YES | FK → customers |
+| attendant_id | integer | YES | FK → attendants — who received/processed the order |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- `order_no` must be auto-generated at insert time if not provided (prefix `ORD` + random digits).
+- Status flow: `pending` → `completed` (when converted to a sale) or `cancelled`.
+- `status = completed` should only be set by the sale creation endpoint — not directly by the client. When creating a sale from an order, set `sales.order_id` and update `orders.status = completed` in the same transaction.
+- `status = cancelled` can be set directly. A cancelled order cannot be converted to a sale.
+- Deleting an order is safe only if `status = pending` — do not allow deletion of completed orders (they are referenced by `sales.order_id`).
+
+---
+
+### order_items
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| order_id | integer | NO | FK → orders, cascade delete |
+| product_id | integer | NO | FK → products |
+| quantity | numeric(14,4) | NO | |
+| unit_price | numeric(14,2) | NO | price at time of order placement |
+
+**API notes:**
+- `unit_price` is the price at the time the order was placed — snapshot it from the product's current price. This ensures the quoted price is locked even if the product price changes before fulfillment.
+- When converting an order to a sale, copy `order_items` into `sale_items`. Do not reference order_items from sale_items — the sale is an independent financial record.
+- Check product stock availability across all items before confirming the order (if `shop.negative_selling = false`).
