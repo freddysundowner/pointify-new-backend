@@ -7,22 +7,23 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 // ─── Shop categories ──────────────────────────────────────────────────────────
-// System-wide labels for the type of business a shop runs (Supermarket, Pharmacy…)
+// System-wide labels for the type of business a shop runs (Supermarket, Pharmacy…).
+// Presented to admins during shop registration.
 export const shopCategories = pgTable("shop_categories", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   isActive: boolean("is_active").default(true),
-  sync: boolean("sync").default(false),
 });
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
-// Free-form key/value config store. `setting` is JSONB so it can hold any
-// structure — booleans, arrays, nested objects.
+// Free-form key/value config store for platform-wide configuration.
+// `setting` is JSONB — can hold any structure (boolean, array, nested object).
+// NOTE: updated_at is NOT auto-managed by Drizzle — the API must set it
+// explicitly on every update: { updatedAt: new Date() }
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   setting: jsonb("setting"),
-  sync: boolean("sync").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

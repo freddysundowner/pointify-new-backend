@@ -1172,3 +1172,39 @@ Audit log — one row per notable attendant action in a shop.
 - Write an activity row whenever an attendant performs a significant create/update/delete action.
 - Keep `action` short and consistent (use a fixed set of action strings per resource type).
 - `details` can hold a JSON string or a human-readable description for richer log display.
+
+---
+
+## system.ts
+
+### Overview
+
+Two global reference/config tables with no shop or admin scope. Seeded by platform admins.
+
+---
+
+### shop_categories
+System-wide labels for business types, shown during shop registration.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| name | text | NO | e.g. Supermarket, Pharmacy, Restaurant |
+| is_active | boolean | YES | default true — inactive categories are hidden from registration |
+
+---
+
+### settings
+Free-form key/value platform config store.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| name | text unique | NO | config key (e.g. `smtp_host`, `sms_provider`) |
+| setting | jsonb | YES | any structure — boolean, string, array, nested object |
+| created_at | timestamp | YES | |
+| updated_at | timestamp | YES | **not auto-managed** — API must set `updated_at: new Date()` on every update |
+
+**API notes:**
+- Look up settings by `name` (unique). Use `SELECT * FROM settings WHERE name = $1`.
+- `updated_at` is not managed by Drizzle — always pass it explicitly when updating a setting row.
