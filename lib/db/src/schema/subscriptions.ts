@@ -25,9 +25,9 @@ export const packages = pgTable("packages", {
   durationUnit: text("duration_unit").notNull(), // days | weeks | months | years
   amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
   amountUsd: numeric("amount_usd", { precision: 14, scale: 2 }).notNull(),
-  discount: numeric("discount", { precision: 6, scale: 2 }).default("0"),
+  discount: numeric("discount", { precision: 6, scale: 2 }).notNull().default("0"),
   isActive: boolean("is_active").default(true),
-  sortOrder: integer("sort_order").default(0),
+  sortOrder: integer("sort_order").notNull().default(0),
   type: text("type").notNull(), // trial | production
   shops: integer("shops"),     // max shops this plan covers
 });

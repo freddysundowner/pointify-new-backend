@@ -44,11 +44,11 @@ export const customers = pgTable(
     creditLimit: numeric("credit_limit", { precision: 14, scale: 2 }),
 
     // Pre-paid store credit the customer has deposited. Always >= 0.
-    wallet: numeric("wallet", { precision: 14, scale: 2 }).default("0"),
+    wallet: numeric("wallet", { precision: 14, scale: 2 }).notNull().default("0"),
 
     // Cached — SUM(sales.outstanding_balance) for all credit sales by this customer.
     // Updated whenever a credit sale is created or a payment is received.
-    outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).default("0"),
+    outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).notNull().default("0"),
 
     shop: integer("shop_id").notNull().references(() => shops.id),
     createdBy: integer("created_by_id").references(() => attendants.id),

@@ -43,9 +43,9 @@ export const affiliates = pgTable("affiliates", {
   country: text("country"),
   password: text("password"),
   // Commission percentage earned on each subscription payment (e.g. 20 = 20%)
-  commission: numeric("commission", { precision: 10, scale: 2 }).default("20"),
+  commission: numeric("commission", { precision: 10, scale: 2 }).notNull().default("20"),
   // Running wallet balance — incremented on each award, decremented on withdrawals
-  wallet: numeric("wallet", { precision: 14, scale: 2 }).default("0"),
+  wallet: numeric("wallet", { precision: 14, scale: 2 }).notNull().default("0"),
   isBlocked: boolean("is_blocked").default(false),
   isActive: boolean("is_active").default(false),
   // Unique referral code — shared with admins to use during signup

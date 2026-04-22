@@ -53,7 +53,7 @@ export const products = pgTable(
     measureUnit: text("measure_unit").default(""),
     manufacturer: text("manufacturer").default(""),
     supplier: integer("supplier_id").references(() => suppliers.id),
-    shop: integer("shop_id").references(() => shops.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
     createdBy: integer("created_by_id").notNull().references(() => attendants.id),
 
     // Media & identification
@@ -90,11 +90,11 @@ export const batches = pgTable(
   "batches",
   {
     id: serial("id").primaryKey(),
-    product: integer("product_id").references(() => products.id),
-    shop: integer("shop_id").references(() => shops.id),
-    buyingPrice: numeric("buying_price", { precision: 14, scale: 2 }).default("0"),
-    quantity: numeric("quantity", { precision: 14, scale: 4 }).default("0"),
-    totalQuantity: numeric("total_quantity", { precision: 14, scale: 4 }).default("0"),
+    product: integer("product_id").notNull().references(() => products.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
+    buyingPrice: numeric("buying_price", { precision: 14, scale: 2 }).notNull().default("0"),
+    quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull().default("0"),
+    totalQuantity: numeric("total_quantity", { precision: 14, scale: 4 }).notNull().default("0"),
     expirationDate: timestamp("expiration_date"),
     batchCode: text("batch_code").unique(),
     createdAt: timestamp("created_at").defaultNow(),
@@ -112,7 +112,7 @@ export const productSerials = pgTable(
   {
     id: serial("id").primaryKey(),
     product: integer("product_id").notNull().references(() => products.id),
-    shop: integer("shop_id").references(() => shops.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
     serialNumber: text("serial_number").notNull(),
     // available | sold | returned | void
     status: text("status").default("available"),
@@ -135,9 +135,9 @@ export const inventory = pgTable(
     product: integer("product_id").notNull().references(() => products.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
     updatedBy: integer("updated_by_id").references(() => attendants.id),
-    quantity: numeric("quantity", { precision: 14, scale: 4 }).default("0"),
-    reorderLevel: numeric("reorder_level", { precision: 14, scale: 4 }).default("0"),
-    lastCount: numeric("last_count", { precision: 14, scale: 4 }).default("0"),
+    quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull().default("0"),
+    reorderLevel: numeric("reorder_level", { precision: 14, scale: 4 }).notNull().default("0"),
+    lastCount: numeric("last_count", { precision: 14, scale: 4 }).notNull().default("0"),
     lastCountDate: timestamp("last_count_date"),
     // active | low | out_of_stock
     status: text("status").default("active"),
@@ -256,7 +256,7 @@ export const stockRequests = pgTable(
     status: text("status").default("pending"),
     fromShop: integer("from_shop_id").notNull().references(() => shops.id),
     warehouse: integer("warehouse_id").notNull().references(() => shops.id),
-    totalValue: numeric("total_value", { precision: 14, scale: 2 }).default("0"),
+    totalValue: numeric("total_value", { precision: 14, scale: 2 }).notNull().default("0"),
     invoiceNumber: text("invoice_number").unique(),
     acceptedAt: timestamp("accepted_at"),
     dispatchedAt: timestamp("dispatched_at"),
@@ -276,7 +276,7 @@ export const stockRequestItems = pgTable(
     stockRequest: integer("stock_request_id").notNull().references(() => stockRequests.id, { onDelete: "cascade" }),
     product: integer("product_id").notNull().references(() => products.id),
     quantityRequested: numeric("quantity_requested", { precision: 14, scale: 4 }).notNull(),
-    quantityReceived: numeric("quantity_received", { precision: 14, scale: 4 }).default("0"),
+    quantityReceived: numeric("quantity_received", { precision: 14, scale: 4 }).notNull().default("0"),
   },
   (table) => [
     unique("stock_request_items_request_product_unique").on(table.stockRequest, table.product),

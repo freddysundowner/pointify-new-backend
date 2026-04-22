@@ -29,8 +29,8 @@ export const purchases = pgTable(
     purchaseNo: text("purchase_no").unique(),
 
     totalAmount: numeric("total_amount", { precision: 14, scale: 2 }).notNull(),
-    amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }).default("0"),
-    outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).default("0"),
+    amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }).notNull().default("0"),
+    outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).notNull().default("0"),
 
     // cash | credit | mpesa | bank
     paymentType: text("payment_type").notNull(),
@@ -59,7 +59,7 @@ export const purchaseItems = pgTable(
 
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
-    lineDiscount: numeric("line_discount", { precision: 14, scale: 2 }).default("0"),
+    lineDiscount: numeric("line_discount", { precision: 14, scale: 2 }).notNull().default("0"),
 
     // Supplier's lot/batch reference — used to create a batch when track_batches = true
     batchCode: text("batch_code"),
@@ -86,7 +86,7 @@ export const purchasePayments = pgTable(
     purchase: integer("purchase_id").notNull().references(() => purchases.id, { onDelete: "cascade" }),
     paidBy: integer("paid_by_id").notNull().references(() => attendants.id),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
-    balance: numeric("balance", { precision: 14, scale: 2 }).default("0"),
+    balance: numeric("balance", { precision: 14, scale: 2 }).notNull().default("0"),
     paymentNo: text("payment_no"),
     // External transaction ref — M-Pesa code, bank ref, cheque number
     paymentReference: text("payment_reference"),

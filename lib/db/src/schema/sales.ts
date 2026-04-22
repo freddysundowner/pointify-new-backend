@@ -29,15 +29,15 @@ export const sales = pgTable(
     // Totals (cached for fast reporting — derivable from sale_items + sale_payments)
     totalAmount: numeric("total_amount", { precision: 14, scale: 2 }).notNull(),
     totalWithDiscount: numeric("total_with_discount", { precision: 14, scale: 2 }).notNull(),
-    totalTax: numeric("total_tax", { precision: 14, scale: 2 }).default("0"),
-    saleDiscount: numeric("sale_discount", { precision: 14, scale: 2 }).default("0"),
+    totalTax: numeric("total_tax", { precision: 14, scale: 2 }).notNull().default("0"),
+    saleDiscount: numeric("sale_discount", { precision: 14, scale: 2 }).notNull().default("0"),
 
     // Payment totals (cached per method — derivable from sale_payments)
-    amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }).default("0"),
-    mpesaTotal: numeric("mpesa_total", { precision: 14, scale: 2 }).default("0"),
-    bankTotal: numeric("bank_total", { precision: 14, scale: 2 }).default("0"),
-    cardTotal: numeric("card_total", { precision: 14, scale: 2 }).default("0"),
-    outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).default("0"),
+    amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }).notNull().default("0"),
+    mpesaTotal: numeric("mpesa_total", { precision: 14, scale: 2 }).notNull().default("0"),
+    bankTotal: numeric("bank_total", { precision: 14, scale: 2 }).notNull().default("0"),
+    cardTotal: numeric("card_total", { precision: 14, scale: 2 }).notNull().default("0"),
+    outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).notNull().default("0"),
 
     // Retail | Dealer | Wholesale | Order
     saleType: text("sale_type").default("Retail"),
@@ -86,8 +86,8 @@ export const saleItems = pgTable(
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
     costPrice: numeric("cost_price", { precision: 14, scale: 2 }).default("0"),
-    tax: numeric("tax", { precision: 14, scale: 2 }).default("0"),
-    lineDiscount: numeric("line_discount", { precision: 14, scale: 2 }).default("0"),
+    tax: numeric("tax", { precision: 14, scale: 2 }).notNull().default("0"),
+    lineDiscount: numeric("line_discount", { precision: 14, scale: 2 }).notNull().default("0"),
     saleNote: text("sale_note"),
 
     // Retail | Dealer | Wholesale — which pricing tier was applied to this item
@@ -131,7 +131,7 @@ export const salePayments = pgTable(
     sale: integer("sale_id").notNull().references(() => sales.id, { onDelete: "cascade" }),
     receivedBy: integer("received_by_id").notNull().references(() => attendants.id),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
-    balance: numeric("balance", { precision: 14, scale: 2 }).default("0"),
+    balance: numeric("balance", { precision: 14, scale: 2 }).notNull().default("0"),
     paymentNo: text("payment_no"),
     paymentReference: text("payment_reference"),
     // cash | mpesa | card | bank | wallet

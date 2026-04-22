@@ -81,7 +81,7 @@ export const admins = pgTable(
     // ── Referral credit ───────────────────────────────────────────────────────
     // Accumulated credit earned by referring other admins.
     // Applied to offset subscription payments.
-    referralCredit: numeric("referral_credit", { precision: 14, scale: 2 }).default("0"),
+    referralCredit: numeric("referral_credit", { precision: 14, scale: 2 }).notNull().default("0"),
 
     // ── Verification ──────────────────────────────────────────────────────────
     otp: text("otp"),

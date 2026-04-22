@@ -38,13 +38,13 @@ export const shops = pgTable(
     subscription: integer("subscription_id"),   // FK → subscriptions.id (active subscription)
 
     // GPS coordinates
-    locationLat: real("location_lat").default(0),
-    locationLng: real("location_lng").default(0),
+    locationLat: real("location_lat").notNull().default(0),
+    locationLng: real("location_lng").notNull().default(0),
 
     currency: text("currency"),
     contact: text("contact"),
     // VAT / sales-tax percentage applied to taxable products
-    taxRate: numeric("tax_rate", { precision: 6, scale: 2 }).default("0"),
+    taxRate: numeric("tax_rate", { precision: 6, scale: 2 }).notNull().default("0"),
 
     // M-Pesa / mobile-money config
     paybillTill: text("paybill_till"),

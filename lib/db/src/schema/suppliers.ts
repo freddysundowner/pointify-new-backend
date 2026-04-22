@@ -27,11 +27,11 @@ export const suppliers = pgTable(
 
     // Advance payment balance — money pre-paid to this supplier.
     // Used to offset future purchase payments. Always >= 0.
-    wallet: numeric("wallet", { precision: 14, scale: 2 }).default("0"),
+    wallet: numeric("wallet", { precision: 14, scale: 2 }).notNull().default("0"),
 
     // Cached — total unpaid balance across all credit purchases from this supplier.
     // Decremented when a purchase payment is made.
-    outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).default("0"),
+    outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).notNull().default("0"),
 
     shop: integer("shop_id").notNull().references(() => shops.id),
     createdAt: timestamp("created_at").defaultNow(),
