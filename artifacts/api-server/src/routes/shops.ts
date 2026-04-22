@@ -20,17 +20,43 @@ router.get("/", requireAdmin, async (req, res, next) => {
 
 router.post("/", requireAdmin, async (req, res, next) => {
   try {
-    const { name, categoryId, address, currency, phone, taxRate } = req.body;
+    const {
+      name, categoryId, address, receiptAddress, currency, phone, taxRate,
+      paybillTill, paybillAccount,
+      receiptEmail, warehouseEmail, backupEmail, backupInterval,
+      locationLat, locationLng,
+      showStockOnline, showPriceOnline,
+      isWarehouse, allowBackup, useWarehouse, trackBatches,
+      allowOnlineSelling, allowNegativeSelling, isProduction,
+    } = req.body ?? {};
     if (!name) throw badRequest("name is required");
 
     const [shop] = await db.insert(shops).values({
       name,
-      address,
+      address: address ?? null,
+      receiptAddress: receiptAddress ?? null,
       category: categoryId ? Number(categoryId) : null,
       admin: req.admin!.id,
       currency: currency ?? "KES",
-      contact: phone,
-      taxRate: taxRate ?? "0",
+      contact: phone ?? null,
+      taxRate: taxRate !== undefined ? String(taxRate) : "0",
+      paybillTill: paybillTill ?? null,
+      paybillAccount: paybillAccount ?? null,
+      ...(receiptEmail !== undefined && { receiptEmail: String(receiptEmail) }),
+      warehouseEmail: warehouseEmail ?? null,
+      backupEmail: backupEmail ?? null,
+      backupInterval: backupInterval ?? null,
+      ...(locationLat !== undefined && { locationLat: Number(locationLat) }),
+      ...(locationLng !== undefined && { locationLng: Number(locationLng) }),
+      ...(showStockOnline !== undefined && { showStockOnline: Boolean(showStockOnline) }),
+      ...(showPriceOnline !== undefined && { showPriceOnline: Boolean(showPriceOnline) }),
+      ...(isWarehouse !== undefined && { isWarehouse: Boolean(isWarehouse) }),
+      ...(allowBackup !== undefined && { allowBackup: Boolean(allowBackup) }),
+      ...(useWarehouse !== undefined && { useWarehouse: Boolean(useWarehouse) }),
+      ...(trackBatches !== undefined && { trackBatches: Boolean(trackBatches) }),
+      ...(allowOnlineSelling !== undefined && { allowOnlineSelling: Boolean(allowOnlineSelling) }),
+      ...(allowNegativeSelling !== undefined && { allowNegativeSelling: Boolean(allowNegativeSelling) }),
+      ...(isProduction !== undefined && { isProduction: Boolean(isProduction) }),
     }).returning();
 
     return created(res, shop);
@@ -69,13 +95,16 @@ router.put("/:shopId", requireAdmin, async (req, res, next) => {
     if (!existing) throw notFound("Shop not found");
     if (existing.admin !== req.admin!.id && !req.admin!.isSuperAdmin) throw forbidden("Access denied");
 
-    const { name, address, currency, phone, taxRate, receiptAddress,
-      paybillTill, paybillAccount, receiptEmail, backupEmail,
+    const { name, categoryId, address, currency, phone, taxRate, receiptAddress,
+      paybillTill, paybillAccount,
+      receiptEmail, warehouseEmail, backupEmail, backupInterval,
       showStockOnline, showPriceOnline, locationLat, locationLng,
-      isWarehouse, useWarehouse, trackBatches, allowOnlineSelling, allowNegativeSelling, isProduction } = req.body;
+      isWarehouse, allowBackup, useWarehouse, trackBatches,
+      allowOnlineSelling, allowNegativeSelling, isProduction } = req.body ?? {};
 
     const [updated] = await db.update(shops).set({
       ...(name && { name }),
+      ...(categoryId !== undefined && { category: categoryId === null ? null : Number(categoryId) }),
       ...(address !== undefined && { address }),
       ...(currency && { currency }),
       ...(phone !== undefined && { contact: phone }),
@@ -83,13 +112,16 @@ router.put("/:shopId", requireAdmin, async (req, res, next) => {
       ...(receiptAddress !== undefined && { receiptAddress }),
       ...(paybillTill !== undefined && { paybillTill }),
       ...(paybillAccount !== undefined && { paybillAccount }),
-      ...(receiptEmail !== undefined && { receiptEmail }),
+      ...(receiptEmail !== undefined && { receiptEmail: String(receiptEmail) }),
+      ...(warehouseEmail !== undefined && { warehouseEmail }),
       ...(backupEmail !== undefined && { backupEmail }),
+      ...(backupInterval !== undefined && { backupInterval }),
       ...(showStockOnline !== undefined && { showStockOnline: Boolean(showStockOnline) }),
       ...(showPriceOnline !== undefined && { showPriceOnline: Boolean(showPriceOnline) }),
       ...(locationLat !== undefined && { locationLat: Number(locationLat) }),
       ...(locationLng !== undefined && { locationLng: Number(locationLng) }),
       ...(isWarehouse !== undefined && { isWarehouse: Boolean(isWarehouse) }),
+      ...(allowBackup !== undefined && { allowBackup: Boolean(allowBackup) }),
       ...(useWarehouse !== undefined && { useWarehouse: Boolean(useWarehouse) }),
       ...(trackBatches !== undefined && { trackBatches: Boolean(trackBatches) }),
       ...(allowOnlineSelling !== undefined && { allowOnlineSelling: Boolean(allowOnlineSelling) }),
