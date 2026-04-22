@@ -251,7 +251,7 @@ export const stockRequests = pgTable(
     fromShop: integer("from_shop_id").notNull().references(() => shops.id),
     warehouse: integer("warehouse_id").notNull().references(() => shops.id),
     totalValue: numeric("total_value", { precision: 14, scale: 2 }).default("0"),
-    invoiceNumber: text("invoice_number").default("").unique(),
+    invoiceNumber: text("invoice_number").unique(),
     acceptedAt: timestamp("accepted_at"),
     dispatchedAt: timestamp("dispatched_at"),
     createdAt: timestamp("created_at").defaultNow(),

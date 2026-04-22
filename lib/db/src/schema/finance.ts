@@ -65,7 +65,7 @@ export const expenses = pgTable(
     expenseNo: text("expense_no").unique(),
     description: text("description"),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
-    shop: integer("shop_id").references(() => shops.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
     recordedBy: integer("recorded_by_id").notNull().references(() => attendants.id),
     category: integer("category_id").references(() => expenseCategories.id),
     isRecurring: boolean("is_recurring").default(false),

@@ -20,6 +20,7 @@ import {
   text,
   boolean,
   integer,
+  bigint,
   numeric,
   timestamp,
   index,
@@ -50,7 +51,7 @@ export const affiliates = pgTable("affiliates", {
   // Unique referral code — shared with admins to use during signup
   code: text("code").unique(),
   otp: text("otp"),
-  otpExpiry: text("otp_expiry"),
+  otpExpiry: bigint("otp_expiry", { mode: "number" }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -98,6 +99,7 @@ export const awards = pgTable(
   (table) => [
     index("awards_affiliate_id_idx").on(table.affiliate),
     index("awards_subscription_id_idx").on(table.subscription),
+    index("awards_shop_id_idx").on(table.shop),
     index("awards_created_at_idx").on(table.createdAt),
   ]
 );
