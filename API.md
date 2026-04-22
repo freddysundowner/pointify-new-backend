@@ -1326,11 +1326,15 @@ Return goods to supplier.
 | `items[].quantity` | string | ✓ | |
 | `items[].unitPrice` | string | ✓ | |
 
-**Side Effects**:
+**Side Effects** (one DB transaction):
 1. Insert `purchase_returns` with auto-generated `return_no`.
 2. Insert `purchase_return_items`.
 3. Decrement `inventory.quantity` for each returned product.
-4. If supplier `outstanding_balance > 0`: apply against it.
+4. If the returned item had a linked batch (`purchase_items.batch_id`): decrement `batches.quantity` by the returned amount.
+5. Decrement `purchases.outstanding_balance` by `refundAmount`.
+6. Decrement `suppliers.outstanding_balance` by `refundAmount`.
+7. If `refundMethod = credit_note`: no cash movement — supplier reduces what you owe them. Stop here.
+8. If `refundMethod = cash | mpesa | bank | cheque`: insert a `supplier_wallet_transactions` row (`type = refund`) and increment `suppliers.wallet`.
 
 ---
 
@@ -1951,7 +1955,9 @@ Mark a withdrawal as completed (payment sent).
 
 **Auth**: Admin (super-admin)
 
-**Side Effects**: Set `affiliate_transactions.is_completed = true`.
+**Side Effects** (one DB transaction):
+1. Set `affiliate_transactions.is_completed = true`.
+2. Decrement `affiliates.wallet` by `affiliate_transactions.amount`. Never let wallet go below 0 — validate before update.
 
 ---
 

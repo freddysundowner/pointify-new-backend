@@ -1055,7 +1055,7 @@ Operational outgoings — rent, salaries, utilities, etc.
 | shop_id | integer | NO | FK → shops |
 | recorded_by_id | integer | NO | FK → attendants |
 | category_id | integer | YES | FK → expense_categories |
-| is_recurring | boolean | YES | default false |
+| is_recurring | boolean | NO | default false |
 | frequency | text | YES | `daily` \| `weekly` \| `monthly` — required when is_recurring = true |
 | next_occurrence_at | timestamp | YES | when to auto-create the next recurrence |
 | created_at | timestamp | YES | |
@@ -1125,13 +1125,13 @@ Three tables covering outbound messaging and internal audit logging.
 | name | text | NO | internal template label |
 | subject | text | NO | email subject line |
 | body | text | NO | email/SMS body — supports `{username}` placeholder |
-| is_scheduled | boolean | YES | default false |
-| interval | text | YES | `daily` \| `once_weekly` \| `monthly` — required when is_scheduled = true |
+| is_scheduled | boolean | NO | default false |
+| interval | text | NO | `daily` \| `once_weekly` \| `monthly` — default `monthly`; only meaningful when is_scheduled = true |
 | campaign | text | YES | campaign tag for grouping |
-| type | text | YES | `email` \| `sms`, default `email` |
-| audience | text | YES | `subscribers` \| `all` \| `expired` \| `dormant` \| `custom`, default `custom` |
-| audience_emails | text | YES | comma-separated addresses/phones — required when audience = custom |
-| sent_count | integer | YES | incremented each time this template is dispatched |
+| type | text | NO | `email` \| `sms`, default `email` |
+| audience | text | NO | `subscribers` \| `all` \| `expired` \| `dormant` \| `custom`, default `custom` |
+| audience_emails | text | NO | comma-separated addresses/phones — required when audience = custom; default `""` |
+| sent_count | integer | NO | incremented each time this template is dispatched; default 0 |
 | created_at | timestamp | YES | |
 
 **API notes:**
