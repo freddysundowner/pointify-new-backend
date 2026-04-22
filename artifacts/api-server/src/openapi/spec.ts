@@ -577,6 +577,27 @@ export const openApiSpec = {
         }),
       },
     },
+    "/email-templates/{key}/preview": {
+      get: {
+        tags: ["Email Templates"],
+        summary: "Preview a template rendered with sample data",
+        description: "Default `format=html` returns a renderable HTML page (open in a browser). Use `format=json` for a JSON payload, `format=text` for plain text. Any extra query parameters override sample variables (e.g. `?adminName=Bob&shopName=Test`).",
+        ...auth(["Admin"]),
+        parameters: [
+          { name: "key", in: "path", required: true, schema: { type: "string" } },
+          { name: "format", in: "query", required: false, schema: { type: "string", enum: ["html", "json", "text"] } },
+        ],
+        responses: ok("Rendered preview"),
+      },
+      post: {
+        tags: ["Email Templates"],
+        summary: "Preview a template with custom variables",
+        ...auth(["Admin"]),
+        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
+        ...body({ variables: { type: "object", additionalProperties: true } }),
+        responses: ok("Rendered preview"),
+      },
+    },
     "/email-templates/{key}": {
       get: {
         tags: ["Email Templates"],
