@@ -299,10 +299,12 @@ router.get("/payment-methods", requireAdminOrAttendant, async (req, res, next) =
 
 router.post("/payment-methods", requireAdmin, async (req, res, next) => {
   try {
-    const { name, description, shopId } = req.body;
+    const { name, description, shopId, gateway, config } = req.body;
     if (!name || !shopId) throw badRequest("name and shopId required");
+    const gw = String(gateway ?? "manual");
+    if (!["manual","sunpay","stripe","paystack"].includes(gw)) throw badRequest("unsupported gateway");
     const [row] = await db.insert(paymentMethods).values({
-      name, description, shop: Number(shopId),
+      name, description, shop: Number(shopId), gateway: gw, config: (config ?? {}) as any,
     }).returning();
     return created(res, row);
   } catch (e) { next(e); }
@@ -310,11 +312,16 @@ router.post("/payment-methods", requireAdmin, async (req, res, next) => {
 
 router.put("/payment-methods/:id", requireAdmin, async (req, res, next) => {
   try {
-    const { name, description, isActive } = req.body;
+    const { name, description, isActive, gateway, config } = req.body;
+    if (gateway !== undefined && !["manual","sunpay","stripe","paystack"].includes(String(gateway))) {
+      throw badRequest("unsupported gateway");
+    }
     const [updated] = await db.update(paymentMethods).set({
       ...(name && { name }),
       ...(description !== undefined && { description }),
       ...(isActive !== undefined && { isActive: Boolean(isActive) }),
+      ...(gateway !== undefined && { gateway: String(gateway) }),
+      ...(config !== undefined && { config: config as any }),
     }).where(eq(paymentMethods.id, Number(req.params["id"]))).returning();
     if (!updated) throw notFound("Payment method not found");
     return ok(res, updated);

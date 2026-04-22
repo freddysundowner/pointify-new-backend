@@ -8,7 +8,6 @@ import { requireSuperAdmin, requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { clearEmailConfigCache } from "../lib/email.js";
 import { clearSmsConfigCache } from "../lib/sms.js";
-import { invalidateSunPayCache } from "../lib/sunpay.js";
 
 const router = Router();
 
@@ -64,13 +63,11 @@ router.put("/settings/:name", requireSuperAdmin, async (req, res, next) => {
         .returning();
       if (name === "email") clearEmailConfigCache();
       if (name === "sms") clearSmsConfigCache();
-      if (name === "sunpay") invalidateSunPayCache();
       return ok(res, updated);
     }
     const [created] = await db.insert(settings).values({ name, setting: merged }).returning();
     if (name === "email") clearEmailConfigCache();
       if (name === "sms") clearSmsConfigCache();
-      if (name === "sunpay") invalidateSunPayCache();
     return ok(res, created);
   } catch (e) { next(e); }
 });
@@ -82,7 +79,6 @@ router.delete("/settings/:name", requireSuperAdmin, async (req, res, next) => {
     if (!deleted) throw notFound("Setting not found");
     if (name === "email") clearEmailConfigCache();
       if (name === "sms") clearSmsConfigCache();
-      if (name === "sunpay") invalidateSunPayCache();
     return noContent(res);
   } catch (e) { next(e); }
 });

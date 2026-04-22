@@ -16,6 +16,7 @@ import {
   integer,
   numeric,
   timestamp,
+  jsonb,
   index,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
@@ -140,6 +141,14 @@ export const paymentMethods = pgTable(
     description: text("description"),
     isActive: boolean("is_active").notNull().default(true),
     shop: integer("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    // Gateway adapter — drives how online charges are dispatched.
+    //   "manual"  — record-only (Cash, on-account, manual M-Pesa entry, etc.)
+    //   "sunpay"  — SunPay STK push (https://sunpay.co.ke)
+    //   "stripe" / "paystack" — future
+    gateway: text("gateway").notNull().default("manual"),
+    // Free-form config for the gateway, e.g. for SunPay:
+    //   { apiKey, baseUrl?, webhookSecret? }
+    config: jsonb("config").notNull().default({}),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [

@@ -1,15 +1,15 @@
 // SunPay (https://sunpay.co.ke) M-Pesa gateway adapter.
 //
-// Reads config from `system/settings/sunpay`:
+// Stateless: every call takes the gateway config explicitly. The config is
+// stored on a row in the `payment_methods` table (column `config`, jsonb):
 //   { apiKey, baseUrl?, webhookSecret? }
 //
-// - apiKey:        SunPay API key (starts with `sp_`)
-// - baseUrl:       defaults to "https://api.sunpay.co.ke/api/v1"
-// - webhookSecret: only required if you also enable a registered webhook
-//                  in SunPay Settings → Webhooks (HMAC-SHA256 verification).
+// Use `loadSunPayConfigForMethod(methodId)` to pull config from a payment
+// method row. The route layer is responsible for resolving which method to
+// use based on the `paymentMethodId` the client supplies.
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
-import { settings } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { paymentMethods } from "@workspace/db";
 import { db } from "./db.js";
 import { logger } from "./logger.js";
 
@@ -19,28 +19,32 @@ export interface SunPayConfig {
   webhookSecret?: string;
 }
 
-let cachedCfg: SunPayConfig | null = null;
-let cachedAt = 0;
-const CACHE_MS = 60_000;
-
-export function invalidateSunPayCache() {
-  cachedCfg = null;
-  cachedAt = 0;
-}
-
-export async function getSunPayConfig(): Promise<SunPayConfig | null> {
-  if (cachedCfg && Date.now() - cachedAt < CACHE_MS) return cachedCfg;
-  const row = await db.query.settings.findFirst({ where: eq(settings.name, "system/settings/sunpay") });
-  const v = (row?.setting as Record<string, unknown> | undefined) ?? {};
+export function parseSunPayConfig(raw: unknown): SunPayConfig | null {
+  const v = (raw ?? {}) as Record<string, unknown>;
   const apiKey = String(v["apiKey"] ?? "").trim();
   if (!apiKey) return null;
-  cachedCfg = {
+  return {
     apiKey,
     baseUrl: String(v["baseUrl"] ?? "https://api.sunpay.co.ke/api/v1").replace(/\/+$/, ""),
     webhookSecret: v["webhookSecret"] ? String(v["webhookSecret"]) : undefined,
   };
-  cachedAt = Date.now();
-  return cachedCfg;
+}
+
+export interface SunPayMethod {
+  id: number;
+  shop: number;
+  name: string;
+  config: SunPayConfig;
+}
+
+export async function loadSunPayMethod(methodId: number): Promise<SunPayMethod | null> {
+  const row = await db.query.paymentMethods.findFirst({
+    where: and(eq(paymentMethods.id, methodId), eq(paymentMethods.gateway, "sunpay"), eq(paymentMethods.isActive, true)),
+  });
+  if (!row) return null;
+  const cfg = parseSunPayConfig(row.config);
+  if (!cfg) return null;
+  return { id: row.id, shop: row.shop, name: row.name, config: cfg };
 }
 
 // Normalise to 254XXXXXXXXX as SunPay expects.
@@ -68,10 +72,7 @@ export interface StkPushResult {
   raw?: unknown;
 }
 
-export async function initiateStkPush(args: StkPushArgs): Promise<StkPushResult> {
-  const cfg = await getSunPayConfig();
-  if (!cfg) return { ok: false, status: 0, message: "SunPay not configured (set system/settings/sunpay.apiKey)" };
-
+export async function initiateStkPush(cfg: SunPayConfig, args: StkPushArgs): Promise<StkPushResult> {
   const body = {
     phoneNumber: normaliseKePhone(args.phone),
     amount: Number(args.amount),
@@ -119,9 +120,7 @@ export interface PaymentStatus {
   message?: string;
 }
 
-export async function getPaymentStatus(transactionId: string): Promise<PaymentStatus> {
-  const cfg = await getSunPayConfig();
-  if (!cfg) return { ok: false, message: "SunPay not configured" };
+export async function getPaymentStatus(cfg: SunPayConfig, transactionId: string): Promise<PaymentStatus> {
   try {
     const resp = await fetch(`${cfg.baseUrl}/payments/${encodeURIComponent(transactionId)}`, {
       headers: { "Authorization": `Bearer ${cfg.apiKey}` },

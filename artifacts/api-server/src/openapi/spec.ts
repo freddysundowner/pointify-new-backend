@@ -1818,8 +1818,11 @@ export const openApiSpec = {
         ...auth(["Admin"]),
         ...body({
           name: { type: "string" },
+          description: { type: "string" },
           shopId: { type: "integer" },
           isActive: { type: "boolean" },
+          gateway: { type: "string", enum: ["manual","sunpay","stripe","paystack"], default: "manual", description: "Adapter used to dispatch online charges. 'sunpay' enables real M-Pesa STK push for credit top-ups and subscription payments." },
+          config: { type: "object", description: "Gateway-specific config. For 'sunpay': { apiKey, baseUrl?, webhookSecret? }." },
         }, ["name", "shopId"]),
         responses: ok("Created", {}),
       },
@@ -1830,7 +1833,7 @@ export const openApiSpec = {
         summary: "Update payment method",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" }, isActive: { type: "boolean" } }),
+        ...body({ name: { type: "string" }, description: { type: "string" }, isActive: { type: "boolean" }, gateway: { type: "string", enum: ["manual","sunpay","stripe","paystack"] }, config: { type: "object" } }),
         responses: ok("Updated"),
       },
       delete: {
@@ -3052,7 +3055,7 @@ export const openApiSpec = {
         summary: "Initiate SMS credit top-up via SunPay M-Pesa STK push",
         description: "Triggers an STK push to the supplied phone for KES = credits × pricePerCredit (default 1). Credits are added only after SunPay confirms payment via webhook or status poll.",
         ...auth(["Admin"]),
-        ...body({ credits: { type: "integer", minimum: 1 }, phone: { type: "string", description: "Defaults to admin.phone" } }, ["credits"]),
+        ...body({ credits: { type: "integer", minimum: 1 }, paymentMethodId: { type: "integer", description: "id of a payment_methods row with gateway='sunpay'" }, phone: { type: "string", description: "Defaults to admin.phone" } }, ["credits", "paymentMethodId"]),
         responses: ok("STK push initiated — returns externalRef for polling"),
       },
     },
@@ -3077,10 +3080,19 @@ export const openApiSpec = {
     // ── Subscriptions (additional) ────────────────────────────────────────────
     "/subscriptions/{id}/pay": {
       post: {
-        tags: ["Subscriptions"], summary: "Generic subscription payment (manual)", ...auth(["Admin"]),
+        tags: ["Subscriptions"],
+        summary: "Pay subscription (manual or via a configured payment method)",
+        description: "If paymentMethodId is supplied and the method has gateway='sunpay', triggers a real STK push and returns status='pending' until the SunPay webhook confirms. Otherwise records a manual payment immediately.",
+        ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ paymentMethod: { type: "string" }, paymentReference: { type: "string" }, mpesaCode: { type: "string" } }),
-        responses: ok("Payment recorded"),
+        ...body({
+          paymentMethodId: { type: "integer", description: "id of a payment_methods row" },
+          phone: { type: "string", description: "Required when the chosen method is SunPay" },
+          paymentMethod: { type: "string", description: "Free-form label (manual path only)" },
+          paymentReference: { type: "string" },
+          mpesaCode: { type: "string" },
+        }),
+        responses: ok("Payment recorded or STK push initiated"),
       },
     },
     "/subscriptions/{id}/pay/mpesa": {
