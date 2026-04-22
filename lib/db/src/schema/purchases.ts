@@ -73,6 +73,7 @@ export const purchaseItems = pgTable(
   (table) => [
     index("purchase_items_purchase_id_idx").on(table.purchase),
     index("purchase_items_product_id_idx").on(table.product),
+    index("purchase_items_batch_id_idx").on(table.batch),
   ]
 );
 

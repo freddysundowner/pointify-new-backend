@@ -164,6 +164,7 @@ export const bundleItems = pgTable(
   (table) => [
     unique("bundle_items_product_component_unique").on(table.product, table.componentProduct),
     index("bundle_items_product_idx").on(table.product),
+    index("bundle_items_component_product_idx").on(table.componentProduct),
   ]
 );
 
@@ -237,6 +238,7 @@ export const stockCountItems = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
+    unique("stock_count_items_count_product_unique").on(table.stockCount, table.product),
     index("stock_count_items_stock_count_idx").on(table.stockCount),
   ]
 );
@@ -277,6 +279,7 @@ export const stockRequestItems = pgTable(
     quantityReceived: numeric("quantity_received", { precision: 14, scale: 4 }).default("0"),
   },
   (table) => [
+    unique("stock_request_items_request_product_unique").on(table.stockRequest, table.product),
     index("stock_request_items_request_idx").on(table.stockRequest),
   ]
 );

@@ -61,6 +61,7 @@ export const sales = pgTable(
     index("sales_shop_date_idx").on(table.shop, table.createdAt),
     index("sales_customer_id_idx").on(table.customer),
     index("sales_attendant_id_idx").on(table.attendant),
+    index("sales_order_id_idx").on(table.order),
     index("sales_status_idx").on(table.status),
     index("sales_created_at_idx").on(table.createdAt),
   ]
@@ -99,6 +100,7 @@ export const saleItems = pgTable(
   (table) => [
     index("sale_items_sale_id_idx").on(table.sale),
     index("sale_items_product_id_idx").on(table.product),
+    index("sale_items_serial_id_idx").on(table.serial),
   ]
 );
 
@@ -115,6 +117,7 @@ export const saleItemBatches = pgTable(
   },
   (table) => [
     index("sale_item_batches_sale_item_idx").on(table.saleItem),
+    index("sale_item_batches_batch_id_idx").on(table.batch),
   ]
 );
 

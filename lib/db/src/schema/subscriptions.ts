@@ -70,6 +70,7 @@ export const subscriptionShops = pgTable(
   },
   (table) => [
     unique("subscription_shops_unique").on(table.subscription, table.shop),
+    index("subscription_shops_shop_id_idx").on(table.shop),
   ]
 );
 

@@ -122,6 +122,7 @@ export const cashflows = pgTable(
     index("cashflows_shop_id_idx").on(table.shop),
     index("cashflows_shop_date_idx").on(table.shop, table.createdAt),
     index("cashflows_category_id_idx").on(table.category),
+    index("cashflows_bank_id_idx").on(table.bank),
   ]
 );
 
