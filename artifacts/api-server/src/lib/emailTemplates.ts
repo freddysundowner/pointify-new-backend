@@ -65,10 +65,10 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "Welcome to {{shopName}}, {{adminName}}!",
     "Welcome aboard 🎉",
     `<p>Hi {{adminName}},</p>
-     <p>Your admin account has been created successfully. You can now sign in and start setting up your shop, products, and team.</p>
-     <p><strong>Account details</strong><br/>Email: {{adminEmail}}<br/>Username: {{adminUsername}}</p>`,
-    "Hi {{adminName}}, your Pointify admin account has been created. Sign in at {{loginUrl}}.",
-    { label: "Open dashboard", url: "{{loginUrl}}" },
+     <p>Your admin account has been created successfully.</p>
+     <p><strong>Account details</strong><br/>Email: {{adminEmail}}<br/>Username: {{adminUsername}}</p>
+     <p>Next steps: sign in and start adding your products so you can begin selling.</p>`,
+    "Hi {{adminName}}, your account has been created. Sign in and start adding your products to begin selling.",
   ),
   make(
     "admin_email_verification",
