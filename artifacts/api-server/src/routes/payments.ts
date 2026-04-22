@@ -1,6 +1,6 @@
 import { Router, raw } from "express";
 import { eq } from "drizzle-orm";
-import { paymentMethods, settings } from "@workspace/db";
+import { paymentGateways, settings } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok } from "../lib/response.js";
 import { logger } from "../lib/logger.js";
@@ -29,7 +29,7 @@ router.post("/stripe/webhook",     (req, res) => { logWebhook("stripe","webhook"
 
 interface ResolvedIntent {
   intent: Record<string, unknown>;
-  paymentMethodId: number;
+  paymentGatewayId: number;
   gateway: string;
   config: Record<string, unknown>;
 }
@@ -38,11 +38,11 @@ async function resolveIntent(externalRef: string): Promise<ResolvedIntent | null
   const row = await db.query.settings.findFirst({ where: eq(settings.name, `pay_intent:${externalRef}`) });
   if (!row) return null;
   const intent = (row.setting ?? {}) as Record<string, unknown>;
-  const mid = Number(intent["paymentMethodId"]);
+  const mid = Number(intent["paymentGatewayId"]);
   if (!Number.isFinite(mid)) return null;
-  const method = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.id, mid) });
-  if (!method) return null;
-  return { intent, paymentMethodId: mid, gateway: method.gateway, config: (method.config ?? {}) as Record<string, unknown> };
+  const gw = await db.query.paymentGateways.findFirst({ where: eq(paymentGateways.id, mid) });
+  if (!gw) return null;
+  return { intent, paymentGatewayId: mid, gateway: gw.gateway, config: (gw.config ?? {}) as Record<string, unknown> };
 }
 
 // 1) Per-transaction callback (no signature) — gateways that support a

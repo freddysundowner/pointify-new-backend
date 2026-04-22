@@ -7,7 +7,9 @@ import {
   communications, emailTemplates, emailMessages, emailsSent,
   smsCreditTransactions,
   customers,
+  paymentGateways,
 } from "@workspace/db";
+import { SUPPORTED_GATEWAYS } from "../lib/gateways/index.js";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest, unauthorized, forbidden, conflict } from "../lib/errors.js";
@@ -857,6 +859,74 @@ router.get("/subscriptions/stats", requireSuperAdmin, async (_req, res, next) =>
       .groupBy(packages.id, packages.title);
 
     return ok(res, { ...stats, byPackage });
+  } catch (e) { next(e); }
+});
+
+// ── Payment Gateways (super-admin controlled) ────────────────────────────────
+// Online providers Pointify uses to charge admins for subscriptions and
+// SMS credits (SunPay, Stripe, Paystack, M-Pesa Daraja). Credentials live
+// here and are dispatched through the gateway adapter at charge time.
+
+router.get("/payment-gateways", requireSuperAdmin, async (_req, res, next) => {
+  try {
+    const rows = await db.query.paymentGateways.findMany({
+      orderBy: (g, { asc }) => [asc(g.id)],
+    });
+    return ok(res, rows);
+  } catch (e) { next(e); }
+});
+
+// Admin-facing list — only id/name/gateway/isActive, no credentials.
+// Used by the subscription / SMS top-up screens to populate the picker.
+router.get("/payment-gateways/active", requireAdmin, async (_req, res, next) => {
+  try {
+    const rows = await db.query.paymentGateways.findMany({
+      where: eq(paymentGateways.isActive, true),
+      orderBy: (g, { asc }) => [asc(g.id)],
+    });
+    return ok(res, rows.map((r) => ({ id: r.id, name: r.name, gateway: r.gateway })));
+  } catch (e) { next(e); }
+});
+
+router.post("/payment-gateways", requireSuperAdmin, async (req, res, next) => {
+  try {
+    const { name, gateway, config, isActive } = req.body ?? {};
+    if (!name) throw badRequest("name required");
+    if (!gateway) throw badRequest("gateway required");
+    if (!SUPPORTED_GATEWAYS.includes(String(gateway))) {
+      throw badRequest(`unsupported gateway. supported: ${SUPPORTED_GATEWAYS.join(", ")}`);
+    }
+    const [row] = await db.insert(paymentGateways).values({
+      name: String(name),
+      gateway: String(gateway),
+      config: (config ?? {}) as any,
+      ...(isActive !== undefined && { isActive: Boolean(isActive) }),
+    }).returning();
+    return created(res, row);
+  } catch (e) { next(e); }
+});
+
+router.put("/payment-gateways/:id", requireSuperAdmin, async (req, res, next) => {
+  try {
+    const { name, gateway, config, isActive } = req.body ?? {};
+    if (gateway !== undefined && !SUPPORTED_GATEWAYS.includes(String(gateway))) {
+      throw badRequest(`unsupported gateway. supported: ${SUPPORTED_GATEWAYS.join(", ")}`);
+    }
+    const [updated] = await db.update(paymentGateways).set({
+      ...(name !== undefined && { name: String(name) }),
+      ...(gateway !== undefined && { gateway: String(gateway) }),
+      ...(config !== undefined && { config: config as any }),
+      ...(isActive !== undefined && { isActive: Boolean(isActive) }),
+    }).where(eq(paymentGateways.id, Number(req.params["id"]))).returning();
+    if (!updated) throw notFound("Payment gateway not found");
+    return ok(res, updated);
+  } catch (e) { next(e); }
+});
+
+router.delete("/payment-gateways/:id", requireSuperAdmin, async (req, res, next) => {
+  try {
+    await db.delete(paymentGateways).where(eq(paymentGateways.id, Number(req.params["id"])));
+    return noContent(res);
   } catch (e) { next(e); }
 });
 

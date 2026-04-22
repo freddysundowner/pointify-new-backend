@@ -142,7 +142,7 @@ router.get("/:shopId", requireAdminOrAttendant, async (req, res, next) => {
       db.select().from(expenses).where(eq(expenses.shop, shopId)),
       db.select().from(cashflows).where(eq(cashflows.shop, shopId)),
       db.select().from(banks).where(eq(banks.shop, shopId)),
-      db.select().from(paymentMethods).where(eq(paymentMethods.shop, shopId)),
+      db.select().from(paymentMethods),
       db.select().from(attendants).where(eq(attendants.shop, shopId)),
       db.select().from(adjustments).where(eq(adjustments.shop, shopId)),
       db.select().from(badStocks).where(eq(badStocks.shop, shopId)),

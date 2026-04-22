@@ -559,10 +559,12 @@ router.get("/cashflow-categories", requireAdminOrAttendant, async (req, res, nex
   } catch (e) { next(e); }
 });
 
-router.get("/payment-methods", requireAdminOrAttendant, async (req, res, next) => {
+router.get("/payment-methods", requireAdminOrAttendant, async (_req, res, next) => {
   try {
-    const sid = shopId(req);
-    const rows = await db.query.paymentMethods.findMany({ where: eq(paymentMethods.shop, sid) });
+    // Payment methods are global (super-admin controlled), not shop-scoped.
+    const rows = await db.query.paymentMethods.findMany({
+      orderBy: (m, { asc }) => [asc(m.sortOrder), asc(m.id)],
+    });
     return ok(res, rows);
   } catch (e) { next(e); }
 });

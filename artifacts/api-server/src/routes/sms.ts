@@ -6,7 +6,7 @@ import { ok, created, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
 import { requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
-import { chargeWithMethod, getStatusWithMethod, loadMethod } from "../lib/gateways/index.js";
+import { chargeWithGateway, getStatusWithGateway, loadGateway } from "../lib/gateways/index.js";
 import { logger } from "../lib/logger.js";
 import crypto from "node:crypto";
 
@@ -43,9 +43,9 @@ router.get("/balance", requireAdmin, async (req, res, next) => {
 });
 
 // ── Top-up: initiate via a configured payment method ──────────────────────────
-// Body: { credits, paymentMethodId, phone? }
+// Body: { credits, paymentGatewayId, phone? }
 //   - credits         : how many SMS credits to buy
-//   - paymentMethodId : id of a row in payment_methods. The row's `gateway`
+//   - paymentGatewayId : id of a row in payment_methods. The row's `gateway`
 //                       drives how the charge is dispatched (only "sunpay"
 //                       currently triggers a real STK push; others reject).
 //   - phone           : M-Pesa phone to charge (defaults to admin.phone)
@@ -53,17 +53,17 @@ router.get("/balance", requireAdmin, async (req, res, next) => {
 router.post("/top-up", requireAdmin, async (req, res, next) => {
   try {
     const credits = Number(req.body?.credits);
-    const paymentMethodId = Number(req.body?.paymentMethodId);
+    const paymentGatewayId = Number(req.body?.paymentGatewayId);
     if (!Number.isFinite(credits) || credits <= 0) throw badRequest("credits must be a positive number");
-    if (!Number.isFinite(paymentMethodId) || paymentMethodId <= 0) throw badRequest("paymentMethodId required");
+    if (!Number.isFinite(paymentGatewayId) || paymentGatewayId <= 0) throw badRequest("paymentGatewayId required");
 
     const admin = await db.query.admins.findFirst({ where: eq(admins.id, req.admin!.id) });
     if (!admin) throw notFound("Admin not found");
 
     // Resolve the payment method and ensure it's a SunPay one (only online
     // gateway wired for credit purchases right now).
-    const method = await loadMethod(paymentMethodId);
-    if (!method) throw badRequest("paymentMethodId is not an active payment method with a supported gateway");
+    const gw = await loadGateway(paymentGatewayId);
+    if (!gw) throw badRequest("paymentGatewayId is not an active payment gateway or its provider is not supported");
 
     const phone = String(req.body?.phone ?? admin.phone ?? "");
 
@@ -78,7 +78,7 @@ router.post("/top-up", requireAdmin, async (req, res, next) => {
       setting: {
         kind: "sms_topup",
         adminId: admin.id,
-        paymentMethodId: method.id,
+        paymentGatewayId: gw.id,
         credits,
         amount,
         pricePerCredit,
@@ -89,16 +89,16 @@ router.post("/top-up", requireAdmin, async (req, res, next) => {
     });
 
     const baseUrl = publicBaseUrl();
-    const callbackUrl = baseUrl ? `${baseUrl}/api/payments/${method.gateway}/callback/${externalRef}` : undefined;
+    const callbackUrl = baseUrl ? `${baseUrl}/api/payments/${gw.gateway}/callback/${externalRef}` : undefined;
 
-    const result = await chargeWithMethod(method.id, { phone, amount, externalRef, callbackUrl, description: `SMS credits x${credits}` });
+    const result = await chargeWithGateway(gw.id, { phone, amount, externalRef, callbackUrl, description: `SMS credits x${credits}` });
     if (!result.ok) {
       await db.update(settings)
         .set({
           setting: {
             kind: "sms_topup",
             adminId: admin.id,
-            paymentMethodId: method.id,
+            paymentGatewayId: gw.id,
             credits, amount, pricePerCredit, phone,
             status: "init_failed",
             error: result.message,
@@ -114,7 +114,7 @@ router.post("/top-up", requireAdmin, async (req, res, next) => {
         setting: {
           kind: "sms_topup",
           adminId: admin.id,
-          paymentMethodId: method.id,
+          paymentGatewayId: gw.id,
           credits, amount, pricePerCredit, phone,
           status: "pending",
           transactionId: result.transactionId,
@@ -128,7 +128,7 @@ router.post("/top-up", requireAdmin, async (req, res, next) => {
       externalRef,
       transactionId: result.transactionId,
       checkoutRequestId: result.checkoutRequestId,
-      paymentMethod: { id: method.id, name: method.name, gateway: method.gateway },
+      paymentGateway: { id: gw.id, name: gw.name, gateway: gw.gateway },
       amount, credits, phone,
       status: "pending",
       message: "STK push sent — confirm on your phone. Credits will be added once payment is confirmed.",
@@ -147,9 +147,9 @@ router.get("/top-up/:ref", requireAdmin, async (req, res, next) => {
     const intent = intentRow.setting as Record<string, unknown>;
     if (intent["adminId"] !== req.admin!.id) throw notFound("Top-up intent not found");
 
-    if (intent["status"] === "pending" && intent["transactionId"] && intent["paymentMethodId"]) {
+    if (intent["status"] === "pending" && intent["transactionId"] && intent["paymentGatewayId"]) {
       try {
-        const live = await getStatusWithMethod(Number(intent["paymentMethodId"]), String(intent["transactionId"]));
+        const live = await getStatusWithGateway(Number(intent["paymentGatewayId"]), String(intent["transactionId"]));
         if (live.ok && live.status && live.status !== "pending") {
           await applyResolution(externalRef, live.status, live.reference);
           const refreshed = await db.query.settings.findFirst({ where: eq(settings.name, intentName) });
@@ -212,7 +212,7 @@ export async function applyResolution(externalRef: string, status: string, mpesa
       type: "top_up",
       amount: credits,
       balanceAfter: newBalance,
-      description: `Purchased ${credits} credits via payment method #${intent["paymentMethodId"]} for KES ${amount}${mpesaRef ? ` (M-Pesa: ${mpesaRef})` : ""}`,
+      description: `Purchased ${credits} credits via payment gateway #${intent["paymentGatewayId"]} for KES ${amount}${mpesaRef ? ` (M-Pesa: ${mpesaRef})` : ""}`,
     });
     await tx.update(settings)
       .set({ setting: { ...intent, status: "completed", completedAt: new Date().toISOString(), mpesaRef, balanceAfter: newBalance } })

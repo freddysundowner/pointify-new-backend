@@ -7,7 +7,7 @@ import {
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
-import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
+import { requireAdmin, requireAdminOrAttendant, requireSuperAdmin } from "../middlewares/auth.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
 
 const router = Router();
@@ -285,50 +285,47 @@ router.delete("/cashflows/:id", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ── Payment Methods ───────────────────────────────────────────────────────────
+// ── Payment Methods (POS catalog — global, super-admin controlled) ───────────
 
-router.get("/payment-methods", requireAdminOrAttendant, async (req, res, next) => {
+// Read-only listing for any authenticated POS user.
+router.get("/payment-methods", requireAdminOrAttendant, async (_req, res, next) => {
   try {
-    const shopId = Number(req.query["shopId"] ?? 0);
     const rows = await db.query.paymentMethods.findMany({
-      where: shopId ? eq(paymentMethods.shop, shopId) : undefined,
+      orderBy: (m, { asc }) => [asc(m.sortOrder), asc(m.id)],
     });
     return ok(res, rows);
   } catch (e) { next(e); }
 });
 
-router.post("/payment-methods", requireAdmin, async (req, res, next) => {
+router.post("/payment-methods", requireSuperAdmin, async (req, res, next) => {
   try {
-    const { name, description, shopId, gateway, config } = req.body;
-    if (!name || !shopId) throw badRequest("name and shopId required");
-    const gw = String(gateway ?? "manual");
-    if (!["manual","sunpay","stripe","paystack"].includes(gw)) throw badRequest("unsupported gateway");
+    const { name, description, isActive, sortOrder } = req.body ?? {};
+    if (!name) throw badRequest("name required");
     const [row] = await db.insert(paymentMethods).values({
-      name, description, shop: Number(shopId), gateway: gw, config: (config ?? {}) as any,
+      name: String(name),
+      description: description ?? null,
+      ...(isActive !== undefined && { isActive: Boolean(isActive) }),
+      ...(sortOrder !== undefined && { sortOrder: Number(sortOrder) }),
     }).returning();
     return created(res, row);
   } catch (e) { next(e); }
 });
 
-router.put("/payment-methods/:id", requireAdmin, async (req, res, next) => {
+router.put("/payment-methods/:id", requireSuperAdmin, async (req, res, next) => {
   try {
-    const { name, description, isActive, gateway, config } = req.body;
-    if (gateway !== undefined && !["manual","sunpay","stripe","paystack"].includes(String(gateway))) {
-      throw badRequest("unsupported gateway");
-    }
+    const { name, description, isActive, sortOrder } = req.body ?? {};
     const [updated] = await db.update(paymentMethods).set({
-      ...(name && { name }),
+      ...(name !== undefined && { name: String(name) }),
       ...(description !== undefined && { description }),
       ...(isActive !== undefined && { isActive: Boolean(isActive) }),
-      ...(gateway !== undefined && { gateway: String(gateway) }),
-      ...(config !== undefined && { config: config as any }),
+      ...(sortOrder !== undefined && { sortOrder: Number(sortOrder) }),
     }).where(eq(paymentMethods.id, Number(req.params["id"]))).returning();
     if (!updated) throw notFound("Payment method not found");
     return ok(res, updated);
   } catch (e) { next(e); }
 });
 
-router.delete("/payment-methods/:id", requireAdmin, async (req, res, next) => {
+router.delete("/payment-methods/:id", requireSuperAdmin, async (req, res, next) => {
   try {
     await db.delete(paymentMethods).where(eq(paymentMethods.id, Number(req.params["id"])));
     return noContent(res);

@@ -21,7 +21,7 @@ import { suppliers, supplierWalletTransactions } from "./suppliers";
 import { shops } from "./shop";
 import { admins, attendants } from "./identity";
 import { affiliates, awards, affiliateTransactions } from "./affiliates";
-import { banks, cashflows, expenses, userPayments, expenseCategories, cashflowCategories, paymentMethods } from "./finance";
+import { banks, cashflows, expenses, userPayments, expenseCategories, cashflowCategories } from "./finance";
 import { communications } from "./communication";
 
 // ─── Sales ────────────────────────────────────────────────────────────────────

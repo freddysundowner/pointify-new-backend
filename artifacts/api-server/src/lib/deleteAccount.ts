@@ -39,7 +39,6 @@ import {
   cashflows,
   expenses,
   banks,
-  paymentMethods,
   expenseCategories,
   cashflowCategories,
   userPayments,
@@ -121,7 +120,6 @@ export async function deleteAdminAccount(adminId: number): Promise<DeletedAdminS
       await tx.delete(cashflows).where(inArray(cashflows.shop, shopIds));
       await tx.delete(expenses).where(inArray(expenses.shop, shopIds));
       await tx.delete(banks).where(inArray(banks.shop, shopIds));
-      await tx.delete(paymentMethods).where(inArray(paymentMethods.shop, shopIds));
       await tx.delete(expenseCategories).where(inArray(expenseCategories.shop, shopIds));
       await tx.delete(cashflowCategories).where(inArray(cashflowCategories.shop, shopIds));
 

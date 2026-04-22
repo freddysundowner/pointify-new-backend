@@ -10,8 +10,8 @@ import { requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifySubscriptionActivated, notifySubscriptionPaymentSuccess } from "../lib/emailEvents.js";
 import { smsSubscriptionPaymentSuccess } from "../lib/smsEvents.js";
-import { admins, shops, paymentMethods, settings } from "@workspace/db";
-import { chargeWithMethod, loadMethod } from "../lib/gateways/index.js";
+import { admins, shops, settings } from "@workspace/db";
+import { chargeWithGateway, loadGateway } from "../lib/gateways/index.js";
 import crypto from "node:crypto";
 
 const router = Router();
@@ -242,12 +242,12 @@ router.post("/:id/pay", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params["id"]);
     const sub = await loadSubscriptionForPayment(id);
-    const { paymentMethodId, paymentMethod, paymentReference, mpesaCode, phone } = req.body ?? {};
+    const { paymentGatewayId, paymentMethod, paymentReference, mpesaCode, phone } = req.body ?? {};
 
     // ── Payment method path: dispatch via gateway adapter or record manually
-    if (paymentMethodId) {
-      const method = await loadMethod(Number(paymentMethodId));
-      if (method) {
+    if (paymentGatewayId) {
+      const gw = await loadGateway(Number(paymentGatewayId));
+      if (gw) {
         // Online gateway path — initiate a charge and return pending state.
         const amount = Math.round(Number(sub.amount ?? 0));
         if (amount < 1) throw badRequest("subscription amount is below 1");
@@ -258,8 +258,8 @@ router.post("/:id/pay", requireAdmin, async (req, res, next) => {
           setting: {
             kind: "sub_payment",
             subscriptionId: id,
-            paymentMethodId: method.id,
-            gateway: method.gateway,
+            paymentGatewayId: gw.id,
+            gateway: gw.gateway,
             amount,
             phone: phone ?? null,
             status: "pending",
@@ -268,9 +268,9 @@ router.post("/:id/pay", requireAdmin, async (req, res, next) => {
         });
 
         const baseUrl = process.env["PUBLIC_URL"] ?? (process.env["REPLIT_DEV_DOMAIN"] ? `https://${process.env["REPLIT_DEV_DOMAIN"]}` : "");
-        const callbackUrl = baseUrl ? `${baseUrl.replace(/\/+$/, "")}/api/payments/${method.gateway}/callback/${externalRef}` : undefined;
+        const callbackUrl = baseUrl ? `${baseUrl.replace(/\/+$/, "")}/api/payments/${gw.gateway}/callback/${externalRef}` : undefined;
 
-        const result = await chargeWithMethod(method.id, {
+        const result = await chargeWithGateway(gw.id, {
           amount,
           phone: phone ?? undefined,
           externalRef,
@@ -279,18 +279,18 @@ router.post("/:id/pay", requireAdmin, async (req, res, next) => {
         });
         if (!result.ok) {
           await db.update(settings)
-            .set({ setting: { kind: "sub_payment", subscriptionId: id, paymentMethodId: method.id, gateway: method.gateway, amount, phone: phone ?? null, status: "init_failed", error: result.message, createdAt: new Date().toISOString() } })
+            .set({ setting: { kind: "sub_payment", subscriptionId: id, paymentGatewayId: gw.id, gateway: gw.gateway, amount, phone: phone ?? null, status: "init_failed", error: result.message, createdAt: new Date().toISOString() } })
             .where(eq(settings.name, intentName));
           throw badRequest(`Could not initiate payment: ${result.message ?? "unknown error"}`);
         }
         await db.update(settings)
-          .set({ setting: { kind: "sub_payment", subscriptionId: id, paymentMethodId: method.id, gateway: method.gateway, amount, phone: phone ?? null, status: "pending", transactionId: result.transactionId, checkoutRequestId: result.checkoutRequestId, createdAt: new Date().toISOString() } })
+          .set({ setting: { kind: "sub_payment", subscriptionId: id, paymentGatewayId: gw.id, gateway: gw.gateway, amount, phone: phone ?? null, status: "pending", transactionId: result.transactionId, checkoutRequestId: result.checkoutRequestId, createdAt: new Date().toISOString() } })
           .where(eq(settings.name, intentName));
 
         return ok(res, {
           subscription: sub,
           payment: {
-            gateway: method.gateway,
+            gateway: gw.gateway,
             status: "pending",
             externalRef,
             transactionId: result.transactionId,
@@ -298,30 +298,11 @@ router.post("/:id/pay", requireAdmin, async (req, res, next) => {
             checkoutUrl: result.checkoutUrl,
             amount,
             currency: sub.currency,
-            paymentMethod: { id: method.id, name: method.name },
+            paymentGateway: { id: gw.id, name: gw.name },
           },
         });
       }
-      // No adapter for this method — only allow manual recording when the
-      // method exists, is active, and explicitly uses gateway="manual".
-      const methodRow = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.id, Number(paymentMethodId)) });
-      if (!methodRow) throw badRequest("paymentMethodId not found");
-      if (!methodRow.isActive) throw badRequest("payment method is inactive");
-      if (methodRow.gateway !== "manual") {
-        throw badRequest(`gateway "${methodRow.gateway}" is not configured (missing apiKey or unsupported)`);
-      }
-      const updatedManual = await markSubscriptionPaid(id, mpesaCode ?? paymentReference ?? null);
-      return ok(res, {
-        subscription: updatedManual,
-        payment: {
-          gateway: "manual",
-          status: "completed",
-          reference: paymentReference ?? mpesaCode ?? `PAY${Date.now()}`,
-          amount: sub.amount,
-          currency: sub.currency,
-          paymentMethod: { id: methodRow.id, name: methodRow.name },
-        },
-      });
+      throw badRequest("paymentGatewayId is not an active payment gateway or its provider is not supported");
     }
 
     // ── Manual path (no gateway dispatch) ──────────────────────────────────

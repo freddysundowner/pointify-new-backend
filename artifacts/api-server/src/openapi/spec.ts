@@ -1803,43 +1803,90 @@ export const openApiSpec = {
       },
     },
 
-    // ── Payment Methods ───────────────────────────────────────────────────────
+    // ── Payment Methods (POS catalog — global, super-admin controlled) ───────
     "/payment-methods": {
       get: {
         tags: ["Payment Methods"],
-        summary: "List payment methods",
+        summary: "List payment methods (POS checkout labels)",
+        description: "Global list of POS checkout-marking options (Cash, M-Pesa, Bank Transfer, Card). Pure labels — no integration. Read-only for any authenticated user; only the super-admin may create / update / delete.",
         ...auth(["Admin", "Attendant"]),
-        parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }],
         responses: list("Payment methods"),
       },
       post: {
         tags: ["Payment Methods"],
-        summary: "Create payment method",
-        ...auth(["Admin"]),
+        summary: "Create payment method (super-admin only)",
+        ...auth(["SuperAdmin"]),
         ...body({
           name: { type: "string" },
           description: { type: "string" },
-          shopId: { type: "integer" },
           isActive: { type: "boolean" },
-          gateway: { type: "string", enum: ["manual","sunpay","stripe","paystack"], default: "manual", description: "Adapter used to dispatch online charges. 'sunpay' enables real M-Pesa STK push for credit top-ups and subscription payments." },
-          config: { type: "object", description: "Gateway-specific config. For 'sunpay': { apiKey, baseUrl?, webhookSecret? }." },
-        }, ["name", "shopId"]),
+          sortOrder: { type: "integer" },
+        }, ["name"]),
         responses: ok("Created", {}),
       },
     },
     "/payment-methods/{id}": {
       put: {
         tags: ["Payment Methods"],
-        summary: "Update payment method",
-        ...auth(["Admin"]),
+        summary: "Update payment method (super-admin only)",
+        ...auth(["SuperAdmin"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" }, description: { type: "string" }, isActive: { type: "boolean" }, gateway: { type: "string", enum: ["manual","sunpay","stripe","paystack"] }, config: { type: "object" } }),
+        ...body({ name: { type: "string" }, description: { type: "string" }, isActive: { type: "boolean" }, sortOrder: { type: "integer" } }),
         responses: ok("Updated"),
       },
       delete: {
         tags: ["Payment Methods"],
-        summary: "Delete payment method",
+        summary: "Delete payment method (super-admin only)",
+        ...auth(["SuperAdmin"]),
+        parameters: [idParam()],
+        responses: { 204: { description: "Deleted" } },
+      },
+    },
+
+    // ── Payment Gateways (online charge providers — super-admin only) ────────
+    "/admin/payment-gateways": {
+      get: {
+        tags: ["Payment Gateways"],
+        summary: "List payment gateways (with credentials)",
+        description: "Online providers Pointify uses to charge admins for subscriptions and SMS credits (SunPay, Stripe, Paystack, M-Pesa Daraja). Returns full rows including config — super-admin only.",
+        ...auth(["SuperAdmin"]),
+        responses: list("Payment gateways"),
+      },
+      post: {
+        tags: ["Payment Gateways"],
+        summary: "Create payment gateway",
+        ...auth(["SuperAdmin"]),
+        ...body({
+          name: { type: "string", description: "Friendly label, e.g. 'SunPay M-Pesa'" },
+          gateway: { type: "string", enum: ["sunpay"], description: "Adapter that dispatches the charge. Currently only 'sunpay' is wired; stripe / paystack / mpesa adapters are stubbed and will be enabled as they are implemented." },
+          config: { type: "object", description: "Adapter-specific credentials. SunPay: { apiKey, baseUrl?, webhookSecret? }" },
+          isActive: { type: "boolean" },
+        }, ["name","gateway"]),
+        responses: ok("Created", {}),
+      },
+    },
+    "/admin/payment-gateways/active": {
+      get: {
+        tags: ["Payment Gateways"],
+        summary: "List active gateways for admin pickers",
+        description: "Returns only id/name/gateway (no credentials) for active gateways. Use this to populate the gateway picker on subscription / SMS top-up screens.",
         ...auth(["Admin"]),
+        responses: list("Active payment gateways"),
+      },
+    },
+    "/admin/payment-gateways/{id}": {
+      put: {
+        tags: ["Payment Gateways"],
+        summary: "Update payment gateway",
+        ...auth(["SuperAdmin"]),
+        parameters: [idParam()],
+        ...body({ name: { type: "string" }, gateway: { type: "string", enum: ["sunpay","stripe","paystack","mpesa"] }, config: { type: "object" }, isActive: { type: "boolean" } }),
+        responses: ok("Updated"),
+      },
+      delete: {
+        tags: ["Payment Gateways"],
+        summary: "Delete payment gateway",
+        ...auth(["SuperAdmin"]),
         parameters: [idParam()],
         responses: { 204: { description: "Deleted" } },
       },
@@ -3055,7 +3102,7 @@ export const openApiSpec = {
         summary: "Initiate SMS credit top-up via SunPay M-Pesa STK push",
         description: "Triggers an STK push to the supplied phone for KES = credits × pricePerCredit (default 1). Credits are added only after SunPay confirms payment via webhook or status poll.",
         ...auth(["Admin"]),
-        ...body({ credits: { type: "integer", minimum: 1 }, paymentMethodId: { type: "integer", description: "id of a payment_methods row with gateway='sunpay'" }, phone: { type: "string", description: "Defaults to admin.phone" } }, ["credits", "paymentMethodId"]),
+        ...body({ credits: { type: "integer", minimum: 1 }, paymentGatewayId: { type: "integer", description: "id of an active payment_gateways row (e.g. SunPay) used to charge the admin" }, phone: { type: "string", description: "Defaults to admin.phone" } }, ["credits", "paymentGatewayId"]),
         responses: ok("STK push initiated — returns externalRef for polling"),
       },
     },
@@ -3081,17 +3128,15 @@ export const openApiSpec = {
     "/subscriptions/{id}/pay": {
       post: {
         tags: ["Subscriptions"],
-        summary: "Pay subscription (manual or via a configured payment method)",
-        description: "If paymentMethodId is supplied and the method has gateway='sunpay', triggers a real STK push and returns status='pending' until the SunPay webhook confirms. Otherwise records a manual payment immediately.",
+        summary: "Pay subscription via a configured payment gateway",
+        description: "Charges the admin via the chosen payment_gateways row. Currently supports SunPay (M-Pesa STK push). Returns status='pending' until the gateway webhook confirms.",
         ...auth(["Admin"]),
         parameters: [idParam()],
         ...body({
-          paymentMethodId: { type: "integer", description: "id of a payment_methods row" },
-          phone: { type: "string", description: "Required when the chosen method is SunPay" },
-          paymentMethod: { type: "string", description: "Free-form label (manual path only)" },
+          paymentGatewayId: { type: "integer", description: "id of an active payment_gateways row" },
+          phone: { type: "string", description: "Required for SunPay / M-Pesa gateways" },
           paymentReference: { type: "string" },
-          mpesaCode: { type: "string" },
-        }),
+        }, ["paymentGatewayId"]),
         responses: ok("Payment recorded or STK push initiated"),
       },
     },

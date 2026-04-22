@@ -129,31 +129,48 @@ export const cashflows = pgTable(
   ]
 );
 
-// ─── Custom Payment Methods ───────────────────────────────────────────────────
-// Shop-defined payment methods shown in the POS checkout screen, beyond the
-// standard enum (cash, mpesa, card, bank, credit, split).
-// Examples: "Equity Bank Paybill", "Till 123456", "M-Pesa Lipa Number".
+// ─── Payment Methods (POS catalog) ────────────────────────────────────────────
+// Global list of checkout-marking options shown to cashiers in the POS app.
+// These are pure labels — no integration, no keys. Cashiers tap one to record
+// how a sale was paid (cash, mpesa, bank transfer, card). Reports group sales
+// by these labels.
+//
+// Controlled exclusively by the super-admin. Shop admins cannot modify.
 export const paymentMethods = pgTable(
   "payment_methods",
   {
     id: serial("id").primaryKey(),
-    name: text("name").notNull(),
+    name: text("name").notNull().unique(),
     description: text("description"),
     isActive: boolean("is_active").notNull().default(true),
-    shop: integer("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
-    // Gateway adapter — drives how online charges are dispatched.
-    //   "manual"  — record-only (Cash, on-account, manual M-Pesa entry, etc.)
-    //   "sunpay"  — SunPay STK push (https://sunpay.co.ke)
-    //   "stripe" / "paystack" — future
-    gateway: text("gateway").notNull().default("manual"),
-    // Free-form config for the gateway, e.g. for SunPay:
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  }
+);
+
+// ─── Payment Gateways (online charge providers) ───────────────────────────────
+// Connection details for online providers Pointify uses to actually move
+// money — admins paying their subscription, admins buying SMS credits.
+// Examples: SunPay, Stripe, Paystack, M-Pesa Daraja.
+//
+// NOT shown at the POS. NOT used for shop-customer payments.
+// Controlled exclusively by the super-admin.
+export const paymentGateways = pgTable(
+  "payment_gateways",
+  {
+    id: serial("id").primaryKey(),
+    // Friendly label shown to admins on subscription/top-up screens
+    // (e.g. "SunPay M-Pesa", "Stripe").
+    name: text("name").notNull(),
+    // Adapter id — selects which integration to dispatch through.
+    //   "sunpay" | "stripe" | "paystack" | "mpesa"
+    gateway: text("gateway").notNull(),
+    // Adapter-specific credentials & config, e.g. for SunPay:
     //   { apiKey, baseUrl?, webhookSecret? }
     config: jsonb("config").notNull().default({}),
+    isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => [
-    index("payment_methods_shop_id_idx").on(table.shop),
-  ]
+  }
 );
 
 // ─── User payments (customer / supplier account payments) ────────────────────
@@ -191,6 +208,7 @@ export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true 
 export const insertBankSchema = createInsertSchema(banks).omit({ id: true });
 export const insertCashflowSchema = createInsertSchema(cashflows).omit({ id: true });
 export const insertPaymentMethodSchema = createInsertSchema(paymentMethods).omit({ id: true });
+export const insertPaymentGatewaySchema = createInsertSchema(paymentGateways).omit({ id: true });
 export const insertUserPaymentSchema = createInsertSchema(userPayments).omit({ id: true });
 
 export type ExpenseCategory = typeof expenseCategories.$inferSelect;
@@ -205,5 +223,7 @@ export type Cashflow = typeof cashflows.$inferSelect;
 export type InsertCashflow = z.infer<typeof insertCashflowSchema>;
 export type PaymentMethod = typeof paymentMethods.$inferSelect;
 export type InsertPaymentMethod = z.infer<typeof insertPaymentMethodSchema>;
+export type PaymentGateway = typeof paymentGateways.$inferSelect;
+export type InsertPaymentGateway = z.infer<typeof insertPaymentGatewaySchema>;
 export type UserPayment = typeof userPayments.$inferSelect;
 export type InsertUserPayment = z.infer<typeof insertUserPaymentSchema>;
