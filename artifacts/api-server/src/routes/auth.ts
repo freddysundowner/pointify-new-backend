@@ -44,7 +44,7 @@ router.post("/admin/register", async (req, res, next) => {
     const { password: _, otp: __, ...safeAdmin } = admin;
 
     return created(res, {
-      admin: safeAdmin,
+      ...safeAdmin,
       ...(process.env["NODE_ENV"] !== "production" ? { otp } : {}),
       message: "Registration successful. Verify your email with the OTP sent.",
     });
@@ -101,7 +101,7 @@ router.post("/admin/login", async (req, res, next) => {
     const token = signToken({ role: "admin", id: admin.id, isSuperAdmin });
     const { password: _, otp: __, ...safeAdmin } = admin;
 
-    return ok(res, { token, admin: { ...safeAdmin, isSuperAdmin } });
+    return ok(res, { ...safeAdmin, isSuperAdmin, token });
   } catch (e) { next(e); }
 });
 
@@ -183,7 +183,7 @@ router.post("/attendant/login", async (req, res, next) => {
     const token = signToken({ role: "attendant", id: attendant.id, shopId: Number(shopId) });
     const { pin: _, password: __, ...safeAttendant } = attendant;
 
-    return ok(res, { token, attendant: safeAttendant });
+    return ok(res, { ...safeAttendant, token });
   } catch (e) { next(e); }
 });
 
@@ -275,7 +275,7 @@ router.post("/customer/login", async (req, res, next) => {
 
     const token = signToken({ role: "customer", id: customer.id });
     const { password: _, otp: __, ...safe } = customer;
-    return ok(res, { token, customer: safe });
+    return ok(res, { ...safe, token });
   } catch (e) { next(e); }
 });
 
