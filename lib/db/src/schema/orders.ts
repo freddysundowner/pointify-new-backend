@@ -34,8 +34,8 @@ export const orders = pgTable(
     orderNote: text("order_note"),
 
     shop: integer("shop_id").notNull().references(() => shops.id),
-    customer: integer("customer_id").references(() => customers.id),
-    attendant: integer("attendant_id").references(() => attendants.id),
+    customer: integer("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    attendant: integer("attendant_id").references(() => attendants.id, { onDelete: "set null" }),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

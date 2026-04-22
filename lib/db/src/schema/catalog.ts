@@ -49,10 +49,10 @@ export const products = pgTable(
     maxDiscount: numeric("max_discount", { precision: 14, scale: 2 }),
 
     // Classification
-    category: integer("product_category_id").references(() => productCategories.id),
+    category: integer("product_category_id").references(() => productCategories.id, { onDelete: "set null" }),
     measureUnit: text("measure_unit").notNull().default(""),
     manufacturer: text("manufacturer").notNull().default(""),
-    supplier: integer("supplier_id").references(() => suppliers.id),
+    supplier: integer("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
     shop: integer("shop_id").notNull().references(() => shops.id),
     createdBy: integer("created_by_id").notNull().references(() => attendants.id),
 
@@ -134,7 +134,7 @@ export const inventory = pgTable(
     id: serial("id").primaryKey(),
     product: integer("product_id").notNull().references(() => products.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
-    updatedBy: integer("updated_by_id").references(() => attendants.id),
+    updatedBy: integer("updated_by_id").references(() => attendants.id, { onDelete: "set null" }),
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull().default("0"),
     reorderLevel: numeric("reorder_level", { precision: 14, scale: 4 }).notNull().default("0"),
     lastCount: numeric("last_count", { precision: 14, scale: 4 }).notNull().default("0"),
@@ -250,8 +250,8 @@ export const stockRequests = pgTable(
   {
     id: serial("id").primaryKey(),
     requestedBy: integer("requested_by_id").notNull().references(() => attendants.id),
-    acceptedBy: integer("accepted_by_id").references(() => attendants.id),
-    approvedBy: integer("approved_by_id").references(() => attendants.id),
+    acceptedBy: integer("accepted_by_id").references(() => attendants.id, { onDelete: "set null" }),
+    approvedBy: integer("approved_by_id").references(() => attendants.id, { onDelete: "set null" }),
     // pending | processed | correction | void | completed
     status: text("status").notNull().default("pending"),
     fromShop: integer("from_shop_id").notNull().references(() => shops.id),

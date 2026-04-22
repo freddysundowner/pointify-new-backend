@@ -51,7 +51,7 @@ export const customers = pgTable(
     outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).notNull().default("0"),
 
     shop: integer("shop_id").notNull().references(() => shops.id),
-    createdBy: integer("created_by_id").references(() => attendants.id),
+    createdBy: integer("created_by_id").references(() => attendants.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
@@ -74,7 +74,7 @@ export const customerWalletTransactions = pgTable(
     id: serial("id").primaryKey(),
     customer: integer("customer_id").notNull().references(() => customers.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
-    handledBy: integer("handled_by_id").references(() => attendants.id),
+    handledBy: integer("handled_by_id").references(() => attendants.id, { onDelete: "set null" }),
 
     // deposit | withdraw | payment | refund
     type: text("type").notNull(),

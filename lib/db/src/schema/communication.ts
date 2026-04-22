@@ -110,7 +110,7 @@ export const smsCreditTransactions = pgTable(
 export const emailMessages = pgTable("email_messages", {
   id: serial("id").primaryKey(),
   // Admin who owns this campaign — scopes all queries by admin_id
-  admin: integer("admin_id").notNull().references(() => admins.id),
+  admin: integer("admin_id").notNull().references(() => admins.id, { onDelete: "cascade" }),
   // Human-readable template name (internal label)
   name: text("name").notNull(),
   subject: text("subject").notNull(),

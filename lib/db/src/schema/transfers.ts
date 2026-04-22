@@ -40,7 +40,7 @@ export const productTransfers = pgTable(
 
     // Set when fromShop is a warehouse — links to the purchase record
     // created at the receiving shop for this transfer
-    purchase: integer("purchase_id").references(() => purchases.id),
+    purchase: integer("purchase_id").references(() => purchases.id, { onDelete: "set null" }),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

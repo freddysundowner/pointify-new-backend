@@ -434,7 +434,7 @@ The top-level record for every transaction. Created once and generally never edi
 | card_total | numeric(14,2) | cached — SUM of sale_payments where payment_type = card |
 | outstanding_balance | numeric(14,2) | cached — total_with_discount − amount_paid. Key field for credit tracking |
 | sale_type | text | Retail / Dealer / Wholesale / Order — default Retail |
-| payment_type | text | cash / credit / mpesa / card / bank / split — set split when multiple methods used |
+| payment_type | text | cash / credit / mpesa / card / bank / wallet / split — set split when multiple methods used; wallet when fully paid by customer wallet credit |
 | status | text | cashed / credit / refunded / voided — default cashed |
 | sale_note | text | internal note, not shown on customer receipt |
 | due_date | timestamp | required when payment_type = credit. The date repayment is expected |
@@ -596,11 +596,11 @@ One record per customer per shop. Customers are not shared across shops.
 | otp_expiry | bigint | YES | unix ms — check against Date.now() |
 | type | text | YES | retail / wholesale / dealer / online |
 | credit_limit | numeric(14,2) | YES | max credit allowed. NULL = no credit for this customer |
-| wallet | numeric(14,2) | YES | pre-paid store credit. default 0. never goes below 0 |
-| outstanding_balance | numeric(14,2) | YES | cached — SUM(sales.outstanding_balance) for this customer |
+| wallet | numeric(14,2) | NO | pre-paid store credit. default 0. never goes below 0 |
+| outstanding_balance | numeric(14,2) | NO | cached — SUM(sales.outstanding_balance) for this customer |
 | shop_id | integer | NO | FK → shops |
 | created_by_id | integer | YES | FK → attendants |
-| created_at | timestamp | YES | |
+| created_at | timestamp | NO | |
 
 **API notes:**
 - `customer_no` must be auto-generated at insert time: SELECT MAX(customer_no) WHERE shop_id = ? and increment by 1. Do this inside the insert transaction.
@@ -629,7 +629,7 @@ Audit log of every change to a customer's wallet. One row per transaction.
 | payment_no | text | YES | auto-generated reference (e.g. REC1234567) |
 | payment_reference | text | YES | external ref — M-Pesa code, bank ref |
 | payment_type | text | YES | cash / mpesa / card / bank |
-| created_at | timestamp | YES | |
+| created_at | timestamp | NO | |
 
 **API notes:**
 - Every change to `customers.wallet` must be accompanied by an insert into this table in the same transaction — this is the audit trail.
@@ -661,10 +661,10 @@ Mirrors the customer wallet/outstanding_balance design but from the business's s
 | phone | text | YES | |
 | email | text | YES | |
 | address | text | YES | |
-| wallet | numeric(14,2) | YES | advance payment balance. default 0. never goes below 0 |
-| outstanding_balance | numeric(14,2) | YES | cached — total unpaid from credit purchases. default 0 |
+| wallet | numeric(14,2) | NO | advance payment balance. default 0. never goes below 0 |
+| outstanding_balance | numeric(14,2) | NO | cached — total unpaid from credit purchases. default 0 |
 | shop_id | integer | NO | FK → shops |
-| created_at | timestamp | YES | |
+| created_at | timestamp | NO | |
 
 **API notes:**
 - Suppliers are per-shop — scoped by `shop_id` in all queries.
@@ -691,7 +691,7 @@ Audit log of every payment to or from a supplier.
 | payment_no | text | YES | auto-generated reference |
 | payment_reference | text | YES | M-Pesa code, bank ref, cheque number |
 | payment_type | text | YES | cash / mpesa / card / bank / cheque |
-| created_at | timestamp | YES | |
+| created_at | timestamp | NO | |
 
 **API notes:**
 - Every change to `suppliers.wallet` must insert a row here in the same transaction.
@@ -960,7 +960,7 @@ affiliates.code
 | code | text unique | NO | referral code — auto-generated at registration, shared with admins at signup |
 | otp | text | YES | |
 | otp_expiry | bigint | YES | unix ms — OTP expiry timestamp |
-| created_at | timestamp | YES | |
+| created_at | timestamp | NO | |
 
 **API notes:**
 - `code` must be unique and auto-generated on affiliate creation (e.g. short alphanumeric slug).
@@ -984,7 +984,7 @@ affiliates.code
 | currency | text | NO | default 'kes' |
 | type | text | NO | `earnings` = credit to wallet \| `usage` = debit from wallet |
 | award_type | text | YES | `subscription` = recurring commission \| `open_shop` = one-time bonus |
-| created_at | timestamp | YES | |
+| created_at | timestamp | NO | |
 
 **API notes:**
 - **Subscription award trigger:** when `subscriptions.is_paid` is set to `true`, look up `admins.affiliate_id` for the subscribing admin. If set, find the affiliate, calculate `commission_amount = subscription.amount × affiliate.commission / 100`, then in one transaction: insert `awards` row, insert `affiliate_transactions` row (type = subscription), increment `affiliates.wallet`.
@@ -1006,7 +1006,7 @@ affiliates.code
 | is_completed | boolean | NO | default false — set to true when admin approves a withdrawal; always true for subscription earnings |
 | affiliate_id | integer | NO | FK → affiliates |
 | admin_id | integer | YES | FK → admins — who approved/processed the withdrawal |
-| created_at | timestamp | YES | |
+| created_at | timestamp | NO | |
 
 **API notes:**
 - On withdrawal request: create transaction row (`is_completed = false`), do NOT debit wallet yet.

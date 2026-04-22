@@ -36,8 +36,8 @@ export const purchases = pgTable(
     paymentType: text("payment_type").notNull(),
 
     shop: integer("shop_id").notNull().references(() => shops.id),
-    supplier: integer("supplier_id").references(() => suppliers.id),
-    createdBy: integer("created_by_id").references(() => attendants.id),
+    supplier: integer("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
+    createdBy: integer("created_by_id").references(() => attendants.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
@@ -106,7 +106,7 @@ export const purchaseReturns = pgTable(
   {
     id: serial("id").primaryKey(),
     purchase: integer("purchase_id").notNull().references(() => purchases.id),
-    supplier: integer("supplier_id").references(() => suppliers.id),
+    supplier: integer("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
     processedBy: integer("processed_by_id").notNull().references(() => attendants.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
     refundAmount: numeric("refund_amount", { precision: 14, scale: 2 }).notNull(),

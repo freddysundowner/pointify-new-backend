@@ -41,7 +41,7 @@ export const sales = pgTable(
 
     // Retail | Dealer | Wholesale | Order
     saleType: text("sale_type").notNull().default("Retail"),
-    // cash | credit | mpesa | card | bank | split
+    // cash | credit | mpesa | card | bank | wallet | split
     paymentType: text("payment_type").notNull().default("cash"),
     // cashed | credit | refunded | voided
     status: text("status").notNull().default("cashed"),
@@ -50,9 +50,9 @@ export const sales = pgTable(
     dueDate: timestamp("due_date"),   // for credit sales
 
     shop: integer("shop_id").notNull().references(() => shops.id),
-    customer: integer("customer_id").references(() => customers.id),
-    attendant: integer("attendant_id").references(() => attendants.id),
-    order: integer("order_id").references(() => orders.id),
+    customer: integer("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    attendant: integer("attendant_id").references(() => attendants.id, { onDelete: "set null" }),
+    order: integer("order_id").references(() => orders.id, { onDelete: "set null" }),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
@@ -78,10 +78,10 @@ export const saleItems = pgTable(
     product: integer("product_id").notNull().references(() => products.id),
 
     // Attendant who sold this item — for per-item commission tracking
-    attendant: integer("attendant_id").references(() => attendants.id),
+    attendant: integer("attendant_id").references(() => attendants.id, { onDelete: "set null" }),
 
     // Serial number for serialised products (phones, laptops, etc.)
-    serial: integer("serial_id").references(() => productSerials.id),
+    serial: integer("serial_id").references(() => productSerials.id, { onDelete: "set null" }),
 
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
@@ -150,7 +150,7 @@ export const saleReturns = pgTable(
   {
     id: serial("id").primaryKey(),
     sale: integer("sale_id").notNull().references(() => sales.id),
-    customer: integer("customer_id").references(() => customers.id),
+    customer: integer("customer_id").references(() => customers.id, { onDelete: "set null" }),
     processedBy: integer("processed_by_id").notNull().references(() => attendants.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
     refundAmount: numeric("refund_amount", { precision: 14, scale: 2 }).notNull(),

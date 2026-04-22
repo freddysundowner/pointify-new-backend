@@ -73,16 +73,16 @@ export const awards = pgTable(
     id: serial("id").primaryKey(),
 
     // The subscription payment that triggered this award (nullable for manual awards)
-    subscription: integer("subscription_id").references(() => subscriptions.id),
+    subscription: integer("subscription_id").references(() => subscriptions.id, { onDelete: "set null" }),
 
     // The affiliate who earns this commission
     affiliate: integer("affiliate_id").notNull().references(() => affiliates.id),
 
     // The shop whose subscription triggered this (for reporting)
-    shop: integer("shop_id").references(() => shops.id),
+    shop: integer("shop_id").references(() => shops.id, { onDelete: "set null" }),
 
     // Admin who manually triggered a non-subscription award (e.g. bonus)
-    fromAdmin: integer("from_admin_id").references(() => admins.id),
+    fromAdmin: integer("from_admin_id").references(() => admins.id, { onDelete: "set null" }),
 
     // Snapshot of the subscription amount at time of award
     amount: numeric("amount", { precision: 14, scale: 2 }),
@@ -128,7 +128,7 @@ export const affiliateTransactions = pgTable(
     isCompleted: boolean("is_completed").notNull().default(false),
     affiliate: integer("affiliate_id").notNull().references(() => affiliates.id),
     // Admin who processed/approved the transaction
-    admin: integer("admin_id").references(() => admins.id),
+    admin: integer("admin_id").references(() => admins.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [

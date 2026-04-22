@@ -31,7 +31,7 @@ export const shops = pgTable(
     address: text("address"),
     // Address line printed on customer receipts (may differ from shop address)
     receiptHeader: text("receipt_header"),
-    category: integer("shop_category_id").references(() => shopCategories.id),
+    category: integer("shop_category_id").references(() => shopCategories.id, { onDelete: "set null" }),
 
     // Circular FKs — resolved as plain integers
     admin: integer("admin_id"),

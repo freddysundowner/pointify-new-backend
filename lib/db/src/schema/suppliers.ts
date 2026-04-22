@@ -54,7 +54,7 @@ export const supplierWalletTransactions = pgTable(
     id: serial("id").primaryKey(),
     supplier: integer("supplier_id").notNull().references(() => suppliers.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
-    handledBy: integer("handled_by_id").references(() => attendants.id),
+    handledBy: integer("handled_by_id").references(() => attendants.id, { onDelete: "set null" }),
 
     // payment | deposit | withdraw | refund
     type: text("type").notNull(),

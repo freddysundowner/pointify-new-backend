@@ -29,7 +29,7 @@ export const expenseCategories = pgTable(
   {
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
-    shop: integer("shop_id").references(() => shops.id),
+    shop: integer("shop_id").references(() => shops.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
@@ -43,7 +43,7 @@ export const cashflowCategories = pgTable(
   {
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
-    shop: integer("shop_id").references(() => shops.id),
+    shop: integer("shop_id").references(() => shops.id, { onDelete: "cascade" }),
     // cashin | cashout
     type: text("type").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -67,7 +67,7 @@ export const expenses = pgTable(
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
     shop: integer("shop_id").notNull().references(() => shops.id),
     recordedBy: integer("recorded_by_id").notNull().references(() => attendants.id),
-    category: integer("category_id").references(() => expenseCategories.id),
+    category: integer("category_id").references(() => expenseCategories.id, { onDelete: "set null" }),
     isRecurring: boolean("is_recurring").notNull().default(false),
     // daily | weekly | monthly
     frequency: text("frequency"),
@@ -111,11 +111,11 @@ export const cashflows = pgTable(
     cashflowNo: text("cashflow_no").unique(),
     description: text("description").notNull(),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
-    category: integer("category_id").references(() => cashflowCategories.id),
+    category: integer("category_id").references(() => cashflowCategories.id, { onDelete: "set null" }),
     recordedBy: integer("recorded_by_id").notNull().references(() => attendants.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
     // When set, this cashflow affects the linked bank account's balance
-    bank: integer("bank_id").references(() => banks.id),
+    bank: integer("bank_id").references(() => banks.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
