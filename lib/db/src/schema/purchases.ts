@@ -83,7 +83,7 @@ export const purchasePayments = pgTable(
   {
     id: serial("id").primaryKey(),
     purchase: integer("purchase_id").notNull().references(() => purchases.id, { onDelete: "cascade" }),
-    paidBy: integer("paid_by_id").notNull().references(() => attendants.id),
+    paidBy: integer("paid_by_id").references(() => attendants.id),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
     balance: numeric("balance", { precision: 14, scale: 2 }).notNull().default("0"),
     paymentNo: text("payment_no"),

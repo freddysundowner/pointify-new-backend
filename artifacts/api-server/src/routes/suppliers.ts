@@ -98,10 +98,10 @@ router.post("/:id/wallet", requireAdmin, async (req, res, next) => {
     await db.update(suppliers).set({ wallet: newBalance }).where(eq(suppliers.id, supplierId));
     await db.insert(supplierWalletTransactions).values({
       supplier: supplierId,
+      shop: supplier.shop,
       amount: String(amount),
       balance: newBalance,
       type: "payment",
-      description: note ?? "Payment",
     });
 
     return ok(res, { wallet: newBalance });

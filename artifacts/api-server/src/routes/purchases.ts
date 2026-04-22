@@ -125,8 +125,7 @@ router.post("/:id/payments", requireAdmin, async (req, res, next) => {
     const purchase = await db.query.purchases.findFirst({ where: eq(purchases.id, purchaseId) });
     if (!purchase) throw notFound("Purchase not found");
 
-    const paidById = req.attendant?.id;
-    if (!paidById) throw badRequest("Attendant auth required for payments");
+    const paidById = req.attendant?.id ?? undefined;
 
     const newPaid = (parseFloat(purchase.amountPaid) + parseFloat(String(amount))).toFixed(2);
     const newOutstanding = Math.max(0, parseFloat(purchase.outstandingBalance) - parseFloat(String(amount)));

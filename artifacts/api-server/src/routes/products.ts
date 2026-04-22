@@ -205,8 +205,11 @@ router.post("/:id/serials", requireAdmin, async (req, res, next) => {
     if (!Array.isArray(serials) || serials.length === 0) throw badRequest("serials array required");
     const productId = Number(req.params["id"]);
 
+    const { shopId } = req.body;
+    if (!shopId) throw badRequest("shopId required");
+
     const rows = await db.insert(productSerials).values(
-      serials.map((serial: string) => ({ product: productId, serial }))
+      serials.map((serialNumber: string) => ({ product: productId, shop: Number(shopId), serialNumber }))
     ).returning();
     return created(res, rows);
   } catch (e) { next(e); }

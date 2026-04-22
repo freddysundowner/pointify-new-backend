@@ -40,6 +40,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
 router.get("/by-referral/:referralId", async (req, res, next) => {
   try {
     const referralId = Number(req.params["referralId"]);
+    if (!referralId || isNaN(referralId)) throw notFound("Shop not found");
     const shop = await db.query.shops.findFirst({
       where: eq(shops.id, referralId),
     });

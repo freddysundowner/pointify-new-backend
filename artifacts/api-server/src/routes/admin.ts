@@ -23,15 +23,23 @@ router.get("/profile", requireAdmin, async (req, res, next) => {
 
 router.put("/profile", requireAdmin, async (req, res, next) => {
   try {
-    const { username, phone, platform, appVersion, autoPrint, saleSmsEnabled } = req.body;
-    const [updated] = await db.update(admins).set({
-      ...(username && { username }),
+    const { name, username, phone, platform, appVersion, autoPrint, saleSmsEnabled } = req.body;
+    const displayName = username ?? name;
+    const updates: Record<string, unknown> = {
+      ...(displayName && { username: displayName }),
       ...(phone && { phone }),
       ...(platform && { platform }),
       ...(appVersion && { appVersion }),
       ...(autoPrint !== undefined && { autoPrint: Boolean(autoPrint) }),
       ...(saleSmsEnabled !== undefined && { saleSmsEnabled: Boolean(saleSmsEnabled) }),
-    }).where(eq(admins.id, req.admin!.id)).returning();
+    };
+    if (Object.keys(updates).length === 0) {
+      const admin = await db.query.admins.findFirst({ where: eq(admins.id, req.admin!.id) });
+      if (!admin) throw notFound("Admin not found");
+      const { password: _, otp: __, ...safe } = admin;
+      return ok(res, safe);
+    }
+    const [updated] = await db.update(admins).set(updates as any).where(eq(admins.id, req.admin!.id)).returning();
     if (!updated) throw notFound("Admin not found");
     const { password: _, otp: __, ...safe } = updated;
     return ok(res, safe);

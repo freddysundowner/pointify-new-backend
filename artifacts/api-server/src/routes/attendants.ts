@@ -49,7 +49,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
 
 router.get("/permissions", requireAdmin, async (req, res, next) => {
   try {
-    const rows = await db.query.permissions.findMany({ orderBy: (p, { asc }) => [asc(p.group)] });
+    const rows = await db.query.permissions.findMany({ orderBy: (p, { asc }) => [asc(p.sortOrder)] });
     return ok(res, rows);
   } catch (e) { next(e); }
 });

@@ -35,6 +35,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { name, phone, email, shopId, creditLimit, type, address } = req.body;
     if (!name || !shopId) throw badRequest("name and shopId required");
+    if (!phone) throw badRequest("phone required");
 
     const existing = await db.query.customers.findMany({ where: eq(customers.shop, Number(shopId)) });
     const nextNo = existing.length + 1;
@@ -119,10 +120,10 @@ router.post("/:id/wallet", requireAdminOrAttendant, async (req, res, next) => {
     await db.update(customers).set({ wallet: newBalance }).where(eq(customers.id, customerId));
     await db.insert(customerWalletTransactions).values({
       customer: customerId,
+      shop: customer.shop,
       amount: String(amount),
       balance: newBalance,
       type: "topup",
-      description: note ?? "Wallet top-up",
     });
 
     return ok(res, { wallet: newBalance, message: "Wallet updated" });
