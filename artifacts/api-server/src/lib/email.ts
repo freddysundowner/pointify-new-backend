@@ -114,8 +114,17 @@ const TEXT_FOOTER = [
 ].join("\n");
 
 function withFooter(html: string, text: string) {
+  // Inject the footer *inside* `</body>` when present — content placed after
+  // `</html>` is stripped by Gmail and many other clients, which is why the
+  // footer was missing from received emails.
+  let withHtmlFooter: string;
+  if (/<\/body\s*>/i.test(html)) {
+    withHtmlFooter = html.replace(/<\/body\s*>/i, `${HTML_FOOTER}</body>`);
+  } else {
+    withHtmlFooter = `${html}${HTML_FOOTER}`;
+  }
   return {
-    html: `${html}${HTML_FOOTER}`,
+    html: withHtmlFooter,
     text: text ? `${text}${TEXT_FOOTER}` : "",
   };
 }
