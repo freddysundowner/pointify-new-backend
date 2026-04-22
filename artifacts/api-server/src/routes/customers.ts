@@ -5,6 +5,7 @@ import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
+import { notifyCustomerWelcome, notifyWalletTopup } from "../lib/emailEvents.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
 
 const router = Router();
@@ -53,6 +54,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     }).returning();
 
     const { password: _, otp: __, ...safe } = customer;
+    void notifyCustomerWelcome(safe);
     return created(res, safe);
   } catch (e) { next(e); }
 });
@@ -224,6 +226,7 @@ router.post("/:id/wallet", requireAdminOrAttendant, async (req, res, next) => {
       type: "deposit",
     });
 
+    if (Number(amount) > 0) void notifyWalletTopup(customerId, String(amount), newBalance);
     return ok(res, { wallet: newBalance, message: "Wallet updated" });
   } catch (e) { next(e); }
 });

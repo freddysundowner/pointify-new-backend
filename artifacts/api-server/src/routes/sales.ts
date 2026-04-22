@@ -6,6 +6,7 @@ import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
+import { notifySaleReceipt } from "../lib/emailEvents.js";
 
 const router = Router();
 
@@ -112,6 +113,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       });
     }
 
+    void notifySaleReceipt(sale.id);
     return created(res, { ...sale, items: itemRows });
   } catch (e) { next(e); }
 });

@@ -6,6 +6,7 @@ import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
+import { notifyOrderConfirmation, notifyOrderShipped, notifyOrderDelivered, notifyOrderCancelled, notifySaleReceipt } from "../lib/emailEvents.js";
 
 const router = Router();
 
@@ -54,6 +55,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       }))
     ).returning();
 
+    void notifyOrderConfirmation(order.id);
     return created(res, { ...order, items: itemRows });
   } catch (e) { next(e); }
 });
@@ -78,6 +80,9 @@ router.put("/:id/status", requireAdminOrAttendant, async (req, res, next) => {
       .where(eq(orders.id, Number(req.params["id"])))
       .returning();
     if (!updated) throw notFound("Order not found");
+    if (status === "shipped") void notifyOrderShipped(updated.id, req.body?.shipping ?? {});
+    else if (status === "delivered" || status === "completed") void notifyOrderDelivered(updated.id);
+    else if (status === "cancelled") void notifyOrderCancelled(updated.id, req.body?.reason ?? "—");
     return ok(res, updated);
   } catch (e) { next(e); }
 });
@@ -155,6 +160,7 @@ router.post("/:id/fulfill", requireAdminOrAttendant, async (req, res, next) => {
       return { order: updated, sale: { ...sale, items: itemRows } };
     });
 
+    void notifySaleReceipt(result.sale.id);
     return ok(res, result);
   } catch (e) { next(e); }
 });

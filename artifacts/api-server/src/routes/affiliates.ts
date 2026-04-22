@@ -8,6 +8,7 @@ import { notFound, badRequest, unauthorized, conflict } from "../lib/errors.js";
 import { requireAdmin, requireAffiliate } from "../middlewares/auth.js";
 import { signToken } from "../lib/auth.js";
 import { getPagination } from "../lib/paginate.js";
+import { notifyAffiliateWelcome, notifyAffiliateCommissionEarned, notifyAffiliatePayout } from "../lib/emailEvents.js";
 
 const router = Router();
 
@@ -33,6 +34,8 @@ router.post("/register", async (req, res, next) => {
     }).returning();
 
     const { password: _, otp: __, ...safe } = affiliate;
+    const referralUrl = `https://pointify.app/?ref=${safe.code}`;
+    notifyAffiliateWelcome(safe, referralUrl);
     return created(res, safe);
   } catch (e) { next(e); }
 });
@@ -136,6 +139,11 @@ router.post("/me/withdraw", requireAffiliate, async (req, res, next) => {
       transId: paymentReference ?? null,
     }).returning();
 
+    notifyAffiliatePayout(aff, {
+      payoutAmount: String(amount),
+      payoutMethod: resolvedPaymentType,
+      payoutReference: paymentReference ?? `WD${tx.id}`,
+    });
     return created(res, { ...tx, paymentType: resolvedPaymentType, phone: phone ?? null, accountName: accountName ?? null, accountNumber: accountNumber ?? null });
   } catch (e) { next(e); }
 });
@@ -182,6 +190,8 @@ router.post("/awards", requireAdmin, async (req, res, next) => {
 
     const newBalance = (parseFloat(affiliate.wallet) + parseFloat(commissionAmount)).toFixed(2);
     await db.update(affiliates).set({ wallet: newBalance }).where(eq(affiliates.id, Number(affiliateId)));
+
+    notifyAffiliateCommissionEarned(affiliate, { commissionAmount, availableBalance: newBalance });
 
     return created(res, award);
   } catch (e) { next(e); }

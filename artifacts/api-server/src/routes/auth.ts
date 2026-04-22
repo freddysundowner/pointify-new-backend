@@ -9,6 +9,14 @@ import { signToken, verifyToken, extractBearer } from "../lib/auth.js";
 import { ok, created } from "../lib/response.js";
 import { notFound, badRequest, unauthorized, conflict } from "../lib/errors.js";
 import { requireAdmin, requireAttendant, requireAdminOrAttendant, requireCustomer } from "../middlewares/auth.js";
+import {
+  notifyAdminWelcome,
+  notifyAdminEmailVerification,
+  notifyAdminPasswordReset,
+  notifyAdminPasswordChanged,
+  notifyCustomerWelcome,
+  notifyCustomerPasswordReset,
+} from "../lib/emailEvents.js";
 
 const router = Router();
 
@@ -42,6 +50,9 @@ router.post("/admin/register", async (req, res, next) => {
     }).returning();
 
     const { password: _, otp: __, ...safeAdmin } = admin;
+
+    notifyAdminWelcome(safeAdmin);
+    notifyAdminEmailVerification(safeAdmin, otp, 10);
 
     return created(res, {
       ...safeAdmin,
@@ -77,6 +88,8 @@ router.post("/admin/resend-otp", async (req, res, next) => {
     const otp = makeOtp();
     const otpExpiry = Date.now() + 10 * 60 * 1000;
     await db.update(admins).set({ otp, otpExpiry }).where(eq(admins.id, admin.id));
+
+    notifyAdminEmailVerification(admin, otp, 10);
 
     return ok(res, {
       message: "OTP resent",
@@ -117,6 +130,8 @@ router.post("/admin/forgot-password", async (req, res, next) => {
     const otpExpiry = Date.now() + 10 * 60 * 1000;
     await db.update(admins).set({ otp, otpExpiry }).where(eq(admins.id, admin.id));
 
+    notifyAdminPasswordReset(admin, `Use code: ${otp}`, 10);
+
     return ok(res, {
       message: "OTP sent to email",
       ...(process.env["NODE_ENV"] !== "production" ? { otp } : {}),
@@ -136,6 +151,7 @@ router.post("/admin/reset-password", async (req, res, next) => {
 
     const hashed = await bcrypt.hash(password, 10);
     await db.update(admins).set({ password: hashed, otp: null, otpExpiry: null }).where(eq(admins.id, admin.id));
+    notifyAdminPasswordChanged(admin);
     return ok(res, { message: "Password updated" });
   } catch (e) { next(e); }
 });
@@ -152,6 +168,7 @@ router.post("/admin/reset-password-sms", async (req, res, next) => {
 
     const hashed = await bcrypt.hash(password, 10);
     await db.update(admins).set({ password: hashed, otp: null, otpExpiry: null }).where(eq(admins.id, admin.id));
+    notifyAdminPasswordChanged(admin);
     return ok(res, { message: "Password updated" });
   } catch (e) { next(e); }
 });
@@ -244,6 +261,7 @@ router.post("/customer/register", async (req, res, next) => {
     }).returning();
 
     const { password: _, otp: __, ...safe } = customer;
+    void notifyCustomerWelcome(safe);
     return created(res, safe);
   } catch (e) { next(e); }
 });
@@ -292,6 +310,8 @@ router.post("/customer/forgot-password", async (req, res, next) => {
     const otp = makeOtp();
     const otpExpiry = Date.now() + 10 * 60 * 1000;
     await db.update(customers).set({ otp, otpExpiry }).where(eq(customers.id, customer.id));
+
+    void notifyCustomerPasswordReset(customer, `Use code: ${otp}`, 10);
 
     return ok(res, {
       message: "OTP sent",

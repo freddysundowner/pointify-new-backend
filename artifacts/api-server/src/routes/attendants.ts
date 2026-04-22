@@ -6,6 +6,7 @@ import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest, forbidden } from "../lib/errors.js";
 import { requireAdmin } from "../middlewares/auth.js";
+import { notifyAttendantWelcome } from "../lib/emailEvents.js";
 import { getPagination } from "../lib/paginate.js";
 
 const router = Router();
@@ -43,6 +44,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
     }).returning();
 
     const { pin: _, password: __, ...safe } = attendant;
+    void notifyAttendantWelcome(safe, rawPin);
     return created(res, safe);
   } catch (e) { next(e); }
 });

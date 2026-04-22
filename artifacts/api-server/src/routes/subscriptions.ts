@@ -8,6 +8,7 @@ import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest, unauthorized } from "../lib/errors.js";
 import { requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
+import { notifySubscriptionActivated, notifySubscriptionPaymentSuccess } from "../lib/emailEvents.js";
 
 const router = Router();
 
@@ -211,6 +212,13 @@ async function markSubscriptionPaid(id: number, mpesaCode?: string | null) {
     })
     .where(eq(subscriptions.id, id))
     .returning();
+  if (updated) {
+    void notifySubscriptionActivated(updated.package, updated.shop, { amount: String(updated.amount ?? "") });
+    void notifySubscriptionPaymentSuccess(updated.package, updated.shop, {
+      amount: String(updated.amount ?? ""),
+      reference: mpesaCode ?? `PAY${Date.now()}`,
+    });
+  }
   return updated;
 }
 

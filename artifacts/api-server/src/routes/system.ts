@@ -6,6 +6,7 @@ import { ok, paginated, noContent } from "../lib/response.js";
 import { badRequest, notFound } from "../lib/errors.js";
 import { requireSuperAdmin, requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
+import { clearEmailConfigCache } from "../lib/email.js";
 
 const router = Router();
 
@@ -59,9 +60,11 @@ router.put("/settings/:name", requireSuperAdmin, async (req, res, next) => {
         .set({ setting: merged, updatedAt: new Date() })
         .where(eq(settings.name, name))
         .returning();
+      if (name === "email") clearEmailConfigCache();
       return ok(res, updated);
     }
     const [created] = await db.insert(settings).values({ name, setting: merged }).returning();
+    if (name === "email") clearEmailConfigCache();
     return ok(res, created);
   } catch (e) { next(e); }
 });
@@ -71,6 +74,7 @@ router.delete("/settings/:name", requireSuperAdmin, async (req, res, next) => {
     const name = String(req.params["name"]);
     const [deleted] = await db.delete(settings).where(eq(settings.name, name)).returning();
     if (!deleted) throw notFound("Setting not found");
+    if (name === "email") clearEmailConfigCache();
     return noContent(res);
   } catch (e) { next(e); }
 });

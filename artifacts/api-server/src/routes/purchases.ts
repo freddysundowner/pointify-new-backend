@@ -6,6 +6,7 @@ import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
 import { requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
+import { notifyPurchaseOrderToSupplier } from "../lib/emailEvents.js";
 
 const router = Router();
 
@@ -82,6 +83,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
       });
     }
 
+    void notifyPurchaseOrderToSupplier(purchase.id);
     return created(res, { ...purchase, items: itemRows });
   } catch (e) { next(e); }
 });
