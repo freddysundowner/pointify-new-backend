@@ -5,7 +5,6 @@ import {
   pgTable,
   serial,
   text,
-  boolean,
   integer,
   numeric,
   timestamp,
@@ -15,19 +14,30 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { shops } from "./shop";
 import { customers } from "./customers";
+import { attendants } from "./identity";
 import { products } from "./catalog";
 
+// ─── Orders ───────────────────────────────────────────────────────────────────
+// A customer-facing order placed before fulfillment. Converted to a sale when
+// fulfilled — at which point sales.order_id is set and status becomes completed.
 export const orders = pgTable(
   "orders",
   {
     id: serial("id").primaryKey(),
-    receiptNo: text("receipt_no").unique(),
-    // pending | processing | completed | cancelled
+
+    // Auto-generated reference number (e.g. ORD12345)
+    orderNo: text("order_no").unique(),
+
+    // pending | completed | cancelled
     status: text("status").default("pending"),
+
+    orderNote: text("order_note"),
+
     shop: integer("shop_id").notNull().references(() => shops.id),
     customer: integer("customer_id").references(() => customers.id),
+    attendant: integer("attendant_id").references(() => attendants.id),
+
     createdAt: timestamp("created_at").defaultNow(),
-    sync: boolean("sync").default(false),
   },
   (table) => [
     index("orders_shop_id_idx").on(table.shop),
@@ -36,15 +46,23 @@ export const orders = pgTable(
   ]
 );
 
-export const orderItems = pgTable("order_items", {
-  id: serial("id").primaryKey(),
-  order: integer("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
-  product: integer("product_id").notNull().references(() => products.id),
-  quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
-  unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
-  sync: boolean("sync").default(false),
-});
+// ─── Order items ──────────────────────────────────────────────────────────────
+// Line items for an order. Prices are recorded at time of order placement.
+export const orderItems = pgTable(
+  "order_items",
+  {
+    id: serial("id").primaryKey(),
+    order: integer("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+    product: integer("product_id").notNull().references(() => products.id),
+    quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
+    unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
+  },
+  (table) => [
+    index("order_items_order_id_idx").on(table.order),
+  ]
+);
 
+// ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
 
