@@ -420,6 +420,75 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
      <p>Reference: {{payoutReference}}</p>`,
     "Payout {{payoutAmount}} sent via {{payoutMethod}}. Ref {{payoutReference}}.",
   ),
+  make(
+    "admin_no_products_nudge",
+    "engagement",
+    "Sent ~2 days after admin signup if they haven't added any products yet.",
+    "{{adminName}}, ready to add your first product?",
+    "Your shop is waiting on you 👀",
+    `<p>Hi {{adminName}},</p>
+     <p>You signed up for Pointify a couple of days ago and we noticed your shop is still empty. No pressure — but most shops are up and selling within 10 minutes of adding their first product.</p>
+     <p><strong>What you'll unlock the moment you add a product:</strong></p>
+     <ul style="padding-left:18px;line-height:1.7">
+       <li>Ring up sales on the till in seconds</li>
+       <li>See live stock levels and low-stock alerts</li>
+       <li>Send polished digital receipts to customers</li>
+       <li>Start building loyalty and customer wallets</li>
+     </ul>
+     <p>Sign in any time and add a product — even just one — to bring your shop to life. We're here if you need a hand.</p>
+     <p>Cheers,<br/>The Pointify team</p>`,
+    "Hi {{adminName}}, your Pointify shop is still empty. Sign in and add your first product — most shops are selling within 10 minutes.",
+  ),
+  make(
+    "admin_no_sales_nudge",
+    "engagement",
+    "Sent if an admin has added products but recorded no sales for ~5 days.",
+    "{{adminName}}, your shop is set up — let's make a sale",
+    "Don't let those products gather dust 🛍️",
+    `<p>Hi {{adminName}},</p>
+     <p>You've added products to your Pointify shop — that's the hard part done. But we haven't seen any sales in the last few days, and we wanted to check in.</p>
+     <p><strong>A few quick ways to get started:</strong></p>
+     <ul style="padding-left:18px;line-height:1.7">
+       <li><strong>Open the till</strong> on a phone, tablet or laptop — it's ready when you are.</li>
+       <li><strong>Invite an attendant</strong> so a teammate can ring up sales for you.</li>
+       <li><strong>Print a quick receipt</strong> by recording a small test sale to see how everything flows.</li>
+       <li><strong>Add a customer</strong> and let them earn loyalty points from day one.</li>
+     </ul>
+     <p>If something is in your way, hit reply and tell us — we'd love to help you make sale number one.</p>
+     <p>Talk soon,<br/>The Pointify team</p>`,
+    "Hi {{adminName}}, your Pointify shop is set up but we haven't seen any sales yet. Sign in and ring up a quick test sale — we're here if you need help.",
+  ),
+  make(
+    "trial_expiring_soon",
+    "billing",
+    "Sent ~3 days before a trial subscription ends.",
+    "Your Pointify trial ends in {{daysLeft}} days",
+    "Don't lose what you've built ⏳",
+    `<p>Hi {{adminName}},</p>
+     <p>Your free trial of Pointify ends in <strong>{{daysLeft}} days</strong> ({{endDate}}). After that, you'll lose access to your dashboard, the till, and your reports.</p>
+     <p><strong>Why pick a paid plan?</strong></p>
+     <ul style="padding-left:18px;line-height:1.7">
+       <li>Keep selling without interruption — your data, products and customers stay exactly as they are.</li>
+       <li>Unlock unlimited sales, multi-shop support and full reporting.</li>
+       <li>Get priority support whenever you need it.</li>
+     </ul>
+     <p>Sign in to your dashboard and pick the plan that fits your shop. It only takes a minute.</p>
+     <p>Thanks for trying Pointify,<br/>The team</p>`,
+    "Hi {{adminName}}, your Pointify trial ends in {{daysLeft}} days ({{endDate}}). Sign in to pick a plan and keep selling without interruption.",
+  ),
+  make(
+    "trial_expired_followup",
+    "billing",
+    "Sent ~3 days after a trial expires to win the user back.",
+    "We'd love to have you back, {{adminName}}",
+    "Your shop is paused — but not gone",
+    `<p>Hi {{adminName}},</p>
+     <p>Your Pointify trial ended a few days ago and your shop is currently paused. Your products, customers and reports are still safe — we're just waiting for you to come back.</p>
+     <p>If cost was the issue, we offer monthly plans starting small so you can grow at your own pace. If something else got in the way, just reply to this email and tell us — we read every one.</p>
+     <p>Sign in any time to pick a plan and pick up exactly where you left off.</p>
+     <p>Hope to see you soon,<br/>The Pointify team</p>`,
+    "Hi {{adminName}}, your trial ended a few days ago but your data is safe. Sign in any time to pick a plan and pick up where you left off.",
+  ),
 ];
 
 export const DEFAULT_TEMPLATES_BY_KEY: Record<string, EmailTemplate> = Object.fromEntries(
