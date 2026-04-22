@@ -151,8 +151,11 @@ export const saleReturns = pgTable(
     processedBy: integer("processed_by_id").notNull().references(() => attendants.id),
     shop: integer("shop_id").notNull().references(() => shops.id),
     refundAmount: numeric("refund_amount", { precision: 14, scale: 2 }).notNull(),
+    // cash | mpesa | card | bank | store_credit
+    refundMethod: text("refund_method").notNull(),
+    refundReference: text("refund_reference"),
     reason: text("reason"),
-    returnNo: text("return_no").unique(),
+    returnNo: text("return_no").notNull().unique(),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
