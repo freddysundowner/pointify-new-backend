@@ -742,3 +742,122 @@ Orders are customer-facing requests placed before fulfillment. They are **not** 
 - `unit_price` is the price at the time the order was placed — snapshot it from the product's current price. This ensures the quoted price is locked even if the product price changes before fulfillment.
 - When converting an order to a sale, copy `order_items` into `sale_items`. Do not reference order_items from sale_items — the sale is an independent financial record.
 - Check product stock availability across all items before confirming the order (if `shop.negative_selling = false`).
+
+---
+
+## purchases.ts
+
+### Overview
+
+Five tables: `purchases` (header), `purchase_items` (line items), `purchase_payments` (instalments paid to supplier), `purchase_returns` (goods sent back), `purchase_return_items` (what was returned).
+
+Purchases are the financial mirror of sales — money goes OUT, stock comes IN. Every purchase that affects stock must also update `inventory.quantity` and, when `shop.track_batches = true`, create or update a `batches` row.
+
+Full traceability chain:
+```
+purchases → purchase_items → batches → sale_item_batches → sale_items → sales
+```
+
+---
+
+### purchases
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| purchase_no | text | YES | unique — auto-generate on insert (e.g. PUR1234567) |
+| total_amount | numeric(14,2) | NO | SUM(unit_price × quantity − line_discount) across all purchase_items |
+| amount_paid | numeric(14,2) | YES | cached — SUM(purchase_payments.amount) |
+| outstanding_balance | numeric(14,2) | YES | cached — total_amount − amount_paid |
+| payment_type | text | NO | cash / credit / mpesa / bank |
+| shop_id | integer | NO | FK → shops |
+| supplier_id | integer | YES | FK → suppliers |
+| created_by_id | integer | YES | FK → attendants |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- Creating a purchase is a single transaction: insert `purchases` + all `purchase_items` + increment `inventory.quantity` per item + create `batches` rows if `shop.track_batches = true` + set `purchase_items.batch_id` after batch creation + increment `suppliers.outstanding_balance`.
+- `amount_paid` and `outstanding_balance` must be recalculated whenever a `purchase_payments` row is inserted.
+- For cash/mpesa/bank purchases: insert a `purchase_payments` row at creation time. `outstanding_balance` should be 0.
+- For credit purchases: no payment row at creation. `outstanding_balance = total_amount`. Payments come later.
+- After all payments clear (`outstanding_balance = 0`): also decrement `suppliers.outstanding_balance` to match.
+
+---
+
+### purchase_items
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| purchase_id | integer | NO | FK → purchases, cascade delete |
+| product_id | integer | NO | FK → products |
+| quantity | numeric(14,4) | NO | |
+| unit_price | numeric(14,2) | NO | cost per unit for this specific lot |
+| line_discount | numeric(14,2) | YES | |
+| batch_code | text | YES | supplier lot reference — used to name the batch |
+| expiry_date | timestamp | YES | expiry for this lot — set on the batch |
+| batch_id | integer | YES | FK → batches — set AFTER the batch is created from this item |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- When `shop.track_batches = true`: after inserting the purchase item, create a `batches` row using `batch_code`, `expiry_date`, `unit_price` (as `buying_price`), and `quantity`. Then update `purchase_items.batch_id` with the new batch's id — all in the same transaction.
+- `unit_price` here becomes `batches.buying_price` — this is the cost used for `sale_items.cost_price` when items from this batch are sold.
+- When `shop.track_batches = false`: skip batch creation. Just increment `inventory.quantity` directly.
+- `batch_id` is the traceability link — it lets you answer "which purchase did this batch come from?" without relying on string matching of `batch_code`.
+
+---
+
+### purchase_payments
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| purchase_id | integer | NO | FK → purchases, cascade delete |
+| paid_by_id | integer | NO | FK → attendants |
+| amount | numeric(14,2) | NO | |
+| balance | numeric(14,2) | YES | |
+| payment_no | text | YES | auto-generated reference |
+| payment_reference | text | YES | M-Pesa code, bank ref, cheque number |
+| payment_type | text | YES | cash / mpesa / bank / cheque |
+| paid_at | timestamp | YES | |
+
+**API notes:**
+- After every insert: recalculate `purchases.amount_paid` and `purchases.outstanding_balance` in the same transaction.
+- Also decrement `suppliers.outstanding_balance` and insert a `supplier_wallet_transactions` row (type = payment).
+- Overpayment guard: do not allow `amount > purchases.outstanding_balance`.
+
+---
+
+### purchase_returns
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| purchase_id | integer | NO | FK → purchases |
+| supplier_id | integer | YES | FK → suppliers |
+| processed_by_id | integer | NO | FK → attendants |
+| shop_id | integer | NO | FK → shops |
+| refund_amount | numeric(14,2) | NO | |
+| refund_method | text | NO | cash / mpesa / bank / cheque / credit_note |
+| refund_reference | text | YES | transaction ref for mpesa/bank refunds |
+| reason | text | YES | |
+| return_no | text | NO | unique — auto-generate on insert |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- Processing a return is a transaction: insert `purchase_returns` + `purchase_return_items` + decrement `inventory.quantity` + decrement `batches.quantity` (if batch tracking) + update `purchases.outstanding_balance` − refund_amount + update `suppliers.outstanding_balance` − refund_amount.
+- `refund_method = credit_note`: supplier reduces what you owe them — decrement `purchases.outstanding_balance` without a cash movement.
+- `refund_method = cash/mpesa/bank`: supplier sends money back — insert a `supplier_wallet_transactions` row (type = refund).
+
+---
+
+### purchase_return_items
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| purchase_return_id | integer | NO | FK → purchase_returns, cascade delete |
+| purchase_item_id | integer | NO | FK → purchase_items — links to the exact original item received |
+| product_id | integer | NO | FK → products |
+| quantity | numeric(14,4) | NO | must not exceed original purchase_items.quantity |
+| unit_price | numeric(14,2) | NO | original cost price from purchase_items.unit_price |
+
+**API notes:**
+- `quantity` must be ≤ `purchase_items.quantity`. Validate before insert.
+- Cannot return the same `purchase_item_id` more than once — check existing `purchase_return_items` before inserting.
+- If the item had a linked batch (`purchase_items.batch_id`), decrement that batch's quantity by the returned amount.
