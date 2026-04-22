@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
 import { affiliates, awards, affiliateTransactions } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -60,6 +60,83 @@ router.get("/me", requireAffiliate, async (req, res, next) => {
     if (!affiliate) throw notFound("Affiliate not found");
     const { password: _, otp: __, ...safe } = affiliate;
     return ok(res, safe);
+  } catch (e) { next(e); }
+});
+
+router.put("/me", requireAffiliate, async (req, res, next) => {
+  try {
+    const { name, phone, address, country } = req.body;
+    const [updated] = await db.update(affiliates).set({
+      ...(name && { name }),
+      ...(phone && { phone }),
+      ...(address && { address }),
+      ...(country && { country }),
+    }).where(eq(affiliates.id, req.affiliate!.id)).returning();
+    if (!updated) throw notFound("Affiliate not found");
+    const { password: _, otp: __, ...safe } = updated;
+    return ok(res, safe);
+  } catch (e) { next(e); }
+});
+
+// ── Affiliate self-service: awards / transactions / withdraw ─────────────────
+
+router.get("/me/awards", requireAffiliate, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conds: any[] = [eq(awards.affiliate, req.affiliate!.id)];
+    if (from) conds.push(gte(awards.createdAt, from));
+    if (to) conds.push(lte(awards.createdAt, to));
+    const where = conds.length > 1 ? and(...conds) : conds[0];
+
+    const rows = await db.query.awards.findMany({
+      where, limit, offset,
+      orderBy: (a, { desc }) => [desc(a.createdAt)],
+    });
+    const total = await db.$count(awards, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.get("/me/transactions", requireAffiliate, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const where = eq(affiliateTransactions.affiliate, req.affiliate!.id);
+    const rows = await db.query.affiliateTransactions.findMany({
+      where, limit, offset,
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+    });
+    const total = await db.$count(affiliateTransactions, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.post("/me/withdraw", requireAffiliate, async (req, res, next) => {
+  try {
+    const { amount, paymentType, paymentReference, phone, accountName, accountNumber } = req.body;
+    if (amount === undefined || amount === null || amount === "") throw badRequest("amount required");
+    const resolvedPaymentType = paymentType ?? "mpesa";
+
+    const aff = await db.query.affiliates.findFirst({ where: eq(affiliates.id, req.affiliate!.id) });
+    if (!aff) throw notFound("Affiliate not found");
+    if (parseFloat(String(amount)) > parseFloat(aff.wallet)) {
+      throw badRequest("Withdrawal amount exceeds wallet balance");
+    }
+
+    // Per spec: do NOT decrement wallet — only on admin approval (complete).
+    const [tx] = await db.insert(affiliateTransactions).values({
+      affiliate: aff.id,
+      amount: String(amount),
+      affiliateAmount: String(amount),
+      balance: aff.wallet,
+      type: "withdraw",
+      isCompleted: false,
+      transId: paymentReference ?? null,
+    }).returning();
+
+    return created(res, { ...tx, paymentType: resolvedPaymentType, phone: phone ?? null, accountName: accountName ?? null, accountNumber: accountNumber ?? null });
   } catch (e) { next(e); }
 });
 

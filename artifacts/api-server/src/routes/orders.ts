@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, and } from "drizzle-orm";
-import { orders, orderItems } from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
+import { orders, orderItems, sales, saleItems, inventory } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -79,6 +79,83 @@ router.put("/:id/status", requireAdminOrAttendant, async (req, res, next) => {
       .returning();
     if (!updated) throw notFound("Order not found");
     return ok(res, updated);
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/fulfill", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const orderId = Number(req.params["id"]);
+    const order = await db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+      with: { orderItems: true },
+    });
+    if (!order) throw notFound("Order not found");
+    if (order.status === "completed") throw badRequest("Order already fulfilled");
+
+    let totalAmount = 0;
+    for (const item of order.orderItems) {
+      totalAmount += parseFloat(item.unitPrice) * parseFloat(item.quantity);
+    }
+
+    const receiptNo = `REC${Date.now()}`;
+
+    const result = await db.transaction(async (tx) => {
+      const [sale] = await tx.insert(sales).values({
+        shop: order.shop,
+        customer: order.customer ?? null,
+        attendant: req.attendant?.id ?? order.attendant ?? null,
+        order: order.id,
+        totalAmount: String(totalAmount.toFixed(2)),
+        totalWithDiscount: String(totalAmount.toFixed(2)),
+        totalTax: "0",
+        saleDiscount: "0",
+        amountPaid: String(totalAmount.toFixed(2)),
+        outstandingBalance: "0",
+        saleType: "Order",
+        paymentType: "cash",
+        status: "cashed",
+        receiptNo,
+      } as typeof sales.$inferInsert).returning();
+
+      const itemRows = order.orderItems.length
+        ? await tx.insert(saleItems).values(
+            order.orderItems.map((item) => ({
+              sale: sale.id,
+              shop: order.shop,
+              product: item.product,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              costPrice: "0",
+              saleType: "Order",
+              attendant: req.attendant?.id ?? undefined,
+            })),
+          ).returning()
+        : [];
+
+      for (const item of order.orderItems) {
+        const existing = await tx.query.inventory.findFirst({
+          where: and(eq(inventory.shop, order.shop), eq(inventory.product, item.product)),
+        });
+        if (!existing) continue;
+        const newQty = parseFloat(existing.quantity ?? "0") - parseFloat(item.quantity);
+        if (newQty < 0) {
+          // eslint-disable-next-line no-console
+          console.warn(`[orders.fulfill] inventory went negative for product=${item.product} shop=${order.shop} newQty=${newQty}`);
+        }
+        await tx.update(inventory)
+          .set({ quantity: sql`${inventory.quantity} - ${item.quantity}` })
+          .where(and(eq(inventory.shop, order.shop), eq(inventory.product, item.product)));
+      }
+
+      const [updated] = await tx.update(orders)
+        .set({ status: "completed" })
+        .where(eq(orders.id, orderId))
+        .returning();
+
+      return { order: updated, sale: { ...sale, items: itemRows } };
+    });
+
+    return ok(res, result);
   } catch (e) { next(e); }
 });
 

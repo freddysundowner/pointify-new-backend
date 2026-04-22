@@ -33,9 +33,40 @@ router.post("/", requireAdmin, async (req, res, next) => {
     const [supplier] = await db.insert(suppliers).values({
       name, phone, email, address,
       shop: Number(shopId),
-      creditLimit: creditLimit ? String(creditLimit) : null,
     }).returning();
     return created(res, supplier);
+  } catch (e) { next(e); }
+});
+
+router.post("/bulk-import", requireAdmin, async (req, res, next) => {
+  try {
+    const list = Array.isArray(req.body?.suppliers) ? req.body.suppliers : null;
+    if (!list) throw badRequest("suppliers array required");
+    const errors: { index: number; message: string }[] = [];
+    let createdCount = 0;
+    let skipped = 0;
+    for (let i = 0; i < list.length; i++) {
+      const s = list[i];
+      try {
+        if (!s?.name || !s?.shopId) {
+          skipped++;
+          errors.push({ index: i, message: "name and shopId required" });
+          continue;
+        }
+        await db.insert(suppliers).values({
+          name: s.name,
+          phone: s.phone ?? null,
+          email: s.email ?? null,
+          address: s.address ?? null,
+          shop: Number(s.shopId),
+        });
+        createdCount++;
+      } catch (err) {
+        skipped++;
+        errors.push({ index: i, message: (err as Error).message });
+      }
+    }
+    return ok(res, { created: createdCount, skipped, errors });
   } catch (e) { next(e); }
 });
 
@@ -49,13 +80,12 @@ router.get("/:id", requireAdmin, async (req, res, next) => {
 
 router.put("/:id", requireAdmin, async (req, res, next) => {
   try {
-    const { name, phone, email, address, creditLimit } = req.body;
+    const { name, phone, email, address } = req.body;
     const [updated] = await db.update(suppliers).set({
       ...(name && { name }),
       ...(phone !== undefined && { phone }),
       ...(email !== undefined && { email }),
       ...(address !== undefined && { address }),
-      ...(creditLimit !== undefined && { creditLimit: creditLimit ? String(creditLimit) : null }),
     }).where(eq(suppliers.id, Number(req.params["id"]))).returning();
     if (!updated) throw notFound("Supplier not found");
     return ok(res, updated);
@@ -85,9 +115,24 @@ router.get("/:id/wallet", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get("/:id/wallet-transactions", requireAdmin, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const supplierId = Number(req.params["id"]);
+    const rows = await db.query.supplierWalletTransactions.findMany({
+      where: eq(supplierWalletTransactions.supplier, supplierId),
+      limit,
+      offset,
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+    });
+    const total = await db.$count(supplierWalletTransactions, eq(supplierWalletTransactions.supplier, supplierId));
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
 router.post("/:id/wallet", requireAdmin, async (req, res, next) => {
   try {
-    const { amount, note } = req.body;
+    const { amount } = req.body;
     if (!amount) throw badRequest("amount required");
     const supplierId = Number(req.params["id"]);
 
@@ -101,10 +146,56 @@ router.post("/:id/wallet", requireAdmin, async (req, res, next) => {
       shop: supplier.shop,
       amount: String(amount),
       balance: newBalance,
-      type: "payment",
+      type: "deposit",
     });
 
     return ok(res, { wallet: newBalance });
+  } catch (e) { next(e); }
+});
+
+async function applySupplierWalletChange(
+  req: any,
+  type: "deposit" | "withdraw" | "payment" | "refund",
+  signedAmount: (n: number) => number,
+) {
+  const { amount, paymentNo, paymentReference, paymentType } = req.body ?? {};
+  if (!amount) throw badRequest("amount required");
+  const supplierId = Number(req.params["id"]);
+  const supplier = await db.query.suppliers.findFirst({ where: eq(suppliers.id, supplierId) });
+  if (!supplier) throw notFound("Supplier not found");
+
+  const numAmount = parseFloat(String(amount));
+  if (Number.isNaN(numAmount) || numAmount <= 0) throw badRequest("amount must be positive");
+  const delta = signedAmount(numAmount);
+  const current = parseFloat(supplier.wallet ?? "0");
+  const newBalance = (current + delta).toFixed(2);
+
+  await db.update(suppliers).set({ wallet: newBalance }).where(eq(suppliers.id, supplierId));
+  const [tx] = await db.insert(supplierWalletTransactions).values({
+    supplier: supplierId,
+    shop: supplier.shop,
+    amount: String(numAmount.toFixed(2)),
+    balance: newBalance,
+    type,
+    paymentNo: paymentNo ?? null,
+    paymentReference: paymentReference ?? null,
+    paymentType: paymentType ?? null,
+  }).returning();
+
+  return { wallet: newBalance, transaction: tx };
+}
+
+router.post("/:id/wallet/deposit", requireAdmin, async (req, res, next) => {
+  try {
+    const result = await applySupplierWalletChange(req, "deposit", (n) => n);
+    return ok(res, result);
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/wallet/payment", requireAdmin, async (req, res, next) => {
+  try {
+    const result = await applySupplierWalletChange(req, "payment", (n) => -n);
+    return ok(res, { ...result, note: "Payment recorded against supplier outstanding balance (stub)" });
   } catch (e) { next(e); }
 });
 

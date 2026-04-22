@@ -1,6 +1,10 @@
 import { Router } from "express";
-import { eq, ilike, and, lte, sql } from "drizzle-orm";
-import { products, productSerials, inventory, attributes, attributeVariants } from "@workspace/db";
+import { eq, ilike, and, gte, lte, sql, inArray } from "drizzle-orm";
+import {
+  products, productSerials, inventory, attributes, attributeVariants,
+  bundleItems, saleItems, sales, purchaseItems, purchases,
+  adjustments, badStocks, transferItems, productTransfers,
+} from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -212,6 +216,283 @@ router.post("/:id/serials", requireAdmin, async (req, res, next) => {
       serials.map((serialNumber: string) => ({ product: productId, shop: Number(shopId), serialNumber }))
     ).returning();
     return created(res, rows);
+  } catch (e) { next(e); }
+});
+
+// ── Product history endpoints ────────────────────────────────────────────────
+
+router.get("/:id/sales-history", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const productId = Number(req.params["id"]);
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions = [eq(saleItems.product, productId)];
+    if (shopId) conditions.push(eq(saleItems.shop, shopId));
+    if (from) conditions.push(gte(saleItems.createdAt, from));
+    if (to) conditions.push(lte(saleItems.createdAt, to));
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const rows = await db.select({
+      id: saleItems.id,
+      saleId: saleItems.sale,
+      quantity: saleItems.quantity,
+      unitPrice: saleItems.unitPrice,
+      lineDiscount: saleItems.lineDiscount,
+      saleType: saleItems.saleType,
+      createdAt: saleItems.createdAt,
+      receiptNo: sales.receiptNo,
+      saleDate: sales.createdAt,
+      customerId: sales.customer,
+      attendantId: sales.attendant,
+    }).from(saleItems)
+      .leftJoin(sales, eq(saleItems.sale, sales.id))
+      .where(where)
+      .limit(limit).offset(offset)
+      .orderBy(sql`${saleItems.createdAt} DESC`);
+
+    const total = await db.$count(saleItems, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.get("/:id/purchases-history", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const productId = Number(req.params["id"]);
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions = [eq(purchaseItems.product, productId)];
+    if (shopId) conditions.push(eq(purchaseItems.shop, shopId));
+    if (from) conditions.push(gte(purchaseItems.createdAt, from));
+    if (to) conditions.push(lte(purchaseItems.createdAt, to));
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const rows = await db.select({
+      id: purchaseItems.id,
+      purchaseId: purchaseItems.purchase,
+      quantity: purchaseItems.quantity,
+      unitPrice: purchaseItems.unitPrice,
+      batchCode: purchaseItems.batchCode,
+      expiryDate: purchaseItems.expiryDate,
+      createdAt: purchaseItems.createdAt,
+      purchaseNo: purchases.purchaseNo,
+      purchaseDate: purchases.createdAt,
+      supplierId: purchases.supplier,
+    }).from(purchaseItems)
+      .leftJoin(purchases, eq(purchaseItems.purchase, purchases.id))
+      .where(where)
+      .limit(limit).offset(offset)
+      .orderBy(sql`${purchaseItems.createdAt} DESC`);
+
+    const total = await db.$count(purchaseItems, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.get("/:id/stock-history", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const productId = Number(req.params["id"]);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+
+    const adjConds = [eq(adjustments.product, productId)];
+    if (shopId) adjConds.push(eq(adjustments.shop, shopId));
+    const adjWhere = adjConds.length > 1 ? and(...adjConds) : adjConds[0];
+
+    const badConds = [eq(badStocks.product, productId)];
+    if (shopId) badConds.push(eq(badStocks.shop, shopId));
+    const badWhere = badConds.length > 1 ? and(...badConds) : badConds[0];
+
+    const [adjRows, badRows] = await Promise.all([
+      db.select().from(adjustments).where(adjWhere).orderBy(sql`${adjustments.createdAt} DESC`).limit(200),
+      db.select().from(badStocks).where(badWhere).orderBy(sql`${badStocks.createdAt} DESC`).limit(200),
+    ]);
+
+    const events = [
+      ...adjRows.map((r) => ({ kind: "adjustment", ...r })),
+      ...badRows.map((r) => ({ kind: "bad_stock", ...r })),
+    ].sort((a: any, b: any) =>
+      new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime()
+    );
+
+    return ok(res, events);
+  } catch (e) { next(e); }
+});
+
+router.get("/:id/transfer-history", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const productId = Number(req.params["id"]);
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+
+    const where = eq(transferItems.product, productId);
+
+    const rows = await db.select({
+      id: transferItems.id,
+      transferId: transferItems.transfer,
+      quantity: transferItems.quantity,
+      unitPrice: transferItems.unitPrice,
+      transferNo: productTransfers.transferNo,
+      transferNote: productTransfers.transferNote,
+      fromShop: productTransfers.fromShop,
+      toShop: productTransfers.toShop,
+      createdAt: productTransfers.createdAt,
+    }).from(transferItems)
+      .leftJoin(productTransfers, eq(transferItems.transfer, productTransfers.id))
+      .where(where)
+      .limit(limit).offset(offset)
+      .orderBy(sql`${productTransfers.createdAt} DESC`);
+
+    const filtered = shopId
+      ? rows.filter((r) => r.fromShop === shopId || r.toShop === shopId)
+      : rows;
+
+    const total = await db.$count(transferItems, where);
+    return paginated(res, filtered, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.get("/:id/summary", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const productId = Number(req.params["id"]);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+
+    const product = await db.query.products.findFirst({
+      where: eq(products.id, productId),
+    });
+    if (!product) throw notFound("Product not found");
+
+    const saleConds = [eq(saleItems.product, productId)];
+    if (shopId) saleConds.push(eq(saleItems.shop, shopId));
+    const saleWhere = saleConds.length > 1 ? and(...saleConds) : saleConds[0];
+
+    const purchaseConds = [eq(purchaseItems.product, productId)];
+    if (shopId) purchaseConds.push(eq(purchaseItems.shop, shopId));
+    const purchaseWhere = purchaseConds.length > 1 ? and(...purchaseConds) : purchaseConds[0];
+
+    const invConds = [eq(inventory.product, productId)];
+    if (shopId) invConds.push(eq(inventory.shop, shopId));
+    const invWhere = invConds.length > 1 ? and(...invConds) : invConds[0];
+
+    const [salesAgg] = await db.select({
+      totalSoldQty: sql<string>`COALESCE(SUM(${saleItems.quantity}), 0)`,
+      totalSoldValue: sql<string>`COALESCE(SUM(${saleItems.quantity} * ${saleItems.unitPrice}), 0)`,
+      saleCount: sql<number>`COUNT(*)`,
+    }).from(saleItems).where(saleWhere);
+
+    const [purchaseAgg] = await db.select({
+      totalPurchasedQty: sql<string>`COALESCE(SUM(${purchaseItems.quantity}), 0)`,
+      totalPurchasedValue: sql<string>`COALESCE(SUM(${purchaseItems.quantity} * ${purchaseItems.unitPrice}), 0)`,
+      purchaseCount: sql<number>`COUNT(*)`,
+    }).from(purchaseItems).where(purchaseWhere);
+
+    const [invAgg] = await db.select({
+      currentStock: sql<string>`COALESCE(SUM(${inventory.quantity}), 0)`,
+    }).from(inventory).where(invWhere);
+
+    return ok(res, {
+      product,
+      sales: salesAgg ?? { totalSoldQty: "0", totalSoldValue: "0", saleCount: 0 },
+      purchases: purchaseAgg ?? { totalPurchasedQty: "0", totalPurchasedValue: "0", purchaseCount: 0 },
+      currentStock: invAgg?.currentStock ?? "0",
+      stockValue: String(
+        Number(invAgg?.currentStock ?? 0) * Number(product.buyingPrice ?? 0)
+      ),
+    });
+  } catch (e) { next(e); }
+});
+
+// ── Product images (multipart) ───────────────────────────────────────────────
+
+router.post("/:id/images", requireAdmin, upload.array("images", 10), async (req, res, next) => {
+  try {
+    const files = ((req as any).files ?? []) as Array<{ mimetype: string; buffer: Buffer }>;
+    if (!files.length) throw badRequest("at least one image file required");
+
+    const newUrls = files.map((f) => `data:${f.mimetype};base64,${f.buffer.toString("base64")}`);
+
+    const existing = await db.query.products.findFirst({
+      where: eq(products.id, Number(req.params["id"])),
+    });
+    if (!existing) throw notFound("Product not found");
+
+    const merged = [...(existing.images ?? []), ...newUrls];
+    const [updated] = await db.update(products)
+      .set({ images: merged })
+      .where(eq(products.id, Number(req.params["id"])))
+      .returning();
+
+    return ok(res, { images: updated?.images ?? [], note: "images stored as data URLs (stub)" });
+  } catch (e) { next(e); }
+});
+
+// ── Bulk import ──────────────────────────────────────────────────────────────
+
+router.post("/bulk-import", requireAdmin, async (req, res, next) => {
+  try {
+    const { products: payload, shopId } = req.body ?? {};
+    if (!Array.isArray(payload) || payload.length === 0) throw badRequest("products array required");
+    if (!shopId) throw badRequest("shopId required");
+
+    const values = payload.map((p: any) => ({
+      name: String(p.name),
+      shop: Number(shopId),
+      category: p.categoryId ? Number(p.categoryId) : null,
+      barcode: p.barcode ?? null,
+      serialNumber: p.serialNumber ?? null,
+      buyingPrice: p.buyingPrice != null ? String(p.buyingPrice) : null,
+      sellingPrice: p.sellingPrice != null ? String(p.sellingPrice) : null,
+      wholesalePrice: p.wholesalePrice != null ? String(p.wholesalePrice) : null,
+      dealerPrice: p.dealerPrice != null ? String(p.dealerPrice) : null,
+      measureUnit: p.measureUnit ?? "",
+      manufacturer: p.manufacturer ?? "",
+      supplier: p.supplierId ? Number(p.supplierId) : null,
+      description: p.description ?? null,
+      type: p.type ?? "product",
+    }));
+
+    const inserted = await db.insert(products).values(values).returning();
+    return ok(res, { created: inserted.length, skipped: 0, errors: [], products: inserted });
+  } catch (e) { next(e); }
+});
+
+// ── Bundle items (read endpoint scoped under product) ────────────────────────
+
+router.get("/:id/bundle-items", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const productId = Number(req.params["id"]);
+    const rows = await db.select({
+      id: bundleItems.id,
+      product: bundleItems.product,
+      componentProduct: bundleItems.componentProduct,
+      quantity: bundleItems.quantity,
+      createdAt: bundleItems.createdAt,
+      componentName: products.name,
+      componentSellingPrice: products.sellingPrice,
+    }).from(bundleItems)
+      .leftJoin(products, eq(bundleItems.componentProduct, products.id))
+      .where(eq(bundleItems.product, productId));
+    return ok(res, rows);
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/bundle-items", requireAdmin, async (req, res, next) => {
+  try {
+    const productId = Number(req.params["id"]);
+    const { componentProductId, quantity } = req.body ?? {};
+    if (!componentProductId || quantity == null) {
+      throw badRequest("componentProductId and quantity required");
+    }
+    const [row] = await db.insert(bundleItems).values({
+      product: productId,
+      componentProduct: Number(componentProductId),
+      quantity: String(quantity),
+    }).returning();
+    return created(res, row);
   } catch (e) { next(e); }
 });
 

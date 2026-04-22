@@ -208,6 +208,29 @@ router.delete("/banks/:id", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get("/banks/:id/transactions", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const bankId = Number(req.params["id"]);
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions = [eq(cashflows.bank, bankId)];
+    if (from) conditions.push(gte(cashflows.createdAt, from));
+    if (to) conditions.push(lte(cashflows.createdAt, to));
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const rows = await db.query.cashflows.findMany({
+      where,
+      limit,
+      offset,
+      orderBy: (c, { desc }) => [desc(c.createdAt)],
+    });
+    const total = await db.$count(cashflows, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
 // ── Cashflows ─────────────────────────────────────────────────────────────────
 
 router.get("/cashflows", requireAdminOrAttendant, async (req, res, next) => {

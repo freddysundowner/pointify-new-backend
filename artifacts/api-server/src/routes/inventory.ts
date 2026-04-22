@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ilike, or } from "drizzle-orm";
 import {
   inventory, batches, adjustments, badStocks,
-  stockCounts, stockCountItems, stockRequests, stockRequestItems
+  stockCounts, stockCountItems, stockRequests, stockRequestItems,
+  products,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -191,6 +192,54 @@ router.post("/stock-counts", requireAdminOrAttendant, async (req, res, next) => 
   } catch (e) { next(e); }
 });
 
+router.get("/stock-counts/product-search", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const q = String(req.query["q"] ?? "").trim();
+    if (!shopId) throw badRequest("shopId required");
+    const conditions = [eq(products.shop, shopId), eq(products.isDeleted, false)];
+    if (q) {
+      const like = `%${q}%`;
+      const search = or(ilike(products.name, like), ilike(products.barcode, like));
+      if (search) conditions.push(search);
+    }
+    const rows = await db.query.products.findMany({
+      where: and(...conditions),
+      limit: 50,
+    });
+    return ok(res, rows);
+  } catch (e) { next(e); }
+});
+
+router.get("/stock-counts/product-filter", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    if (!shopId) throw badRequest("shopId required");
+    const rows = await db.query.products.findMany({
+      where: and(eq(products.shop, shopId), eq(products.isDeleted, false)),
+      with: { inventoryItems: true },
+    });
+    return ok(res, rows);
+  } catch (e) { next(e); }
+});
+
+router.get("/stock-counts/by-product/:productId", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const productId = Number(req.params["productId"]);
+    const { page, limit, offset } = getPagination(req);
+    const where = eq(stockCountItems.product, productId);
+    const rows = await db.query.stockCountItems.findMany({
+      where,
+      limit,
+      offset,
+      orderBy: (sci, { desc }) => [desc(sci.createdAt)],
+      with: { stockCount: true },
+    });
+    const total = await db.$count(stockCountItems, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
 router.get("/stock-counts/:id", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const row = await db.query.stockCounts.findFirst({
@@ -206,6 +255,65 @@ router.delete("/stock-counts/:id", requireAdmin, async (req, res, next) => {
   try {
     await db.delete(stockCounts).where(eq(stockCounts.id, Number(req.params["id"])));
     return noContent(res);
+  } catch (e) { next(e); }
+});
+
+router.post("/stock-counts/:id/items", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const stockCountId = Number(req.params["id"]);
+    const items = req.body?.items ?? [];
+    if (!Array.isArray(items) || items.length === 0) throw badRequest("items required");
+
+    const count = await db.query.stockCounts.findFirst({ where: eq(stockCounts.id, stockCountId) });
+    if (!count) throw notFound("Stock count not found");
+
+    const itemRows = await db.insert(stockCountItems).values(
+      items.map((item: any) => ({
+        stockCount: stockCountId,
+        product: Number(item.productId),
+        physicalCount: String(item.physicalCount ?? 0),
+        systemCount: String(item.systemCount ?? 0),
+        variance: String((parseFloat(String(item.physicalCount ?? 0)) - parseFloat(String(item.systemCount ?? 0))).toFixed(4)),
+      }))
+    ).returning();
+
+    return created(res, itemRows);
+  } catch (e) { next(e); }
+});
+
+router.post("/stock-counts/:id/apply", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const stockCountId = Number(req.params["id"]);
+    const count = await db.query.stockCounts.findFirst({
+      where: eq(stockCounts.id, stockCountId),
+      with: { stockCountItems: true },
+    });
+    if (!count) throw notFound("Stock count not found");
+
+    const adjustmentRows = [];
+    for (const item of count.stockCountItems) {
+      const before = parseFloat(item.systemCount);
+      const after = parseFloat(item.physicalCount);
+      const diff = after - before;
+      if (diff === 0) continue;
+      const [adj] = await db.insert(adjustments).values({
+        shop: count.shop,
+        product: item.product,
+        type: diff >= 0 ? "add" : "remove",
+        quantityBefore: String(before),
+        quantityAfter: String(after),
+        quantityAdjusted: String(Math.abs(diff)),
+        reason: `Stock count #${stockCountId} variance`,
+        adjustedBy: req.attendant?.id ?? undefined,
+      }).returning();
+      adjustmentRows.push(adj);
+
+      await db.update(inventory)
+        .set({ quantity: String(after), lastCount: String(after), lastCountDate: new Date() })
+        .where(and(eq(inventory.shop, count.shop), eq(inventory.product, item.product)));
+    }
+
+    return ok(res, { stockCountId, adjustments: adjustmentRows, applied: adjustmentRows.length });
   } catch (e) { next(e); }
 });
 
@@ -257,6 +365,22 @@ router.post("/stock-requests", requireAdminOrAttendant, async (req, res, next) =
   } catch (e) { next(e); }
 });
 
+router.get("/stock-requests/by-product/:productId", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const productId = Number(req.params["productId"]);
+    const { page, limit, offset } = getPagination(req);
+    const where = eq(stockRequestItems.product, productId);
+    const rows = await db.query.stockRequestItems.findMany({
+      where,
+      limit,
+      offset,
+      with: { stockRequest: true },
+    });
+    const total = await db.$count(stockRequestItems, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
 router.get("/stock-requests/:id", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const row = await db.query.stockRequests.findFirst({
@@ -293,6 +417,51 @@ router.put("/stock-requests/:id/reject", requireAdmin, async (req, res, next) =>
 router.delete("/stock-requests/:id", requireAdmin, async (req, res, next) => {
   try {
     await db.delete(stockRequests).where(eq(stockRequests.id, Number(req.params["id"])));
+    return noContent(res);
+  } catch (e) { next(e); }
+});
+
+router.put("/stock-requests/:id/status", requireAdmin, async (req, res, next) => {
+  try {
+    const { status } = req.body ?? {};
+    if (!status) throw badRequest("status required");
+    const [updated] = await db.update(stockRequests)
+      .set({ status })
+      .where(eq(stockRequests.id, Number(req.params["id"])))
+      .returning();
+    if (!updated) throw notFound("Stock request not found");
+    return ok(res, updated);
+  } catch (e) { next(e); }
+});
+
+router.post("/stock-requests/:id/accept", requireAdmin, async (req, res, next) => {
+  try {
+    const [updated] = await db.update(stockRequests)
+      .set({ status: "processed", acceptedBy: req.admin?.id ?? undefined, acceptedAt: new Date() })
+      .where(eq(stockRequests.id, Number(req.params["id"])))
+      .returning();
+    if (!updated) throw notFound("Stock request not found");
+    return ok(res, updated);
+  } catch (e) { next(e); }
+});
+
+router.post("/stock-requests/:id/dispatch", requireAdmin, async (req, res, next) => {
+  try {
+    const [updated] = await db.update(stockRequests)
+      .set({ status: "completed", dispatchedAt: new Date() })
+      .where(eq(stockRequests.id, Number(req.params["id"])))
+      .returning();
+    if (!updated) throw notFound("Stock request not found");
+    return ok(res, updated);
+  } catch (e) { next(e); }
+});
+
+router.delete("/stock-requests/:id/items/:itemId", requireAdmin, async (req, res, next) => {
+  try {
+    const itemId = Number(req.params["itemId"]);
+    const requestId = Number(req.params["id"]);
+    await db.delete(stockRequestItems)
+      .where(and(eq(stockRequestItems.id, itemId), eq(stockRequestItems.stockRequest, requestId)));
     return noContent(res);
   } catch (e) { next(e); }
 });

@@ -190,6 +190,130 @@ router.put("/assign-shops", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── Subscription Payment Gateways ─────────────────────────────────────────────
+
+async function loadSubscriptionForPayment(id: number) {
+  const sub = await db.query.subscriptions.findFirst({
+    where: eq(subscriptions.id, id),
+    with: { package: true },
+  });
+  if (!sub) throw notFound("Subscription not found");
+  return sub;
+}
+
+async function markSubscriptionPaid(id: number, mpesaCode?: string | null) {
+  const [updated] = await db
+    .update(subscriptions)
+    .set({
+      isPaid: true,
+      isActive: true,
+      ...(mpesaCode ? { mpesaCode } : {}),
+    })
+    .where(eq(subscriptions.id, id))
+    .returning();
+  return updated;
+}
+
+router.post("/:id/pay", requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params["id"]);
+    const sub = await loadSubscriptionForPayment(id);
+    const { paymentMethod, paymentReference, mpesaCode } = req.body ?? {};
+    const updated = await markSubscriptionPaid(id, mpesaCode ?? paymentReference ?? null);
+    return ok(res, {
+      subscription: updated,
+      payment: {
+        gateway: paymentMethod ?? "manual",
+        status: "completed",
+        reference: paymentReference ?? mpesaCode ?? `PAY${Date.now()}`,
+        amount: sub.amount,
+        currency: sub.currency,
+      },
+      note: "Stub payment processor — no real gateway call.",
+    });
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/pay/mpesa", requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params["id"]);
+    const sub = await loadSubscriptionForPayment(id);
+    const { phone, mpesaCode } = req.body ?? {};
+    const checkoutRequestId = `ws_CO_${Date.now()}`;
+    if (mpesaCode) {
+      const updated = await markSubscriptionPaid(id, mpesaCode);
+      return ok(res, {
+        subscription: updated,
+        payment: {
+          gateway: "mpesa",
+          status: "completed",
+          checkoutRequestId,
+          mpesaCode,
+          amount: sub.amount,
+          currency: sub.currency,
+        },
+        note: "Stub M-Pesa confirmation.",
+      });
+    }
+    return ok(res, {
+      subscription: sub,
+      payment: {
+        gateway: "mpesa",
+        status: "pending",
+        checkoutRequestId,
+        merchantRequestId: `mr_${Date.now()}`,
+        phone: phone ?? null,
+        amount: sub.amount,
+        currency: sub.currency,
+      },
+      note: "Stub M-Pesa STK push initiated.",
+    });
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/pay/paystack", requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params["id"]);
+    const sub = await loadSubscriptionForPayment(id);
+    const { email } = req.body ?? {};
+    const reference = `ps_${Date.now()}`;
+    return ok(res, {
+      subscription: sub,
+      payment: {
+        gateway: "paystack",
+        status: "pending",
+        reference,
+        authorizationUrl: `https://checkout.paystack.com/${reference}`,
+        accessCode: reference,
+        email: email ?? null,
+        amount: sub.amount,
+        currency: sub.currency,
+      },
+      note: "Stub Paystack checkout initialised.",
+    });
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/pay/stripe", requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params["id"]);
+    const sub = await loadSubscriptionForPayment(id);
+    const sessionId = `cs_test_${Date.now()}`;
+    return ok(res, {
+      subscription: sub,
+      payment: {
+        gateway: "stripe",
+        status: "pending",
+        sessionId,
+        checkoutUrl: `https://checkout.stripe.com/c/pay/${sessionId}`,
+        amount: sub.amount,
+        currency: sub.currency,
+      },
+      note: "Stub Stripe Checkout session created.",
+    });
+  } catch (e) { next(e); }
+});
+
 router.get("/admin/summary", requireAdmin, async (req, res, next) => {
   try {
     if (!req.admin!.isSuperAdmin) throw unauthorized("Super admin required");

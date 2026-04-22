@@ -57,6 +57,78 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get("/by-number", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const customerNoRaw = req.query["customerNo"] ? String(req.query["customerNo"]).trim() : "";
+    const phone = String(req.query["phone"] ?? "").trim();
+    if (!customerNoRaw && !phone) throw badRequest("customerNo or phone query param required");
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+
+    const conditions = customerNoRaw
+      ? [eq(customers.customerNo, Number(customerNoRaw))]
+      : [eq(customers.phone, phone)];
+    if (shopId) conditions.push(eq(customers.shop, shopId));
+    const customer = await db.query.customers.findFirst({
+      where: conditions.length > 1 ? and(...conditions) : conditions[0],
+    });
+    if (!customer) throw notFound("Customer not found");
+    const { password: _, otp: __, ...safe } = customer;
+    return ok(res, safe);
+  } catch (e) { next(e); }
+});
+
+router.post("/bulk-import", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const list = Array.isArray(req.body?.customers) ? req.body.customers : null;
+    if (!list) throw badRequest("customers array required");
+    const errors: { index: number; message: string }[] = [];
+    let createdCount = 0;
+    let skipped = 0;
+
+    const maxByShop = new Map<number, number>();
+    async function nextNo(shopId: number): Promise<number> {
+      if (!maxByShop.has(shopId)) {
+        const [row] = await db
+          .select({ max: sql<number>`COALESCE(MAX(${customers.customerNo}), 0)` })
+          .from(customers)
+          .where(eq(customers.shop, shopId));
+        maxByShop.set(shopId, Number(row?.max ?? 0));
+      }
+      const next = (maxByShop.get(shopId) ?? 0) + 1;
+      maxByShop.set(shopId, next);
+      return next;
+    }
+
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i];
+      try {
+        if (!c?.name || !c?.shopId) {
+          skipped++;
+          errors.push({ index: i, message: "name and shopId required" });
+          continue;
+        }
+        const shopId = Number(c.shopId);
+        await db.insert(customers).values({
+          name: c.name,
+          phone: c.phone ?? null,
+          email: c.email ?? null,
+          address: c.address ?? null,
+          shop: shopId,
+          creditLimit: c.creditLimit ? String(c.creditLimit) : null,
+          type: c.type ?? "retail",
+          customerNo: await nextNo(shopId),
+          createdBy: req.attendant?.id ?? undefined,
+        });
+        createdCount++;
+      } catch (err) {
+        skipped++;
+        errors.push({ index: i, message: (err as Error).message });
+      }
+    }
+    return ok(res, { created: createdCount, skipped, errors });
+  } catch (e) { next(e); }
+});
+
 router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const customer = await db.query.customers.findFirst({ where: eq(customers.id, Number(req.params["id"])) });
@@ -91,7 +163,33 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.put("/:id/verify", requireAdmin, async (req, res, next) => {
+  try {
+    const [updated] = await db.update(customers)
+      .set({ type: "verified" })
+      .where(eq(customers.id, Number(req.params["id"])))
+      .returning();
+    if (!updated) throw notFound("Customer not found");
+    return ok(res, { message: "Customer verified" });
+  } catch (e) { next(e); }
+});
+
 router.get("/:id/wallet", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const customerId = Number(req.params["id"]);
+    const rows = await db.query.customerWalletTransactions.findMany({
+      where: eq(customerWalletTransactions.customer, customerId),
+      limit,
+      offset,
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+    });
+    const total = await db.$count(customerWalletTransactions, eq(customerWalletTransactions.customer, customerId));
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.get("/:id/wallet-transactions", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { page, limit, offset } = getPagination(req);
     const customerId = Number(req.params["id"]);
@@ -108,7 +206,7 @@ router.get("/:id/wallet", requireAdminOrAttendant, async (req, res, next) => {
 
 router.post("/:id/wallet", requireAdminOrAttendant, async (req, res, next) => {
   try {
-    const { amount, note } = req.body;
+    const { amount } = req.body;
     if (!amount) throw badRequest("amount required");
     const customerId = Number(req.params["id"]);
 
@@ -123,21 +221,66 @@ router.post("/:id/wallet", requireAdminOrAttendant, async (req, res, next) => {
       shop: customer.shop,
       amount: String(amount),
       balance: newBalance,
-      type: "topup",
+      type: "deposit",
     });
 
     return ok(res, { wallet: newBalance, message: "Wallet updated" });
   } catch (e) { next(e); }
 });
 
-router.put("/:id/verify", requireAdmin, async (req, res, next) => {
+async function applyWalletChange(
+  req: any,
+  type: "deposit" | "withdraw" | "payment" | "refund",
+  signedAmount: (n: number) => number,
+) {
+  const { amount, paymentNo, paymentReference, paymentType } = req.body ?? {};
+  if (!amount) throw badRequest("amount required");
+  const customerId = Number(req.params["id"]);
+  const customer = await db.query.customers.findFirst({ where: eq(customers.id, customerId) });
+  if (!customer) throw notFound("Customer not found");
+
+  const numAmount = parseFloat(String(amount));
+  if (Number.isNaN(numAmount) || numAmount <= 0) throw badRequest("amount must be positive");
+  const delta = signedAmount(numAmount);
+  const current = parseFloat(customer.wallet ?? "0");
+  const newBalance = (current + delta).toFixed(2);
+
+  if (type === "withdraw" && current + delta < 0) throw badRequest("insufficient wallet balance");
+
+  await db.update(customers).set({ wallet: newBalance }).where(eq(customers.id, customerId));
+  const [tx] = await db.insert(customerWalletTransactions).values({
+    customer: customerId,
+    shop: customer.shop,
+    amount: String(numAmount.toFixed(2)),
+    balance: newBalance,
+    type,
+    paymentNo: paymentNo ?? null,
+    paymentReference: paymentReference ?? null,
+    paymentType: paymentType ?? null,
+    handledBy: req.attendant?.id ?? undefined,
+  }).returning();
+
+  return { wallet: newBalance, transaction: tx };
+}
+
+router.post("/:id/wallet/deposit", requireAdminOrAttendant, async (req, res, next) => {
   try {
-    const [updated] = await db.update(customers)
-      .set({ type: "verified" })
-      .where(eq(customers.id, Number(req.params["id"])))
-      .returning();
-    if (!updated) throw notFound("Customer not found");
-    return ok(res, { message: "Customer verified" });
+    const result = await applyWalletChange(req, "deposit", (n) => n);
+    return ok(res, result);
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/wallet/withdraw", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const result = await applyWalletChange(req, "withdraw", (n) => -n);
+    return ok(res, result);
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/wallet/payment", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const result = await applyWalletChange(req, "payment", (n) => -n);
+    return ok(res, { ...result, note: "Wallet applied to outstanding balance (stub)" });
   } catch (e) { next(e); }
 });
 

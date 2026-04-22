@@ -2,7 +2,8 @@ import { Router } from "express";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import {
   sales, saleItems, purchases, purchaseItems, expenses,
-  customers, suppliers, products, inventory, cashflows, admins
+  customers, suppliers, products, inventory, cashflows, admins,
+  badStocks, stockCounts, stockCountItems, adjustments,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok } from "../lib/response.js";
@@ -193,6 +194,277 @@ router.get("/credit", requireAdmin, async (req, res, next) => {
 });
 
 // ── Cross-shop analytics (super admin) ────────────────────────────────────────
+
+// ── Monthly Product Sales ─────────────────────────────────────────────────────
+
+router.get("/monthly-product-sales", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const year = req.query["year"] ? Number(req.query["year"]) : new Date().getFullYear();
+    const productId = req.query["productId"] ? Number(req.query["productId"]) : null;
+
+    const conditions = [
+      gte(sales.createdAt, new Date(`${year}-01-01T00:00:00.000Z`)),
+      lte(sales.createdAt, new Date(`${year}-12-31T23:59:59.999Z`)),
+    ];
+    if (shopId) conditions.push(eq(sales.shop, shopId));
+    if (productId) conditions.push(eq(saleItems.product, productId));
+
+    const rows = await db.select({
+      month: sql<number>`EXTRACT(MONTH FROM ${sales.createdAt})`,
+      productId: saleItems.product,
+      totalQty: sql<string>`COALESCE(SUM(${saleItems.quantity}::numeric), 0)`,
+      totalRevenue: sql<string>`COALESCE(SUM(${saleItems.unitPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
+    })
+    .from(saleItems)
+    .innerJoin(sales, eq(saleItems.sale, sales.id))
+    .where(and(...conditions))
+    .groupBy(sql`EXTRACT(MONTH FROM ${sales.createdAt})`, saleItems.product)
+    .orderBy(sql`EXTRACT(MONTH FROM ${sales.createdAt}) ASC`);
+
+    return ok(res, { year, rows });
+  } catch (e) { next(e); }
+});
+
+// ── Discounted Sales ──────────────────────────────────────────────────────────
+
+router.get("/discounted-sales", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions = [sql`${sales.saleDiscount}::numeric > 0`];
+    if (shopId) conditions.push(eq(sales.shop, shopId));
+    if (from) conditions.push(gte(sales.createdAt, from));
+    if (to) conditions.push(lte(sales.createdAt, to));
+    const where = and(...conditions);
+
+    const [summary] = await db.select({
+      totalSales: sql<number>`COUNT(*)`,
+      totalDiscount: sql<string>`COALESCE(SUM(${sales.saleDiscount}::numeric), 0)`,
+      totalRevenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
+    }).from(sales).where(where);
+
+    const rows = await db.query.sales.findMany({
+      where,
+      orderBy: (s, { desc }) => [desc(s.createdAt)],
+      limit: 100,
+    });
+
+    return ok(res, { summary, rows });
+  } catch (e) { next(e); }
+});
+
+// ── Stock Value ───────────────────────────────────────────────────────────────
+
+router.get("/stock-value", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const where = shopId ? eq(inventory.shop, shopId) : undefined;
+
+    const rows = await db.select({
+      productId: inventory.product,
+      productName: products.name,
+      quantity: inventory.quantity,
+      buyingPrice: products.buyingPrice,
+      sellingPrice: products.sellingPrice,
+      stockValueAtCost: sql<string>`COALESCE(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric, 0)`,
+      stockValueAtSale: sql<string>`COALESCE(${inventory.quantity}::numeric * ${products.sellingPrice}::numeric, 0)`,
+    })
+    .from(inventory)
+    .leftJoin(products, eq(inventory.product, products.id))
+    .where(where)
+    .orderBy(sql`COALESCE(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric, 0) DESC`);
+
+    const totalAtCost = rows.reduce((s, r) => s + parseFloat(r.stockValueAtCost ?? "0"), 0);
+    const totalAtSale = rows.reduce((s, r) => s + parseFloat(r.stockValueAtSale ?? "0"), 0);
+
+    return ok(res, { rows, summary: { totalAtCost, totalAtSale, productCount: rows.length } });
+  } catch (e) { next(e); }
+});
+
+// ── Stock Count Analysis ──────────────────────────────────────────────────────
+
+router.get("/stock-count-analysis", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions = [];
+    if (shopId) conditions.push(eq(stockCounts.shop, shopId));
+    if (from) conditions.push(gte(stockCounts.createdAt, from));
+    if (to) conditions.push(lte(stockCounts.createdAt, to));
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const rows = await db.select({
+      stockCountId: stockCountItems.stockCount,
+      productId: stockCountItems.product,
+      physicalCount: stockCountItems.physicalCount,
+      systemCount: stockCountItems.systemCount,
+      variance: stockCountItems.variance,
+      countedAt: stockCounts.createdAt,
+    })
+    .from(stockCountItems)
+    .innerJoin(stockCounts, eq(stockCountItems.stockCount, stockCounts.id))
+    .where(where)
+    .orderBy(sql`${stockCounts.createdAt} DESC`);
+
+    const totalVariance = rows.reduce((s, r) => s + parseFloat(String(r.variance ?? "0")), 0);
+    return ok(res, { rows, summary: { totalCounts: rows.length, totalVariance } });
+  } catch (e) { next(e); }
+});
+
+// ── Out-of-stock export ───────────────────────────────────────────────────────
+
+router.get("/out-of-stock/export", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const conditions = [sql`${inventory.quantity}::numeric <= 0`];
+    if (shopId) conditions.push(eq(inventory.shop, shopId));
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const rows = await db.select({
+      productId: inventory.product,
+      productName: products.name,
+      barcode: products.barcode,
+      quantity: inventory.quantity,
+      reorderLevel: inventory.reorderLevel,
+      shopId: inventory.shop,
+    })
+    .from(inventory)
+    .leftJoin(products, eq(inventory.product, products.id))
+    .where(where);
+
+    return ok(res, { rows, count: rows.length, format: "json", note: "JSON snapshot suitable for client-side CSV/XLSX export." });
+  } catch (e) { next(e); }
+});
+
+// ── Backup snapshot ───────────────────────────────────────────────────────────
+
+router.get("/backup", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    if (!shopId) throw badRequest("shopId required");
+
+    const [productsRows, inventoryRows, salesRows, purchasesRows, expensesRows, cashflowsRows, badStockRows, adjustmentsRows] = await Promise.all([
+      db.query.products.findMany({ where: eq(products.shop, shopId), limit: 5000 }),
+      db.query.inventory.findMany({ where: eq(inventory.shop, shopId), limit: 5000 }),
+      db.query.sales.findMany({ where: eq(sales.shop, shopId), limit: 5000, orderBy: (s, { desc }) => [desc(s.createdAt)] }),
+      db.query.purchases.findMany({ where: eq(purchases.shop, shopId), limit: 5000, orderBy: (p, { desc }) => [desc(p.createdAt)] }),
+      db.query.expenses.findMany({ where: eq(expenses.shop, shopId), limit: 5000, orderBy: (e, { desc }) => [desc(e.createdAt)] }),
+      db.query.cashflows.findMany({ where: eq(cashflows.shop, shopId), limit: 5000, orderBy: (c, { desc }) => [desc(c.createdAt)] }),
+      db.query.badStocks.findMany({ where: eq(badStocks.shop, shopId), limit: 5000 }),
+      db.query.adjustments.findMany({ where: eq(adjustments.shop, shopId), limit: 5000 }),
+    ]);
+
+    return ok(res, {
+      shopId,
+      generatedAt: new Date().toISOString(),
+      counts: {
+        products: productsRows.length,
+        inventory: inventoryRows.length,
+        sales: salesRows.length,
+        purchases: purchasesRows.length,
+        expenses: expensesRows.length,
+        cashflows: cashflowsRows.length,
+        badStocks: badStockRows.length,
+        adjustments: adjustmentsRows.length,
+      },
+      data: {
+        products: productsRows,
+        inventory: inventoryRows,
+        sales: salesRows,
+        purchases: purchasesRows,
+        expenses: expensesRows,
+        cashflows: cashflowsRows,
+        badStocks: badStockRows,
+        adjustments: adjustmentsRows,
+      },
+      note: "Snapshot capped at 5000 rows per table.",
+    });
+  } catch (e) { next(e); }
+});
+
+// ── Dues (outstanding sales credit) ───────────────────────────────────────────
+
+router.get("/dues", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const conditions = [sql`${sales.outstandingBalance}::numeric > 0`];
+    if (shopId) conditions.push(eq(sales.shop, shopId));
+    const where = and(...conditions);
+
+    const rows = await db.select({
+      saleId: sales.id,
+      receiptNo: sales.receiptNo,
+      customerId: sales.customer,
+      totalAmount: sales.totalWithDiscount,
+      amountPaid: sales.amountPaid,
+      outstandingBalance: sales.outstandingBalance,
+      dueDate: sales.dueDate,
+      createdAt: sales.createdAt,
+    })
+    .from(sales)
+    .where(where)
+    .orderBy(sql`${sales.dueDate} ASC NULLS LAST`)
+    .limit(500);
+
+    const [summary] = await db.select({
+      totalDues: sql<string>`COALESCE(SUM(${sales.outstandingBalance}::numeric), 0)`,
+      saleCount: sql<number>`COUNT(*)`,
+    }).from(sales).where(where);
+
+    return ok(res, { rows, summary });
+  } catch (e) { next(e); }
+});
+
+// ── Yearly Profit ─────────────────────────────────────────────────────────────
+
+router.get("/profit/yearly/:year", requireAdmin, async (req, res, next) => {
+  try {
+    const year = Number(req.params["year"]);
+    if (!year) throw badRequest("year required");
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+
+    const yearStart = new Date(`${year}-01-01T00:00:00.000Z`);
+    const yearEnd = new Date(`${year}-12-31T23:59:59.999Z`);
+
+    const salesConditions = [gte(sales.createdAt, yearStart), lte(sales.createdAt, yearEnd)];
+    if (shopId) salesConditions.push(eq(sales.shop, shopId));
+    const expConditions = [gte(expenses.createdAt, yearStart), lte(expenses.createdAt, yearEnd)];
+    if (shopId) expConditions.push(eq(expenses.shop, shopId));
+
+    const salesRows = await db.select({
+      month: sql<number>`EXTRACT(MONTH FROM ${sales.createdAt})`,
+      revenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
+    }).from(sales).where(and(...salesConditions)).groupBy(sql`EXTRACT(MONTH FROM ${sales.createdAt})`);
+
+    const expRows = await db.select({
+      month: sql<number>`EXTRACT(MONTH FROM ${expenses.createdAt})`,
+      total: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)`,
+    }).from(expenses).where(and(...expConditions)).groupBy(sql`EXTRACT(MONTH FROM ${expenses.createdAt})`);
+
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const m = i + 1;
+      const revenue = parseFloat(salesRows.find((r) => Number(r.month) === m)?.revenue ?? "0");
+      const exp = parseFloat(expRows.find((r) => Number(r.month) === m)?.total ?? "0");
+      return { month: m, revenue, expenses: exp, profit: revenue - exp };
+    });
+
+    const totals = months.reduce(
+      (acc, m) => ({
+        revenue: acc.revenue + m.revenue,
+        expenses: acc.expenses + m.expenses,
+        profit: acc.profit + m.profit,
+      }),
+      { revenue: 0, expenses: 0, profit: 0 },
+    );
+
+    return ok(res, { year, months, totals });
+  } catch (e) { next(e); }
+});
 
 router.get("/cross-shop", requireAdmin, async (req, res, next) => {
   try {

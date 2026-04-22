@@ -25,6 +25,21 @@ This is a **Pointify POS** backend — a full-featured Point of Sale system orig
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
+## API Surface
+
+The API server (`artifacts/api-server`) implements ~280 endpoints across 25 route files, contract-aligned with `API.md` (the canonical spec). Two complementary URL conventions are supported (additive — both work):
+
+- **Flat with shopId query param**: `GET /api/sales?shopId=1` — original implementation style
+- **Shop-scoped path**: `GET /api/shops/1/sales` — matches API.md docs; shop-scoped router enforces ownership (admin must own shop, attendant must be assigned to it; super-admins bypass)
+
+Major route groups: auth, admins, attendants, affiliates, shops, system, packages, subscriptions, customers, suppliers, measures, products, batches, bundle-items, inventory (adjustments/bad-stocks/stock-counts/stock-requests), orders, sales, sale-returns, sale-payments, purchases, purchase-returns, transfers, finance (banks/cashflows/expenses/payment-methods), reports, communications, sms, sync, permissions, activities, payments (gateway webhooks), admin (super-admin section).
+
+OpenAPI spec lives in two places (kept in sync):
+- `artifacts/api-server/src/openapi/spec.ts` (authoritative; served at `/api/openapi.json`) — 3171 lines, 303 paths
+- `lib/api-spec/openapi.yaml` (consumed by orval codegen) — programmatically generated from spec.ts
+
+Payment gateway integrations (M-Pesa, Paystack, Stripe), SMS gateway, and email send are stubbed: handlers log + persist DB rows + return 200 without making third-party calls.
+
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
 
 ## Database Schema (`lib/db/src/schema/`)
