@@ -1052,7 +1052,7 @@ Operational outgoings — rent, salaries, utilities, etc.
 | expense_no | text unique | YES | auto-generate on insert (e.g. EXP12345) |
 | description | text | YES | |
 | amount | numeric(14,2) | NO | |
-| shop_id | integer | YES | FK → shops |
+| shop_id | integer | NO | FK → shops |
 | recorded_by_id | integer | NO | FK → attendants |
 | category_id | integer | YES | FK → expense_categories |
 | is_recurring | boolean | YES | default false |

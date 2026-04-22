@@ -32,6 +32,7 @@
 19. [Activities](#19-activities)
 20. [System](#20-system)
 21. [Attendants](#21-attendants)
+22. [Reports](#22-reports)
 
 ---
 
@@ -314,6 +315,16 @@ Return the currently authenticated user (admin or attendant).
 **Auth**: Admin or Attendant token
 
 **Response** `200`: Full admin or attendant object depending on token type.
+
+---
+
+### GET /api/auth/customer/me
+
+Return the currently authenticated online customer's profile.
+
+**Auth**: Customer token
+
+**Response** `200`: Full customer object.
 
 ---
 
@@ -826,7 +837,7 @@ Register a new serial number.
 
 ### DELETE /api/customers/:id
 
-**Auth**: Admin. Hard delete only if customer has no sales records.
+**Auth**: Admin. Hard delete only allowed when **both** conditions hold: `outstanding_balance = 0` AND no `sales` rows reference this customer. Return `422` with a clear message if either condition fails.
 
 ---
 
@@ -1419,12 +1430,13 @@ Start a new count session.
 | `items` | array | ✓ | |
 | `items[].productId` | integer | ✓ | Unique per session |
 | `items[].physicalCount` | string | ✓ | What was physically counted |
+| `apply` | boolean | ✗ | Default `false`. When `true`, immediately apply the count (update inventory). When `false`, save as a record only — inventory unchanged until `POST /stock-counts/:id/apply` is called. |
 
 **Side Effects**:
 1. Insert `stock_counts`.
 2. Insert `stock_count_items`. For each item capture `system_count` = current `inventory.quantity`, `variance = physicalCount - systemCount`.
-3. Optionally update `inventory.quantity` to match `physicalCount` (set `apply: true` in body).
-4. Update `inventory.last_count` and `inventory.last_count_date` for each product.
+3. Always update `inventory.last_count` and `inventory.last_count_date` for each product.
+4. If `apply = true`: also update `inventory.quantity = physicalCount` and re-evaluate `inventory.status` for each item.
 
 ---
 
@@ -1437,6 +1449,18 @@ Start a new count session.
 #### GET /api/stock-counts/:id
 
 **Auth**: Admin or Attendant
+
+---
+
+#### POST /api/stock-counts/:id/apply
+
+Apply a previously saved stock count to inventory. Idempotent — safe to call again if the count was already applied (check counts against current inventory values before updating).
+
+**Auth**: Admin or Attendant
+
+**Request Body**: None.
+
+**Side Effects**: For each `stock_count_items` row in this count: set `inventory.quantity = physical_count`, set `inventory.last_count = physical_count`, set `inventory.last_count_date = now()`, re-evaluate `inventory.status`. All updates in a single transaction.
 
 ---
 
@@ -1498,7 +1522,7 @@ Warehouse dispatches (ships) the goods.
 
 **Auth**: Admin
 
-**Side Effects**: Set `status = completed`, set `dispatched_at`. Then create a `product_transfer` from warehouse to requesting shop (triggers inventory update at both ends).
+**Side Effects**: Set `status = completed`, set `dispatched_at`, set `approved_by_id` to the authenticated attendant/admin. Then create a `product_transfer` from warehouse to requesting shop (triggers inventory update at both ends in the same transaction).
 
 ---
 
@@ -1678,6 +1702,24 @@ Create a new plan (super-admin only).
 
 ---
 
+#### PUT /api/packages/:id
+
+Update a plan.
+
+**Auth**: Super-Admin
+
+**Request Body**: Any subset of package fields listed above.
+
+**Side Effects**: Update `packages`. Sync `package_features` (delete removed, insert new).
+
+---
+
+#### DELETE /api/packages/:id
+
+**Auth**: Super-Admin. Not allowed if any `subscriptions` reference this package.
+
+---
+
 ### Subscriptions
 
 #### GET /api/admin/subscriptions
@@ -1727,7 +1769,7 @@ Mark a subscription as paid after verifying payment.
 1. Set `subscriptions.is_paid = true`, `is_active = true`, `payment_reference`.
 2. For each shop in `subscription_shops`: set `shops.subscription_id = subscription.id`.
 3. **Affiliate commission**: look up `admins.affiliate_id`. If set, check `affiliates` record. Calculate `commission_amount = affiliates.commission% × amount`. Insert `awards` (`type = earnings`, `award_type = subscription`). Increment `affiliates.wallet`. Insert `affiliate_transactions` (`type = subscription`).
-4. Apply any `admins.referral_credit` against the amount.
+4. **Referral credit**: if `admins.referral_credit > 0`, apply it as a discount: effective payment = `amount − referral_credit` (floor at 0). Deduct the used amount from `admins.referral_credit` in the same transaction.
 
 ---
 
@@ -2160,6 +2202,146 @@ Replace the attendant's full permission set. The admin sends the complete list o
 3. Client checks `permissions.includes("pos.can_sell")` before showing the Sell button, etc.
 4. Server middleware independently checks the same token on each guarded request — the client-side check is for UI only, not security.
 5. Admins skip all permission checks — their token carries a role flag, not a permissions array.
+
+---
+
+## 22. Reports
+
+All report endpoints are **read-only** and return aggregated data for a given shop and time range. Every endpoint accepts the standard `from` / `to` ISO date query params and is paginated where the result set can be large.
+
+**Auth**: Admin or Attendant for all report endpoints.
+
+---
+
+### GET /api/shops/:shopId/reports/sales
+
+Daily sales summary — total revenue, number of transactions, average transaction value, breakdown by payment type.
+
+**Query Params**: `from` · `to` · `groupBy` (`day`|`week`|`month`, default `day`)
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "totals": { "revenue": "...", "transactions": 120, "avgTransaction": "..." },
+    "byPaymentType": { "cash": "...", "mpesa": "...", "card": "...", "bank": "...", "credit": "..." },
+    "series": [ { "date": "2024-01-01", "revenue": "...", "transactions": 8 } ]
+  }
+}
+```
+
+---
+
+### GET /api/shops/:shopId/reports/profit
+
+Net profit report — revenue minus cost of goods sold and expenses.
+
+**Query Params**: `from` · `to`
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "revenue": "...",
+    "costOfGoods": "...",
+    "grossProfit": "...",
+    "expenses": "...",
+    "netProfit": "..."
+  }
+}
+```
+
+---
+
+### GET /api/shops/:shopId/reports/profit-analysis
+
+Gross profit broken down by product or category. Useful for identifying high-margin vs low-margin items.
+
+**Query Params**: `from` · `to` · `groupBy` (`product`|`category`, default `product`) · pagination
+
+**Response** `200`: Paginated list. Each row: `{ productId, productName, unitsSold, revenue, costOfGoods, grossProfit, margin% }`.
+
+---
+
+### GET /api/shops/:shopId/reports/product-sales
+
+Units sold and revenue per product for the period.
+
+**Query Params**: `from` · `to` · `categoryId` · `search` · pagination
+
+**Response** `200`: Paginated list. Each row: `{ productId, productName, quantity, revenue, saleType }`.
+
+---
+
+### GET /api/shops/:shopId/reports/discounted-sales
+
+All sales or sale items where a discount was applied.
+
+**Query Params**: `from` · `to` · pagination
+
+**Response** `200`: Paginated list of sale rows that have `sale_discount > 0` or any `sale_items.line_discount > 0`.
+
+---
+
+### GET /api/shops/:shopId/reports/purchases
+
+Purchases summary — total spend, by supplier, by product.
+
+**Query Params**: `from` · `to` · `supplierId` · pagination
+
+**Response** `200`: Paginated list of `purchases` rows with totals.
+
+---
+
+### GET /api/shops/:shopId/reports/expenses
+
+Expenses summary — total spend by category and period.
+
+**Query Params**: `from` · `to` · `categoryId` · pagination
+
+**Response** `200`: Paginated list of `expenses` rows with category totals.
+
+---
+
+### GET /api/shops/:shopId/reports/stock
+
+Current stock levels across all products. Snapshot at time of request.
+
+**Query Params**: `status` (`active`|`low`|`out_of_stock`) · `categoryId` · `search` · pagination
+
+**Response** `200`: Paginated list. Each row: `{ productId, productName, quantity, reorderLevel, status, buyingPrice, sellingPrice }`.
+
+---
+
+### GET /api/shops/:shopId/reports/stock-movement
+
+Product movement history — how stock changed over time (sales, purchases, adjustments, transfers).
+
+**Query Params**: `from` · `to` · `productId` · pagination
+
+**Response** `200`: Paginated list. Each row: `{ date, type (sale|purchase|adjustment|transfer|bad_stock), quantityChange, quantityAfter, reference }`.
+
+---
+
+### GET /api/shops/:shopId/reports/debtors
+
+Customers with an outstanding balance — money owed to the shop.
+
+**Query Params**: `from` · `to` · `search` · pagination
+
+**Response** `200`: Paginated list of `customers` where `outstanding_balance > 0`. Each row includes all credit sales for that customer in the period.
+
+---
+
+### GET /api/shops/:shopId/reports/dues
+
+Suppliers the shop owes money to (credit purchases not yet fully paid).
+
+**Query Params**: `search` · pagination
+
+**Response** `200`: Paginated list of `suppliers` where `outstanding_balance > 0` with a breakdown of the unpaid purchases.
 
 ---
 

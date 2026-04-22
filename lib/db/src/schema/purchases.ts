@@ -91,7 +91,7 @@ export const purchasePayments = pgTable(
     // External transaction ref — M-Pesa code, bank ref, cheque number
     paymentReference: text("payment_reference"),
     // cash | mpesa | bank | cheque
-    paymentType: text("payment_type"),
+    paymentType: text("payment_type").notNull(),
     paidAt: timestamp("paid_at").notNull().defaultNow(),
   },
   (table) => [

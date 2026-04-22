@@ -85,7 +85,7 @@ export const saleItems = pgTable(
 
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
-    costPrice: numeric("cost_price", { precision: 14, scale: 2 }).default("0"),
+    costPrice: numeric("cost_price", { precision: 14, scale: 2 }).notNull().default("0"),
     tax: numeric("tax", { precision: 14, scale: 2 }).notNull().default("0"),
     lineDiscount: numeric("line_discount", { precision: 14, scale: 2 }).notNull().default("0"),
     saleNote: text("sale_note"),
