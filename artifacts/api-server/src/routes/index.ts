@@ -31,6 +31,7 @@ import permissionsRouter from "./permissions.js";
 import activitiesRouter from "./activities.js";
 import shopScopedRouter from "./shop-scoped.js";
 import systemRouter from "./system.js";
+import emailTemplatesRouter from "./email-templates.js";
 
 const router: IRouter = Router();
 
@@ -41,6 +42,7 @@ router.use("/shop-categories", shopCategoriesRouter);
 router.use("/shops", shopsRouter);
 router.use("/settings", settingsRouter);
 router.use("/system", systemRouter);
+router.use("/email-templates", emailTemplatesRouter);
 router.use("/product-categories", productCategoriesRouter);
 router.use("/products", productsRouter);
 router.use("/bundle-items", bundleItemsRouter);

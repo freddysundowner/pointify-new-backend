@@ -545,6 +545,71 @@ export const openApiSpec = {
       },
     },
 
+    // ── Email Templates ───────────────────────────────────────────────────────
+    "/email-templates": {
+      get: {
+        tags: ["Email Templates"],
+        summary: "List all email templates (defaults merged with overrides)",
+        description: "Returns every template, marking which ones have been customized via `isOverridden`.",
+        ...auth(["Admin"]),
+        responses: list("Email templates"),
+      },
+    },
+    "/email-templates/defaults": {
+      get: {
+        tags: ["Email Templates"],
+        summary: "List built-in default templates only",
+        ...auth(["Admin"]),
+        responses: list("Default templates"),
+      },
+    },
+    "/email-templates/seed": {
+      post: {
+        tags: ["Email Templates"],
+        summary: "Seed default templates into the database",
+        description: "Inserts any default templates that aren't yet stored. Pass `?overwrite=true` (or `{ overwrite: true }`) to replace existing rows.",
+        ...auth(["Admin"]),
+        responses: ok("Seed result", {
+          created: { type: "array", items: { type: "string" } },
+          updated: { type: "array", items: { type: "string" } },
+          skipped: { type: "array", items: { type: "string" } },
+          totalDefaults: { type: "integer" },
+        }),
+      },
+    },
+    "/email-templates/{key}": {
+      get: {
+        tags: ["Email Templates"],
+        summary: "Get a single template (override or default)",
+        ...auth(["Admin"]),
+        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
+        responses: ok("Email template"),
+      },
+      put: {
+        tags: ["Email Templates"],
+        summary: "Save / update a template",
+        description: "For built-in keys you can send only the fields you want to change. Custom keys must include `subject` and `html`.",
+        ...auth(["Admin"]),
+        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
+        ...body({
+          subject: { type: "string" },
+          html: { type: "string" },
+          text: { type: "string" },
+          category: { type: "string" },
+          description: { type: "string" },
+          variables: { type: "array", items: { type: "string" } },
+        }),
+        responses: ok("Updated template"),
+      },
+      delete: {
+        tags: ["Email Templates"],
+        summary: "Remove the override and revert to the built-in default",
+        ...auth(["Admin"]),
+        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
+        responses: ok("Reverted"),
+      },
+    },
+
     // ── Measures ──────────────────────────────────────────────────────────────
     "/measures": {
       get: {
