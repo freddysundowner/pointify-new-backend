@@ -31,16 +31,37 @@ router.get("/profile", requireAdmin, async (req, res, next) => {
 
 router.put("/profile", requireAdmin, async (req, res, next) => {
   try {
-    const { name, username, phone, platform, appVersion, autoPrint, saleSmsEnabled } = req.body;
-    const displayName = username ?? name;
-    const updates: Record<string, unknown> = {
-      ...(displayName && { username: displayName }),
-      ...(phone && { phone }),
-      ...(platform && { platform }),
-      ...(appVersion && { appVersion }),
-      ...(autoPrint !== undefined && { autoPrint: Boolean(autoPrint) }),
-      ...(saleSmsEnabled !== undefined && { saleSmsEnabled: Boolean(saleSmsEnabled) }),
-    };
+    const b = req.body ?? {};
+    // Display-name aliases
+    const displayName = b.username ?? b.name;
+    const updates: Record<string, unknown> = {};
+
+    // Identity
+    if (displayName) updates['username'] = displayName;
+    if (b.phone) {
+      updates['phone'] = b.phone;
+      updates['phoneVerified'] = false; // changing phone requires re-verification
+    }
+    if (b.email) {
+      // Block duplicates against another admin's email
+      const existing = await db.query.admins.findFirst({ where: eq(admins.email, String(b.email).toLowerCase()) });
+      if (existing && existing.id !== req.admin!.id) throw badRequest("Email already in use");
+      updates['email'] = String(b.email).toLowerCase();
+      updates['emailVerified'] = false;
+      updates['emailVerificationDate'] = null;
+    }
+
+    // Per-shop default & primary shop
+    if (b.shop !== undefined) updates['shop'] = b.shop ? Number(b.shop) : null;
+
+    // SMS / receipts / printing preferences
+    if (b.autoPrint !== undefined) updates['autoPrint'] = Boolean(b.autoPrint);
+    if (b.saleSmsEnabled !== undefined) updates['saleSmsEnabled'] = Boolean(b.saleSmsEnabled);
+
+    // Device / app metadata
+    if (b.platform !== undefined) updates['platform'] = b.platform;
+    if (b.appVersion !== undefined) updates['appVersion'] = b.appVersion;
+
     if (Object.keys(updates).length === 0) {
       const admin = await db.query.admins.findFirst({ where: eq(admins.id, req.admin!.id) });
       if (!admin) throw notFound("Admin not found");

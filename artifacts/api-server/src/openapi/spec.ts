@@ -2851,9 +2851,22 @@ export const openApiSpec = {
     "/admin/profile": {
       get: { tags: ["Admin"], summary: "Current admin profile", ...auth(["Admin"]), responses: ok("Admin profile") },
       put: {
-        tags: ["Admin"], summary: "Update profile", ...auth(["Admin"]),
-        ...body({ name: { type: "string" }, phone: { type: "string" }, email: { type: "string" } }),
-        responses: ok("Updated"),
+        tags: ["Admin"],
+        summary: "Update current admin profile (any safe field)",
+        description: "Updates only the fields present in the request body. Sensitive fields (password, smsCredit, referralCredit, isSuperAdmin, FKs) are ignored. Changing email or phone resets the corresponding verification flag.",
+        ...auth(["Admin"]),
+        ...body({
+          username: { type: "string" },
+          name: { type: "string", description: "Alias for username" },
+          email: { type: "string", format: "email" },
+          phone: { type: "string" },
+          shop: { type: "integer", description: "Default primary shop id" },
+          autoPrint: { type: "boolean" },
+          saleSmsEnabled: { type: "boolean", description: "Master SMS opt-in: enables per-sale receipt SMS to customers AND the daily summary SMS to the admin." },
+          platform: { type: "string" },
+          appVersion: { type: "string" },
+        }),
+        responses: ok("Updated admin profile"),
       },
     },
     "/admin/profile/password": {
