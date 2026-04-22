@@ -635,3 +635,63 @@ Audit log of every change to a customer's wallet. One row per transaction.
 - When `type = payment`: also update `sales.outstanding_balance` and `sales.amount_paid` for the sale being settled, and update `customers.outstanding_balance` — all in the same transaction.
 - Wallet payment flow (paying off credit sales with wallet): apply to oldest unpaid credit sales first (ordered by `sales.created_at ASC`). If wallet amount exceeds all debt, remainder stays in wallet.
 - `payment_no`: auto-generate if not provided (e.g. `REC` + random 7-digit number).
+
+---
+
+## suppliers.ts
+
+### Overview
+
+Two tables: `suppliers` (main record) and `supplier_wallet_transactions` (audit log of payments to/from a supplier).
+
+`wallet` = advance payment pre-paid to this supplier (always ≥ 0).  
+`outstanding_balance` = total unpaid balance from credit purchases (cached).  
+Mirrors the customer wallet/outstanding_balance design but from the business's side.
+
+---
+
+### suppliers
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| name | text | NO | |
+| phone | text | YES | |
+| email | text | YES | |
+| address | text | YES | |
+| wallet | numeric(14,2) | YES | advance payment balance. default 0. never goes below 0 |
+| outstanding_balance | numeric(14,2) | YES | cached — total unpaid from credit purchases. default 0 |
+| shop_id | integer | NO | FK → shops |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- Suppliers are per-shop — scoped by `shop_id` in all queries.
+- `outstanding_balance` is incremented when a credit purchase is created, and decremented when a purchase payment is made — all in the same transaction.
+- Paying a supplier: if `wallet > 0` (advance balance exists), apply it to the oldest unpaid purchase first before recording a new payment.
+- Payment flow: pay oldest unpaid credit purchases first (ordered by `purchases.created_at ASC`), same as the customer debt payment pattern.
+- Cannot delete a supplier referenced by any purchase. The FK on `purchases.supplier_id` will block it.
+- `debtors` query: find suppliers where `outstanding_balance > 0` — these are suppliers the business owes money to.
+
+---
+
+### supplier_wallet_transactions
+Audit log of every payment to or from a supplier.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| supplier_id | integer | NO | FK → suppliers |
+| shop_id | integer | NO | FK → shops |
+| handled_by_id | integer | YES | FK → attendants — who processed this payment |
+| type | text | NO | payment / deposit / withdraw / refund |
+| amount | numeric(14,2) | NO | |
+| balance | numeric(14,2) | NO | supplier wallet balance after this transaction |
+| payment_no | text | YES | auto-generated reference |
+| payment_reference | text | YES | M-Pesa code, bank ref, cheque number |
+| payment_type | text | YES | cash / mpesa / card / bank / cheque |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- Every change to `suppliers.wallet` must insert a row here in the same transaction.
+- `balance` = `suppliers.wallet` after the transaction. Snapshot at insert time.
+- `type` meanings: `payment` = business pays supplier (reduces `outstanding_balance`). `deposit` = advance paid to supplier (increases wallet). `withdraw` = advance reclaimed (decreases wallet). `refund` = supplier sends money back (increases wallet or reduces outstanding).
+- When `type = payment`: also update `purchases.outstanding_balance` for the relevant purchase and `suppliers.outstanding_balance` in the same transaction.
