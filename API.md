@@ -2692,13 +2692,28 @@ Platform-wide subscription statistics dashboard.
 
 #### GET /api/admin/subscriptions/summary
 
-Paginated list of all subscriptions across all admins for the super-admin portal.
+**Platform revenue dashboard** for the super-admin. Returns subscription payment revenue and subscriber counts broken down by time window. This is the primary "how much is Pointify earning?" endpoint.
 
 **Auth**: Super-Admin
 
-**Query Params**: Pagination + `status` (`active`|`trial`|`expired`|`unpaid`) + `packageId` + `from` + `to`
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "today":     { "count": 3,  "revenue": 4500,  "shopCount": 5  },
+    "yesterday": { "count": 7,  "revenue": 10500, "shopCount": 9  },
+    "thisWeek":  { "count": 28, "revenue": 42000, "shopCount": 31 },
+    "thisMonth": { "count": 95, "revenue": 142500,"shopCount": 88 },
+    "lastMonth": { "count": 112,"revenue": 168000,"shopCount": 103},
+    "allTime":   { "count": 980,"revenue": 1470000,"shopCount": 420}
+  }
+}
+```
 
-**Response** `200`: Paginated list of subscription rows each joined with admin and package info.
+`count` = number of subscription payments received in the window.  
+`revenue` = total KES collected from subscription payments.  
+`shopCount` = distinct shops that made payments in the window.
 
 ---
 
