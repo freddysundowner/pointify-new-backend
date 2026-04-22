@@ -1101,3 +1101,74 @@ The main money ledger. Every money event — cash received, paid out, deposited 
 - `category_id` is the source of truth for direction (cashin/cashout). Always join to `cashflow_categories` to get the type when building reports.
 - When `bank_id` is set: update `banks.balance` atomically with the cashflow insert — cashin increments, cashout decrements.
 - Never allow a cashout that would push `banks.balance` below zero — validate before insert.
+
+---
+
+## communication.ts
+
+### Overview
+
+Three tables covering outbound messaging and internal audit logging.
+
+- `email_messages` — reusable templates for email/SMS campaigns. Can be sent immediately or scheduled to repeat at an interval.
+- `emails_sent` — one row per campaign dispatch for tracking history.
+- `activities` — per-shop audit log of attendant actions (what, who, when).
+
+---
+
+### email_messages
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| name | text | NO | internal template label |
+| subject | text | NO | email subject line |
+| body | text | NO | email/SMS body — supports `{username}` placeholder |
+| is_scheduled | boolean | YES | default false |
+| interval | text | YES | `daily` \| `once_weekly` \| `monthly` — required when is_scheduled = true |
+| campaign | text | YES | campaign tag for grouping |
+| type | text | YES | `email` \| `sms`, default `email` |
+| audience | text | YES | `subscribers` \| `all` \| `expired` \| `dormant` \| `custom`, default `custom` |
+| audience_emails | text | YES | comma-separated addresses/phones — required when audience = custom |
+| sent_count | integer | YES | incremented each time this template is dispatched |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- **Audience types:**
+  - `all` — every admin in the system
+  - `subscribers` — admins with active non-trial subscriptions (end_date > NOW)
+  - `expired` — admins with expired non-trial subscriptions (end_date < NOW)
+  - `dormant` — admins whose subscription expired more than 30 days ago
+  - `custom` — explicit list in `audience_emails`
+- Send in batches of 50 with a delay between batches to avoid rate limits.
+- After sending, increment `sent_count` and insert an `emails_sent` row.
+- `{username}` in `body` is replaced with the recipient admin's username at send time.
+
+---
+
+### emails_sent
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| subject | text | NO | snapshot of subject at send time |
+| email_template_id | integer | YES | FK → email_messages, set null on delete |
+| recipient_count | integer | NO | default 0 — how many were sent to |
+| created_at | timestamp | YES | |
+
+---
+
+### activities
+Audit log — one row per notable attendant action in a shop.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| action | text | NO | short description e.g. "created sale", "deleted product" |
+| details | text | YES | optional extra context e.g. sale ID, product name |
+| shop_id | integer | NO | FK → shops |
+| attendant_id | integer | NO | FK → attendants |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- Write an activity row whenever an attendant performs a significant create/update/delete action.
+- Keep `action` short and consistent (use a fixed set of action strings per resource type).
+- `details` can hold a JSON string or a human-readable description for richer log display.

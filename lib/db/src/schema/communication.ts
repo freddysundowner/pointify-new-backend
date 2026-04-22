@@ -1,5 +1,9 @@
 /**
  * Communication tables
+ *
+ * email_messages : reusable email/SMS templates and campaign definitions
+ * emails_sent    : log of each campaign send (which template, how many recipients)
+ * activities     : per-shop audit log of attendant actions
  */
 import {
   pgTable,
@@ -15,24 +19,32 @@ import { z } from "zod/v4";
 import { shops } from "./shop";
 import { attendants } from "./identity";
 
+// ─── Email / SMS message templates ───────────────────────────────────────────
+// Stores reusable campaign templates. A template can be sent immediately or
+// scheduled to fire at a recurring interval.
 export const emailMessages = pgTable("email_messages", {
   id: serial("id").primaryKey(),
+  // Human-readable template name (internal label)
   name: text("name").notNull(),
   subject: text("subject").notNull(),
   body: text("body").notNull(),
   isScheduled: boolean("is_scheduled").default(false),
-  // daily | once_weekly | monthly
+  // daily | once_weekly | monthly — only relevant when is_scheduled = true
   interval: text("interval").default("monthly"),
   campaign: text("campaign"),
-  type: text("type").default(""),
+  // email | sms
+  type: text("type").default("email"),
   // subscribers | all | expired | dormant | custom
   audience: text("audience").default("custom"),
-  audienceAddress: text("audience_address").default(""),
+  // Comma-separated email addresses or phone numbers for audience = custom
+  audienceEmails: text("audience_emails").default(""),
   sentCount: integer("sent_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
-  sync: boolean("sync").default(false),
 });
 
+// ─── Emails sent log ──────────────────────────────────────────────────────────
+// One row per campaign dispatch. Tracks which template was used and how many
+// recipients received it.
 export const emailsSent = pgTable("emails_sent", {
   id: serial("id").primaryKey(),
   subject: text("subject").notNull(),
@@ -40,20 +52,23 @@ export const emailsSent = pgTable("emails_sent", {
     () => emailMessages.id,
     { onDelete: "set null" }
   ),
-  recipientCount: integer("recipient_count"),
+  recipientCount: integer("recipient_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
-  sync: boolean("sync").default(false),
 });
 
+// ─── Activities ───────────────────────────────────────────────────────────────
+// Audit log — one row per notable action an attendant takes in a shop.
+// action is a short description (e.g. "created sale", "deleted product").
+// details holds optional extra context (e.g. sale ID, product name).
 export const activities = pgTable(
   "activities",
   {
     id: serial("id").primaryKey(),
     action: text("action").notNull(),
+    details: text("details"),
     shop: integer("shop_id").notNull().references(() => shops.id),
     attendant: integer("attendant_id").notNull().references(() => attendants.id),
     createdAt: timestamp("created_at").defaultNow(),
-    sync: boolean("sync").default(false),
   },
   (table) => [
     index("activities_shop_id_idx").on(table.shop),
@@ -62,6 +77,7 @@ export const activities = pgTable(
   ]
 );
 
+// ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertEmailMessageSchema = createInsertSchema(emailMessages).omit({ id: true });
 export const insertEmailSentSchema = createInsertSchema(emailsSent).omit({ id: true });
 export const insertActivitySchema = createInsertSchema(activities).omit({ id: true });
