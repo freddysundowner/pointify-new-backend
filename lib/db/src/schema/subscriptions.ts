@@ -13,6 +13,8 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { admins } from "./identity";
+import { shops } from "./shop";
 
 export const packages = pgTable("packages", {
   id: serial("id").primaryKey(),
@@ -39,11 +41,11 @@ export const subscriptions = pgTable(
   "subscriptions",
   {
     id: serial("id").primaryKey(),
-    admin: integer("admin_id").notNull(),          // FK → admins.id
+    admin: integer("admin_id").notNull().references(() => admins.id),
     package: integer("package_id").notNull().references(() => packages.id),
-    mpesaCode: text("mpesa_code"),
+    paymentReference: text("payment_reference"),
     amount: numeric("amount", { precision: 14, scale: 2 }).default("0"),
-    invoiceNo: text("invoice_no"),
+    invoiceNo: text("invoice_no").unique(),
     isActive: boolean("is_active").default(false),
     isPaid: boolean("is_paid").default(false),
     currency: text("currency").default("kes"),
@@ -61,13 +63,19 @@ export const subscriptions = pgTable(
 export const subscriptionShops = pgTable("subscription_shops", {
   id: serial("id").primaryKey(),
   subscription: integer("subscription_id").notNull().references(() => subscriptions.id, { onDelete: "cascade" }),
-  shop: integer("shop_id").notNull(),
+  shop: integer("shop_id").notNull().references(() => shops.id),
 });
 
 export const insertPackageSchema = createInsertSchema(packages).omit({ id: true });
+export const insertPackageFeatureSchema = createInsertSchema(packageFeatures).omit({ id: true });
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true });
+export const insertSubscriptionShopSchema = createInsertSchema(subscriptionShops).omit({ id: true });
 
 export type Package = typeof packages.$inferSelect;
 export type InsertPackage = z.infer<typeof insertPackageSchema>;
+export type PackageFeature = typeof packageFeatures.$inferSelect;
+export type InsertPackageFeature = z.infer<typeof insertPackageFeatureSchema>;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+export type SubscriptionShop = typeof subscriptionShops.$inferSelect;
+export type InsertSubscriptionShop = z.infer<typeof insertSubscriptionShopSchema>;
