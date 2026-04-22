@@ -77,6 +77,8 @@ export type SendEmailInput = {
   key: string;
   to: string | { email: string; name?: string };
   vars?: Record<string, unknown>;
+  /** Optional file attachments. `content` must already be base64-encoded. */
+  attachments?: { name: string; content: string }[];
 };
 
 export type SendEmailResult = {
@@ -121,6 +123,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       htmlContent,
       ...(textContent ? { textContent } : {}),
       ...(cfg.replyTo ? { replyTo: { email: cfg.replyTo } } : {}),
+      ...(input.attachments && input.attachments.length > 0 ? { attachment: input.attachments } : {}),
     };
 
     const res = await fetch("https://api.brevo.com/v3/smtp/email", {

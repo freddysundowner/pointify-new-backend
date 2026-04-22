@@ -421,6 +421,39 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "Payout {{payoutAmount}} sent via {{payoutMethod}}. Ref {{payoutReference}}.",
   ),
   make(
+    "admin_daily_report",
+    "reports",
+    "Daily end-of-day digest sent to each admin: sales, purchases, profit, expenses, low/expiring stock and credit sales due today. CSV files for each section are attached.",
+    "Your daily report — {{reportDate}}",
+    "Today at {{shopName}} 📊",
+    `<p>Hi {{adminName}},</p>
+     <p>Here's how today ({{reportDate}}) went across your shops. CSV attachments are included so you can dig deeper.</p>
+
+     <h3 style="margin-top:24px;color:#0f766e">Daily summary</h3>
+     <table style="border-collapse:collapse;width:100%;font-size:14px">
+       <tr><td style="padding:6px 8px;border-bottom:1px solid #eee"><strong>Revenue</strong></td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">{{revenue}}</td></tr>
+       <tr><td style="padding:6px 8px;border-bottom:1px solid #eee">Cash collected</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">{{cashCollected}}</td></tr>
+       <tr><td style="padding:6px 8px;border-bottom:1px solid #eee">Outstanding (credit)</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">{{outstanding}}</td></tr>
+       <tr><td style="padding:6px 8px;border-bottom:1px solid #eee"><strong>Expenses</strong></td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">{{expensesTotal}}</td></tr>
+       <tr><td style="padding:6px 8px;border-bottom:1px solid #eee"><strong>Purchases</strong></td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">{{purchasesTotal}}</td></tr>
+       <tr><td style="padding:6px 8px"><strong>Estimated profit</strong> (revenue − expenses)</td><td style="padding:6px 8px;text-align:right;font-weight:bold;color:{{profitColor}}">{{profit}}</td></tr>
+     </table>
+
+     <h3 style="margin-top:24px;color:#0f766e">At a glance</h3>
+     <ul style="line-height:1.7">
+       <li><strong>{{salesCount}}</strong> sales today</li>
+       <li><strong>{{purchasesCount}}</strong> purchases recorded</li>
+       <li><strong>{{lowStockCount}}</strong> products low or out of stock</li>
+       <li><strong>{{expiringCount}}</strong> batches expiring in the next 7 days</li>
+       <li><strong>{{creditDueCount}}</strong> credit sales due today ({{creditDueAmount}})</li>
+     </ul>
+
+     <p style="margin-top:24px;color:#666;font-size:13px">Attached: <code>sales.csv</code>, <code>purchases.csv</code>, <code>stock_alerts.csv</code>, <code>credit_due_today.csv</code>.</p>
+     <p style="color:#666;font-size:13px">Sign in to your dashboard for the full picture.</p>
+     <p>— The Pointify team</p>`,
+    "Daily report for {{reportDate}}: revenue {{revenue}}, expenses {{expensesTotal}}, profit {{profit}}. {{salesCount}} sales, {{purchasesCount}} purchases, {{lowStockCount}} low-stock items, {{expiringCount}} expiring batches, {{creditDueCount}} credit sales due today.",
+  ),
+  make(
     "account_deleted",
     "system",
     "Sent right after an admin's account and all related data have been permanently deleted.",

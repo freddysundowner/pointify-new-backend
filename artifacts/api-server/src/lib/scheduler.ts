@@ -19,6 +19,7 @@ import {
   jobNoSalesNudge,
   jobSubscriptionRenewalReminder,
 } from "./scheduledNotifications.js";
+import { jobDailyReport } from "./dailyReport.js";
 
 let started = false;
 
@@ -46,5 +47,10 @@ export function startScheduler() {
     void jobSubscriptionRenewalReminder();
   });
 
-  logger.info("scheduler: registered 5 daily jobs (09:00 server time)");
+  // Nightly admin digest with CSV attachments — 20:00 server time.
+  cron.schedule("0 20 * * *", () => {
+    void jobDailyReport();
+  });
+
+  logger.info("scheduler: registered 6 daily jobs (morning nudges + 20:00 daily report)");
 }
