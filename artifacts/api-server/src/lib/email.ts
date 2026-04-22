@@ -88,6 +88,38 @@ export type SendEmailResult = {
   error?: string;
 };
 
+
+// ── Universal footer appended to every email ─────────────────────────────────
+const HTML_FOOTER = `
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:32px 0 16px" />
+  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:12px;color:#6b7280;line-height:1.6;text-align:center">
+    <p style="margin:4px 0">
+      <a href="https://pointifypos.com" style="color:#0f766e;text-decoration:none;font-weight:600">pointifypos.com</a>
+    </p>
+    <p style="margin:4px 0">
+      📞 <a href="tel:+254791334234" style="color:#6b7280;text-decoration:none">+254 791 334 234</a>
+      &nbsp;·&nbsp;
+      💬 <a href="https://wa.me/254791334234" style="color:#6b7280;text-decoration:none">WhatsApp +254 791 334 234</a>
+    </p>
+    <p style="margin:8px 0 0;color:#9ca3af">© Pointify POS</p>
+  </div>
+`;
+
+const TEXT_FOOTER = [
+  "",
+  "—",
+  "Pointify POS · pointifypos.com",
+  "Phone: +254 791 334 234",
+  "WhatsApp: +254 791 334 234 (https://wa.me/254791334234)",
+].join("\n");
+
+function withFooter(html: string, text: string) {
+  return {
+    html: `${html}${HTML_FOOTER}`,
+    text: text ? `${text}${TEXT_FOOTER}` : "",
+  };
+}
+
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
   try {
     const recipient = typeof input.to === "string" ? { email: input.to } : input.to;
@@ -107,8 +139,9 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
 
     const vars = input.vars ?? {};
     const subject = render(tpl.subject, vars);
-    const htmlContent = render(tpl.html, vars);
-    const textContent = render(tpl.text, vars);
+    const rendered = withFooter(render(tpl.html, vars), render(tpl.text, vars));
+    const htmlContent = rendered.html;
+    const textContent = rendered.text;
 
     const provider = (cfg.provider ?? "brevo").toLowerCase();
     if (provider !== "brevo") {
