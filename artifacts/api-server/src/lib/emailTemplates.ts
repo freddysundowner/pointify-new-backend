@@ -61,24 +61,36 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
   make(
     "admin_welcome",
     "auth",
-    "Sent to a new admin immediately after they register an account.",
-    "Welcome to Pointify, {{adminName}} — your shop, simplified",
-    "You're in. Here's what Pointify can do for you.",
+    "Short transactional confirmation sent immediately after an admin registers.",
+    "Welcome to Pointify, {{adminName}}",
+    "Your account is ready",
     `<p>Hi {{adminName}},</p>
-     <p>Welcome to Pointify — we're glad to have you. Pointify is built to help small and growing shops sell faster, keep stock under control, and understand the numbers behind the day.</p>
-     <p><strong>What you can do from day one:</strong></p>
+     <p>Your Pointify account is ready.</p>
+     <p><strong>Account details</strong><br/>Email: {{adminEmail}}<br/>Username: {{adminUsername}}</p>
+     <p>You can sign in any time to set up your first shop.</p>
+     <p>— The Pointify team</p>`,
+    "Hi {{adminName}}, your Pointify account is ready. Email: {{adminEmail}}. Sign in any time to set up your first shop.",
+  ),
+  make(
+    "admin_welcome_features",
+    "engagement",
+    "Sent ~24 hours after admin signup to walk through what Pointify can do.",
+    "{{adminName}}, here's what you can do with Pointify",
+    "A quick tour of your new shop tools",
+    `<p>Hi {{adminName}},</p>
+     <p>Now that your account is set up, here's a quick look at what Pointify can do for you:</p>
      <ul style="padding-left:18px;line-height:1.7">
-       <li><strong>Sell in seconds</strong> — a clean point-of-sale that works on any device, with cash, M-Pesa, card or split payments.</li>
-       <li><strong>Know your stock</strong> — real-time inventory, low-stock alerts and supplier purchase orders, all in one place.</li>
-       <li><strong>Grow loyal customers</strong> — built-in customer profiles, wallets, loyalty points and digital receipts by email.</li>
-       <li><strong>Run more than one shop</strong> — manage multiple branches and attendants from a single dashboard.</li>
-       <li><strong>See the full picture</strong> — daily sales summaries, profit reports and shift summaries that actually make sense.</li>
-       <li><strong>Earn while you grow</strong> — invite other shops with your referral link and earn commission on every signup.</li>
+       <li><strong>Point of sale</strong> on any device, with cash, M-Pesa, card or split payments.</li>
+       <li><strong>Real-time stock</strong> with low-stock alerts and supplier purchase orders.</li>
+       <li><strong>Customer profiles</strong>, wallets, loyalty points and digital receipts.</li>
+       <li><strong>Multiple shops and attendants</strong> managed from one dashboard.</li>
+       <li><strong>Daily sales, profit and shift reports</strong> that are easy to read.</li>
+       <li><strong>Referral commissions</strong> when other shops sign up through your link.</li>
      </ul>
-     <p><strong>Your account</strong><br/>Email: {{adminEmail}}<br/>Username: {{adminUsername}}</p>
-     <p>Sign in whenever you're ready and add your first product — most shops are ringing up their first sale within 10 minutes.</p>
-     <p>Welcome aboard,<br/>The Pointify team</p>`,
-    "Hi {{adminName}}, welcome to Pointify. Sell faster, track stock in real time, run loyalty and wallets, manage multiple shops, and see clear sales reports — all from one dashboard. Sign in any time to add your first product.",
+     <p>Sign in and add your first product — most shops ring up their first sale within 10 minutes.</p>
+     <p>Hit reply if you have any questions, we read every email.</p>
+     <p>— The Pointify team</p>`,
+    "Hi {{adminName}}, here's what you can do with Pointify: point of sale on any device, real-time stock, customer loyalty, multi-shop management, clear daily reports, and referral commissions. Sign in any time to add your first product.",
   ),
   make(
     "admin_email_verification",

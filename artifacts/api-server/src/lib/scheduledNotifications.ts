@@ -281,6 +281,36 @@ export async function jobSubscriptionRenewalReminder() {
   }
 }
 
+
+// ── Job: Welcome features pitch ~24h after signup ────────────────────────────
+export async function jobWelcomeFeaturesPitch() {
+  try {
+    const now = Date.now();
+    const lower = new Date(now - 1.5 * DAY);
+    const upper = new Date(now - 0.5 * DAY);
+
+    const candidates = await db
+      .select({ id: admins.id, email: admins.email, username: admins.username })
+      .from(admins)
+      .where(and(gte(admins.createdAt, lower), lte(admins.createdAt, upper)));
+
+    for (const a of candidates) {
+      if (!a.email) continue;
+      if (await alreadySent("admin_welcome_features", a.id, 365)) continue;
+
+      const __res = await sendEmail({
+        key: "admin_welcome_features",
+        to: { email: a.email, name: a.username ?? undefined },
+        vars: { adminName: a.username ?? "there" },
+      });
+      if (__res.ok) await markSent("admin_welcome_features", a.id);
+    }
+    logger.info({ scanned: candidates.length }, "scheduler: admin_welcome_features done");
+  } catch (err) {
+    logger.error({ err }, "scheduler: jobWelcomeFeaturesPitch failed");
+  }
+}
+
 /** Run every scheduled job once (used at startup and by the daily cron). */
 export async function runAllScheduledJobs() {
   await jobTrialExpiringSoon();
@@ -288,4 +318,5 @@ export async function runAllScheduledJobs() {
   await jobNoProductsNudge();
   await jobNoSalesNudge();
   await jobSubscriptionRenewalReminder();
+  await jobWelcomeFeaturesPitch();
 }
