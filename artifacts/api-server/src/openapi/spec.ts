@@ -2506,6 +2506,53 @@ export const openApiSpec = {
       },
     },
 
+    // ── SMS Templates (shared library) ────────────────────────────────────────
+    "/communications/sms-templates": {
+      get: {
+        tags: ["Communications"],
+        summary: "List SMS templates (shared across all admins)",
+        ...auth(["Admin"]),
+        parameters: [{ name: "search", in: "query", schema: { type: "string" } }, { name: "activeOnly", in: "query", schema: { type: "boolean" } }],
+        responses: list("SMS templates"),
+      },
+      post: {
+        tags: ["Communications"],
+        summary: "Create SMS template (super-admin only)",
+        ...auth(["Admin"]),
+        ...body({
+          name: { type: "string", description: "Unique template name" },
+          body: { type: "string", description: "SMS body. Use {{placeholder}} for variables." },
+          description: { type: "string" },
+          isActive: { type: "boolean", default: true },
+        }, ["name", "body"]),
+        responses: { 201: { description: "Created" } },
+      },
+    },
+    "/communications/sms-templates/{id}": {
+      get: {
+        tags: ["Communications"],
+        summary: "Get SMS template",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: ok("SMS template"),
+      },
+      put: {
+        tags: ["Communications"],
+        summary: "Update SMS template (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({ name: { type: "string" }, body: { type: "string" }, description: { type: "string" }, isActive: { type: "boolean" } }),
+        responses: ok("Updated"),
+      },
+      delete: {
+        tags: ["Communications"],
+        summary: "Delete SMS template (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: ok("Deleted"),
+      },
+    },
+
     // ── Sync ──────────────────────────────────────────────────────────────────
     "/sync/{shopId}": {
       get: {

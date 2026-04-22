@@ -41,6 +41,23 @@ export const emailTemplates = pgTable("email_templates", {
   placeholders: text("placeholders").array().notNull().default([]),
 });
 
+// ─── SMS templates ────────────────────────────────────────────────────────────
+// Reusable SMS bodies shared across all admins. Managed by super-admins.
+// Body supports {{placeholder}} substitution at send time.
+export const smsTemplates = pgTable("sms_templates", {
+  id: serial("id").primaryKey(),
+  // Human-readable label, e.g. "Order Ready", "Payment Received"
+  name: text("name").notNull().unique(),
+  // SMS body — supports {{placeholder}} substitution
+  body: text("body").notNull(),
+  // Optional explanation of when/how to use this template
+  description: text("description"),
+  // Whether this template is selectable by admins
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // ─── Individual communications log ───────────────────────────────────────────
 // One row per SMS or email sent to a specific contact.
 // Used by the super-admin dashboard to audit delivery history and retry failures.
@@ -165,6 +182,9 @@ export const activities = pgTable(
 
 // ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({ id: true });
+export const insertSmsTemplateSchema = createInsertSchema(smsTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export type SmsTemplate = typeof smsTemplates.$inferSelect;
+export type InsertSmsTemplate = z.infer<typeof insertSmsTemplateSchema>;
 export const insertCommunicationSchema = createInsertSchema(communications).omit({ id: true });
 export const insertSmsCreditTransactionSchema = createInsertSchema(smsCreditTransactions).omit({ id: true });
 export const insertEmailMessageSchema = createInsertSchema(emailMessages).omit({ id: true });

@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, ilike } from "drizzle-orm";
 import {
-  communications, emailTemplates, smsCreditTransactions, emailMessages, emailsSent, activities
+  communications, emailTemplates, smsTemplates, smsCreditTransactions, emailMessages, emailsSent, activities
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
-import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
+import { requireAdmin, requireAdminOrAttendant, requireSuperAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 
 const router = Router();
@@ -111,20 +111,117 @@ router.get("/sms-credits", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── SMS templates (shared library — super-admin manages, all admins read) ────
+
+router.get("/sms-templates", requireAdmin, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const search = (req.query["search"] as string | undefined)?.trim();
+    const activeOnly = String(req.query["activeOnly"] ?? "") === "true";
+
+    const conds = [] as ReturnType<typeof eq>[];
+    if (search) conds.push(ilike(smsTemplates.name, `%${search}%`));
+    if (activeOnly) conds.push(eq(smsTemplates.isActive, true));
+    const where = conds.length === 0 ? undefined : conds.length === 1 ? conds[0] : and(...conds);
+
+    const rows = await db.query.smsTemplates.findMany({
+      where,
+      orderBy: (t, { asc }) => asc(t.name),
+      limit,
+      offset,
+    });
+    const total = await db.$count(smsTemplates, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+router.get("/sms-templates/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params["id"]);
+    const row = await db.query.smsTemplates.findFirst({ where: eq(smsTemplates.id, id) });
+    if (!row) throw notFound("SMS template not found");
+    return ok(res, row);
+  } catch (e) { next(e); }
+});
+
+router.post("/sms-templates", requireSuperAdmin, async (req, res, next) => {
+  try {
+    const name = String(req.body?.name ?? "").trim();
+    const body = String(req.body?.body ?? "").trim();
+    if (!name) throw badRequest("name is required");
+    if (!body) throw badRequest("body is required");
+    const description = req.body?.description ? String(req.body.description) : null;
+    const isActive = req.body?.isActive === undefined ? true : Boolean(req.body.isActive);
+
+    const [row] = await db.insert(smsTemplates).values({ name, body, description, isActive }).returning();
+    return created(res, row);
+  } catch (e) { next(e); }
+});
+
+router.put("/sms-templates/:id", requireSuperAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params["id"]);
+    const existing = await db.query.smsTemplates.findFirst({ where: eq(smsTemplates.id, id) });
+    if (!existing) throw notFound("SMS template not found");
+
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (req.body?.name !== undefined) patch["name"] = String(req.body.name).trim();
+    if (req.body?.body !== undefined) patch["body"] = String(req.body.body).trim();
+    if (req.body?.description !== undefined) patch["description"] = req.body.description === null ? null : String(req.body.description);
+    if (req.body?.isActive !== undefined) patch["isActive"] = Boolean(req.body.isActive);
+
+    const [row] = await db.update(smsTemplates).set(patch).where(eq(smsTemplates.id, id)).returning();
+    return ok(res, row);
+  } catch (e) { next(e); }
+});
+
+router.delete("/sms-templates/:id", requireSuperAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params["id"]);
+    const [row] = await db.delete(smsTemplates).where(eq(smsTemplates.id, id)).returning();
+    if (!row) throw notFound("SMS template not found");
+    return ok(res, { id });
+  } catch (e) { next(e); }
+});
+
+// Render `{{key}}` placeholders against a vars object.
+function renderTemplate(body: string, vars: Record<string, unknown>): string {
+  return body.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_m, key: string) => {
+    const v = vars[key];
+    return v === undefined || v === null ? "" : String(v);
+  });
+}
+
 // ── Send SMS ──────────────────────────────────────────────────────────────────
+// Body: { contact, message? } OR { contact, templateId, variables? }
 
 router.post("/sms", requireAdmin, async (req, res, next) => {
   try {
-    const { contact, message } = req.body;
-    if (!message || !contact) throw badRequest("contact and message are required");
+    const contact = String(req.body?.contact ?? "").trim();
+    if (!contact) throw badRequest("contact is required");
+
+    let message: string;
+    const templateId = req.body?.templateId !== undefined ? Number(req.body.templateId) : null;
+    if (templateId !== null) {
+      if (!Number.isInteger(templateId) || templateId <= 0) throw badRequest("templateId must be a positive integer");
+      const tpl = await db.query.smsTemplates.findFirst({ where: eq(smsTemplates.id, templateId) });
+      if (!tpl) throw notFound("SMS template not found");
+      if (!tpl.isActive) throw badRequest("SMS template is not active");
+      const vars = (req.body?.variables && typeof req.body.variables === "object")
+        ? (req.body.variables as Record<string, unknown>)
+        : {};
+      message = renderTemplate(tpl.body, vars);
+    } else {
+      message = String(req.body?.message ?? "").trim();
+      if (!message) throw badRequest("Provide either message or templateId");
+    }
 
     const adminId = req.admin!.id;
-
     const [log] = await db.insert(communications).values({
       admin: adminId,
       type: "sms",
-      message: String(message),
-      contact: String(contact),
+      message,
+      contact,
       status: "sent",
     }).returning();
 
