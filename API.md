@@ -395,7 +395,7 @@ Delete a shop. Only allowed if no sales, purchases, or inventory rows reference 
 
 List all product categories for the shop's admin.
 
-**Auth**: Admin or Attendant (`stocks.view_products`)
+**Auth**: Admin or Attendant
 
 **Response** `200`: Array of category objects.
 
@@ -437,7 +437,7 @@ List all product categories for the shop's admin.
 
 List all non-deleted products for this shop.
 
-**Auth**: Admin or Attendant (`stocks.view_products`)
+**Auth**: Admin or Attendant
 
 **Query Params** (in addition to standard pagination):
 
@@ -458,7 +458,7 @@ List all non-deleted products for this shop.
 
 Create a product. Automatically creates one `inventory` row for this shop.
 
-**Auth**: Admin or Attendant (`products.add`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -497,7 +497,7 @@ Create a product. Automatically creates one `inventory` row for this shop.
 
 #### GET /api/products/:id
 
-**Auth**: Admin or Attendant (`stocks.view_products`)
+**Auth**: Admin or Attendant
 
 **Response** `200`: Product with inventory row, batch count, and serial count.
 
@@ -507,7 +507,7 @@ Create a product. Automatically creates one `inventory` row for this shop.
 
 Update product fields. Does **not** update inventory quantity (use stock adjustments for that).
 
-**Auth**: Admin or Attendant (`products.edit`)
+**Auth**: Admin or Attendant
 
 **Request Body**: Any subset of product fields listed above (excluding `initialStock`).
 
@@ -517,7 +517,7 @@ Update product fields. Does **not** update inventory quantity (use stock adjustm
 
 Soft delete — sets `is_deleted = true`. Does not remove from DB.
 
-**Auth**: Admin or Attendant (`products.delete`)
+**Auth**: Admin or Attendant
 
 **Note**: Products with active sales or purchase records can be soft-deleted but not hard-deleted.
 
@@ -527,7 +527,7 @@ Soft delete — sets `is_deleted = true`. Does not remove from DB.
 
 Import multiple products at once (e.g. from CSV).
 
-**Auth**: Admin or Attendant (`products.add`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -545,7 +545,7 @@ Import multiple products at once (e.g. from CSV).
 
 List the components of a bundle product.
 
-**Auth**: Admin or Attendant (`stocks.view_products`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -553,7 +553,7 @@ List the components of a bundle product.
 
 Add a component to a bundle.
 
-**Auth**: Admin or Attendant (`products.edit`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -568,7 +568,7 @@ Add a component to a bundle.
 
 Update component quantity.
 
-**Auth**: Admin or Attendant (`products.edit`)
+**Auth**: Admin or Attendant
 
 **Request Body**: `{ "quantity": "string" }`
 
@@ -578,7 +578,7 @@ Update component quantity.
 
 Remove a component from a bundle.
 
-**Auth**: Admin or Attendant (`products.edit`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -588,7 +588,7 @@ Remove a component from a bundle.
 
 Full inventory list for the shop.
 
-**Auth**: Admin or Attendant (`stocks.view_products`)
+**Auth**: Admin or Attendant
 
 **Query Params**:
 
@@ -602,7 +602,7 @@ Full inventory list for the shop.
 
 Single inventory record.
 
-**Auth**: Admin or Attendant (`stocks.view_products`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -627,7 +627,7 @@ Batches are stock lots per product per shop. Used when `shop.track_batches = tru
 
 ### GET /api/shops/:shopId/batches
 
-**Auth**: Admin or Attendant (`stocks.view_products`)
+**Auth**: Admin or Attendant
 
 **Query Params**:
 
@@ -643,7 +643,7 @@ Batches are stock lots per product per shop. Used when `shop.track_batches = tru
 
 Manually create a batch (without going through a purchase).
 
-**Auth**: Admin or Attendant (`stocks.add_products`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -662,7 +662,7 @@ Manually create a batch (without going through a purchase).
 
 ### GET /api/batches/:id
 
-**Auth**: Admin or Attendant (`stocks.view_products`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -686,7 +686,7 @@ Serial numbers for individual physical units (phones, laptops, high-value items)
 
 ### GET /api/shops/:shopId/serials
 
-**Auth**: Admin or Attendant (`stocks.view_products`)
+**Auth**: Admin or Attendant
 
 **Query Params**:
 
@@ -702,7 +702,7 @@ Serial numbers for individual physical units (phones, laptops, high-value items)
 
 Register a new serial number.
 
-**Auth**: Admin or Attendant (`products.add`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -716,7 +716,7 @@ Register a new serial number.
 
 ### GET /api/serials/:id
 
-**Auth**: Admin or Attendant (`stocks.view_products`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -732,7 +732,7 @@ Register a new serial number.
 
 ### GET /api/shops/:shopId/customers
 
-**Auth**: Admin or Attendant (`customers.manage`)
+**Auth**: Admin or Attendant
 
 **Query Params**: Standard pagination + `search` (name, phone, email) + `type` (retail|wholesale|dealer|online) + `hasDebt` (true — outstanding_balance > 0)
 
@@ -740,7 +740,7 @@ Register a new serial number.
 
 ### POST /api/shops/:shopId/customers
 
-**Auth**: Admin or Attendant (`customers.manage`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -762,13 +762,13 @@ Register a new serial number.
 
 ### GET /api/customers/:id
 
-**Auth**: Admin or Attendant (`customers.manage`)
+**Auth**: Admin or Attendant
 
 ---
 
 ### PUT /api/customers/:id
 
-**Auth**: Admin or Attendant (`customers.manage`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -784,7 +784,7 @@ Register a new serial number.
 
 Wallet transaction history.
 
-**Auth**: Admin or Attendant (`customers.manage`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -792,7 +792,7 @@ Wallet transaction history.
 
 Customer deposits pre-paid credit.
 
-**Auth**: Admin or Attendant (`customers.deposit`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -825,7 +825,7 @@ Customer withdraws wallet credit.
 
 Apply wallet credit to pay off an outstanding credit sale.
 
-**Auth**: Admin or Attendant (`customers.manage`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -848,13 +848,13 @@ Apply wallet credit to pay off an outstanding credit sale.
 
 ### GET /api/shops/:shopId/suppliers
 
-**Auth**: Admin or Attendant (`suppliers.manage`)
+**Auth**: Admin or Attendant
 
 ---
 
 ### POST /api/shops/:shopId/suppliers
 
-**Auth**: Admin or Attendant (`suppliers.manage`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -869,7 +869,7 @@ Apply wallet credit to pay off an outstanding credit sale.
 
 ### GET /api/suppliers/:id
 
-**Auth**: Admin or Attendant (`suppliers.manage`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -889,7 +889,7 @@ Apply wallet credit to pay off an outstanding credit sale.
 
 #### GET /api/suppliers/:id/wallet-transactions
 
-**Auth**: Admin or Attendant (`suppliers.manage`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -941,7 +941,7 @@ Pre-sale orders placed by customers before fulfillment. Converted to sales upon 
 
 ### GET /api/shops/:shopId/orders
 
-**Auth**: Admin or Attendant (`sales.view_sales`)
+**Auth**: Admin or Attendant
 
 **Query Params**: Pagination + `status` (pending|completed|cancelled) + `customerId`
 
@@ -949,7 +949,7 @@ Pre-sale orders placed by customers before fulfillment. Converted to sales upon 
 
 ### POST /api/shops/:shopId/orders
 
-**Auth**: Admin or Attendant (`pos.can_sell`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -971,7 +971,7 @@ Pre-sale orders placed by customers before fulfillment. Converted to sales upon 
 
 ### GET /api/orders/:id
 
-**Auth**: Admin or Attendant (`sales.view_sales`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -979,7 +979,7 @@ Pre-sale orders placed by customers before fulfillment. Converted to sales upon 
 
 Update order details while still `pending`.
 
-**Auth**: Admin or Attendant (`pos.can_sell`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -987,7 +987,7 @@ Update order details while still `pending`.
 
 Cancel an order (sets `status = cancelled`).
 
-**Auth**: Admin or Attendant (`sales.delete`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -995,7 +995,7 @@ Cancel an order (sets `status = cancelled`).
 
 Convert an order to a sale. Returns the created sale.
 
-**Auth**: Admin or Attendant (`pos.can_sell`)
+**Auth**: Admin or Attendant
 
 **Request Body**: Same structure as `POST /api/shops/:shopId/sales` (payment info, discounts, etc.). The `orderId` field links them.
 
@@ -1012,7 +1012,7 @@ The core transaction. A sale reduces inventory and records revenue.
 
 ### GET /api/shops/:shopId/sales
 
-**Auth**: Admin or Attendant (`sales.view_sales`)
+**Auth**: Admin or Attendant
 
 **Query Params**: Pagination + `status` + `paymentType` + `saleType` + `customerId` + `attendantId` + `from` + `to`
 
@@ -1022,8 +1022,7 @@ The core transaction. A sale reduces inventory and records revenue.
 
 Create a completed sale (POS checkout).
 
-**Auth**: Admin or Attendant (`pos.can_sell`)  
-Extra tokens checked per request: `pos.discount` (if `saleDiscount > 0`), `pos.edit_price` (if price differs from product's stored price), `pos.can_sell_to_dealer_&_wholesaler` (if `saleType = Dealer` or `Wholesale`), `pos.set_sale_date` (if a custom past/future date is supplied)
+**Auth**: Admin or Attendant  
 
 **Request Body**:
 
@@ -1069,7 +1068,7 @@ Extra tokens checked per request: `pos.discount` (if `saleDiscount > 0`), `pos.e
 
 ### GET /api/sales/:id
 
-**Auth**: Admin or Attendant (`sales.view_sales`)
+**Auth**: Admin or Attendant
 
 **Response** `200`: Sale with items, payments, and return history.
 
@@ -1079,7 +1078,7 @@ Extra tokens checked per request: `pos.discount` (if `saleDiscount > 0`), `pos.e
 
 Void a sale (sets `sales.status = voided`). Cannot void a sale with payments received against credit.
 
-**Auth**: Admin or Attendant (`sales.delete`)
+**Auth**: Admin or Attendant
 
 **Side Effects** (one transaction):
 1. Set `sales.status = voided`.
@@ -1095,7 +1094,7 @@ Void a sale (sets `sales.status = voided`). Cannot void a sale with payments rec
 
 Record a partial payment against a credit sale.
 
-**Auth**: Admin or Attendant (`pos.can_sell`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1118,7 +1117,7 @@ Record a partial payment against a credit sale.
 
 Create a return / refund against a completed sale.
 
-**Auth**: Admin or Attendant (`sales.return`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1150,7 +1149,7 @@ Receiving stock from a supplier. Mirrors a sale in the opposite direction — mo
 
 ### GET /api/shops/:shopId/purchases
 
-**Auth**: Admin or Attendant (`stocks.view_purchases`)
+**Auth**: Admin or Attendant
 
 **Query Params**: Pagination + `supplierId` + `paymentType` + `from` + `to`
 
@@ -1160,7 +1159,7 @@ Receiving stock from a supplier. Mirrors a sale in the opposite direction — mo
 
 Record a new purchase (stock received from supplier).
 
-**Auth**: Admin or Attendant (`stocks.add_purchases`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1195,7 +1194,7 @@ Record a new purchase (stock received from supplier).
 
 ### GET /api/purchases/:id
 
-**Auth**: Admin or Attendant (`stocks.view_purchases`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -1215,7 +1214,7 @@ Record a payment to the supplier against a credit purchase.
 
 Return goods to supplier.
 
-**Auth**: Admin or Attendant (`stocks.return`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1247,7 +1246,7 @@ Move stock from one shop to another. Inventory is updated at both shops in the s
 
 List outbound and inbound transfers for this shop.
 
-**Auth**: Admin or Attendant (`stocks.transfer`)
+**Auth**: Admin or Attendant
 
 **Query Params**: Pagination + `direction` (`sent`|`received`) + `from` + `to`
 
@@ -1257,7 +1256,7 @@ List outbound and inbound transfers for this shop.
 
 Create a stock transfer.
 
-**Auth**: Admin or Attendant (`stocks.transfer`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1285,7 +1284,7 @@ Create a stock transfer.
 
 ### GET /api/transfers/:id
 
-**Auth**: Admin or Attendant (`stocks.transfer`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -1297,7 +1296,7 @@ Manual changes to inventory outside of sales or purchases (e.g. damage, miscount
 
 #### POST /api/shops/:shopId/adjustments
 
-**Auth**: Admin or Attendant (`products.adjust_stock`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1318,7 +1317,7 @@ Manual changes to inventory outside of sales or purchases (e.g. damage, miscount
 
 #### GET /api/shops/:shopId/adjustments
 
-**Auth**: Admin or Attendant (`products.view_adjustment_history`)
+**Auth**: Admin or Attendant
 
 **Query Params**: Pagination + `productId` + `type` + `from` + `to`
 
@@ -1330,7 +1329,7 @@ Damaged, expired, or lost stock written off permanently.
 
 #### POST /api/shops/:shopId/bad-stocks
 
-**Auth**: Admin or Attendant (`stocks.badstock`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1347,7 +1346,7 @@ Damaged, expired, or lost stock written off permanently.
 
 #### GET /api/shops/:shopId/bad-stocks
 
-**Auth**: Admin or Attendant (`stocks.badstock`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -1359,7 +1358,7 @@ Physical count sessions — compare system quantity vs physical count.
 
 Start a new count session.
 
-**Auth**: Admin or Attendant (`stocks.stock_count`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1379,13 +1378,13 @@ Start a new count session.
 
 #### GET /api/shops/:shopId/stock-counts
 
-**Auth**: Admin or Attendant (`stocks.stock_count`)
+**Auth**: Admin or Attendant
 
 ---
 
 #### GET /api/stock-counts/:id
 
-**Auth**: Admin or Attendant (`stocks.stock_count`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -1395,7 +1394,7 @@ A shop requests stock from a warehouse shop.
 
 #### POST /api/shops/:shopId/stock-requests
 
-**Auth**: Admin or Attendant (`warehouse.create_orders`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1412,7 +1411,7 @@ A shop requests stock from a warehouse shop.
 
 #### GET /api/shops/:shopId/stock-requests
 
-**Auth**: Admin or Attendant (`warehouse.view_orders`)
+**Auth**: Admin or Attendant
 
 **Query Params**: `status` + `warehouseId` + pagination
 
@@ -1420,7 +1419,7 @@ A shop requests stock from a warehouse shop.
 
 #### GET /api/stock-requests/:id
 
-**Auth**: Admin or Attendant (`warehouse.view_orders`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -1428,7 +1427,7 @@ A shop requests stock from a warehouse shop.
 
 Warehouse accepts the request and confirms available quantities.
 
-**Auth**: Admin or Attendant (`warehouse.accept_warehouse_orders`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1457,7 +1456,7 @@ Warehouse dispatches (ships) the goods.
 
 #### GET /api/shops/:shopId/expense-categories
 
-**Auth**: Admin or Attendant (`expenses.manage`)
+**Auth**: Admin or Attendant
 
 ---
 
@@ -1479,7 +1478,7 @@ Warehouse dispatches (ships) the goods.
 
 #### GET /api/shops/:shopId/expenses
 
-**Auth**: Admin or Attendant (`expenses.manage`)
+**Auth**: Admin or Attendant
 
 **Query Params**: Pagination + `categoryId` + `isRecurring` + `from` + `to`
 
@@ -1487,7 +1486,7 @@ Warehouse dispatches (ships) the goods.
 
 #### POST /api/shops/:shopId/expenses
 
-**Auth**: Admin or Attendant (`expenses.manage`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1537,7 +1536,7 @@ Bank accounts with running balances.
 
 #### GET /api/shops/:shopId/cashflow-categories
 
-**Auth**: Admin or Attendant (`accounts.cashflow`)
+**Auth**: Admin or Attendant
 
 **Query Params**: `type` (`cashin`|`cashout`)
 
@@ -1557,7 +1556,7 @@ The main money ledger — every cash-in and cash-out event.
 
 #### GET /api/shops/:shopId/cashflows
 
-**Auth**: Admin or Attendant (`accounts.cashflow`)
+**Auth**: Admin or Attendant
 
 **Query Params**: Pagination + `categoryId` + `bankId` + `from` + `to`
 
@@ -1565,7 +1564,7 @@ The main money ledger — every cash-in and cash-out event.
 
 #### POST /api/shops/:shopId/cashflows
 
-**Auth**: Admin or Attendant (`accounts.cashflow`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
@@ -1893,7 +1892,7 @@ Audit log of attendant actions per shop.
 
 ### GET /api/shops/:shopId/activities
 
-**Auth**: Admin or Attendant (any `reports.*` permission)
+**Auth**: Admin or Attendant
 
 **Query Params**: Pagination + `attendantId` + `from` + `to` + `search` (searches `action` and `details`)
 
@@ -2002,7 +2001,7 @@ Return the full master list of permission groups from the `permissions` table. T
 
 List all attendants for this shop, excluding the auto-created admin attribution attendant.
 
-**Auth**: Admin or Attendant (`attendants.view`)
+**Auth**: Admin or Attendant
 
 **Response** `200`: Array of attendant objects. Each object includes `permissions: string[]`.
 
@@ -2012,7 +2011,7 @@ List all attendants for this shop, excluding the auto-created admin attribution 
 
 Create a new attendant for this shop.
 
-**Auth**: Admin or Attendant (`attendants.manage`)
+**Auth**: Admin or Attendant
 
 **Request Body**:
 
