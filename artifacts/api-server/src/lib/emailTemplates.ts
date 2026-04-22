@@ -180,7 +180,6 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
      </table>
      <p style="margin-top:16px">Receipt #: <strong>{{receiptNo}}</strong></p>`,
     "Receipt {{receiptNo}} — Total {{total}} paid via {{paymentMethod}}. Thank you!",
-    { label: "View receipt", url: "{{receiptUrl}}" },
   ),
   make(
     "sale_refund",
@@ -328,7 +327,6 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
      <p>Please find purchase order <strong>#{{poNumber}}</strong> dated {{poDate}}.</p>
      <p>Total items: {{itemCount}}<br/>Total value: {{poTotal}}<br/>Required by: {{deliveryDate}}</p>`,
     "PO {{poNumber}} — {{itemCount}} items, total {{poTotal}}, due {{deliveryDate}}.",
-    { label: "View PO", url: "{{poUrl}}" },
   ),
 
   // ── Reports ─────────────────────────────────────────────────────────────────
