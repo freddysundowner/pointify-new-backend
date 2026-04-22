@@ -483,6 +483,56 @@ Delete a shop. Only allowed if no sales, purchases, or inventory rows reference 
 
 ---
 
+### DELETE /api/shops/:shopId/data
+
+Wipe all transactional data for a shop (sales, purchases, inventory, etc.) without deleting the shop record itself. Used for resetting demo/test shops.
+
+**Auth**: Super-Admin
+
+**Side Effects**: Deletes all rows in `sales`, `sale_items`, `sale_payments`, `purchases`, `purchase_items`, `purchase_payments`, `inventory`, `batches`, `product_serials`, `adjustments`, `bad_stocks`, `stock_counts`, `stock_count_items`, `cashflows`, `expenses`, `transfers`, `transfer_items` where `shop_id = shopId`. Does **not** delete the shop, products, attendants, customers, or suppliers.
+
+---
+
+### GET /api/shops/by-referral/:referralId
+
+List all shops whose admin was referred by the given admin ID.
+
+**Auth**: Admin (super-admin)
+
+**Response** `200`: Array of shop objects with admin info.
+
+---
+
+### POST /api/shops/:shopId/redeem-usage
+
+Redeem usage credits against a shop (e.g. promotional free trial days).
+
+**Auth**: Admin
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `credits` | integer | ✓ | Number of days/usage credits to apply |
+
+**Side Effects**: Extend `shops.subscription_id` end date by `credits` days or insert a trial extension record.
+
+---
+
+### PUT /api/shops/:shopId/backup-interval
+
+Set the automatic backup sync interval for this shop (used by mobile app).
+
+**Auth**: Admin (owns shop)
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `intervalMinutes` | integer | ✓ | Sync interval in minutes |
+
+---
+
 ## 4. Catalog — Products & Categories
 
 ### Product Categories
@@ -1816,6 +1866,241 @@ Mark a subscription as paid after verifying payment.
 
 ---
 
+#### PUT /api/subscriptions/:id/extend
+
+Manually extend a subscription's end date (super-admin or admin with override permission).
+
+**Auth**: Admin (super-admin)
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `days` | integer | ✓ | Number of days to extend |
+| `reason` | string | ✗ | Internal note |
+
+**Side Effects**: Add `days` to `subscriptions.end_date`. If subscription was inactive, set `is_active = true`.
+
+---
+
+#### GET /api/subscriptions/:id/licence
+
+Return the licence details for an active subscription (used by the mobile app to verify the subscription on-device).
+
+**Auth**: Admin (owns this subscription)
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "invoiceNo": "INV1234567",
+    "isActive": true,
+    "isPaid": true,
+    "startDate": "...",
+    "endDate": "...",
+    "package": { "title": "...", "type": "production" },
+    "shops": [{ "id": 1, "name": "Main Shop" }]
+  }
+}
+```
+
+---
+
+#### PUT /api/subscriptions/:id/verify
+
+Manually verify and activate a subscription after confirming payment through a non-automated channel (e.g. bank transfer).
+
+**Auth**: Admin (super-admin)
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `paymentReference` | string | ✓ | Bank ref, M-Pesa code, etc. |
+| `amount` | string | ✓ | Amount confirmed |
+
+**Side Effects**: Same as `POST /api/subscriptions/:id/pay`.
+
+---
+
+#### GET /api/admin/subscriptions/stats
+
+Platform-wide subscription statistics dashboard.
+
+**Auth**: Super-Admin
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "totalActive": 420,
+    "totalTrial": 130,
+    "totalExpired": 55,
+    "totalRevenue": "...",
+    "byPackage": [{ "packageId": 1, "title": "...", "count": 200 }]
+  }
+}
+```
+
+---
+
+#### GET /api/admin/subscriptions/summary
+
+Paginated list of all subscriptions across all admins for the super-admin portal.
+
+**Auth**: Super-Admin
+
+**Query Params**: Pagination + `status` (`active`|`trial`|`expired`|`unpaid`) + `packageId` + `from` + `to`
+
+**Response** `200`: Paginated list of subscription rows each joined with admin and package info.
+
+---
+
+### Payment Gateways
+
+These endpoints handle initiating and confirming subscription payments via M-Pesa, Stripe, and Paystack.
+
+---
+
+#### POST /api/subscriptions/:id/pay/mpesa
+
+Initiate an M-Pesa STK push to pay for a subscription.
+
+**Auth**: Admin
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `phone` | string | ✓ | Subscriber's M-Pesa phone number (format: `2547XXXXXXXX`) |
+
+**Side Effects**:
+1. Call Safaricom STK Push API with `amount = subscriptions.amount` (or USD equivalent).
+2. Store the `CheckoutRequestID` on the subscription row for callback matching.
+3. Return `{ checkoutRequestId, customerMessage }` — payment not yet confirmed. Confirmation happens via the M-Pesa callback below.
+
+---
+
+#### POST /api/payments/mpesa/validation
+
+M-Pesa C2B validation webhook — called by Safaricom before debiting the customer.
+
+**Auth**: Public (Safaricom IP-whitelisted)
+
+**Response** `200`: `{ "ResultCode": 0, "ResultDesc": "Accepted" }` always — reject only for known fraud signals.
+
+---
+
+#### POST /api/payments/mpesa/confirmation
+
+M-Pesa C2B confirmation webhook — called by Safaricom after a successful C2B payment.
+
+**Auth**: Public (Safaricom IP-whitelisted)
+
+**Side Effects**:
+1. Match the payment to a pending subscription using `CheckoutRequestID` or `BillRefNumber`.
+2. Call the same logic as `POST /api/subscriptions/:id/pay` to activate the subscription.
+3. Log the transaction in `affiliate_transactions` and fire affiliate commission if applicable.
+
+---
+
+#### POST /api/payments/mpesa/callback
+
+M-Pesa STK push result callback — called by Safaricom after an STK push completes or fails.
+
+**Auth**: Public (Safaricom IP-whitelisted)
+
+**Side Effects**:
+1. Parse `Body.stkCallback.ResultCode`. `0` = success, anything else = failure.
+2. On success: activate the subscription (same as `POST /api/subscriptions/:id/pay`).
+3. On failure: update the subscription row with `payment_failed = true` and log the error reason.
+
+---
+
+#### POST /api/subscriptions/:id/pay/stripe
+
+Create a Stripe Checkout Session for a subscription payment.
+
+**Auth**: Admin
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `successUrl` | string | ✓ | Redirect URL after successful payment |
+| `cancelUrl` | string | ✓ | Redirect URL if user cancels |
+
+**Response** `200`: `{ "checkoutUrl": "https://checkout.stripe.com/..." }` — redirect the user to this URL.
+
+**Side Effects**: Create a Stripe Checkout Session with `metadata.subscriptionId`. Store the Stripe session ID on the subscription row.
+
+---
+
+#### POST /api/payments/stripe/webhook
+
+Stripe webhook for payment events.
+
+**Auth**: Public (verified via `Stripe-Signature` header using webhook secret)
+
+**Events handled**:
+- `checkout.session.completed` → activate subscription (same as `POST /api/subscriptions/:id/pay`).
+- `payment_intent.payment_failed` → mark subscription payment as failed.
+
+---
+
+#### POST /api/subscriptions/:id/pay/paystack
+
+Initiate a Paystack payment for a subscription.
+
+**Auth**: Admin
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `email` | string | ✓ | Customer email for the transaction |
+| `callbackUrl` | string | ✗ | Redirect after payment |
+
+**Response** `200`: `{ "authorizationUrl": "https://checkout.paystack.com/...", "reference": "..." }` — redirect the user to `authorizationUrl`.
+
+**Side Effects**: Initialize a Paystack transaction with `metadata.subscriptionId`. Store the Paystack reference on the subscription row.
+
+---
+
+#### POST /api/payments/paystack/webhook
+
+Paystack webhook for payment events.
+
+**Auth**: Public (verified via `x-paystack-signature` header using secret key)
+
+**Events handled**:
+- `charge.success` → match by `data.reference`, activate subscription (same as `POST /api/subscriptions/:id/pay`).
+
+---
+
+### Affiliate M-Pesa Payout
+
+#### POST /api/admin/affiliate-transactions/:id/payout-mpesa
+
+Trigger an M-Pesa B2C payout to the affiliate for an approved withdrawal.
+
+**Auth**: Super-Admin
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `phone` | string | ✓ | Affiliate's registered M-Pesa phone number |
+
+**Side Effects**:
+1. Call Safaricom B2C API with `Amount = affiliate_transactions.amount`.
+2. On B2C callback success: call `PUT /api/admin/affiliate-transactions/:id/complete` logic (decrement wallet, mark completed).
+3. On failure: log the failure reason — do not decrement wallet.
+
+---
+
 ## 17. Affiliates
 
 ### Affiliate Portal (Self-Service)
@@ -2294,6 +2579,82 @@ Create or update a setting.
 **Request Body**: `{ "setting": <any JSON value> }`
 
 **Side Effects**: Upsert `settings` row. Must manually set `updated_at = new Date()` (not auto-managed by Drizzle).
+
+---
+
+### Shop Metrics
+
+#### GET /api/system/shop-metrics
+
+Platform-wide shop and admin metrics for the super-admin dashboard.
+
+**Auth**: Super-Admin
+
+**Response** `200`:
+```json
+{
+  "success": true,
+  "data": {
+    "totalShops": 1200,
+    "totalAdmins": 850,
+    "activeSubscriptions": 420,
+    "trialSubscriptions": 130,
+    "expiredSubscriptions": 55,
+    "newShopsThisMonth": 34,
+    "newAdminsThisMonth": 28,
+    "totalRevenue": "...",
+    "revenueThisMonth": "..."
+  }
+}
+```
+
+---
+
+### Admin Management
+
+Super-admin operations for managing all admin accounts on the platform.
+
+#### GET /api/admin/admins
+
+Paginated list of all admin accounts.
+
+**Auth**: Super-Admin
+
+**Query Params**: Pagination + `search` (email, phone, username) + `subscriptionStatus` (`active`|`trial`|`expired`|`none`)
+
+**Response** `200`: Paginated list of admin objects each with their primary shop and current subscription status.
+
+---
+
+#### GET /api/admin/admins/by-subscription
+
+Filter admins by subscription status. Useful for bulk SMS targeting.
+
+**Auth**: Super-Admin
+
+**Query Params**: `status` (`trial_active`|`trial_expired`|`production_active`|`production_expired`) + pagination
+
+**Response** `200`: Paginated list of admin objects with phone numbers for SMS campaigns.
+
+---
+
+#### PUT /api/admin/admins/:id
+
+Update any admin account (e.g. correct email, reset phone, toggle flags).
+
+**Auth**: Super-Admin
+
+**Request Body**: Any subset of admin fields (`email`, `phone`, `username`, `emailVerified`, `smsCredit`).
+
+---
+
+#### DELETE /api/admin/admins/:id
+
+Delete an admin account and all their associated data.
+
+**Auth**: Super-Admin
+
+**Note**: This is destructive. Confirm the admin has no active subscriptions before proceeding. Cascades to shops, attendants, products, sales, and all related data per the schema `onDelete: cascade` rules.
 
 ---
 
