@@ -1296,7 +1296,7 @@ export const openApiSpec = {
               },
             },
           },
-          paymentMethod: { type: "string" },
+          paymentMethod: { type: "string", description: "Must match the `name` of an active row in the global /payment-methods catalog (case-insensitive — e.g. 'Cash', 'M-Pesa', 'Bank Transfer', 'Card'). Stored canonically on sales.paymentType and the matching sale_payments row. Defaults to 'Cash' if omitted. Unknown values return 400." },
           amountPaid: { type: "number" },
           discount: { type: "number" },
           note: { type: "string" },
@@ -1336,7 +1336,7 @@ export const openApiSpec = {
         parameters: [idParam()],
         ...body({
           amount: { type: "number" },
-          method: { type: "string" },
+          method: { type: "string", description: "Must match the `name` of an active row in the global /payment-methods catalog (case-insensitive). Stored canonically on sale_payments.paymentType. Unknown values return 400." },
           reference: { type: "string" },
         }, ["amount", "method"]),
         responses: ok("Payment recorded"),
