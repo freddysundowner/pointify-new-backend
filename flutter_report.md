@@ -410,8 +410,8 @@ List sales = response["data"];
 | `json['_id']` | `json['id'].toString()` |
 | `json['emailVerified']` | `json['email_verified']` |
 | `json['phoneVerified']` | `json['phone_verified']` |
-| `json['smscredit']` | `json['sms_credit']` |
-| `json['saleSmsEnabled']` | `json['sale_sms_enabled']` |
+| `json['smscredit']` | `json['sms_credit']` — now on the admin object; shows remaining SMS balance |
+| `json['saleSmsEnabled']` | `json['sale_sms_enabled']` — now a **shop-level** field, not admin-level; read from the shop object |
 | `json['emailVerificationDate']` | `json['email_verification_date']` |
 | `json['lastAppRatingDate']` | `json['last_app_rating_date']` |
 | `json['referalCredit']` | `json['referral_credit']` |
@@ -615,6 +615,70 @@ List sales = response["data"];
 | ProductCount: `json['initialCount']` | `json['system_count']` |
 | ProductCount: `json['variance']` | `json['variance']` |
 
+### `communication.dart` — NEW MODEL (replace old SMS service pattern)
+
+The old API used a flat `sendSms()` service call with no response model. The new API logs every send as a `Communications` record, and SMS credits are tracked per admin.
+
+New Dart models to create:
+
+**`Communication`** (maps to `communications` table)
+
+| Field | Dart type | `json[key]` |
+|---|---|---|
+| `id` | `int` | `json['id']` |
+| `adminId` | `int?` | `json['admin_id']` |
+| `message` | `String` | `json['message']` |
+| `status` | `String` | `json['status']` — `"sent"` \| `"failed"` |
+| `type` | `String` | `json['type']` — `"sms"` \| `"email"` |
+| `contact` | `String` | `json['contact']` |
+| `failedReason` | `String?` | `json['failed_reason']` |
+| `createdAt` | `DateTime` | `json['created_at']` |
+
+**`SmsCreditTransaction`** (maps to `sms_credit_transactions` table)
+
+| Field | Dart type | `json[key]` |
+|---|---|---|
+| `id` | `int` | `json['id']` |
+| `adminId` | `int` | `json['admin_id']` |
+| `type` | `String` | `json['type']` — `top_up` \| `deduction` \| `adjustment` \| `refund` |
+| `amount` | `int` | `json['amount']` — positive or negative |
+| `balanceAfter` | `int` | `json['balance_after']` |
+| `description` | `String?` | `json['description']` |
+| `communicationId` | `int?` | `json['communication_id']` |
+| `createdAt` | `DateTime` | `json['created_at']` |
+
+**`EmailTemplate`** (maps to `email_templates` table)
+
+| Field | Dart type | `json[key]` |
+|---|---|---|
+| `id` | `int` | `json['id']` |
+| `name` | `String` | `json['name']` |
+| `slug` | `String` | `json['slug']` |
+| `htmlContent` | `String` | `json['html_content']` |
+| `category` | `String` | `json['category']` |
+| `placeholders` | `List<String>` | `json['placeholders']` |
+
+**`usermodel.dart`** — update `sms_credit` field:
+- `json['smscredit']` → `json['sms_credit']` *(int, default 0)*
+- Display this value in the admin settings screen as "SMS Credits Remaining"
+
+**`shop.dart`** — add `sale_sms_enabled` field:
+- `json['saleSmsEnabled']` was **removed from admin** and **moved to shop**
+- Read it from the shop object: `json['sale_sms_enabled']` *(bool, default false)*
+- When `sale_sms_enabled = true` and `admin.sms_credit > 0`, the app should show that an SMS receipt will be sent
+
+**New endpoints to call:**
+
+| Action | Endpoint |
+|---|---|
+| Check SMS balance | `GET /api/sms/balance` → `{ sms_credit: int }` |
+| Top up credits | `POST /api/sms/top-up` → triggers M-Pesa STK push |
+| View credit history | `GET /api/sms/transactions` |
+| View send log | `GET /api/admin/communications` |
+| Re-send failed | `POST /api/admin/communications/:id/resend` |
+| Send one SMS/email | `POST /api/admin/communications/send` |
+| Bulk SMS by segment | `POST /api/admin/communications/bulk-sms` |
+
 ### `awards.dart` — additional renames
 
 | Old `json[key]` | New `json[key]` |
@@ -737,7 +801,7 @@ These integrations no longer exist in the new backend:
 | Firebase Firestore (chat) | `controllers/chat_controller.dart`, `services/firestore_files_access_service.dart`, `models/chat.dart`, `models/chat_message_type.dart`, all chat screens |
 | Firebase Dynamic Links | `services/dynamic_link_services.dart` |
 | Stripe SDK (direct) | `controllers/shopcontroller.dart` — `openStripe()`, `checkStripeStatus()`, all `flutter_stripe` imports; `screens/usage/` Stripe screens |
-| SMS top-up | `services/sms_service.dart` — `topUp` endpoint removed |
+| SMS top-up direct | `services/sms_service.dart` — old direct top-up flow replaced by new M-Pesa STK push via `POST /api/sms/top-up`; update to new endpoint and handle the new credit balance response |
 | Backup download | `controllers/reports_controller.dart` — `backupnow` / `analysis/backup/download` |
 | `measures/` endpoint | Any `getMeasures()` call in `productcontroller.dart` |
 | Excel report download | `reports_controller.dart` — `debtorexcel` usage |
@@ -756,8 +820,9 @@ These integrations no longer exist in the new backend:
 | Models with hardcoded nested `_id` reads | 2 (`badstock.dart`, `transferhistory.dart`) |
 | Controllers with response wrapper fix needed | 9 |
 | Request bodies with field renames | 12 |
-| Firebase / Stripe integrations to remove | 6 |
+| Firebase / Stripe integrations to remove | 5 (SMS top-up is NOT removed — update to new endpoint) |
 | Permission format fix touchpoints | 5+ |
+| New Dart models to create | 3 (`Communication`, `SmsCreditTransaction`, `EmailTemplate`) |
 
 ---
 
@@ -806,8 +871,8 @@ These fields exist only in the new PG schema and were not in the old MongoDB API
 | `usermodel.dart` | `permissions` (on admin) | Admins no longer have their own permissions string |
 | `usermodel.dart` | `status` (online/offline/hybrid) | Sync concept removed |
 | `usermodel.dart` | `syncInterval` | Sync concept removed |
-| `usermodel.dart` | `smscredit` | Not in new schema |
-| `usermodel.dart` | `saleSmsEnabled` | Not in new schema |
+| `usermodel.dart` | `smscredit` | **Renamed to `sms_credit`** — field stays on admin object (credit balance) |
+| `shop.dart` | `saleSmsEnabled` | **Moved + renamed to `sale_sms_enabled`** — now on the shop object, not the admin |
 | `usermodel.dart` | `lastAppRatingDate` | Not in new schema |
 | `product.dart` | `virtual` (boolean) | Encoded in `type = 'virtual'` |
 | `product.dart` | `bundle` (boolean) | Encoded in `type = 'bundle'` |

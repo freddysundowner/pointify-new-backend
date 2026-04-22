@@ -24,6 +24,7 @@ The shop owner. Logs in with email + password. Full access, no permissions neede
 | email_verified | boolean | |
 | phone_verified | boolean | |
 | email_verification_date | timestamp | |
+| sms_credit | integer | remaining SMS messages the admin can send; default 0. Decremented by 1 per SMS sent; topped up via the `/sms/top-up` endpoint. Server must reject sends with `402` when 0. |
 | auto_print | boolean | auto-print receipts, default true |
 | platform | text | ios / android / web |
 | app_version | text | |
@@ -75,6 +76,7 @@ A single physical or virtual location operated by an admin. One admin can own mu
 | backup_date | timestamp | last backup time |
 | show_stock_online | boolean | |
 | show_price_online | boolean | |
+| sale_sms_enabled | boolean | send an SMS receipt to the customer's phone on every completed sale; requires `admins.sms_credit > 0`; deducts 1 credit per send; default false |
 | warehouse | boolean | is this shop a warehouse hub — enables stock requests |
 | production | boolean | runs a production/manufacturing line — unlocks the `production` permission group |
 | allow_backup | boolean | default true |
@@ -1111,11 +1113,84 @@ The main money ledger. Every money event — cash received, paid out, deposited 
 
 ### Overview
 
-Three tables covering outbound messaging and internal audit logging.
+Six tables covering HTML template storage, individual message logging, SMS credit accounting, campaign management, and internal audit logging.
 
-- `email_messages` — reusable templates for email/SMS campaigns. Can be sent immediately or scheduled to repeat at an interval.
+- `email_templates` — seeded HTML layout library used as shells for transactional and campaign emails.
+- `communications` — individual SMS/email send log; one row per message sent to one contact.
+- `sms_credit_transactions` — ledger of every change to an admin's `sms_credit` balance (top-ups, deductions, adjustments, refunds).
+- `email_messages` — reusable campaign definitions (subject, body, audience, schedule). Can be sent immediately or scheduled.
 - `emails_sent` — one row per campaign dispatch for tracking history.
 - `activities` — per-shop audit log of attendant actions (what, who, when).
+
+---
+
+### email_templates
+
+Seeded at deployment. Super-admins manage this table. No shop or admin scope.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| name | text | NO | human-readable label e.g. `"Welcome Email"` |
+| slug | text unique | NO | URL-safe identifier e.g. `"welcome-email"` |
+| html_content | text | NO | full HTML — supports `{placeholder}` substitution |
+| category | text | NO | logical grouping e.g. `transactional` \| `marketing` \| `billing` |
+| placeholders | text[] | NO | list of placeholder names present in html_content, e.g. `["username", "shop_name"]`; default `[]` |
+
+**API notes:**
+- Seed on first deployment with system templates (welcome, OTP, invoice, receipt, etc.).
+- When sending a transactional email the mailer looks up the template by `slug`, substitutes all `{key}` tokens from a data map, and dispatches.
+- The `placeholders` array is informational — used by the UI to show available tokens when composing a campaign.
+
+---
+
+### communications
+
+Individual send log — one row per SMS or email dispatched to a single contact.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| admin_id | integer | YES | FK → admins, set null on delete — who triggered the send |
+| message | text | NO | raw message body sent |
+| status | text | NO | `sent` \| `failed`; default `sent` |
+| type | text | NO | `sms` \| `email`; default `sms` |
+| contact | text | NO | phone number (SMS) or email address (email) |
+| failed_reason | text | YES | gateway error description — populated only when status = `failed` |
+| created_at | timestamp | NO | |
+
+**Indexes:** `admin_id`, `(type, status)`, `created_at`
+
+**API notes:**
+- Insert a row after every `sendSms()` or `sendEmail()` call — both on success and failure.
+- `failed_reason` is the gateway's error description or a local validation message.
+- The super-admin dashboard queries this table for delivery reports and re-send operations.
+- Bulk SMS (e.g. `sendBulkSmsByUserType`) inserts one row per recipient.
+
+---
+
+### sms_credit_transactions
+
+Full ledger of every change to an admin's `admins.sms_credit` balance. Provides an audit trail for the credit dashboard and reconciliation.
+
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| admin_id | integer | NO | FK → admins (cascade on delete) |
+| type | text | NO | `top_up` \| `deduction` \| `adjustment` \| `refund` |
+| amount | integer | NO | credits changed — **positive** for `top_up`/`refund`, **negative** for `deduction`/adjustment loss |
+| balance_after | integer | NO | admin's `sms_credit` balance after this transaction (denormalised snapshot for fast display) |
+| description | text | YES | human-readable note e.g. `"Purchased 100 credits via M-Pesa"`, `"Auto-deduct on sale #12"` |
+| communication_id | integer | YES | FK → communications, set null on delete — links deduction rows to the specific message that consumed the credit |
+| created_at | timestamp | NO | |
+
+**Indexes:** `admin_id`, `type`, `created_at`
+
+**API notes:**
+- On every successful SMS send: decrement `admins.sms_credit` by 1 **and** insert a `deduction` row atomically (use a transaction).
+- On credit top-up: increment `admins.sms_credit` and insert a `top_up` row atomically.
+- `balance_after` must always equal the admin's `sms_credit` value immediately after the update — compute it as `current_balance + amount`.
+- For a failed bulk SMS, insert one `refund` row to restore credits deducted before the failure was detected.
 
 ---
 

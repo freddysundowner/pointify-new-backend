@@ -1963,7 +1963,146 @@ Mark a withdrawal as completed (payment sent).
 
 ## 18. Communication
 
-### Email/SMS Templates
+### Email HTML Templates
+
+Seeded library of HTML layouts used for transactional and campaign emails. No shop or admin scope — these are platform-level resources.
+
+#### GET /api/admin/email-templates
+
+List all email templates.
+
+**Auth**: Admin (super-admin)
+
+**Response**: `{ data: EmailTemplate[] }`
+
+---
+
+#### POST /api/admin/email-templates
+
+Create a new HTML template.
+
+**Auth**: Admin (super-admin)
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | ✓ | Human-readable label e.g. `"Welcome Email"` |
+| `slug` | string | ✓ | URL-safe unique key e.g. `"welcome-email"` — must be unique |
+| `htmlContent` | string | ✓ | Full HTML body — use `{placeholder}` tokens |
+| `category` | string | ✓ | `transactional` \| `marketing` \| `billing` |
+| `placeholders` | string[] | ✗ | List of token names present in htmlContent |
+
+---
+
+#### GET /api/admin/email-templates/:id
+
+**Auth**: Admin (super-admin)
+
+---
+
+#### PUT /api/admin/email-templates/:id
+
+**Auth**: Admin (super-admin)
+
+**Request Body**: Same fields as POST, all optional.
+
+---
+
+#### DELETE /api/admin/email-templates/:id
+
+**Auth**: Admin (super-admin)
+
+---
+
+### SMS / Email Send Log
+
+One row is written here after every individual SMS or email sent anywhere in the system (OTP, bulk, campaign, etc.).
+
+#### GET /api/admin/communications
+
+List send log with filtering.
+
+**Auth**: Admin (super-admin)
+
+**Query Params**:
+
+| Param | Notes |
+|---|---|
+| `type` | `sms` \| `email` |
+| `status` | `sent` \| `failed` |
+| `contact` | exact phone or email filter |
+| `from` | ISO date — filter by `created_at >=` |
+| `to` | ISO date — filter by `created_at <=` |
+| `page` | default 1 |
+| `limit` | default 20 |
+
+**Response**: `{ data: Communication[], total, page, limit }`
+
+---
+
+#### POST /api/admin/communications/send
+
+Send a single SMS or email and log the result.
+
+**Auth**: Admin (super-admin)
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `to` | string | ✓ | Phone number (SMS) or email address |
+| `body` | string | ✓ | Message text or HTML |
+| `type` | string | ✗ | `sms` \| `email`, default `sms` |
+| `subject` | string | ✗ | Required when `type = email` |
+
+**Side Effects**:
+1. Normalise phone (Kenyan format) for SMS or validate email for email.
+2. Call the gateway (`sendSms` / `sendEmail`).
+3. Insert a `communications` row with `status = sent` or `failed` and `failed_reason` if applicable.
+
+---
+
+#### POST /api/admin/communications/:id/resend
+
+Retry a previously failed send using the original `contact` and `message`.
+
+**Auth**: Admin (super-admin)
+
+**Side Effects**:
+1. Fetch the `communications` row by `id`.
+2. Re-call the gateway with the same `type`, `contact`, and `message`.
+3. Update the existing row's `status` and `failed_reason`.
+
+---
+
+#### POST /api/admin/communications/bulk-sms
+
+Send the same SMS to all admins matching a subscription segment.
+
+**Auth**: Admin (super-admin)
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `userType` | string | ✓ | `trial_active` \| `trial_expired` \| `production_active` \| `production_expired` |
+| `message` | string | ✓ | SMS body text |
+| `chunkSize` | integer | ✗ | Batch size per gateway burst, default 50 |
+| `delay` | integer | ✗ | Milliseconds between batches, default 3000 |
+
+**Side Effects**:
+1. Fetch all admins matching `userType` via subscription join.
+2. Send in chunks with delay.
+3. Insert one `communications` row per recipient.
+
+**Response**: `{ total, sent, failed, userType }`
+
+---
+
+### Email/SMS Campaign Templates
+
+Reusable campaign definitions scoped to an admin. Can be sent immediately or scheduled.
 
 #### GET /api/admin/email-messages
 
@@ -2005,7 +2144,7 @@ Dispatch campaign immediately.
 
 **Side Effects**:
 1. Determine recipients based on `audience` field.
-2. Send emails/SMS.
+2. Send emails/SMS — each dispatch also inserts a `communications` row.
 3. Insert `emails_sent` row (`recipient_count = n`).
 4. Increment `email_messages.sent_count`.
 
@@ -2013,9 +2152,76 @@ Dispatch campaign immediately.
 
 #### GET /api/admin/emails-sent
 
-Send history.
+Campaign dispatch history.
 
 **Auth**: Admin (super-admin)
+
+---
+
+### SMS Credits
+
+SMS credits are stored on `admins.sms_credit`. Every SMS sent deducts 1 credit. Admins top up via M-Pesa. All balance changes are recorded in `sms_credit_transactions`.
+
+#### GET /api/sms/balance
+
+Get the calling admin's current SMS credit balance.
+
+**Auth**: Admin
+
+**Response**: `{ "sms_credit": 42 }`
+
+---
+
+#### POST /api/sms/top-up
+
+Purchase SMS credits via M-Pesa.
+
+**Auth**: Admin
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `amount` | number | ✓ | Amount in KES |
+| `phone` | string | ✓ | M-Pesa phone number — defaults to admin's phone if omitted |
+| `credits` | integer | ✓ | Number of credits to purchase |
+
+**Side Effects**:
+1. Initiate M-Pesa STK push for `amount`.
+2. On payment callback confirmation: increment `admins.sms_credit += credits`.
+3. Insert `sms_credit_transactions` row with `type = "top_up"`, `amount = credits`, `balance_after = new_balance`.
+
+---
+
+#### GET /api/sms/transactions
+
+Admin's full SMS credit ledger (top-ups, deductions, refunds).
+
+**Auth**: Admin
+
+**Query Params**: `type` (`top_up` | `deduction` | `adjustment` | `refund`), `from`, `to`, pagination
+
+**Response**: `{ data: SmsCreditTransaction[], total, page, limit }`
+
+---
+
+#### POST /api/admin/sms/adjust-credits
+
+Manually adjust an admin's SMS credit balance (super-admin only).
+
+**Auth**: Admin (super-admin)
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `adminId` | integer | ✓ | Target admin |
+| `amount` | integer | ✓ | Positive to add, negative to deduct |
+| `description` | string | ✗ | Reason for adjustment |
+
+**Side Effects**:
+1. Update `admins.sms_credit` by `amount`.
+2. Insert `sms_credit_transactions` row with `type = "adjustment"`.
 
 ---
 

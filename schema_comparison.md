@@ -712,18 +712,64 @@ The old `Measure` collection was a lookup table of measurement units (kg, litres
 
 ---
 
-## 33. `Communication` → (not directly mapped)
+## 33. `Communication` → `communications`
 
-| MongoDB field | Notes |
-|---|---|
-| `message` (String) | ➜ maps to `email_messages.body` for campaigns |
-| `status` (sent/failed) | ➜ tracked in `emails_sent` |
-| `user` (ObjectId → Admin) | ➜ `email_messages.admin_id` |
-| `type` (email/sms) | ➜ `email_messages.type` |
-| `contact` (String) | ➜ `email_messages.audience_emails` |
-| `failedreason` (String) | **REMOVED** — not in new schema |
+Direct equivalent. The old model was a per-message send audit log; the new `communications` table preserves exactly the same structure.
 
-The old `communication` model was a simple send-audit log. The new schema replaces it with a structured campaign model (`email_messages`) and a dispatch log (`emails_sent`). There is **no direct equivalent** of the old per-message audit log with `failed` status tracking.
+| MongoDB field | PG column | Notes |
+|---|---|---|
+| `_id` | `id` (serial PK) | ➜ integer |
+| `message` (String) | `message` (text) | ✓ |
+| `status` (sent/failed) | `status` (text) | ✓ same values |
+| `user` (ObjectId → Admin) | `admin_id` (integer FK) | ➜ renamed + integer |
+| `type` (email/sms) | `type` (text) | ✓ |
+| `contact` (String) | `contact` (text) | ✓ |
+| `failedreason` (String) | `failed_reason` (text) | ➜ snake_case; nullable |
+| `createdAt` (Date) | `created_at` (timestamp) | ➜ |
+
+**New PG columns with no MongoDB equivalent:**
+- `id` serial PK
+- Indexes on `(admin_id)`, `(type, status)`, `(created_at)` for dashboard queries
+
+---
+
+## 33a. `EmailTemplate` → `email_templates`
+
+New table. The MongoDB `EmailTemplate` model existed in the old codebase but was not previously migrated.
+
+| MongoDB field | PG column | Notes |
+|---|---|---|
+| `_id` | `id` (serial PK) | ➜ integer |
+| `name` (String) | `name` (text) | ✓ |
+| `slug` (String, unique) | `slug` (text, unique) | ✓ |
+| `htmlContent` (String) | `html_content` (text) | ➜ snake_case |
+| `category` (String) | `category` (text) | ✓ |
+| `placeholders` (String[]) | `placeholders` (text[]) | ✓ |
+
+---
+
+## 33b. `smscredit` / SMS Credits → `admins.sms_credit` + `sms_credit_transactions`
+
+The old MongoDB `Admin` model had a `smscredit` integer field tracking available SMS messages. The new schema preserves this as:
+- `admins.sms_credit` (integer, default 0) — the running balance
+- `sms_credit_transactions` (new table) — full ledger of every credit change
+
+| Old Admin field | New location | Notes |
+|---|---|---|
+| `smscredit` (Number) | `admins.sms_credit` (integer) | ➜ renamed + proper column |
+| `saleSmsEnabled` (Boolean) | `shops.sale_sms_enabled` (boolean) | ➜ **moved from admin to shop level** |
+
+**New `sms_credit_transactions` table** (no MongoDB equivalent):
+| PG column | Type | Notes |
+|---|---|---|
+| `id` | serial PK | |
+| `admin_id` | integer FK → admins | cascade on delete |
+| `type` | text | `top_up` \| `deduction` \| `adjustment` \| `refund` |
+| `amount` | integer | positive or negative |
+| `balance_after` | integer | snapshot of balance post-transaction |
+| `description` | text | optional human-readable note |
+| `communication_id` | integer FK → communications | set null on delete — links deductions to the message sent |
+| `created_at` | timestamp | |
 
 ---
 
@@ -767,6 +813,9 @@ The old `communication` model was a simple send-audit log. The new schema replac
 | `customer_wallet_transactions` | Audit log for customer wallet changes |
 | `supplier_wallet_transactions` | Audit log for supplier wallet/payment changes |
 | `affiliate_transactions` | Wallet ledger for affiliates (earnings + withdrawals) |
+| `email_templates` | Seeded HTML email layout library (slug-keyed, platform-wide) |
+| `communications` | Individual SMS/email send log (one row per message to one contact) |
+| `sms_credit_transactions` | Ledger of every change to an admin's `sms_credit` balance |
 
 ---
 
@@ -778,8 +827,10 @@ The old `communication` model was a simple send-audit log. The new schema replac
 | `Staff` | Internal staff model — no role in new PG schema |
 | `Language` | Localisation handled client-side |
 | `Attribute` | Product attributes not modelled in new schema |
-| `emailsSent` (emails_sent) | Kept but as structured `emails_sent` + `email_messages` |
-| `messagesEmail` / `emailsSent` | Consolidated into `email_messages` + `emails_sent` |
+| `messagesEmail` | Migrated → `email_messages` (campaign definitions) |
+| `emailsSent` | Migrated → `emails_sent` (campaign dispatch log) |
+| `EmailTemplate` | Migrated → `email_templates` (HTML layout library) |
+| `Communication` | Migrated → `communications` (individual SMS/email send log) |
 
 ---
 

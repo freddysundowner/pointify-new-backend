@@ -59,6 +59,9 @@ export const shops = pgTable(
     // Feature flags
     showStockOnline: boolean("show_stock_online").notNull().default(false),
     showPriceOnline: boolean("show_price_online").notNull().default(false),
+    // When true, send an SMS receipt to the customer's phone on every completed sale.
+    // Requires the admin's sms_credit > 0; each send deducts 1 credit.
+    saleSmsEnabled: boolean("sale_sms_enabled").notNull().default(false),
     warehouse: boolean("warehouse").notNull().default(false),
     // When true, this shop runs a production/manufacturing line.
     // Unlocks the "production" permission group in the admin UI.
