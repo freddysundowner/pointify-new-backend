@@ -137,9 +137,17 @@ export const affiliateTransactions = pgTable(
   ]
 );
 
+// ─── Award shops (shops linked to an affiliate award record) ─────────────────
+export const awardShops = pgTable("award_shops", {
+  id: serial("id").primaryKey(),
+  awardId: integer("award_id").notNull().references(() => awards.id, { onDelete: "cascade" }),
+  shopId: integer("shop_id").notNull(),
+});
+
 // ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertAffiliateSchema = createInsertSchema(affiliates).omit({ id: true });
 export const insertAwardSchema = createInsertSchema(awards).omit({ id: true });
+export const insertAwardShopSchema = createInsertSchema(awardShops).omit({ id: true });
 export const insertAffiliateTransactionSchema = createInsertSchema(affiliateTransactions).omit({ id: true });
 
 export type Affiliate = typeof affiliates.$inferSelect;
@@ -148,3 +156,5 @@ export type Award = typeof awards.$inferSelect;
 export type InsertAward = z.infer<typeof insertAwardSchema>;
 export type AffiliateTransaction = typeof affiliateTransactions.$inferSelect;
 export type InsertAffiliateTransaction = z.infer<typeof insertAffiliateTransactionSchema>;
+export type AwardShop = typeof awardShops.$inferSelect;
+export type InsertAwardShop = z.infer<typeof insertAwardShopSchema>;

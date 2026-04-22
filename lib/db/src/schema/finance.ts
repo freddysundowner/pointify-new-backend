@@ -21,7 +21,9 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { shops } from "./shop";
-import { attendants } from "./identity";
+import { attendants, admins } from "./identity";
+import { customers } from "./customers";
+import { suppliers } from "./suppliers";
 
 // ─── Expense categories ───────────────────────────────────────────────────────
 export const expenseCategories = pgTable(
@@ -145,6 +147,34 @@ export const paymentMethods = pgTable(
   ]
 );
 
+// ─── User payments (customer / supplier account payments) ────────────────────
+export const userPayments = pgTable(
+  "user_payments",
+  {
+    id: serial("id").primaryKey(),
+    paymentNo: text("payment_no").unique(),
+    totalAmount: numeric("total_amount", { precision: 14, scale: 2 }),
+    balance: numeric("balance", { precision: 14, scale: 2 }),
+    mpesaCode: text("mpesa_code"),
+    paymentType: text("payment_type"),
+    // "customer" | "supplier"
+    type: text("type").notNull(),
+    shopId: integer("shop_id").references(() => shops.id),
+    processedById: integer("processed_by_id").references(() => attendants.id),
+    customerId: integer("customer_id").references(() => customers.id),
+    supplierId: integer("supplier_id").references(() => suppliers.id),
+    adminId: integer("admin_id").references(() => admins.id),
+    sync: boolean("sync").default(false),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("user_payments_shop_id_idx").on(table.shopId),
+    index("user_payments_customer_id_idx").on(table.customerId),
+    index("user_payments_supplier_id_idx").on(table.supplierId),
+    index("user_payments_shop_date_idx").on(table.shopId, table.createdAt),
+  ]
+);
+
 // ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertExpenseCategorySchema = createInsertSchema(expenseCategories).omit({ id: true });
 export const insertCashflowCategorySchema = createInsertSchema(cashflowCategories).omit({ id: true });
@@ -152,6 +182,7 @@ export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true 
 export const insertBankSchema = createInsertSchema(banks).omit({ id: true });
 export const insertCashflowSchema = createInsertSchema(cashflows).omit({ id: true });
 export const insertPaymentMethodSchema = createInsertSchema(paymentMethods).omit({ id: true });
+export const insertUserPaymentSchema = createInsertSchema(userPayments).omit({ id: true });
 
 export type ExpenseCategory = typeof expenseCategories.$inferSelect;
 export type InsertExpenseCategory = z.infer<typeof insertExpenseCategorySchema>;
@@ -165,3 +196,5 @@ export type Cashflow = typeof cashflows.$inferSelect;
 export type InsertCashflow = z.infer<typeof insertCashflowSchema>;
 export type PaymentMethod = typeof paymentMethods.$inferSelect;
 export type InsertPaymentMethod = z.infer<typeof insertPaymentMethodSchema>;
+export type UserPayment = typeof userPayments.$inferSelect;
+export type InsertUserPayment = z.infer<typeof insertUserPaymentSchema>;
