@@ -36,6 +36,7 @@ export const sales = pgTable(
     amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }).default("0"),
     mpesaTotal: numeric("mpesa_total", { precision: 14, scale: 2 }).default("0"),
     bankTotal: numeric("bank_total", { precision: 14, scale: 2 }).default("0"),
+    cardTotal: numeric("card_total", { precision: 14, scale: 2 }).default("0"),
     outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).default("0"),
 
     // Retail | Dealer | Wholesale | Order
@@ -83,6 +84,7 @@ export const saleItems = pgTable(
 
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
+    costPrice: numeric("cost_price", { precision: 14, scale: 2 }).default("0"),
     tax: numeric("tax", { precision: 14, scale: 2 }).default("0"),
     lineDiscount: numeric("line_discount", { precision: 14, scale: 2 }).default("0"),
     saleNote: text("sale_note"),
