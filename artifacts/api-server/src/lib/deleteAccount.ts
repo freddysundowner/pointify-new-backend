@@ -139,7 +139,7 @@ export async function deleteAdminAccount(adminId: number): Promise<DeletedAdminS
     await tx.delete(attendants).where(eq(attendants.admin, adminId));
     await tx.delete(communications).where(eq(communications.admin, adminId));
     await tx.delete(smsCreditTransactions).where(eq(smsCreditTransactions.admin, adminId));
-    await tx.delete(emailMessages).where(eq(emailMessages.admin, adminId));
+    // emailMessages is a global campaigns table with no admin column — skip.
     await tx.delete(emailsSent).where(eq(emailsSent.admin, adminId));
     await tx.delete(affiliateTransactions).where(eq(affiliateTransactions.admin, adminId));
     await tx.delete(awards).where(eq(awards.fromAdmin, adminId));
