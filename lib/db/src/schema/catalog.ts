@@ -10,6 +10,7 @@ import {
   numeric,
   timestamp,
   index,
+  unique,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -142,6 +143,7 @@ export const inventory = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
+    unique("inventory_product_shop_unique").on(table.product, table.shop),
     index("inventory_product_shop_idx").on(table.product, table.shop),
   ]
 );
@@ -159,6 +161,7 @@ export const bundleItems = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
+    unique("bundle_items_product_component_unique").on(table.product, table.componentProduct),
     index("bundle_items_product_idx").on(table.product),
   ]
 );

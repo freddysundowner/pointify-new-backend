@@ -10,6 +10,7 @@ import {
   numeric,
   timestamp,
   index,
+  unique,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -60,11 +61,17 @@ export const subscriptions = pgTable(
 );
 
 // A single subscription can cover multiple shops (multi-branch plans)
-export const subscriptionShops = pgTable("subscription_shops", {
-  id: serial("id").primaryKey(),
-  subscription: integer("subscription_id").notNull().references(() => subscriptions.id, { onDelete: "cascade" }),
-  shop: integer("shop_id").notNull().references(() => shops.id),
-});
+export const subscriptionShops = pgTable(
+  "subscription_shops",
+  {
+    id: serial("id").primaryKey(),
+    subscription: integer("subscription_id").notNull().references(() => subscriptions.id, { onDelete: "cascade" }),
+    shop: integer("shop_id").notNull().references(() => shops.id),
+  },
+  (table) => [
+    unique("subscription_shops_unique").on(table.subscription, table.shop),
+  ]
+);
 
 export const insertPackageSchema = createInsertSchema(packages).omit({ id: true });
 export const insertPackageFeatureSchema = createInsertSchema(packageFeatures).omit({ id: true });
