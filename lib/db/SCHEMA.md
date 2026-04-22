@@ -861,3 +861,54 @@ purchases → purchase_items → batches → sale_item_batches → sale_items �
 - `quantity` must be ≤ `purchase_items.quantity`. Validate before insert.
 - Cannot return the same `purchase_item_id` more than once — check existing `purchase_return_items` before inserting.
 - If the item had a linked batch (`purchase_items.batch_id`), decrement that batch's quantity by the returned amount.
+
+---
+
+## transfers.ts
+
+### Overview
+
+Two tables: `product_transfers` (header) and `transfer_items` (line items).
+
+Transfers move stock between shops instantly — inventory at both shops is updated in the same transaction. No money moves unless the source is a warehouse, in which case a `purchases` record is also created at the receiving shop.
+
+Two transfer modes:
+- **Regular** (`from_shop.warehouse = false`): stock moves between branches. No purchase record.
+- **Warehouse** (`from_shop.warehouse = true`): stock moves from warehouse to branch. A purchase record is created at the receiving shop and linked via `purchase_id`.
+
+---
+
+### product_transfers
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| transfer_no | text | YES | unique — auto-generate on insert (e.g. TRF12345) |
+| transfer_note | text | YES | internal notes about the transfer |
+| initiated_by_id | integer | NO | FK → attendants |
+| from_shop_id | integer | NO | FK → shops |
+| to_shop_id | integer | NO | FK → shops |
+| purchase_id | integer | YES | FK → purchases — only set for warehouse transfers |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- Creating a transfer is a single transaction: insert `product_transfers` + all `transfer_items` + decrement `inventory.quantity` at `from_shop` per item + increment `inventory.quantity` at `to_shop` per item.
+- Check stock availability at `from_shop` for each item before proceeding. If any item has insufficient stock and `shop.negative_selling = false`, reject the whole transfer.
+- `from_shop_id` must not equal `to_shop_id` — validate before insert.
+- **Warehouse transfer**: if `from_shop.warehouse = true`, additionally create a `purchases` record at `to_shop_id` (payment_type = cash, total_amount = SUM of transfer_items.unit_price × quantity) with matching `purchase_items`. Set `product_transfers.purchase_id` to the new purchase id — all in the same transaction.
+- `transfer_items.product_id` references the **sender's** product. The API must find or create the matching product at the destination shop before updating inventory.
+- Bundle products: if a transferred product is a bundle, also decrement inventory for each of its components at `from_shop`.
+
+---
+
+### transfer_items
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| transfer_id | integer | NO | FK → product_transfers, cascade delete |
+| product_id | integer | NO | FK → products — references the sender shop's product |
+| quantity | numeric(14,4) | NO | |
+| unit_price | numeric(14,2) | YES | snapshot of product.buying_price at transfer time |
+
+**API notes:**
+- `unit_price` must be captured at transfer time from `product.buying_price` at `from_shop`. Used to calculate the total transfer value and to populate `purchase_items.unit_price` for warehouse transfers.
+- For warehouse transfers, `unit_price` on the transfer item feeds directly into the linked `purchase_items.unit_price` — they must match.
