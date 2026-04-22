@@ -13,10 +13,10 @@ import crypto from "node:crypto";
 const router = Router();
 
 // ── Pricing ───────────────────────────────────────────────────────────────────
-// Reads `system/settings/sms_pricing` = { pricePerCredit: number } (KES).
-// Default: 1 KES per credit.
+// Reads the settings row named `sms_pricing` = { pricePerCredit: number } (KES).
+// (Manage via PUT /api/system/settings/sms_pricing.) Default: 1 KES per credit.
 async function getPricePerCredit(): Promise<number> {
-  const row = await db.query.settings.findFirst({ where: eq(settings.name, "system/settings/sms_pricing") });
+  const row = await db.query.settings.findFirst({ where: eq(settings.name, "sms_pricing") });
   const v = (row?.setting as Record<string, unknown> | undefined) ?? {};
   const p = Number(v["pricePerCredit"] ?? 1);
   return Number.isFinite(p) && p > 0 ? p : 1;
