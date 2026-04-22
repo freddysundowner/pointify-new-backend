@@ -315,3 +315,166 @@ A shop requests stock from a warehouse.
 | product_id | integer | FK → products |
 | quantity_requested | numeric(14,4) | |
 | quantity_received | numeric(14,4) | |
+
+---
+
+## sales.ts
+
+### Overview
+
+Sales flow: `sales` → `sale_items` → `sale_item_batches` (if batch tracking on)  
+Payment flow: `sales` ← `sale_payments` (one row per instalment / method)  
+Return flow: `sale_returns` → `sale_return_items` → back-references `sale_items`
+
+All monetary amounts are `numeric(14,2)`. All quantities are `numeric(14,4)` to support fractional units (kg, litres).
+
+---
+
+### sales
+The top-level record for every transaction. Created once and generally never edited after the fact.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | serial PK | |
+| receipt_no | text | unique — generate before insert (e.g. REC-20240101-0001) |
+| total_amount | numeric(14,2) | NOT NULL — SUM(unit_price × quantity − line_discount) across all sale_items |
+| total_with_discount | numeric(14,2) | NOT NULL — total_amount − sale_discount (what the customer actually owes) |
+| total_tax | numeric(14,2) | SUM(tax) across all sale_items |
+| sale_discount | numeric(14,2) | bill-level discount applied after line discounts |
+| amount_paid | numeric(14,2) | cached — SUM(sale_payments.amount). Update on every payment insert |
+| mpesa_total | numeric(14,2) | cached — SUM of sale_payments where payment_type = mpesa |
+| bank_total | numeric(14,2) | cached — SUM of sale_payments where payment_type = bank |
+| card_total | numeric(14,2) | cached — SUM of sale_payments where payment_type = card |
+| outstanding_balance | numeric(14,2) | cached — total_with_discount − amount_paid. Key field for credit tracking |
+| sale_type | text | Retail / Dealer / Wholesale / Order — default Retail |
+| payment_type | text | cash / credit / mpesa / card / bank / split — set split when multiple methods used |
+| status | text | cashed / credit / refunded / voided — default cashed |
+| sale_note | text | internal note, not shown on customer receipt |
+| due_date | timestamp | required when payment_type = credit. The date repayment is expected |
+| shop_id | integer | FK → shops NOT NULL |
+| customer_id | integer | FK → customers — nullable for walk-in sales |
+| attendant_id | integer | FK → attendants — who processed the sale |
+| order_id | integer | FK → orders — set if this sale was created from an order |
+| created_at | timestamp | |
+
+**API notes:**
+- Creating a sale is a single database transaction: insert `sales` + all `sale_items` + `sale_item_batches` (if applicable) + initial `sale_payments` (if not credit) atomically. Roll back everything if any step fails.
+- Cached fields (`amount_paid`, `mpesa_total`, `bank_total`, `card_total`, `outstanding_balance`) must be recalculated and updated on the `sales` row every time a `sale_payments` row is inserted or deleted.
+- `status` should be updated automatically: if `outstanding_balance = 0` → cashed. If `outstanding_balance > 0` → credit. Do not let the client set status directly.
+- `negative_selling`: check `shop.negative_selling` before allowing a sale that would take `inventory.quantity` below zero. Reject if false.
+- After a sale is created, decrement `inventory.quantity` for each product sold. If `shop.track_batches = true`, also decrement the relevant `batches.quantity` rows used.
+- If a serial product is sold, update `product_serials.status` from `available` → `sold`.
+
+---
+
+### sale_items
+One row per product line on a sale. Prices are locked at the moment of sale.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | serial PK | |
+| sale_id | integer | FK → sales, cascade delete |
+| product_id | integer | FK → products |
+| attendant_id | integer | FK → attendants — who sold this item (for commission). Defaults to sales.attendant_id |
+| serial_id | integer | FK → product_serials — only set for serialised products |
+| quantity | numeric(14,4) | NOT NULL |
+| unit_price | numeric(14,2) | NOT NULL — snapshot of the price at time of sale. Do NOT use product.selling_price for reports |
+| cost_price | numeric(14,2) | snapshot of buying_price at time of sale. Used for profit calculations. Source: product.buying_price or batch.buying_price if batches used |
+| tax | numeric(14,2) | tax amount for this line — compute from shop.tax_rate × unit_price if product.is_taxable |
+| line_discount | numeric(14,2) | item-level discount amount |
+| sale_note | text | per-item note |
+| sale_type | text | Retail / Dealer / Wholesale — which price tier was applied |
+| status | text | cashed / returned — updated when a return is processed for this item |
+| created_at | timestamp | |
+
+**API notes:**
+- `unit_price` must be set from the correct price tier: Retail → `product.selling_price`, Wholesale → `product.wholesale_price`, Dealer → `product.dealer_price`. Never let the client send an arbitrary price without validating against `product.min_selling_price`.
+- `cost_price` must be set at insert time: use `batch.buying_price` if batch tracking is on (FEFO batch), otherwise `product.buying_price`.
+- Gross profit per item = (`unit_price` − `cost_price`) × `quantity` − `line_discount`.
+- `serial_id`: validate the serial exists, belongs to the correct product, and its status is `available` before inserting. Set `product_serials.status = sold` after insert.
+
+---
+
+### sale_item_batches
+Records which batch(es) a sale item was fulfilled from. Only populated when `shop.track_batches = true`.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | serial PK | |
+| sale_item_id | integer | FK → sale_items, cascade delete |
+| batch_id | integer | FK → batches |
+| quantity_taken | numeric(14,4) | how many units taken from this batch |
+
+**API notes:**
+- Apply FEFO (First Expiry First Out): query batches for the product ordered by `expiration_date ASC`, fill each batch until `sale_item.quantity` is satisfied.
+- After inserting, decrement `batches.quantity` for each row inserted here.
+- SUM(quantity_taken) across all rows for a sale_item must equal `sale_items.quantity`.
+- A batch with `quantity = 0` should not be allocated. Skip it in the FEFO loop.
+
+---
+
+### sale_payments
+One row per payment instalment. A split payment (cash + M-Pesa) produces two rows on the same `sale_id`.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | serial PK | |
+| sale_id | integer | FK → sales, cascade delete |
+| received_by_id | integer | FK → attendants NOT NULL — who physically received the payment |
+| amount | numeric(14,2) | NOT NULL — the amount received in this instalment |
+| balance | numeric(14,2) | change given back to the customer (cash payments only) |
+| payment_no | text | internal sequential payment reference |
+| payment_reference | text | external transaction reference — M-Pesa code, bank transfer ref, card auth code |
+| payment_type | text | NOT NULL — cash / mpesa / card / bank / wallet |
+| paid_at | timestamp | defaults to now() |
+
+**API notes:**
+- After every insert into `sale_payments`, recalculate and UPDATE `sales.amount_paid`, `sales.mpesa_total`, `sales.bank_total`, `sales.card_total`, `sales.outstanding_balance`, and `sales.status` in the same transaction.
+- For credit sales, a payment row is added each time the customer makes a partial payment — this is how the outstanding balance reduces over time.
+- `balance` (change): only relevant for cash payments. balance = amount_received − amount_owed (when customer overpays cash). Do not confuse with `outstanding_balance` on `sales`.
+- Do not allow inserting a payment where `amount > sales.outstanding_balance` (overpayment). Validate before insert.
+
+---
+
+### sale_returns
+Header record for a return/refund against a completed sale.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | serial PK | |
+| sale_id | integer | FK → sales NOT NULL |
+| customer_id | integer | FK → customers — nullable |
+| processed_by_id | integer | FK → attendants NOT NULL |
+| shop_id | integer | FK → shops NOT NULL — denormalised for direct querying |
+| refund_amount | numeric(14,2) | NOT NULL — total refund issued |
+| refund_method | text | NOT NULL — cash / mpesa / card / bank / store_credit |
+| refund_reference | text | transaction ref for mpesa/bank refunds |
+| reason | text | reason for the return |
+| return_no | text | NOT NULL unique — generate before insert (e.g. RTN-20240101-0001) |
+| created_at | timestamp | |
+
+**API notes:**
+- Processing a return is a transaction: insert `sale_returns` + `sale_return_items` + restore `inventory.quantity` for returned products + update `sale_items.status = returned` for affected items + update `sales.status = refunded` if all items are returned.
+- Partial returns are supported — only the returned items need `sale_items.status = returned`.
+- If batch tracking is on, restore quantity back to the batch (or create an adjustment if the specific batch can no longer be identified).
+- If a serialised product is returned, set `product_serials.status = returned`.
+- `refund_amount` should be validated: cannot exceed the original `sales.total_with_discount`.
+
+---
+
+### sale_return_items
+Line items for a return — which products were returned and how many.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | serial PK | |
+| sale_return_id | integer | FK → sale_returns, cascade delete |
+| sale_item_id | integer | FK → sale_items NOT NULL — links to the exact original line item |
+| product_id | integer | FK → products — denormalised for direct querying |
+| quantity | numeric(14,4) | NOT NULL — must not exceed original sale_items.quantity |
+| unit_price | numeric(14,2) | NOT NULL — original selling price (from sale_items.unit_price) |
+
+**API notes:**
+- `quantity` must be ≤ `sale_items.quantity`. Validate before insert.
+- Cannot return the same `sale_item_id` more than once across all return records (prevent double-return). Check existing `sale_return_items` for the same `sale_item_id` before inserting.
+- After insert, increment `inventory.quantity` by the returned quantity for each product.
