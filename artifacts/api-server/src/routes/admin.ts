@@ -169,16 +169,6 @@ router.put("/all/:id", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.delete("/all/:id", requireAdmin, async (req, res, next) => {
-  try {
-    if (!req.admin!.isSuperAdmin) throw forbidden("Super admin required");
-    const summary = await deleteAdminAccount(Number(req.params["id"]));
-    if (!summary) throw notFound("Admin not found");
-    notifyAccountDeleted(summary.email, summary.username);
-    return ok(res, { deleted: true, ...summary });
-  } catch (e) { next(e); }
-});
-
 // ── Super Admin: All shops ─────────────────────────────────────────────────────
 
 router.get("/shops", requireAdmin, async (req, res, next) => {

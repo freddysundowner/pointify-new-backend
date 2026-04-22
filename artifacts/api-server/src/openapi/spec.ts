@@ -2888,12 +2888,7 @@ export const openApiSpec = {
     "/admin/all": {
       get: { tags: ["Admin"], summary: "List all admins (super-admin)", ...auth(["Admin"]), parameters: [...paginationParams, searchParam], responses: list("Admins") },
     },
-    "/admin/all/{id}": {
-      get: { tags: ["Admin"], summary: "Get admin (super-admin)", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Admin") },
-      put: { tags: ["Admin"], summary: "Update admin (super-admin)", ...auth(["Admin"]), parameters: [idParam()], ...body({ isActive: { type: "boolean" } }), responses: ok("Updated") },
-      delete: { tags: ["Admin"], summary: "Hard-delete admin and all related data (super-admin)", description: "Same destructive cascade as DELETE /admin/account, but invoked by a super-admin against any admin id. Sends an account_deleted email to the deleted admin.", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Account deleted (returns deleted admin summary)") },
-    },
-    "/admin/shops": {
+        "/admin/shops": {
       get: { tags: ["Admin"], summary: "List shops across admins (super-admin)", ...auth(["Admin"]), parameters: [...paginationParams, { name: "adminId", in: "query", schema: { type: "integer" } }], responses: list("Shops") },
     },
     "/admin/affiliates": {
