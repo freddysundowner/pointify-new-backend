@@ -2142,10 +2142,11 @@ export const openApiSpec = {
       },
       delete: {
         tags: ["Admin"],
-        summary: "Delete admin (super-admin)",
+        summary: "Hard-delete admin and all related data (super-admin)",
+        description: "Same destructive cascade as DELETE /admin/account, but invoked by a super-admin against any admin id. Wipes shops, products, sales, customers, suppliers, finance, subscriptions, attendants and communications in one transaction, then sends an account_deleted email.",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: ok("Account deleted (returns deleted admin summary)"),
       },
     },
 
@@ -2862,6 +2863,15 @@ export const openApiSpec = {
         responses: ok("Password updated"),
       },
     },
+    "/admin/account": {
+      delete: {
+        tags: ["Admin"],
+        summary: "Permanently delete the current admin's account and all related data",
+        description: "Wipes the admin and EVERY record they own (shops, products, sales, customers, suppliers, finance, subscriptions, attendants, communications, etc.) inside a single transaction, then sends an account_deleted confirmation email. This action cannot be undone.",
+        ...auth(["Admin"]),
+        responses: ok("Account deleted (returns deleted admin summary)"),
+      },
+    },
     "/admin/sms-credits": {
       get: { tags: ["Admin"], summary: "Get SMS credit balance", ...auth(["Admin"]), responses: ok("Balance") },
     },
@@ -2881,7 +2891,7 @@ export const openApiSpec = {
     "/admin/all/{id}": {
       get: { tags: ["Admin"], summary: "Get admin (super-admin)", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Admin") },
       put: { tags: ["Admin"], summary: "Update admin (super-admin)", ...auth(["Admin"]), parameters: [idParam()], ...body({ isActive: { type: "boolean" } }), responses: ok("Updated") },
-      delete: { tags: ["Admin"], summary: "Delete admin (super-admin)", ...auth(["Admin"]), parameters: [idParam()], responses: { 204: { description: "Deleted" } } },
+      delete: { tags: ["Admin"], summary: "Hard-delete admin and all related data (super-admin)", description: "Same destructive cascade as DELETE /admin/account, but invoked by a super-admin against any admin id. Sends an account_deleted email to the deleted admin.", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Account deleted (returns deleted admin summary)") },
     },
     "/admin/shops": {
       get: { tags: ["Admin"], summary: "List shops across admins (super-admin)", ...auth(["Admin"]), parameters: [...paginationParams, { name: "adminId", in: "query", schema: { type: "integer" } }], responses: list("Shops") },
