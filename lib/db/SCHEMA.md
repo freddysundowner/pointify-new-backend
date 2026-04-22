@@ -912,3 +912,99 @@ Two transfer modes:
 **API notes:**
 - `unit_price` must be captured at transfer time from `product.buying_price` at `from_shop`. Used to calculate the total transfer value and to populate `purchase_items.unit_price` for warehouse transfers.
 - For warehouse transfers, `unit_price` on the transfer item feeds directly into the linked `purchase_items.unit_price` — they must match.
+
+---
+
+## affiliates.ts
+
+### Overview
+
+Affiliates are external marketers who refer admins to the platform. When a referred admin pays a subscription, the affiliate earns a commission percentage of the subscription amount, credited to their wallet. They can then withdraw their balance.
+
+**Single-level only** — affiliates refer admins, not other affiliates.
+
+**Commission chain:**
+```
+affiliates.code
+  → used at admin signup → admins.affiliate_id
+  → admin pays subscription → awards row created
+  → affiliates.wallet += awards.commission_amount
+  → affiliate_transactions row (type = subscription)
+  → affiliate requests payout → affiliate_transactions row (type = withdraw)
+                               → affiliates.wallet -= amount
+```
+
+**Circular FK note:** `admins.affiliate_id` is a plain integer (no `.references()`) because `affiliates.ts` imports from `identity.ts`, making a reverse FK a circular import. The relationship is enforced at the application layer.
+
+---
+
+### affiliates
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| name | text | NO | |
+| phone | text | YES | |
+| email | text | YES | |
+| address | text | YES | |
+| country | text | YES | |
+| password | text | YES | hashed |
+| commission | numeric(10,2) | YES | % earned per subscription, default 20 |
+| wallet | numeric(14,2) | YES | running balance, default 0 |
+| is_blocked | boolean | YES | default false |
+| is_active | boolean | YES | default false |
+| code | text unique | YES | referral code — shared with admins at signup |
+| otp | text | YES | |
+| otp_expiry | text | YES | |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- `code` must be unique and auto-generated on affiliate creation (e.g. short alphanumeric slug).
+- `wallet` is a running balance — always equals the SUM of all `affiliate_transactions.affiliate_amount` for this affiliate. Keep them in sync in the same transaction on every credit or debit.
+- `is_active` controls whether the affiliate's referral code is valid for new signups.
+
+---
+
+### awards
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| subscription_id | integer | YES | FK → subscriptions — the payment that triggered this award |
+| affiliate_id | integer | NO | FK → affiliates — who earns the commission |
+| shop_id | integer | YES | FK → shops — which shop's subscription |
+| from_admin_id | integer | YES | FK → admins — admin who triggered a manual/bonus award |
+| amount | numeric(14,2) | YES | snapshot of the subscription payment amount |
+| commission_amount | numeric(14,2) | YES | `amount × affiliate.commission%` at time of award |
+| payment_no | text unique | YES | unique reference for this award |
+| payment_reference | text | YES | e.g. M-Pesa transaction code |
+| currency | text | YES | default 'kes' |
+| type | text | NO | `earnings` = credit to wallet \| `usage` = debit from wallet |
+| award_type | text | YES | `subscription` = recurring commission \| `open_shop` = one-time bonus |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- **Subscription award trigger:** when `subscriptions.is_paid` is set to `true`, look up `admins.affiliate_id` for the subscribing admin. If set, find the affiliate, calculate `commission_amount = subscription.amount × affiliate.commission / 100`, then in one transaction: insert `awards` row, insert `affiliate_transactions` row (type = subscription), increment `affiliates.wallet`.
+- `subscription_id` is the authoritative link — use it to prevent double-awarding the same subscription payment.
+- `award_type = open_shop` awards are triggered manually by an admin when a referred admin opens their first shop.
+
+---
+
+### affiliate_transactions
+| Field | Type | Nullable | Notes |
+|---|---|---|---|
+| id | serial PK | NO | |
+| amount | numeric(14,2) | YES | total amount of the transaction |
+| affiliate_amount | numeric(14,2) | YES | affiliate's cut (= commission_amount for earnings; = amount for withdrawals) |
+| balance | numeric(14,2) | YES | wallet balance after this transaction |
+| trans_id | text | YES | internal transaction ID |
+| payment_reference | text | YES | e.g. M-Pesa code for withdrawals |
+| type | text | NO | `subscription` = commission earned \| `withdraw` = payout requested |
+| is_completed | boolean | YES | false = withdrawal pending approval; true = paid out |
+| affiliate_id | integer | YES | FK → affiliates |
+| admin_id | integer | YES | FK → admins — who approved/processed the withdrawal |
+| created_at | timestamp | YES | |
+
+**API notes:**
+- On withdrawal request: create transaction row (`is_completed = false`), do NOT debit wallet yet.
+- On withdrawal approval by admin: set `is_completed = true`, set `payment_reference`, decrement `affiliates.wallet` — all in one transaction.
+- `balance` must be calculated and stored at insert time: previous balance ± affiliate_amount.
+- `balance` after a `withdraw` row must never go below 0 — validate before inserting.
