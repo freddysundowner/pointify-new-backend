@@ -130,7 +130,7 @@ export const salePayments = pgTable(
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
     balance: numeric("balance", { precision: 14, scale: 2 }).default("0"),
     paymentNo: text("payment_no"),
-    mpesaCode: text("mpesa_code"),
+    paymentReference: text("payment_reference"),
     // cash | mpesa | card | bank | wallet
     paymentType: text("payment_type").notNull(),
     paidAt: timestamp("paid_at").defaultNow(),
