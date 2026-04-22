@@ -47,6 +47,12 @@ export const DEFAULT_SMS_TEMPLATES: SmsTemplate[] = [
     ["adminName"],
   ),
   t(
+    "admin_daily_summary",
+    "Sent at 20:00 to each admin who has SMS sending enabled and credits remaining — recap of today's numbers across all their shops.",
+    "Hi {{adminName}}, today: {{salesCount}} sale(s), revenue KES {{revenue}}, paid KES {{cashCollected}}, expenses KES {{expenses}}, profit KES {{profit}}. Pointify POS",
+    ["adminName", "salesCount", "revenue", "cashCollected", "expenses", "profit"],
+  ),
+  t(
     "sale_receipt",
     "Sent to the customer for every completed sale (when admin opts in).",
     "Receipt from {{shopName}}: {{itemCount}} item(s), total KES {{total}}. View: {{receiptUrl}} Thank you!",

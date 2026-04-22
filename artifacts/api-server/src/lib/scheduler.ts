@@ -22,7 +22,7 @@ import {
   jobSmsSubscriptionExpiryReminders,
   jobSmsShopDormant,
 } from "./scheduledNotifications.js";
-import { jobDailyReport } from "./dailyReport.js";
+import { jobDailyReport, jobDailySummarySms } from "./dailyReport.js";
 
 let started = false;
 
@@ -63,6 +63,9 @@ export function startScheduler() {
   cron.schedule("0 20 * * *", () => {
     void jobDailyReport();
   });
+  cron.schedule("5 20 * * *", () => {
+    void jobDailySummarySms();
+  });
 
-  logger.info("scheduler: registered 9 daily jobs (morning nudges + SMS jobs + 20:00 daily report)");
+  logger.info("scheduler: registered 10 daily jobs (morning nudges + SMS jobs + 20:00 daily report + 20:05 daily SMS summary)");
 }

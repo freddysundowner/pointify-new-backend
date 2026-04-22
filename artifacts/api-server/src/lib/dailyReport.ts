@@ -310,3 +310,90 @@ export async function jobDailyReport() {
     logger.error({ err }, "scheduler: jobDailyReport failed");
   }
 }
+
+
+// ── Daily SMS summary ────────────────────────────────────────────────────────
+import { sendSms } from "./sms.js";
+
+const fmtKes = (n: unknown) => Number(n ?? 0).toLocaleString("en-KE", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+async function buildAndSendSmsForAdmin(admin: { id: number; phone: string; username: string | null; email: string }) {
+  const now = new Date();
+  const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(now); endOfDay.setHours(23, 59, 59, 999);
+  const dayKey = `${startOfDay.getFullYear()}-${String(startOfDay.getMonth() + 1).padStart(2, "0")}-${String(startOfDay.getDate()).padStart(2, "0")}`;
+
+  // Reuse the email-side dedupe key so we don't double-send if both run.
+  const settingsKey = `notify_log:admin_daily_summary_sms:${admin.id}:${dayKey}`;
+  const existing = await db.query.settings.findFirst({ where: eq(settings.name, settingsKey) });
+  if (existing) return;
+
+  const myShops = await db.select({ id: shops.id }).from(shops).where(eq(shops.admin, admin.id));
+  if (myShops.length === 0) return;
+  const shopIds = myShops.map((s) => s.id);
+
+  const todaySales = await db
+    .select({
+      total: sales.totalWithDiscount,
+      paid: sales.amountPaid,
+      status: sales.status,
+    })
+    .from(sales)
+    .where(and(inArray(sales.shop, shopIds), gte(sales.createdAt, startOfDay), lte(sales.createdAt, endOfDay)));
+
+  const valid = todaySales.filter((s) => s.status !== "voided" && s.status !== "refunded");
+  const salesCount = valid.length;
+  let revenue = 0, cashCollected = 0;
+  for (const s of valid) { revenue += num(s.total); cashCollected += num(s.paid); }
+
+  const [{ total: expensesTotal = 0 } = { total: 0 }] = await db
+    .select({ total: sql<number>`COALESCE(SUM(${expenses.amount})::numeric, 0)` })
+    .from(expenses)
+    .where(and(inArray(expenses.shop, shopIds), gte(expenses.createdAt, startOfDay), lte(expenses.createdAt, endOfDay)));
+  const profit = revenue - num(expensesTotal);
+
+  const result = await sendSms({
+    adminId: admin.id,
+    to: admin.phone,
+    key: "admin_daily_summary",
+    vars: {
+      adminName: admin.username ?? admin.email,
+      salesCount,
+      revenue: fmtKes(revenue),
+      cashCollected: fmtKes(cashCollected),
+      expenses: fmtKes(expensesTotal),
+      profit: fmtKes(profit),
+    },
+    // Charged to the admin's smsCredit balance (not system-paid).
+  });
+
+  if (result.ok) {
+    await db
+      .insert(settings)
+      .values({ name: settingsKey, setting: { sentAt: Date.now() } })
+      .onConflictDoUpdate({ target: settings.name, set: { setting: { sentAt: Date.now() }, updatedAt: new Date() } });
+  }
+}
+
+export async function jobDailySummarySms() {
+  try {
+    // Only admins who explicitly opted in via saleSmsEnabled and have credits.
+    const candidates = await db
+      .select({ id: admins.id, phone: admins.phone, username: admins.username, email: admins.email, smsCredit: admins.smsCredit, enabled: admins.saleSmsEnabled })
+      .from(admins);
+
+    let sent = 0, skipped = 0;
+    for (const a of candidates) {
+      if (!a.enabled || (a.smsCredit ?? 0) <= 0 || !a.phone) { skipped++; continue; }
+      try {
+        await buildAndSendSmsForAdmin({ id: a.id, phone: a.phone, username: a.username, email: a.email });
+        sent++;
+      } catch (err) {
+        logger.warn({ err, adminId: a.id }, "daily summary SMS failed for admin");
+      }
+    }
+    logger.info({ sent, skipped, total: candidates.length }, "scheduler: admin_daily_summary_sms done");
+  } catch (err) {
+    logger.error({ err }, "scheduler: jobDailySummarySms failed");
+  }
+}
