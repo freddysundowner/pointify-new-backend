@@ -2,9 +2,38 @@
  * System / reference-data tables
  * Global lookup and config tables with no shop or admin scope.
  */
-import { pgTable, serial, text, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+
+// ─── Permissions ──────────────────────────────────────────────────────────────
+// Master list of all permission groups and their sub-permissions.
+// This is the catalogue the admin UI reads to show a checklist when editing an
+// attendant's profile. Each row is one permission group (e.g. "pos", "stocks").
+//
+// condition:
+//   null        → always visible to every shop
+//   "warehouse" → only surfaced when shop.warehouse = true
+//   "production"→ only surfaced when shop.production = true
+//
+// values: array of sub-permission strings that belong to this group,
+//   e.g. ["can_sell", "can_sell_to_dealer_&_wholesaler", "discount", "edit_price"]
+//
+// The individual permission token stored on attendants.permissions is
+// "key.value", e.g. "pos.can_sell". On creation attendants start with an
+// empty permissions array; the admin grants sub-permissions from this table.
+export const permissions = pgTable("permissions", {
+  id: serial("id").primaryKey(),
+  // Machine-readable group name — unique
+  key: text("key").notNull().unique(),
+  // Human-readable label shown in the admin UI
+  label: text("label").notNull(),
+  // Ordered list of sub-permission strings for this group
+  values: text("values").array().notNull().default([]),
+  // null | "warehouse" | "production"
+  condition: text("condition"),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
 
 // ─── Shop categories ──────────────────────────────────────────────────────────
 // System-wide labels for the type of business a shop runs (Supermarket, Pharmacy…).
@@ -29,9 +58,12 @@ export const settings = pgTable("settings", {
 });
 
 // ─── Schemas / types ──────────────────────────────────────────────────────────
+export const insertPermissionSchema = createInsertSchema(permissions).omit({ id: true });
 export const insertShopCategorySchema = createInsertSchema(shopCategories).omit({ id: true });
 export const insertSettingSchema = createInsertSchema(settings).omit({ id: true });
 
+export type Permission = typeof permissions.$inferSelect;
+export type InsertPermission = z.infer<typeof insertPermissionSchema>;
 export type ShopCategory = typeof shopCategories.$inferSelect;
 export type InsertShopCategory = z.infer<typeof insertShopCategorySchema>;
 export type Setting = typeof settings.$inferSelect;

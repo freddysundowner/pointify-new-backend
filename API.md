@@ -31,6 +31,7 @@
 18. [Communication](#18-communication)
 19. [Activities](#19-activities)
 20. [System](#20-system)
+21. [Attendants](#21-attendants)
 
 ---
 
@@ -1955,6 +1956,159 @@ Create or update a setting.
 **Request Body**: `{ "setting": <any JSON value> }`
 
 **Side Effects**: Upsert `settings` row. Must manually set `updated_at = new Date()` (not auto-managed by Drizzle).
+
+---
+
+## 21. Attendants
+
+Cashier / staff accounts scoped to a single shop. Every admin also has one auto-created attendant used purely for sale attribution (no PIN, no password, no permissions).
+
+---
+
+### GET /api/permissions
+
+Return the full master list of permission groups from the `permissions` table. The admin UI reads this to render the checklist when editing an attendant's profile. The frontend filters conditional groups (`condition = "warehouse"` or `"production"`) based on the current shop's flags before rendering.
+
+**Auth**: Admin
+
+**Response** `200`:
+
+```json
+[
+  {
+    "id": 1,
+    "key": "pos",
+    "label": "Point of Sale",
+    "values": ["can_sell", "can_sell_to_dealer_&_wholesaler", "discount", "edit_price", "set_sale_date"],
+    "condition": null,
+    "sortOrder": 0
+  },
+  {
+    "id": 14,
+    "key": "warehouse",
+    "label": "Warehouse",
+    "values": ["invoice_delete", "show_buying_price", "show_available_stock", "view_buying_price", "create_orders", "view_orders", "return", "accept_warehouse_orders"],
+    "condition": "warehouse",
+    "sortOrder": 13
+  }
+]
+```
+
+> **Seed data**: On first deployment populate this table with all 14 default groups from the permission tree (see Conventions section). The `condition` column controls whether a group is visible in the UI — the server always checks the token regardless of condition.
+
+---
+
+### GET /api/shops/:shopId/attendants
+
+List all attendants for this shop, excluding the auto-created admin attribution attendant.
+
+**Auth**: Admin or Attendant (`attendants.view`)
+
+**Response** `200`: Array of attendant objects. Each object includes `permissions: string[]`.
+
+---
+
+### POST /api/shops/:shopId/attendants
+
+Create a new attendant for this shop.
+
+**Auth**: Admin or Attendant (`attendants.manage`)
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `username` | string | ✓ | Display name on receipts |
+| `pin` | string | ✓ | Numeric PIN used at POS login |
+| `password` | string | ✓ | Password used alongside PIN |
+
+**Response** `201`: Attendant object with `permissions: []` (empty — admin assigns permissions separately).
+
+**Side Effects**: Sets `attendants.admin_id` and `attendants.shop_id` from the authenticated admin and the path param.
+
+---
+
+### GET /api/attendants/:id
+
+**Auth**: Admin
+
+**Response** `200`: Full attendant object including `permissions: string[]`.
+
+---
+
+### PUT /api/attendants/:id
+
+Update username, PIN, or password.
+
+**Auth**: Admin
+
+**Request Body**:
+
+| Field | Type | Required |
+|---|---|---|
+| `username` | string | ✗ |
+| `pin` | string | ✗ |
+| `password` | string | ✗ |
+
+---
+
+### DELETE /api/attendants/:id
+
+**Auth**: Admin. Cannot delete the auto-created admin attribution attendant (`admins.attendant_id`).
+
+---
+
+### GET /api/attendants/:id/permissions
+
+Return this attendant's currently assigned permission tokens.
+
+**Auth**: Admin
+
+**Response** `200`:
+
+```json
+{
+  "attendantId": 12,
+  "permissions": ["pos.can_sell", "stocks.view_products", "customers.manage"]
+}
+```
+
+---
+
+### PUT /api/attendants/:id/permissions
+
+Replace the attendant's full permission set. The admin sends the complete list of tokens they want the attendant to have — the server overwrites `attendants.permissions` with this array.
+
+**Auth**: Admin
+
+**Request Body**:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `permissions` | string[] | ✓ | Array of `"group.subkey"` tokens. Send `[]` to revoke all. |
+
+**Validation**: Each token must match a known group key and a value within that group from the `permissions` master table. Unknown tokens are rejected with `400`.
+
+**Response** `200`:
+
+```json
+{
+  "attendantId": 12,
+  "permissions": ["pos.can_sell", "stocks.view_products", "customers.manage"]
+}
+```
+
+**Side Effects**: Overwrites `attendants.permissions` in a single update. The next time this attendant's token is used or they log in, the new permissions take effect immediately.
+
+---
+
+### How the client uses permissions
+
+1. **Login** (`POST /api/auth/attendant/login`) → response includes `attendant.permissions: string[]`.
+2. Flutter / ReactJS stores the array in local state / secure storage.
+3. Client checks `permissions.includes("pos.can_sell")` before showing the Sell button, etc.
+4. Server middleware independently checks the same token on each guarded request — the client-side check is for UI only, not security.
+5. Admins skip all permission checks — their token carries a role flag, not a permissions array.
 
 ---
 

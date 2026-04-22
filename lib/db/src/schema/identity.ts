@@ -39,8 +39,10 @@ export const attendants = pgTable(
     // Null on admin-owned attendants (they are attribution-only, not login accounts).
     pin: text("pin"),
     password: text("password"),
-    // Permission keys e.g. ["sales", "reports", "expenses"].
-    // Null on admin-owned attendants (they inherit full access via the admin).
+    // Flat array of "group.subkey" permission tokens this attendant has been granted,
+    // e.g. ["pos.can_sell", "stocks.view_products", "customers.manage"].
+    // Starts as empty array on creation. Admin populates it from the `permissions`
+    // master table. Null on admin-owned attendants (attribution-only, no login).
     permissions: text("permissions").array(),
     // FK → admins.id — which admin owns / created this attendant
     admin: integer("admin_id"),
