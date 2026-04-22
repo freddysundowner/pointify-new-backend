@@ -1,49 +1,108 @@
 /**
- * Customer table
+ * Customer tables
  */
 import {
   pgTable,
   serial,
   text,
-  boolean,
   integer,
   bigint,
   numeric,
   timestamp,
   index,
+  unique,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { shops } from "./shop";
 import { attendants } from "./identity";
 
+// ─── Customers ────────────────────────────────────────────────────────────────
 export const customers = pgTable(
   "customers",
   {
     id: serial("id").primaryKey(),
+
+    // Auto-incremented reference number per shop — shown at POS (e.g. #0042)
+    customerNo: integer("customer_no"),
+
     name: text("name").notNull(),
-    phoneNumber: text("phone_number"),
+    phone: text("phone"),
     email: text("email"),
     address: text("address"),
+
+    // Only set for online customers (type = online). Hashed with bcrypt.
     password: text("password"),
-    // retail | wholesale | dealer
-    type: text("type"),
-    creditLimit: numeric("credit_limit", { precision: 14, scale: 2 }),
-    wallet: numeric("wallet", { precision: 14, scale: 2 }).default("0"),
-    shop: integer("shop_id").references(() => shops.id),
-    createdBy: integer("created_by_id").references(() => attendants.id),
-    customerNo: integer("customer_no").unique(),
     otp: text("otp"),
     otpExpiry: bigint("otp_expiry", { mode: "number" }),
+
+    // retail | wholesale | dealer | online
+    // Sets the default pricing tier when this customer is selected at the POS
+    type: text("type"),
+
+    // Maximum credit (buy-now-pay-later) allowed for this customer. NULL = no credit.
+    creditLimit: numeric("credit_limit", { precision: 14, scale: 2 }),
+
+    // Pre-paid store credit the customer has deposited. Always >= 0.
+    wallet: numeric("wallet", { precision: 14, scale: 2 }).default("0"),
+
+    // Cached — SUM(sales.outstanding_balance) for all credit sales by this customer.
+    // Updated whenever a credit sale is created or a payment is received.
+    outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }).default("0"),
+
+    shop: integer("shop_id").notNull().references(() => shops.id),
+    createdBy: integer("created_by_id").references(() => attendants.id),
     createdAt: timestamp("created_at").defaultNow(),
-    sync: boolean("sync").default(false),
   },
   (table) => [
+    unique("customers_no_shop_unique").on(table.customerNo, table.shop),
     index("customers_shop_id_idx").on(table.shop),
-    index("customers_phone_idx").on(table.phoneNumber),
+    index("customers_phone_idx").on(table.phone),
+    index("customers_outstanding_idx").on(table.outstandingBalance),
   ]
 );
 
+// ─── Customer wallet transactions ─────────────────────────────────────────────
+// Audit log of every change to a customer's wallet balance.
+// deposit   — customer adds money to their wallet (pre-pay)
+// withdraw  — customer withdraws wallet credit
+// payment   — wallet used to pay off a credit sale
+// refund    — refund issued back to the customer's wallet
+export const customerWalletTransactions = pgTable(
+  "customer_wallet_transactions",
+  {
+    id: serial("id").primaryKey(),
+    customer: integer("customer_id").notNull().references(() => customers.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
+    handledBy: integer("handled_by_id").references(() => attendants.id),
+
+    // deposit | withdraw | payment | refund
+    type: text("type").notNull(),
+
+    amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+
+    // Running wallet balance after this transaction
+    balance: numeric("balance", { precision: 14, scale: 2 }).notNull(),
+
+    paymentNo: text("payment_no"),
+    // Transaction reference — M-Pesa code, bank ref, etc.
+    paymentReference: text("payment_reference"),
+    // cash | mpesa | card | bank
+    paymentType: text("payment_type"),
+
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("cwt_customer_id_idx").on(table.customer),
+    index("cwt_shop_id_idx").on(table.shop),
+  ]
+);
+
+// ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true });
+export const insertCustomerWalletTransactionSchema = createInsertSchema(customerWalletTransactions).omit({ id: true });
+
 export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
+export type CustomerWalletTransaction = typeof customerWalletTransactions.$inferSelect;
+export type InsertCustomerWalletTransaction = z.infer<typeof insertCustomerWalletTransactionSchema>;
