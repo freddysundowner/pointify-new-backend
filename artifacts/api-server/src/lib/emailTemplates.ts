@@ -421,6 +421,20 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     "Payout {{payoutAmount}} sent via {{payoutMethod}}. Ref {{payoutReference}}.",
   ),
   make(
+    "account_deleted",
+    "system",
+    "Sent right after an admin's account and all related data have been permanently deleted.",
+    "Your Pointify account has been deleted",
+    "Sorry to see you go 👋",
+    `<p>Hi {{adminName}},</p>
+     <p>Your Pointify account ({{adminEmail}}) and all of its data — shops, products, sales, customers, suppliers, reports — have now been permanently deleted from our systems.</p>
+     <p>This action cannot be undone. If this wasn't you, reply to this email immediately so we can investigate.</p>
+     <p>If we got something wrong or there's anything we could have done better, we'd genuinely love to hear it. Just hit reply.</p>
+     <p>Thanks for the time you spent with us. The door is always open if you'd ever like to come back.</p>
+     <p>— The Pointify team</p>`,
+    "Your Pointify account ({{adminEmail}}) and all related data have been permanently deleted. If this wasn't you, reply immediately.",
+  ),
+  make(
     "admin_no_products_nudge",
     "engagement",
     "Sent ~2 days after admin signup if they haven't added any products yet.",

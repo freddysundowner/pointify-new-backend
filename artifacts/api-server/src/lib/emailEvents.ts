@@ -460,3 +460,12 @@ export async function notifyWalletTopup(customerId: number, amount: string, wall
     logger.warn({ err }, "notifyWalletTopup failed");
   }
 }
+
+export function notifyAccountDeleted(email: string, username: string | null) {
+  if (!email) return;
+  sendEmailAsync({
+    key: "account_deleted",
+    to: { email, name: username ?? undefined },
+    vars: { adminName: username ?? "there", adminEmail: email },
+  });
+}

@@ -12,6 +12,8 @@ import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest, unauthorized, forbidden, conflict } from "../lib/errors.js";
 import { requireAdmin, requireSuperAdmin } from "../middlewares/auth.js";
+import { deleteAdminAccount } from "../lib/deleteAccount.js";
+import { notifyAccountDeleted } from "../lib/emailEvents.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
 
 const router = Router();
@@ -49,6 +51,21 @@ router.put("/profile", requireAdmin, async (req, res, next) => {
     if (!updated) throw notFound("Admin not found");
     const { password: _, otp: __, ...safe } = updated;
     return ok(res, safe);
+  } catch (e) { next(e); }
+});
+
+
+// ── Self: Permanently delete own account ──────────────────────────────────────
+// Wipes the admin and EVERY record they own (shops, products, sales,
+// customers, suppliers, finance, subscriptions, attendants, etc.) inside a
+// single transaction, then sends a confirmation email.
+router.delete("/account", requireAdmin, async (req, res, next) => {
+  try {
+    const adminId = req.admin!.id;
+    const summary = await deleteAdminAccount(adminId);
+    if (!summary) throw notFound("Admin account not found");
+    notifyAccountDeleted(summary.email, summary.username);
+    return ok(res, { deleted: true, ...summary });
   } catch (e) { next(e); }
 });
 
@@ -155,8 +172,10 @@ router.put("/all/:id", requireAdmin, async (req, res, next) => {
 router.delete("/all/:id", requireAdmin, async (req, res, next) => {
   try {
     if (!req.admin!.isSuperAdmin) throw forbidden("Super admin required");
-    await db.delete(admins).where(eq(admins.id, Number(req.params["id"])));
-    return noContent(res);
+    const summary = await deleteAdminAccount(Number(req.params["id"]));
+    if (!summary) throw notFound("Admin not found");
+    notifyAccountDeleted(summary.email, summary.username);
+    return ok(res, { deleted: true, ...summary });
   } catch (e) { next(e); }
 });
 
@@ -285,8 +304,10 @@ router.put("/admins/:id", requireSuperAdmin, async (req, res, next) => {
 
 router.delete("/admins/:id", requireSuperAdmin, async (req, res, next) => {
   try {
-    await db.delete(admins).where(eq(admins.id, Number(req.params["id"])));
-    return noContent(res);
+    const summary = await deleteAdminAccount(Number(req.params["id"]));
+    if (!summary) throw notFound("Admin not found");
+    notifyAccountDeleted(summary.email, summary.username);
+    return ok(res, { deleted: true, ...summary });
   } catch (e) { next(e); }
 });
 
