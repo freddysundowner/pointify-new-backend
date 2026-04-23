@@ -71,7 +71,11 @@ router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
 
 router.delete("/:id", requireAdminOrAttendant, async (req, res, next) => {
   try {
-    await db.delete(productTransfers).where(eq(productTransfers.id, Number(req.params["id"])));
+    const id = Number(req.params["id"]);
+    const existing = await db.query.productTransfers.findFirst({ where: eq(productTransfers.id, id), columns: { fromShop: true } });
+    if (!existing) throw notFound("Transfer not found");
+    await assertShopOwnership(req, existing.fromShop);
+    await db.delete(productTransfers).where(eq(productTransfers.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });

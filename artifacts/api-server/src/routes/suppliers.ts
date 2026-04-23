@@ -87,12 +87,16 @@ router.get("/:id", requireAdmin, async (req, res, next) => {
 router.put("/:id", requireAdmin, async (req, res, next) => {
   try {
     const { name, phone, email, address } = req.body;
+    const id = Number(req.params["id"]);
+    const existing = await db.query.suppliers.findFirst({ where: eq(suppliers.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Supplier not found");
+    await assertShopOwnership(req, existing.shop);
     const [updated] = await db.update(suppliers).set({
       ...(name && { name }),
       ...(phone !== undefined && { phone }),
       ...(email !== undefined && { email }),
       ...(address !== undefined && { address }),
-    }).where(eq(suppliers.id, Number(req.params["id"]))).returning();
+    }).where(eq(suppliers.id, id)).returning();
     if (!updated) throw notFound("Supplier not found");
     return ok(res, updated);
   } catch (e) { next(e); }
@@ -100,7 +104,11 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
-    const [deleted] = await db.delete(suppliers).where(eq(suppliers.id, Number(req.params["id"]))).returning();
+    const id = Number(req.params["id"]);
+    const existing = await db.query.suppliers.findFirst({ where: eq(suppliers.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Supplier not found");
+    await assertShopOwnership(req, existing.shop);
+    const [deleted] = await db.delete(suppliers).where(eq(suppliers.id, id)).returning();
     if (!deleted) throw notFound("Supplier not found");
     return noContent(res);
   } catch (e) { next(e); }
@@ -144,6 +152,7 @@ router.post("/:id/wallet", requireAdmin, async (req, res, next) => {
 
     const supplier = await db.query.suppliers.findFirst({ where: eq(suppliers.id, supplierId) });
     if (!supplier) throw notFound("Supplier not found");
+    await assertShopOwnership(req, supplier.shop);
 
     const newBalance = (parseFloat(supplier.wallet ?? "0") + parseFloat(String(amount))).toFixed(2);
     await db.update(suppliers).set({ wallet: newBalance }).where(eq(suppliers.id, supplierId));
@@ -169,6 +178,7 @@ async function applySupplierWalletChange(
   const supplierId = Number(req.params["id"]);
   const supplier = await db.query.suppliers.findFirst({ where: eq(suppliers.id, supplierId) });
   if (!supplier) throw notFound("Supplier not found");
+  await assertShopOwnership(req, supplier.shop);
 
   const numAmount = parseFloat(String(amount));
   if (Number.isNaN(numAmount) || numAmount <= 0) throw badRequest("amount must be positive");

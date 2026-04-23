@@ -39,7 +39,11 @@ router.post("/expense-categories", requireAdmin, async (req, res, next) => {
 router.put("/expense-categories/:id", requireAdmin, async (req, res, next) => {
   try {
     const { name } = req.body;
-    const [updated] = await db.update(expenseCategories).set({ name }).where(eq(expenseCategories.id, Number(req.params["id"]))).returning();
+    const id = Number(req.params["id"]);
+    const existing = await db.query.expenseCategories.findFirst({ where: eq(expenseCategories.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Category not found");
+    await assertShopOwnership(req, existing.shop);
+    const [updated] = await db.update(expenseCategories).set({ name }).where(eq(expenseCategories.id, id)).returning();
     if (!updated) throw notFound("Category not found");
     return ok(res, updated);
   } catch (e) { next(e); }
@@ -47,7 +51,11 @@ router.put("/expense-categories/:id", requireAdmin, async (req, res, next) => {
 
 router.delete("/expense-categories/:id", requireAdmin, async (req, res, next) => {
   try {
-    await db.delete(expenseCategories).where(eq(expenseCategories.id, Number(req.params["id"])));
+    const id = Number(req.params["id"]);
+    const existing = await db.query.expenseCategories.findFirst({ where: eq(expenseCategories.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Category not found");
+    await assertShopOwnership(req, existing.shop);
+    await db.delete(expenseCategories).where(eq(expenseCategories.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });
@@ -78,7 +86,11 @@ router.post("/cashflow-categories", requireAdmin, async (req, res, next) => {
 router.put("/cashflow-categories/:id", requireAdmin, async (req, res, next) => {
   try {
     const { name } = req.body;
-    const [updated] = await db.update(cashflowCategories).set({ name }).where(eq(cashflowCategories.id, Number(req.params["id"]))).returning();
+    const id = Number(req.params["id"]);
+    const existing = await db.query.cashflowCategories.findFirst({ where: eq(cashflowCategories.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Category not found");
+    await assertShopOwnership(req, existing.shop);
+    const [updated] = await db.update(cashflowCategories).set({ name }).where(eq(cashflowCategories.id, id)).returning();
     if (!updated) throw notFound("Category not found");
     return ok(res, updated);
   } catch (e) { next(e); }
@@ -86,7 +98,11 @@ router.put("/cashflow-categories/:id", requireAdmin, async (req, res, next) => {
 
 router.delete("/cashflow-categories/:id", requireAdmin, async (req, res, next) => {
   try {
-    await db.delete(cashflowCategories).where(eq(cashflowCategories.id, Number(req.params["id"])));
+    const id = Number(req.params["id"]);
+    const existing = await db.query.cashflowCategories.findFirst({ where: eq(cashflowCategories.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Category not found");
+    await assertShopOwnership(req, existing.shop);
+    await db.delete(cashflowCategories).where(eq(cashflowCategories.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });
@@ -143,11 +159,15 @@ router.get("/expenses/:id", requireAdminOrAttendant, async (req, res, next) => {
 router.put("/expenses/:id", requireAdmin, async (req, res, next) => {
   try {
     const { description, amount, categoryId } = req.body;
+    const id = Number(req.params["id"]);
+    const existing = await db.query.expenses.findFirst({ where: eq(expenses.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Expense not found");
+    await assertShopOwnership(req, existing.shop);
     const [updated] = await db.update(expenses).set({
       ...(description !== undefined && { description }),
       ...(amount !== undefined && { amount: String(amount) }),
       ...(categoryId !== undefined && { category: categoryId ? Number(categoryId) : null }),
-    }).where(eq(expenses.id, Number(req.params["id"]))).returning();
+    }).where(eq(expenses.id, id)).returning();
     if (!updated) throw notFound("Expense not found");
     return ok(res, updated);
   } catch (e) { next(e); }
@@ -155,7 +175,11 @@ router.put("/expenses/:id", requireAdmin, async (req, res, next) => {
 
 router.delete("/expenses/:id", requireAdmin, async (req, res, next) => {
   try {
-    await db.delete(expenses).where(eq(expenses.id, Number(req.params["id"])));
+    const id = Number(req.params["id"]);
+    const existing = await db.query.expenses.findFirst({ where: eq(expenses.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Expense not found");
+    await assertShopOwnership(req, existing.shop);
+    await db.delete(expenses).where(eq(expenses.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });
@@ -197,10 +221,14 @@ router.get("/banks/:id", requireAdminOrAttendant, async (req, res, next) => {
 router.put("/banks/:id", requireAdmin, async (req, res, next) => {
   try {
     const { name, balance } = req.body;
+    const id = Number(req.params["id"]);
+    const existing = await db.query.banks.findFirst({ where: eq(banks.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Bank not found");
+    await assertShopOwnership(req, existing.shop);
     const [updated] = await db.update(banks).set({
       ...(name && { name }),
       ...(balance !== undefined && { balance: String(balance) }),
-    }).where(eq(banks.id, Number(req.params["id"]))).returning();
+    }).where(eq(banks.id, id)).returning();
     if (!updated) throw notFound("Bank not found");
     return ok(res, updated);
   } catch (e) { next(e); }
@@ -208,7 +236,11 @@ router.put("/banks/:id", requireAdmin, async (req, res, next) => {
 
 router.delete("/banks/:id", requireAdmin, async (req, res, next) => {
   try {
-    await db.delete(banks).where(eq(banks.id, Number(req.params["id"])));
+    const id = Number(req.params["id"]);
+    const existing = await db.query.banks.findFirst({ where: eq(banks.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Bank not found");
+    await assertShopOwnership(req, existing.shop);
+    await db.delete(banks).where(eq(banks.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });
@@ -286,7 +318,11 @@ router.get("/cashflows/:id", requireAdminOrAttendant, async (req, res, next) => 
 
 router.delete("/cashflows/:id", requireAdmin, async (req, res, next) => {
   try {
-    await db.delete(cashflows).where(eq(cashflows.id, Number(req.params["id"])));
+    const id = Number(req.params["id"]);
+    const existing = await db.query.cashflows.findFirst({ where: eq(cashflows.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Cashflow not found");
+    await assertShopOwnership(req, existing.shop);
+    await db.delete(cashflows).where(eq(cashflows.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });

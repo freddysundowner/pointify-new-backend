@@ -209,10 +209,14 @@ router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
 router.put("/:id", requireAdmin, async (req, res, next) => {
   try {
     const { note, discount } = req.body;
+    const id = Number(req.params["id"]);
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Sale not found");
+    await assertShopOwnership(req, existing.shop);
     const [updated] = await db.update(sales).set({
       ...(note !== undefined && { saleNote: note }),
       ...(discount !== undefined && { saleDiscount: String(discount) }),
-    }).where(eq(sales.id, Number(req.params["id"]))).returning();
+    }).where(eq(sales.id, id)).returning();
     if (!updated) throw notFound("Sale not found");
     return ok(res, updated);
   } catch (e) { next(e); }
@@ -220,9 +224,13 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
+    const id = Number(req.params["id"]);
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Sale not found");
+    await assertShopOwnership(req, existing.shop);
     const [updated] = await db.update(sales)
       .set({ status: "voided" })
-      .where(eq(sales.id, Number(req.params["id"])))
+      .where(eq(sales.id, id))
       .returning();
     if (!updated) throw notFound("Sale not found");
     return noContent(res);
@@ -232,6 +240,9 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
 router.post("/:id/void", requireAdmin, async (req, res, next) => {
   try {
     const saleId = Number(req.params["id"]);
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, saleId), columns: { shop: true } });
+    if (!existing) throw notFound("Sale not found");
+    await assertShopOwnership(req, existing.shop);
     const [updated] = await db.update(sales)
       .set({ status: "voided" })
       .where(eq(sales.id, saleId))
@@ -246,6 +257,7 @@ router.post("/:id/refund", requireAdmin, async (req, res, next) => {
     const saleId = Number(req.params["id"]);
     const sale = await db.query.sales.findFirst({ where: eq(sales.id, saleId) });
     if (!sale) throw notFound("Sale not found");
+    await assertShopOwnership(req, sale.shop);
 
     const [updated] = await db.update(sales)
       .set({ status: "refunded" })
@@ -263,6 +275,7 @@ router.post("/:id/payments", requireAdminOrAttendant, async (req, res, next) => 
 
     const sale = await db.query.sales.findFirst({ where: eq(sales.id, saleId) });
     if (!sale) throw notFound("Sale not found");
+    await assertShopOwnership(req, sale.shop);
 
     const methodName = await resolvePaymentMethodName(method);
     const payerId = req.attendant?.id ?? undefined;

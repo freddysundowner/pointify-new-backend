@@ -105,7 +105,11 @@ router.post("/adjustments", requireAdminOrAttendant, async (req, res, next) => {
 
 router.delete("/adjustments/:id", requireAdmin, async (req, res, next) => {
   try {
-    await db.delete(adjustments).where(eq(adjustments.id, Number(req.params["id"])));
+    const id = Number(req.params["id"]);
+    const existing = await db.query.adjustments.findFirst({ where: eq(adjustments.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Adjustment not found");
+    await assertShopOwnership(req, existing.shop);
+    await db.delete(adjustments).where(eq(adjustments.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });
@@ -146,7 +150,11 @@ router.post("/bad-stocks", requireAdminOrAttendant, async (req, res, next) => {
 
 router.delete("/bad-stocks/:id", requireAdmin, async (req, res, next) => {
   try {
-    await db.delete(badStocks).where(eq(badStocks.id, Number(req.params["id"])));
+    const id = Number(req.params["id"]);
+    const existing = await db.query.badStocks.findFirst({ where: eq(badStocks.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Bad stock not found");
+    await assertShopOwnership(req, existing.shop);
+    await db.delete(badStocks).where(eq(badStocks.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });
@@ -257,7 +265,11 @@ router.get("/stock-counts/:id", requireAdminOrAttendant, async (req, res, next) 
 
 router.delete("/stock-counts/:id", requireAdmin, async (req, res, next) => {
   try {
-    await db.delete(stockCounts).where(eq(stockCounts.id, Number(req.params["id"])));
+    const id = Number(req.params["id"]);
+    const existing = await db.query.stockCounts.findFirst({ where: eq(stockCounts.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Stock count not found");
+    await assertShopOwnership(req, existing.shop);
+    await db.delete(stockCounts).where(eq(stockCounts.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });
@@ -270,6 +282,7 @@ router.post("/stock-counts/:id/items", requireAdminOrAttendant, async (req, res,
 
     const count = await db.query.stockCounts.findFirst({ where: eq(stockCounts.id, stockCountId) });
     if (!count) throw notFound("Stock count not found");
+    await assertShopOwnership(req, count.shop);
 
     const itemRows = await db.insert(stockCountItems).values(
       items.map((item: any) => ({
@@ -293,6 +306,7 @@ router.post("/stock-counts/:id/apply", requireAdminOrAttendant, async (req, res,
       with: { stockCountItems: true },
     });
     if (!count) throw notFound("Stock count not found");
+    await assertShopOwnership(req, count.shop);
 
     const adjustmentRows = [];
     for (const item of count.stockCountItems) {
@@ -396,11 +410,20 @@ router.get("/stock-requests/:id", requireAdminOrAttendant, async (req, res, next
   } catch (e) { next(e); }
 });
 
+async function loadStockRequest(req: any, id: number) {
+  const row = await db.query.stockRequests.findFirst({ where: eq(stockRequests.id, id), columns: { fromShop: true } });
+  if (!row) throw notFound("Stock request not found");
+  await assertShopOwnership(req, row.fromShop);
+  return row;
+}
+
 router.put("/stock-requests/:id/approve", requireAdmin, async (req, res, next) => {
   try {
+    const id = Number(req.params["id"]);
+    await loadStockRequest(req, id);
     const [updated] = await db.update(stockRequests)
       .set({ status: "processed" })
-      .where(eq(stockRequests.id, Number(req.params["id"])))
+      .where(eq(stockRequests.id, id))
       .returning();
     if (!updated) throw notFound("Stock request not found");
     return ok(res, updated);
@@ -409,9 +432,11 @@ router.put("/stock-requests/:id/approve", requireAdmin, async (req, res, next) =
 
 router.put("/stock-requests/:id/reject", requireAdmin, async (req, res, next) => {
   try {
+    const id = Number(req.params["id"]);
+    await loadStockRequest(req, id);
     const [updated] = await db.update(stockRequests)
       .set({ status: "void" })
-      .where(eq(stockRequests.id, Number(req.params["id"])))
+      .where(eq(stockRequests.id, id))
       .returning();
     if (!updated) throw notFound("Stock request not found");
     return ok(res, updated);
@@ -420,7 +445,9 @@ router.put("/stock-requests/:id/reject", requireAdmin, async (req, res, next) =>
 
 router.delete("/stock-requests/:id", requireAdmin, async (req, res, next) => {
   try {
-    await db.delete(stockRequests).where(eq(stockRequests.id, Number(req.params["id"])));
+    const id = Number(req.params["id"]);
+    await loadStockRequest(req, id);
+    await db.delete(stockRequests).where(eq(stockRequests.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });
@@ -429,9 +456,11 @@ router.put("/stock-requests/:id/status", requireAdmin, async (req, res, next) =>
   try {
     const { status } = req.body ?? {};
     if (!status) throw badRequest("status required");
+    const id = Number(req.params["id"]);
+    await loadStockRequest(req, id);
     const [updated] = await db.update(stockRequests)
       .set({ status })
-      .where(eq(stockRequests.id, Number(req.params["id"])))
+      .where(eq(stockRequests.id, id))
       .returning();
     if (!updated) throw notFound("Stock request not found");
     return ok(res, updated);
@@ -440,9 +469,11 @@ router.put("/stock-requests/:id/status", requireAdmin, async (req, res, next) =>
 
 router.post("/stock-requests/:id/accept", requireAdmin, async (req, res, next) => {
   try {
+    const id = Number(req.params["id"]);
+    await loadStockRequest(req, id);
     const [updated] = await db.update(stockRequests)
       .set({ status: "processed", acceptedBy: req.admin?.id ?? undefined, acceptedAt: new Date() })
-      .where(eq(stockRequests.id, Number(req.params["id"])))
+      .where(eq(stockRequests.id, id))
       .returning();
     if (!updated) throw notFound("Stock request not found");
     return ok(res, updated);
@@ -451,9 +482,11 @@ router.post("/stock-requests/:id/accept", requireAdmin, async (req, res, next) =
 
 router.post("/stock-requests/:id/dispatch", requireAdmin, async (req, res, next) => {
   try {
+    const id = Number(req.params["id"]);
+    await loadStockRequest(req, id);
     const [updated] = await db.update(stockRequests)
       .set({ status: "completed", dispatchedAt: new Date() })
-      .where(eq(stockRequests.id, Number(req.params["id"])))
+      .where(eq(stockRequests.id, id))
       .returning();
     if (!updated) throw notFound("Stock request not found");
     return ok(res, updated);
@@ -464,6 +497,7 @@ router.delete("/stock-requests/:id/items/:itemId", requireAdmin, async (req, res
   try {
     const itemId = Number(req.params["itemId"]);
     const requestId = Number(req.params["id"]);
+    await loadStockRequest(req, requestId);
     await db.delete(stockRequestItems)
       .where(and(eq(stockRequestItems.id, itemId), eq(stockRequestItems.stockRequest, requestId)));
     return noContent(res);

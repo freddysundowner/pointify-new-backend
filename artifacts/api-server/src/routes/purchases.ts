@@ -149,9 +149,13 @@ router.get("/:id", requireAdmin, async (req, res, next) => {
 
 router.put("/:id", requireAdmin, async (req, res, next) => {
   try {
+    const id = Number(req.params["id"]);
+    const existing = await db.query.purchases.findFirst({ where: eq(purchases.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Purchase not found");
+    await assertShopOwnership(req, existing.shop);
     const [updated] = await db.update(purchases)
       .set({ ...(req.body.note !== undefined && { note: req.body.note }) })
-      .where(eq(purchases.id, Number(req.params["id"])))
+      .where(eq(purchases.id, id))
       .returning();
     if (!updated) throw notFound("Purchase not found");
     return ok(res, updated);
@@ -160,7 +164,11 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
-    const [deleted] = await db.delete(purchases).where(eq(purchases.id, Number(req.params["id"]))).returning();
+    const id = Number(req.params["id"]);
+    const existing = await db.query.purchases.findFirst({ where: eq(purchases.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Purchase not found");
+    await assertShopOwnership(req, existing.shop);
+    const [deleted] = await db.delete(purchases).where(eq(purchases.id, id)).returning();
     if (!deleted) throw notFound("Purchase not found");
     return noContent(res);
   } catch (e) { next(e); }
@@ -174,6 +182,7 @@ router.post("/:id/payments", requireAdmin, async (req, res, next) => {
 
     const purchase = await db.query.purchases.findFirst({ where: eq(purchases.id, purchaseId) });
     if (!purchase) throw notFound("Purchase not found");
+    await assertShopOwnership(req, purchase.shop);
 
     const paidById = req.attendant?.id ?? undefined;
 

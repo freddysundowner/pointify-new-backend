@@ -78,9 +78,13 @@ router.put("/:id/status", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { status } = req.body;
     if (!status) throw badRequest("status required");
+    const id = Number(req.params["id"]);
+    const existing = await db.query.orders.findFirst({ where: eq(orders.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Order not found");
+    await assertShopOwnership(req, existing.shop);
     const [updated] = await db.update(orders)
       .set({ status })
-      .where(eq(orders.id, Number(req.params["id"])))
+      .where(eq(orders.id, id))
       .returning();
     if (!updated) throw notFound("Order not found");
     if (status === "shipped") void notifyOrderShipped(updated.id, req.body?.shipping ?? {});
@@ -98,6 +102,7 @@ router.post("/:id/fulfill", requireAdminOrAttendant, async (req, res, next) => {
       with: { orderItems: true },
     });
     if (!order) throw notFound("Order not found");
+    await assertShopOwnership(req, order.shop);
     if (order.status === "completed") throw badRequest("Order already fulfilled");
 
     let totalAmount = 0;
@@ -171,7 +176,11 @@ router.post("/:id/fulfill", requireAdminOrAttendant, async (req, res, next) => {
 
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
-    await db.delete(orders).where(eq(orders.id, Number(req.params["id"])));
+    const id = Number(req.params["id"]);
+    const existing = await db.query.orders.findFirst({ where: eq(orders.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Order not found");
+    await assertShopOwnership(req, existing.shop);
+    await db.delete(orders).where(eq(orders.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });

@@ -145,6 +145,10 @@ router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
 router.put("/:id", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { name, phone, email, creditLimit, type, address } = req.body;
+    const id = Number(req.params["id"]);
+    const existing = await db.query.customers.findFirst({ where: eq(customers.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Customer not found");
+    await assertShopOwnership(req, existing.shop);
     const [updated] = await db.update(customers).set({
       ...(name && { name }),
       ...(phone !== undefined && { phone }),
@@ -152,7 +156,7 @@ router.put("/:id", requireAdminOrAttendant, async (req, res, next) => {
       ...(address !== undefined && { address }),
       ...(creditLimit !== undefined && { creditLimit: creditLimit ? String(creditLimit) : null }),
       ...(type && { type }),
-    }).where(eq(customers.id, Number(req.params["id"]))).returning();
+    }).where(eq(customers.id, id)).returning();
     if (!updated) throw notFound("Customer not found");
     const { password: _, otp: __, ...safe } = updated;
     return ok(res, safe);
@@ -161,7 +165,11 @@ router.put("/:id", requireAdminOrAttendant, async (req, res, next) => {
 
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
-    const [deleted] = await db.delete(customers).where(eq(customers.id, Number(req.params["id"]))).returning();
+    const id = Number(req.params["id"]);
+    const existing = await db.query.customers.findFirst({ where: eq(customers.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Customer not found");
+    await assertShopOwnership(req, existing.shop);
+    const [deleted] = await db.delete(customers).where(eq(customers.id, id)).returning();
     if (!deleted) throw notFound("Customer not found");
     return noContent(res);
   } catch (e) { next(e); }
@@ -169,9 +177,13 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
 
 router.put("/:id/verify", requireAdmin, async (req, res, next) => {
   try {
+    const id = Number(req.params["id"]);
+    const existing = await db.query.customers.findFirst({ where: eq(customers.id, id), columns: { shop: true } });
+    if (!existing) throw notFound("Customer not found");
+    await assertShopOwnership(req, existing.shop);
     const [updated] = await db.update(customers)
       .set({ type: "verified" })
-      .where(eq(customers.id, Number(req.params["id"])))
+      .where(eq(customers.id, id))
       .returning();
     if (!updated) throw notFound("Customer not found");
     return ok(res, { message: "Customer verified" });
@@ -216,6 +228,7 @@ router.post("/:id/wallet", requireAdminOrAttendant, async (req, res, next) => {
 
     const customer = await db.query.customers.findFirst({ where: eq(customers.id, customerId) });
     if (!customer) throw notFound("Customer not found");
+    await assertShopOwnership(req, customer.shop);
 
     const newBalance = (parseFloat(customer.wallet ?? "0") + parseFloat(String(amount))).toFixed(2);
 
@@ -243,6 +256,7 @@ async function applyWalletChange(
   const customerId = Number(req.params["id"]);
   const customer = await db.query.customers.findFirst({ where: eq(customers.id, customerId) });
   if (!customer) throw notFound("Customer not found");
+  await assertShopOwnership(req, customer.shop);
 
   const numAmount = parseFloat(String(amount));
   if (Number.isNaN(numAmount) || numAmount <= 0) throw badRequest("amount must be positive");
