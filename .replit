@@ -61,6 +61,10 @@ localPort = 3001
 externalPort = 3001
 
 [[ports]]
+localPort = 8080
+externalPort = 80
+
+[[ports]]
 localPort = 8081
 externalPort = 8081
 
@@ -70,4 +74,4 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-SUPER_ADMIN_EMAIL = "githumbi8fred@gmail.com"
+SUPER_ADMIN_EMAIL = "githumbi3fred@gmail.com"
