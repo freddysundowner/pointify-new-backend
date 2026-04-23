@@ -2,7 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
-import { apiReference } from "@scalar/express-api-reference";
+import swaggerUi from "swagger-ui-express";
 import router from "./routes/index.js";
 import { errorHandler } from "./middlewares/error.js";
 import { logger } from "./lib/logger.js";
@@ -45,9 +45,23 @@ app.get("/api/openapi.json", (_req, res) => res.json(openApiSpec));
 
 app.use(
   "/api/docs",
-  apiReference({
-    spec: { url: "/api/openapi.json" },
-    theme: "purple",
+  swaggerUi.serve,
+  swaggerUi.setup(openApiSpec as any, {
+    customSiteTitle: "Pointify POS API",
+    swaggerOptions: {
+      docExpansion: "none",
+      defaultModelsExpandDepth: -1,
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      filter: true,
+      tagsSorter: "alpha",
+      operationsSorter: "alpha",
+    },
+    customCss: `
+      .swagger-ui .topbar { background-color: #6b21a8; }
+      .swagger-ui .topbar .download-url-wrapper { display: none; }
+      .swagger-ui .info h2.title { color: #6b21a8; }
+    `,
   }),
 );
 
