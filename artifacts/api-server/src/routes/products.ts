@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Response, type NextFunction } from "express";
 import { eq, ilike, and, gte, lte, sql, inArray, lower } from "drizzle-orm";
 import path from "path";
 import fs from "fs";
@@ -75,6 +75,26 @@ async function assertShopOwnership(req: any, shopId: number): Promise<void> {
       columns: { id: true },
     });
     if (!owned) throw forbidden("You do not own this shop");
+  }
+}
+
+/** Middleware: resolves :id → product row, asserts caller owns its shop.
+ *  Attaches the full product to req.product. Apply after auth middleware.
+ *  All /:id routes share this — no more per-handler lookup + ownership check. */
+async function loadProduct(req: any, _res: Response, next: NextFunction): Promise<void> {
+  try {
+    const id = Number(req.params["id"]);
+    if (isNaN(id)) throw notFound("Product not found");
+    const product = await db.query.products.findFirst({
+      where: eq(products.id, id),
+      with: { category: true },
+    });
+    if (!product) throw notFound("Product not found");
+    await assertShopOwnership(req, product.shop);
+    req.product = product;
+    next();
+  } catch (e) {
+    next(e);
   }
 }
 
@@ -241,41 +261,93 @@ router.post("/", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── Bulk import (must be registered before /:id middleware) ──────────────────
+
+router.post("/bulk-import", requireAdmin, async (req, res, next) => {
+  try {
+    const { products: payload, shopId } = req.body ?? {};
+    if (!Array.isArray(payload) || payload.length === 0) throw badRequest("products array required");
+    if (!shopId) throw badRequest("shopId required");
+
+    const sid = Number(shopId);
+    await assertShopOwnership(req, sid);
+
+    const existingRows = await db.query.products.findMany({
+      where: eq(products.shop, sid),
+      columns: { name: true },
+    });
+    const existingNames = new Set(existingRows.map((r) => r.name.toLowerCase()));
+
+    const toInsert: typeof payload = [];
+    const skipped: Array<{ index: number; name: string; reason: string }> = [];
+    const seenInBatch = new Set<string>();
+
+    for (let i = 0; i < payload.length; i++) {
+      const p = payload[i];
+      const rawName = p.name ? String(p.name).trim() : "";
+      if (!rawName) { skipped.push({ index: i, name: "", reason: "name is required" }); continue; }
+      const key = rawName.toLowerCase();
+      if (seenInBatch.has(key)) { skipped.push({ index: i, name: rawName, reason: "duplicate name in the submitted list" }); continue; }
+      if (existingNames.has(key)) { skipped.push({ index: i, name: rawName, reason: `"${rawName}" already exists in this shop` }); continue; }
+      try { validatePrices({ buyingPrice: p.buyingPrice, sellingPrice: p.sellingPrice, wholesalePrice: p.wholesalePrice, dealerPrice: p.dealerPrice }); }
+      catch (err: any) { skipped.push({ index: i, name: rawName, reason: err?.message ?? "invalid price" }); continue; }
+      seenInBatch.add(key);
+      toInsert.push(p);
+    }
+
+    let inserted: any[] = [];
+    if (toInsert.length > 0) {
+      inserted = await db.insert(products).values(
+        toInsert.map((p: any) => ({
+          name: String(p.name).trim(), shop: sid,
+          category: p.categoryId ? Number(p.categoryId) : null,
+          barcode: p.barcode ?? null, serialNumber: p.serialNumber ?? null,
+          buyingPrice: p.buyingPrice != null ? String(p.buyingPrice) : null,
+          sellingPrice: p.sellingPrice != null ? String(p.sellingPrice) : null,
+          wholesalePrice: p.wholesalePrice != null ? String(p.wholesalePrice) : null,
+          dealerPrice: p.dealerPrice != null ? String(p.dealerPrice) : null,
+          measureUnit: p.measureUnit ?? "", manufacturer: p.manufacturer ?? "",
+          supplier: p.supplierId ? Number(p.supplierId) : null,
+          description: p.description ?? null, productType: p.type ?? "product",
+        }))
+      ).returning();
+      if (inserted.length > 0) {
+        await db.insert(inventory).values(
+          inserted.map((p) => ({ product: p.id, shop: sid, quantity: "0" }))
+        ).onConflictDoNothing();
+      }
+    }
+    return ok(res, { created: inserted.length, skipped: skipped.length, skippedProducts: skipped, products: inserted });
+  } catch (e) { next(e); }
+});
+
+// ── Per-product middleware — runs for every /:id and /:id/* route ─────────────
+// Registered here so specific paths above (/search, /, /bulk-import) are matched
+// first by Express before this catch-all fires.
+
+router.use("/:id", requireAdminOrAttendant, loadProduct);
+
 // ── Product by ID ─────────────────────────────────────────────────────────────
 
-router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
+router.get("/:id", async (req, res, next) => {
   try {
-    const product = await db.query.products.findFirst({
-      where: eq(products.id, Number(req.params["id"])),
-      with: { category: true },
-    });
-    if (!product) throw notFound("Product not found");
-    await assertShopOwnership(req, product.shop);
-    return ok(res, product);
+    return ok(res, (req as any).product);
   } catch (e) { next(e); }
 });
 
 router.put("/:id", requireAdmin, async (req, res, next) => {
   try {
+    const existing = (req as any).product;
     const {
       name, categoryId, barcode, serialNumber, buyingPrice, sellingPrice,
       wholesalePrice, dealerPrice, measureUnit, manufacturer,
       supplierId, description, alertQuantity, type,
     } = req.body;
 
-    const existing = await db.query.products.findFirst({
-      where: eq(products.id, Number(req.params["id"])),
-      columns: { id: true, shop: true, buyingPrice: true, sellingPrice: true, wholesalePrice: true, dealerPrice: true },
-    });
-    if (!existing) throw notFound("Product not found");
-    await assertShopOwnership(req, existing.shop);
-
-    // Name: if provided it must not be blank
     const trimmedName = name !== undefined ? String(name).trim() : undefined;
     if (trimmedName !== undefined && trimmedName === "")
       throw badRequest("name cannot be empty");
 
-    // Merge incoming prices with existing ones so partial updates still validate correctly
     validatePrices({
       buyingPrice:    buyingPrice    !== undefined ? buyingPrice    : existing.buyingPrice,
       sellingPrice:   sellingPrice   !== undefined ? sellingPrice   : existing.sellingPrice,
@@ -306,23 +378,17 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
-    const existing = await db.query.products.findFirst({
-      where: eq(products.id, Number(req.params["id"])),
-      columns: { id: true, shop: true },
-    });
-    if (!existing) throw notFound("Product not found");
-    await assertShopOwnership(req, existing.shop);
-    const [deleted] = await db.delete(products).where(eq(products.id, existing.id)).returning();
-    if (!deleted) throw notFound("Product not found");
+    const { id } = (req as any).product;
+    await db.delete(products).where(eq(products.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });
 
 
-router.get("/:id/serials", requireAdminOrAttendant, async (req, res, next) => {
+router.get("/:id/serials", async (req, res, next) => {
   try {
     const rows = await db.query.productSerials.findMany({
-      where: eq(productSerials.product, Number(req.params["id"])),
+      where: eq(productSerials.product, (req as any).product.id),
     });
     return ok(res, rows);
   } catch (e) { next(e); }
@@ -332,17 +398,9 @@ router.post("/:id/serials", requireAdmin, async (req, res, next) => {
   try {
     const { serials } = req.body;
     if (!Array.isArray(serials) || serials.length === 0) throw badRequest("serials array required");
-    const productId = Number(req.params["id"]);
-
-    const product = await db.query.products.findFirst({
-      where: eq(products.id, productId),
-      columns: { id: true, shop: true },
-    });
-    if (!product) throw notFound("Product not found");
-    await assertShopOwnership(req, product.shop);
-
+    const { id: productId, shop } = (req as any).product;
     const rows = await db.insert(productSerials).values(
-      serials.map((serialNumber: string) => ({ product: product.id, shop: product.shop, serialNumber }))
+      serials.map((serialNumber: string) => ({ product: productId, shop, serialNumber }))
     ).returning();
     return created(res, rows);
   } catch (e) { next(e); }
@@ -350,9 +408,9 @@ router.post("/:id/serials", requireAdmin, async (req, res, next) => {
 
 // ── Product history endpoints ────────────────────────────────────────────────
 
-router.get("/:id/sales-history", requireAdminOrAttendant, async (req, res, next) => {
+router.get("/:id/sales-history", async (req, res, next) => {
   try {
-    const productId = Number(req.params["id"]);
+    const productId = (req as any).product.id;
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
@@ -387,9 +445,9 @@ router.get("/:id/sales-history", requireAdminOrAttendant, async (req, res, next)
   } catch (e) { next(e); }
 });
 
-router.get("/:id/purchases-history", requireAdminOrAttendant, async (req, res, next) => {
+router.get("/:id/purchases-history", async (req, res, next) => {
   try {
-    const productId = Number(req.params["id"]);
+    const productId = (req as any).product.id;
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
@@ -423,9 +481,9 @@ router.get("/:id/purchases-history", requireAdminOrAttendant, async (req, res, n
   } catch (e) { next(e); }
 });
 
-router.get("/:id/stock-history", requireAdminOrAttendant, async (req, res, next) => {
+router.get("/:id/stock-history", async (req, res, next) => {
   try {
-    const productId = Number(req.params["id"]);
+    const productId = (req as any).product.id;
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
 
     const adjConds = [eq(adjustments.product, productId)];
@@ -452,9 +510,9 @@ router.get("/:id/stock-history", requireAdminOrAttendant, async (req, res, next)
   } catch (e) { next(e); }
 });
 
-router.get("/:id/transfer-history", requireAdminOrAttendant, async (req, res, next) => {
+router.get("/:id/transfer-history", async (req, res, next) => {
   try {
-    const productId = Number(req.params["id"]);
+    const productId = (req as any).product.id;
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
 
@@ -485,15 +543,11 @@ router.get("/:id/transfer-history", requireAdminOrAttendant, async (req, res, ne
   } catch (e) { next(e); }
 });
 
-router.get("/:id/summary", requireAdminOrAttendant, async (req, res, next) => {
+router.get("/:id/summary", async (req, res, next) => {
   try {
-    const productId = Number(req.params["id"]);
+    const product = (req as any).product;
+    const productId = product.id;
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
-
-    const product = await db.query.products.findFirst({
-      where: eq(products.id, productId),
-    });
-    if (!product) throw notFound("Product not found");
 
     const saleConds = [eq(saleItems.product, productId)];
     if (shopId) saleConds.push(eq(saleItems.shop, shopId));
@@ -541,225 +595,69 @@ router.post("/:id/images", requireAdmin, upload.array("images", 10), async (req,
   try {
     const files = ((req as any).files ?? []) as Express.Multer.File[];
     if (!files.length) throw badRequest("at least one image file required");
-
-    const existing = await db.query.products.findFirst({
-      where: eq(products.id, Number(req.params["id"])),
-      columns: { id: true, shop: true, images: true, thumbnailUrl: true },
-    });
-    if (!existing) {
-      for (const f of files) fs.unlink(f.path, () => {});
-      throw notFound("Product not found");
-    }
-    await assertShopOwnership(req, existing.shop);
-
+    const existing = (req as any).product;
     const newUrls = files.map((f) => `/uploads/products/${f.filename}`);
     const merged = [...(existing.images ?? []), ...newUrls];
-
-    // First image in the array is always the thumbnail
     const thumbnailUrl = merged[0] ?? existing.thumbnailUrl;
-
     const [updated] = await db.update(products)
       .set({ images: merged, thumbnailUrl })
       .where(eq(products.id, existing.id))
       .returning();
-
-    return ok(res, {
-      images: updated?.images ?? [],
-      thumbnailUrl: updated?.thumbnailUrl ?? null,
-    });
+    return ok(res, { images: updated?.images ?? [], thumbnailUrl: updated?.thumbnailUrl ?? null });
   } catch (e) { next(e); }
 });
 
-// Replace all images with new uploads (old files deleted from disk)
 router.put("/:id/images", requireAdmin, upload.array("images", 10), async (req, res, next) => {
   try {
     const files = ((req as any).files ?? []) as Express.Multer.File[];
     if (!files.length) throw badRequest("at least one image file required");
-
-    const existing = await db.query.products.findFirst({
-      where: eq(products.id, Number(req.params["id"])),
-      columns: { id: true, shop: true, images: true },
-    });
-    if (!existing) {
-      for (const f of files) fs.unlink(f.path, () => {});
-      throw notFound("Product not found");
-    }
-    await assertShopOwnership(req, existing.shop);
-
-    // Delete old files from disk
+    const existing = (req as any).product;
     for (const url of existing.images ?? []) {
       if (url.startsWith("/uploads/")) fs.unlink(path.join(process.cwd(), url), () => {});
     }
-
     const newUrls = files.map((f) => `/uploads/products/${f.filename}`);
-    const thumbnailUrl = newUrls[0]!;
-
     const [updated] = await db.update(products)
-      .set({ images: newUrls, thumbnailUrl })
+      .set({ images: newUrls, thumbnailUrl: newUrls[0]! })
       .where(eq(products.id, existing.id))
       .returning();
-
-    return ok(res, {
-      images: updated?.images ?? [],
-      thumbnailUrl: updated?.thumbnailUrl ?? null,
-    });
+    return ok(res, { images: updated?.images ?? [], thumbnailUrl: updated?.thumbnailUrl ?? null });
   } catch (e) { next(e); }
 });
 
-// Remove specific images (body: { urls: ["/uploads/products/..."] }) or all (body: { all: true })
 router.delete("/:id/images", requireAdmin, async (req, res, next) => {
   try {
-    const productId = Number(req.params["id"]);
+    const existing = (req as any).product;
     const { urls, all } = req.body ?? {};
-
-    const existing = await db.query.products.findFirst({
-      where: eq(products.id, productId),
-      columns: { id: true, shop: true, images: true },
-    });
-    if (!existing) throw notFound("Product not found");
-    await assertShopOwnership(req, existing.shop);
-
-    if (!all && (!Array.isArray(urls) || urls.length === 0)) {
+    if (!all && (!Array.isArray(urls) || urls.length === 0))
       throw badRequest("Provide urls array of images to remove, or { all: true } to clear all");
-    }
-
     const current = existing.images ?? [];
     let remaining: string[];
-
     if (all) {
-      // Delete every file from disk
       for (const url of current) {
         if (url.startsWith("/uploads/")) fs.unlink(path.join(process.cwd(), url), () => {});
       }
       remaining = [];
     } else {
       const toRemove = new Set<string>(urls);
-      remaining = current.filter((u) => !toRemove.has(u));
-      // Delete removed files from disk
+      remaining = current.filter((u: string) => !toRemove.has(u));
       for (const url of toRemove) {
         if (url.startsWith("/uploads/")) fs.unlink(path.join(process.cwd(), url), () => {});
       }
     }
-
     const thumbnailUrl = remaining[0] ?? null;
-
     const [updated] = await db.update(products)
       .set({ images: remaining, thumbnailUrl })
       .where(eq(products.id, existing.id))
       .returning();
-
-    return ok(res, {
-      images: updated?.images ?? [],
-      thumbnailUrl: updated?.thumbnailUrl ?? null,
-    });
+    return ok(res, { images: updated?.images ?? [], thumbnailUrl: updated?.thumbnailUrl ?? null });
   } catch (e) { next(e); }
 });
 
-// ── Bulk import ──────────────────────────────────────────────────────────────
+// ── Bundle items ─────────────────────────────────────────────────────────────
 
-router.post("/bulk-import", requireAdmin, async (req, res, next) => {
+router.get("/:id/bundle-items", async (req, res, next) => {
   try {
-    const { products: payload, shopId } = req.body ?? {};
-    if (!Array.isArray(payload) || payload.length === 0) throw badRequest("products array required");
-    if (!shopId) throw badRequest("shopId required");
-
-    const sid = Number(shopId);
-    await assertShopOwnership(req, sid);
-
-    // Fetch all existing product names in this shop once (lowercased for comparison)
-    const existingRows = await db.query.products.findMany({
-      where: eq(products.shop, sid),
-      columns: { name: true },
-    });
-    const existingNames = new Set(existingRows.map((r) => r.name.toLowerCase()));
-
-    const toInsert: typeof payload = [];
-    const skipped: Array<{ index: number; name: string; reason: string }> = [];
-    const seenInBatch = new Set<string>();
-
-    for (let i = 0; i < payload.length; i++) {
-      const p = payload[i];
-      const rawName = p.name ? String(p.name).trim() : "";
-
-      if (!rawName) {
-        skipped.push({ index: i, name: "", reason: "name is required" });
-        continue;
-      }
-
-      const key = rawName.toLowerCase();
-
-      // Duplicate within this batch
-      if (seenInBatch.has(key)) {
-        skipped.push({ index: i, name: rawName, reason: "duplicate name in the submitted list" });
-        continue;
-      }
-
-      // Duplicate already in the shop
-      if (existingNames.has(key)) {
-        skipped.push({ index: i, name: rawName, reason: `"${rawName}" already exists in this shop` });
-        continue;
-      }
-
-      // Price validation
-      try {
-        validatePrices({
-          buyingPrice: p.buyingPrice,
-          sellingPrice: p.sellingPrice,
-          wholesalePrice: p.wholesalePrice,
-          dealerPrice: p.dealerPrice,
-        });
-      } catch (err: any) {
-        skipped.push({ index: i, name: rawName, reason: err?.message ?? "invalid price" });
-        continue;
-      }
-
-      seenInBatch.add(key);
-      toInsert.push(p);
-    }
-
-    let inserted: any[] = [];
-    if (toInsert.length > 0) {
-      inserted = await db.insert(products).values(
-        toInsert.map((p: any) => ({
-          name: String(p.name).trim(),
-          shop: sid,
-          category: p.categoryId ? Number(p.categoryId) : null,
-          barcode: p.barcode ?? null,
-          serialNumber: p.serialNumber ?? null,
-          buyingPrice: p.buyingPrice != null ? String(p.buyingPrice) : null,
-          sellingPrice: p.sellingPrice != null ? String(p.sellingPrice) : null,
-          wholesalePrice: p.wholesalePrice != null ? String(p.wholesalePrice) : null,
-          dealerPrice: p.dealerPrice != null ? String(p.dealerPrice) : null,
-          measureUnit: p.measureUnit ?? "",
-          manufacturer: p.manufacturer ?? "",
-          supplier: p.supplierId ? Number(p.supplierId) : null,
-          description: p.description ?? null,
-          productType: p.type ?? "product",
-        }))
-      ).returning();
-
-      // Seed a zero-quantity inventory row for every newly inserted product
-      if (inserted.length > 0) {
-        await db.insert(inventory).values(
-          inserted.map((p) => ({ product: p.id, shop: sid, quantity: "0" }))
-        ).onConflictDoNothing();
-      }
-    }
-
-    return ok(res, {
-      created: inserted.length,
-      skipped: skipped.length,
-      skippedProducts: skipped,
-      products: inserted,
-    });
-  } catch (e) { next(e); }
-});
-
-// ── Bundle items (read endpoint scoped under product) ────────────────────────
-
-router.get("/:id/bundle-items", requireAdminOrAttendant, async (req, res, next) => {
-  try {
-    const productId = Number(req.params["id"]);
+    const productId = (req as any).product.id;
     const rows = await db.select({
       id: bundleItems.id,
       product: bundleItems.product,
@@ -777,11 +675,10 @@ router.get("/:id/bundle-items", requireAdminOrAttendant, async (req, res, next) 
 
 router.post("/:id/bundle-items", requireAdmin, async (req, res, next) => {
   try {
-    const productId = Number(req.params["id"]);
+    const productId = (req as any).product.id;
     const { componentProductId, quantity } = req.body ?? {};
-    if (!componentProductId || quantity == null) {
+    if (!componentProductId || quantity == null)
       throw badRequest("componentProductId and quantity required");
-    }
     const [row] = await db.insert(bundleItems).values({
       product: productId,
       componentProduct: Number(componentProductId),
