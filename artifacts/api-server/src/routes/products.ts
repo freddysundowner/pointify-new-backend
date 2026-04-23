@@ -318,37 +318,6 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.put("/:id/image", requireAdmin, upload.single("image"), async (req, res, next) => {
-  try {
-    const file = (req as any).file as Express.Multer.File | undefined;
-    if (!file) throw badRequest("image file required");
-
-    const existing = await db.query.products.findFirst({
-      where: eq(products.id, Number(req.params["id"])),
-      columns: { id: true, shop: true, thumbnailUrl: true },
-    });
-    if (!existing) {
-      // Product not found — delete the just-uploaded file
-      fs.unlink(file.path, () => {});
-      throw notFound("Product not found");
-    }
-    await assertShopOwnership(req, existing.shop);
-
-    // Delete the old thumbnail from disk if it was a local upload
-    if (existing.thumbnailUrl?.startsWith("/uploads/")) {
-      const oldPath = path.join(process.cwd(), existing.thumbnailUrl);
-      fs.unlink(oldPath, () => {}); // fire-and-forget
-    }
-
-    const imageUrl = `/uploads/products/${file.filename}`;
-
-    const [updated] = await db.update(products)
-      .set({ thumbnailUrl: imageUrl })
-      .where(eq(products.id, existing.id))
-      .returning();
-    return ok(res, { imageUrl: updated!.thumbnailUrl });
-  } catch (e) { next(e); }
-});
 
 router.get("/:id/serials", requireAdminOrAttendant, async (req, res, next) => {
   try {
@@ -571,7 +540,7 @@ router.post("/:id/images", requireAdmin, upload.array("images", 10), async (req,
 
     const existing = await db.query.products.findFirst({
       where: eq(products.id, Number(req.params["id"])),
-      columns: { id: true, shop: true, images: true },
+      columns: { id: true, shop: true, images: true, thumbnailUrl: true },
     });
     if (!existing) {
       for (const f of files) fs.unlink(f.path, () => {});
@@ -582,12 +551,18 @@ router.post("/:id/images", requireAdmin, upload.array("images", 10), async (req,
     const newUrls = files.map((f) => `/uploads/products/${f.filename}`);
     const merged = [...(existing.images ?? []), ...newUrls];
 
+    // First image in the array is always the thumbnail
+    const thumbnailUrl = merged[0] ?? existing.thumbnailUrl;
+
     const [updated] = await db.update(products)
-      .set({ images: merged })
+      .set({ images: merged, thumbnailUrl })
       .where(eq(products.id, existing.id))
       .returning();
 
-    return ok(res, { images: updated?.images ?? [] });
+    return ok(res, {
+      images: updated?.images ?? [],
+      thumbnailUrl: updated?.thumbnailUrl ?? null,
+    });
   } catch (e) { next(e); }
 });
 
