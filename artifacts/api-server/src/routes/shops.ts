@@ -9,7 +9,7 @@ import {
   stockCounts, stockRequests,
   adjustments, badStocks,
   activities,
-  expenses, cashflows,
+  expenses, cashflows, userPayments,
   inventory,
   products, batches, productSerials, bundleItems as bundleItemsTable,
   customers, customerWalletTransactions,
@@ -326,11 +326,7 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
       await tx.delete(expenses).where(eq(expenses.shop, shopId));
       await tx.delete(cashflows).where(eq(cashflows.shop, shopId));
 
-      // ── 2. Wallet transactions (reference customers/suppliers deleted next) ──
-      await tx.delete(customerWalletTransactions).where(eq(customerWalletTransactions.shop, shopId));
-      await tx.delete(supplierWalletTransactions).where(eq(supplierWalletTransactions.shop, shopId));
-
-      // ── 3. Catalog data ──────────────────────────────────────────────────────
+      // ── 2. Catalog data ──────────────────────────────────────────────────────
       // bundleItems has FKs to products on both parent and component columns
       const shopProductIds = (
         await tx.select({ id: products.id }).from(products).where(eq(products.shop, shopId))
@@ -351,6 +347,10 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
       await tx.delete(products).where(eq(products.shop, shopId));
 
       // ── 4. Customers and suppliers ───────────────────────────────────────────
+      // userPayments has non-cascading FKs to both customers and suppliers
+      await tx.delete(userPayments).where(eq(userPayments.shopId, shopId));
+      await tx.delete(customerWalletTransactions).where(eq(customerWalletTransactions.shop, shopId));
+      await tx.delete(supplierWalletTransactions).where(eq(supplierWalletTransactions.shop, shopId));
       await tx.delete(customers).where(eq(customers.shop, shopId));
       await tx.delete(suppliers).where(eq(suppliers.shop, shopId));
     });
