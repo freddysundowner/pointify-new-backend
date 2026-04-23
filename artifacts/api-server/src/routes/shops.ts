@@ -309,7 +309,7 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
 
     await db.transaction(async (tx) => {
       // ── 1. Transactional records ─────────────────────────────────────────────
-      // Delete returns first (they hold FKs back to sales/purchases)
+      // Delete returns first (they hold non-cascade FKs back to sales/purchases)
       await tx.delete(saleReturns).where(eq(saleReturns.shop, shopId));       // cascades saleReturnItems
       await tx.delete(purchaseReturns).where(eq(purchaseReturns.shop, shopId)); // cascades purchaseReturnItems
 
@@ -327,26 +327,29 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
       await tx.delete(cashflows).where(eq(cashflows.shop, shopId));
 
       // ── 2. Catalog data ──────────────────────────────────────────────────────
-      // bundleItems has FKs to products on both parent and component columns
       const shopProductIds = (
         await tx.select({ id: products.id }).from(products).where(eq(products.shop, shopId))
       ).map((r) => r.id);
 
       if (shopProductIds.length > 0) {
+        // bundleItems has FKs to products on both parent and component columns
         await tx.delete(bundleItemsTable).where(
           or(
             inArray(bundleItemsTable.product, shopProductIds),
             inArray(bundleItemsTable.componentProduct, shopProductIds),
           ),
         );
+
+        // productSerials, batches and inventory can live in OTHER shops while
+        // referencing this shop's products — filter by product id, not by shop
+        await tx.delete(productSerials).where(inArray(productSerials.product, shopProductIds));
+        await tx.delete(batches).where(inArray(batches.product, shopProductIds));
+        await tx.delete(inventory).where(inArray(inventory.product, shopProductIds));
       }
 
-      await tx.delete(productSerials).where(eq(productSerials.shop, shopId));
-      await tx.delete(batches).where(eq(batches.shop, shopId));
-      await tx.delete(inventory).where(eq(inventory.shop, shopId));
       await tx.delete(products).where(eq(products.shop, shopId));
 
-      // ── 4. Customers and suppliers ───────────────────────────────────────────
+      // ── 3. Customers and suppliers ───────────────────────────────────────────
       // userPayments has non-cascading FKs to both customers and suppliers
       await tx.delete(userPayments).where(eq(userPayments.shopId, shopId));
       await tx.delete(customerWalletTransactions).where(eq(customerWalletTransactions.shop, shopId));
@@ -356,7 +359,10 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
     });
 
     return ok(res, { message: "Shop data cleared", shopId });
-  } catch (e) { next(e); }
+  } catch (e) {
+    logger.error({ err: e }, "clear shop data failed");
+    next(e);
+  }
 });
 
 router.post("/:shopId/redeem-usage", requireAdmin, async (req, res, next) => {
