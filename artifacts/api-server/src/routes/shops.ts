@@ -1,6 +1,17 @@
 import { Router } from "express";
 import { eq, inArray, desc } from "drizzle-orm";
-import { packages, settings, shops, subscriptions, subscriptionShops } from "@workspace/db";
+import {
+  packages, settings, shops, subscriptions, subscriptionShops,
+  sales, saleReturns,
+  purchases, purchaseReturns,
+  orders,
+  productTransfers,
+  stockCounts, stockRequests,
+  adjustments, badStocks,
+  activities,
+  expenses, cashflows,
+  inventory,
+} from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent } from "../lib/response.js";
 import { notFound, badRequest, forbidden } from "../lib/errors.js";
@@ -292,6 +303,44 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
     const existing = await db.query.shops.findFirst({ where: eq(shops.id, shopId) });
     if (!existing) throw notFound("Shop not found");
     if (existing.admin !== req.admin!.id && !req.admin!.isSuperAdmin) throw forbidden("Access denied");
+
+    await db.transaction(async (tx) => {
+      // Delete returns first (they reference sales/purchases which we delete next)
+      // saleReturnItems cascade from saleReturns
+      await tx.delete(saleReturns).where(eq(saleReturns.shop, shopId));
+      // purchaseReturnItems cascade from purchaseReturns
+      await tx.delete(purchaseReturns).where(eq(purchaseReturns.shop, shopId));
+
+      // Delete sales (saleItems → saleItemBatches and salePayments cascade)
+      await tx.delete(sales).where(eq(sales.shop, shopId));
+
+      // Delete purchases (purchaseItems and purchasePayments cascade)
+      await tx.delete(purchases).where(eq(purchases.shop, shopId));
+
+      // Delete orders (orderItems cascade)
+      await tx.delete(orders).where(eq(orders.shop, shopId));
+
+      // Delete product transfers (transferItems cascade)
+      await tx.delete(productTransfers).where(eq(productTransfers.fromShop, shopId));
+
+      // Delete stock counts (stockCountItems cascade)
+      await tx.delete(stockCounts).where(eq(stockCounts.shop, shopId));
+
+      // Delete stock requests (stockRequestItems cascade)
+      await tx.delete(stockRequests).where(eq(stockRequests.fromShop, shopId));
+
+      // Delete standalone transactional tables
+      await tx.delete(adjustments).where(eq(adjustments.shop, shopId));
+      await tx.delete(badStocks).where(eq(badStocks.shop, shopId));
+      await tx.delete(activities).where(eq(activities.shop, shopId));
+      await tx.delete(expenses).where(eq(expenses.shop, shopId));
+      await tx.delete(cashflows).where(eq(cashflows.shop, shopId));
+
+      // Reset inventory quantities to zero (keep the rows — products stay)
+      await tx.update(inventory)
+        .set({ quantity: "0", totalQuantity: "0" })
+        .where(eq(inventory.shop, shopId));
+    });
 
     return ok(res, { message: "Shop data cleared", shopId });
   } catch (e) { next(e); }
