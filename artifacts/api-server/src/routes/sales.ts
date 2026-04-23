@@ -130,12 +130,20 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     ).returning();
 
     // Deduct inventory and consume batches (FEFO) for each sold item
+    const invSnapshots = new Map<number, string>(); // productId -> qtyBefore
     await Promise.all(
       itemRows.map(async (itemRow, i) => {
         const item = items[i];
         const soldQty = Number(item.quantity ?? 1);
         const productId = Number(item.productId);
         const sid = Number(shopId);
+
+        // Read inventory BEFORE deducting so we can record accurate before/after
+        const existingInv = await db.query.inventory.findFirst({
+          where: and(eq(inventory.product, productId), eq(inventory.shop, sid)),
+          columns: { quantity: true },
+        });
+        invSnapshots.set(productId, existingInv ? String(existingInv.quantity) : "0");
 
         // Deduct from inventory (floor at 0 to avoid negative stock)
         await db.update(inventory)
@@ -191,15 +199,21 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     }
 
     await recordProductHistory(
-      itemRows.map((itemRow) => ({
-        product: itemRow.product,
-        shop: itemRow.shop,
-        eventType: "sale" as const,
-        referenceId: itemRow.id,
-        quantity: itemRow.quantity,
-        unitPrice: itemRow.unitPrice,
-        note: receiptNo,
-      }))
+      itemRows.map((itemRow) => {
+        const qtyBefore = invSnapshots.get(itemRow.product) ?? "0";
+        const qtyAfter  = String(Math.max(0, parseFloat(qtyBefore) - parseFloat(itemRow.quantity)));
+        return {
+          product: itemRow.product,
+          shop: itemRow.shop,
+          eventType: "sale" as const,
+          referenceId: itemRow.id,
+          quantity: itemRow.quantity,
+          unitPrice: itemRow.unitPrice,
+          quantityBefore: qtyBefore,
+          quantityAfter: qtyAfter,
+          note: receiptNo,
+        };
+      })
     );
     void notifySaleReceipt(sale.id);
     void notifySaleReceiptSms(sale.id);

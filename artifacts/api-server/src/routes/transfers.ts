@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, or } from "drizzle-orm";
-import { productTransfers, transferItems } from "@workspace/db";
+import { eq, or, and, sql } from "drizzle-orm";
+import { productTransfers, transferItems, inventory } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -55,23 +55,66 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       }))
     ).returning();
 
+    // Move inventory between shops and capture before/after for each item
+    const enrichedItems = await Promise.all(
+      itemRows.map(async (itemRow) => {
+        const qty = parseFloat(itemRow.quantity);
+        const productId = itemRow.product;
+
+        // Read fromShop inventory before deduction
+        const fromBefore = await db.query.inventory.findFirst({
+          where: and(eq(inventory.product, productId), eq(inventory.shop, transfer.fromShop)),
+          columns: { quantity: true },
+        });
+        const fromQtyBefore = fromBefore ? String(fromBefore.quantity) : "0";
+        const fromQtyAfter  = String(Math.max(0, parseFloat(fromQtyBefore) - qty));
+
+        // Read toShop inventory before addition
+        const toBefore = await db.query.inventory.findFirst({
+          where: and(eq(inventory.product, productId), eq(inventory.shop, transfer.toShop)),
+          columns: { quantity: true },
+        });
+        const toQtyBefore = toBefore ? String(toBefore.quantity) : "0";
+        const toQtyAfter  = String(parseFloat(toQtyBefore) + qty);
+
+        // Deduct from source shop
+        await db.update(inventory)
+          .set({ quantity: sql`GREATEST(0, ${inventory.quantity} - ${qty}::numeric)` })
+          .where(and(eq(inventory.product, productId), eq(inventory.shop, transfer.fromShop)));
+
+        // Add to destination shop (create row if it doesn't exist)
+        await db.insert(inventory)
+          .values({ product: productId, shop: transfer.toShop, quantity: itemRow.quantity })
+          .onConflictDoUpdate({
+            target: [inventory.product, inventory.shop],
+            set: { quantity: sql`${inventory.quantity} + ${qty}::numeric` },
+          });
+
+        return { ...itemRow, fromQtyBefore, fromQtyAfter, toQtyBefore, toQtyAfter };
+      })
+    );
+
     await recordProductHistory([
-      ...itemRows.map((itemRow) => ({
+      ...enrichedItems.map((itemRow) => ({
         product: itemRow.product,
         shop: transfer.fromShop,
         eventType: "transfer_out" as const,
         referenceId: itemRow.id,
         quantity: itemRow.quantity,
         unitPrice: itemRow.unitPrice,
+        quantityBefore: itemRow.fromQtyBefore,
+        quantityAfter: itemRow.fromQtyAfter,
         note: transfer.transferNo ?? undefined,
       })),
-      ...itemRows.map((itemRow) => ({
+      ...enrichedItems.map((itemRow) => ({
         product: itemRow.product,
         shop: transfer.toShop,
         eventType: "transfer_in" as const,
         referenceId: itemRow.id,
         quantity: itemRow.quantity,
         unitPrice: itemRow.unitPrice,
+        quantityBefore: itemRow.toQtyBefore,
+        quantityAfter: itemRow.toQtyAfter,
         note: transfer.transferNo ?? undefined,
       })),
     ]);

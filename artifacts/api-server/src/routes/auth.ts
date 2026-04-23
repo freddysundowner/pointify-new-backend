@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import {
   admins, attendants, customers,
 } from "@workspace/db";
@@ -282,7 +282,7 @@ router.post("/customer/login", async (req, res, next) => {
     const customer = await db.query.customers.findFirst({
       where: and(
         eq(customers.shop, Number(shopId)),
-        eq(customers.email, emailOrPhone),
+        or(eq(customers.email, emailOrPhone), eq(customers.phone, emailOrPhone)),
       ),
     });
     if (!customer || !customer.password) throw unauthorized("Invalid credentials");
@@ -302,7 +302,10 @@ router.post("/customer/forgot-password", async (req, res, next) => {
     if (!emailOrPhone || !shopId) throw badRequest("emailOrPhone and shopId required");
 
     const customer = await db.query.customers.findFirst({
-      where: and(eq(customers.email, emailOrPhone), eq(customers.shop, Number(shopId))),
+      where: and(
+        eq(customers.shop, Number(shopId)),
+        or(eq(customers.email, emailOrPhone), eq(customers.phone, emailOrPhone)),
+      ),
     });
     if (!customer) throw notFound("Customer not found");
 

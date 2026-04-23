@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
-import { purchaseReturns, purchaseReturnItems, purchases } from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
+import { purchaseReturns, purchaseReturnItems, purchases, inventory } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -61,14 +61,38 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       }))
     ).returning();
 
+    // Deduct inventory for each item being returned to the supplier and capture before/after
+    const enrichedItems = await Promise.all(
+      itemRows.map(async (itemRow) => {
+        const qty = parseFloat(itemRow.quantity);
+        const sid = purchaseReturn.shop;
+
+        const existing = await db.query.inventory.findFirst({
+          where: and(eq(inventory.product, itemRow.product), eq(inventory.shop, sid)),
+          columns: { quantity: true },
+        });
+        const qtyBefore = existing ? String(existing.quantity) : "0";
+        const qtyAfter  = String(Math.max(0, parseFloat(qtyBefore) - qty));
+
+        // Remove returned stock from inventory
+        await db.update(inventory)
+          .set({ quantity: sql`GREATEST(0, ${inventory.quantity} - ${qty}::numeric)` })
+          .where(and(eq(inventory.product, itemRow.product), eq(inventory.shop, sid)));
+
+        return { ...itemRow, qtyBefore, qtyAfter };
+      })
+    );
+
     await recordProductHistory(
-      itemRows.map((itemRow) => ({
+      enrichedItems.map((itemRow) => ({
         product: itemRow.product,
         shop: purchaseReturn.shop,
         eventType: "purchase_return" as const,
         referenceId: itemRow.id,
         quantity: itemRow.quantity,
         unitPrice: itemRow.unitPrice,
+        quantityBefore: itemRow.qtyBefore,
+        quantityAfter: itemRow.qtyAfter,
         note: purchaseReturn.returnNo,
       }))
     );

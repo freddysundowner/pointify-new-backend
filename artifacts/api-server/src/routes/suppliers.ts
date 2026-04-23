@@ -35,6 +35,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
     const [supplier] = await db.insert(suppliers).values({
       name, phone, email, address,
       shop: Number(shopId),
+      ...(creditLimit !== undefined && creditLimit !== null && { creditLimit: String(creditLimit) }),
     }).returning();
     return created(res, supplier);
   } catch (e) { next(e); }

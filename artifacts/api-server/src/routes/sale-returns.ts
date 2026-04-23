@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
-import { saleReturns, saleReturnItems, sales } from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
+import { saleReturns, saleReturnItems, sales, inventory } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -62,14 +62,41 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       }))
     ).returning();
 
+    // Restore inventory for each returned item and capture before/after quantities
+    const enrichedItems = await Promise.all(
+      itemRows.map(async (itemRow) => {
+        const qty = parseFloat(itemRow.quantity);
+        const sid = saleReturn.shop;
+
+        const existing = await db.query.inventory.findFirst({
+          where: and(eq(inventory.product, itemRow.product), eq(inventory.shop, sid)),
+          columns: { quantity: true },
+        });
+        const qtyBefore = existing ? String(existing.quantity) : "0";
+        const qtyAfter  = String(parseFloat(qtyBefore) + qty);
+
+        // Add returned stock back to inventory
+        await db.insert(inventory)
+          .values({ product: itemRow.product, shop: sid, quantity: itemRow.quantity })
+          .onConflictDoUpdate({
+            target: [inventory.product, inventory.shop],
+            set: { quantity: sql`${inventory.quantity} + ${qty}::numeric` },
+          });
+
+        return { ...itemRow, qtyBefore, qtyAfter };
+      })
+    );
+
     await recordProductHistory(
-      itemRows.map((itemRow) => ({
+      enrichedItems.map((itemRow) => ({
         product: itemRow.product,
         shop: saleReturn.shop,
         eventType: "sale_return" as const,
         referenceId: itemRow.id,
         quantity: itemRow.quantity,
         unitPrice: itemRow.unitPrice,
+        quantityBefore: itemRow.qtyBefore,
+        quantityAfter: itemRow.qtyAfter,
         note: saleReturn.returnNo,
       }))
     );

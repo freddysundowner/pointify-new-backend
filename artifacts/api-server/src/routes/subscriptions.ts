@@ -81,6 +81,45 @@ router.post("/", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get("/admin/summary", requireAdmin, async (req, res, next) => {
+  try {
+    if (!req.admin!.isSuperAdmin) throw unauthorized("Super admin required");
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions = [];
+    if (from) conditions.push(gte(subscriptions.createdAt, from));
+    if (to) conditions.push(lte(subscriptions.createdAt, to));
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const [summary] = await db.select({
+      total: sql<number>`COUNT(*)`,
+      active: sql<number>`SUM(CASE WHEN ${subscriptions.isActive} = true THEN 1 ELSE 0 END)`,
+      revenue: sql<string>`SUM(CASE WHEN ${subscriptions.isPaid} = true THEN ${subscriptions.amount}::numeric ELSE 0 END)`,
+    }).from(subscriptions).where(where);
+
+    return ok(res, summary);
+  } catch (e) { next(e); }
+});
+
+router.put("/assign-shops", requireAdmin, async (req, res, next) => {
+  try {
+    const { subscriptionId, shopIds } = req.body;
+    if (!subscriptionId || !shopIds?.length) throw badRequest("subscriptionId and shopIds required");
+
+    const sid = Number(subscriptionId);
+    const sub = await db.query.subscriptions.findFirst({ where: eq(subscriptions.id, sid), columns: { admin: true } });
+    if (!sub) throw notFound("Subscription not found");
+    if (!req.admin!.isSuperAdmin && sub.admin !== req.admin!.id) throw unauthorized("Access denied");
+
+    await db.delete(subscriptionShops).where(eq(subscriptionShops.subscription, sid));
+    const rows = await db.insert(subscriptionShops).values(
+      shopIds.map((id: number) => ({ subscription: sid, shop: Number(id) }))
+    ).returning();
+    return ok(res, rows);
+  } catch (e) { next(e); }
+});
+
 router.get("/:id", requireAdmin, async (req, res, next) => {
   try {
     const sub = await db.query.subscriptions.findFirst({
@@ -111,24 +150,6 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
     if (!req.admin!.isSuperAdmin) throw unauthorized("Super admin required");
     await db.delete(subscriptions).where(eq(subscriptions.id, Number(req.params["id"])));
     return noContent(res);
-  } catch (e) { next(e); }
-});
-
-router.put("/assign-shops", requireAdmin, async (req, res, next) => {
-  try {
-    const { subscriptionId, shopIds } = req.body;
-    if (!subscriptionId || !shopIds?.length) throw badRequest("subscriptionId and shopIds required");
-
-    const sid = Number(subscriptionId);
-    const sub = await db.query.subscriptions.findFirst({ where: eq(subscriptions.id, sid), columns: { admin: true } });
-    if (!sub) throw notFound("Subscription not found");
-    if (!req.admin!.isSuperAdmin && sub.admin !== req.admin!.id) throw unauthorized("Access denied");
-
-    await db.delete(subscriptionShops).where(eq(subscriptionShops.subscription, sid));
-    const rows = await db.insert(subscriptionShops).values(
-      shopIds.map((id: number) => ({ subscription: sid, shop: Number(id) }))
-    ).returning();
-    return ok(res, rows);
   } catch (e) { next(e); }
 });
 
@@ -337,28 +358,6 @@ router.post("/:id/pay/stripe", requireAdmin, async (req, res, next) => {
     });
   } catch (e) { next(e); }
 });
-
-router.get("/admin/summary", requireAdmin, async (req, res, next) => {
-  try {
-    if (!req.admin!.isSuperAdmin) throw unauthorized("Super admin required");
-    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
-    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
-
-    const conditions = [];
-    if (from) conditions.push(gte(subscriptions.createdAt, from));
-    if (to) conditions.push(lte(subscriptions.createdAt, to));
-    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
-
-    const [summary] = await db.select({
-      total: sql<number>`COUNT(*)`,
-      active: sql<number>`SUM(CASE WHEN ${subscriptions.isActive} = true THEN 1 ELSE 0 END)`,
-      revenue: sql<string>`SUM(CASE WHEN ${subscriptions.isPaid} = true THEN ${subscriptions.amount}::numeric ELSE 0 END)`,
-    }).from(subscriptions).where(where);
-
-    return ok(res, summary);
-  } catch (e) { next(e); }
-});
-
 
 // Called by the SunPay webhook (via sms.ts applyResolution) once a
 // pending subscription payment is confirmed. Idempotent — markSubscriptionPaid
