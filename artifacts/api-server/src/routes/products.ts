@@ -566,6 +566,91 @@ router.post("/:id/images", requireAdmin, upload.array("images", 10), async (req,
   } catch (e) { next(e); }
 });
 
+// Replace all images with new uploads (old files deleted from disk)
+router.put("/:id/images", requireAdmin, upload.array("images", 10), async (req, res, next) => {
+  try {
+    const files = ((req as any).files ?? []) as Express.Multer.File[];
+    if (!files.length) throw badRequest("at least one image file required");
+
+    const existing = await db.query.products.findFirst({
+      where: eq(products.id, Number(req.params["id"])),
+      columns: { id: true, shop: true, images: true },
+    });
+    if (!existing) {
+      for (const f of files) fs.unlink(f.path, () => {});
+      throw notFound("Product not found");
+    }
+    await assertShopOwnership(req, existing.shop);
+
+    // Delete old files from disk
+    for (const url of existing.images ?? []) {
+      if (url.startsWith("/uploads/")) fs.unlink(path.join(process.cwd(), url), () => {});
+    }
+
+    const newUrls = files.map((f) => `/uploads/products/${f.filename}`);
+    const thumbnailUrl = newUrls[0]!;
+
+    const [updated] = await db.update(products)
+      .set({ images: newUrls, thumbnailUrl })
+      .where(eq(products.id, existing.id))
+      .returning();
+
+    return ok(res, {
+      images: updated?.images ?? [],
+      thumbnailUrl: updated?.thumbnailUrl ?? null,
+    });
+  } catch (e) { next(e); }
+});
+
+// Remove specific images (body: { urls: ["/uploads/products/..."] }) or all (body: { all: true })
+router.delete("/:id/images", requireAdmin, async (req, res, next) => {
+  try {
+    const productId = Number(req.params["id"]);
+    const { urls, all } = req.body ?? {};
+
+    const existing = await db.query.products.findFirst({
+      where: eq(products.id, productId),
+      columns: { id: true, shop: true, images: true },
+    });
+    if (!existing) throw notFound("Product not found");
+    await assertShopOwnership(req, existing.shop);
+
+    if (!all && (!Array.isArray(urls) || urls.length === 0)) {
+      throw badRequest("Provide urls array of images to remove, or { all: true } to clear all");
+    }
+
+    const current = existing.images ?? [];
+    let remaining: string[];
+
+    if (all) {
+      // Delete every file from disk
+      for (const url of current) {
+        if (url.startsWith("/uploads/")) fs.unlink(path.join(process.cwd(), url), () => {});
+      }
+      remaining = [];
+    } else {
+      const toRemove = new Set<string>(urls);
+      remaining = current.filter((u) => !toRemove.has(u));
+      // Delete removed files from disk
+      for (const url of toRemove) {
+        if (url.startsWith("/uploads/")) fs.unlink(path.join(process.cwd(), url), () => {});
+      }
+    }
+
+    const thumbnailUrl = remaining[0] ?? null;
+
+    const [updated] = await db.update(products)
+      .set({ images: remaining, thumbnailUrl })
+      .where(eq(products.id, existing.id))
+      .returning();
+
+    return ok(res, {
+      images: updated?.images ?? [],
+      thumbnailUrl: updated?.thumbnailUrl ?? null,
+    });
+  } catch (e) { next(e); }
+});
+
 // ── Bulk import ──────────────────────────────────────────────────────────────
 
 router.post("/bulk-import", requireAdmin, async (req, res, next) => {

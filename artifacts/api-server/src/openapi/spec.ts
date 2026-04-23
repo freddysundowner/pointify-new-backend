@@ -1080,15 +1080,39 @@ You will **never** see another admin's data unless you are the super-admin.
     "/products/{id}/images": {
       post: {
         tags: ["Products"],
-        summary: "Upload product images",
-        description: "Upload one or more product images. Send as `multipart/form-data` with field(s) named `images` (max 10 files, 5 MB each). The first image in the array is automatically used as the product thumbnail.",
+        summary: "Add product images",
+        description: "Append one or more images to the product. Send as `multipart/form-data` with field(s) named `images` (max 10 files, 5 MB each). The first image in the full array is automatically used as the thumbnail.",
         ...auth(["Admin"]),
         parameters: [idParam()],
         requestBody: {
           required: true,
           content: { "multipart/form-data": { schema: { type: "object", required: ["images"], properties: { images: { type: "array", items: { type: "string", format: "binary" }, description: "One or more image files (JPEG/PNG/WebP)" } } } } },
         },
-        responses: { ...dataResp("Images uploaded", { images: { type: "array", items: { type: "string" } }, thumbnailUrl: strField("URL of the first (default) image") }), ...errResp },
+        responses: { ...dataResp("Images added", { images: { type: "array", items: { type: "string" } }, thumbnailUrl: strField("URL of the first (default) image") }), ...errResp },
+      },
+      put: {
+        tags: ["Products"],
+        summary: "Replace all product images",
+        description: "Upload new images to **replace** the entire existing set. Old files are deleted from the server. The first uploaded image becomes the thumbnail. Send as `multipart/form-data` with field(s) named `images`.",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        requestBody: {
+          required: true,
+          content: { "multipart/form-data": { schema: { type: "object", required: ["images"], properties: { images: { type: "array", items: { type: "string", format: "binary" }, description: "One or more image files (JPEG/PNG/WebP)" } } } } },
+        },
+        responses: { ...dataResp("Images replaced", { images: { type: "array", items: { type: "string" } }, thumbnailUrl: strField("URL of the first (default) image") }), ...errResp },
+      },
+      delete: {
+        tags: ["Products"],
+        summary: "Remove product images",
+        description: "Remove specific images by URL or clear all. After removal the first remaining image becomes the new thumbnail.",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({
+          urls: { type: "array", items: { type: "string" }, description: "URLs of images to remove (omit when using `all`)" },
+          all:  { type: "boolean", description: "Set to `true` to remove every image" },
+        }),
+        responses: { ...dataResp("Images removed", { images: { type: "array", items: { type: "string" } }, thumbnailUrl: strField("URL of the new first image, or null") }), ...errResp },
       },
     },
     "/products/{id}/serials": {
