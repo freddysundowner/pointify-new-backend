@@ -1,11 +1,100 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, inArray, desc } from "drizzle-orm";
 import { packages, settings, shops, subscriptions, subscriptionShops } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent } from "../lib/response.js";
 import { notFound, badRequest, forbidden } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { logger } from "../lib/logger.js";
+
+// ── Subscription info helper ──────────────────────────────────────────────────
+
+type SubscriptionInfo = {
+  subscriptionId: number;
+  type: string | null;
+  status: "active" | "expired" | "none";
+  isActive: boolean;
+  isPaid: boolean;
+  startDate: string | null;
+  endDate: string | null;
+  daysRemaining: number;    // positive = days left, 0 or negative = expired
+  isExpired: boolean;
+  packageId: number | null;
+  packageTitle: string | null;
+} | { status: "none"; daysRemaining: 0; isExpired: false; subscriptionId: null; type: null; isActive: false; isPaid: false; startDate: null; endDate: null; packageId: null; packageTitle: null };
+
+/** Pick the most relevant subscription: active+unexpired first, else latest. */
+function pickBestSub(subs: { id: number; type: string | null; isActive: boolean; isPaid: boolean; startDate: Date; endDate: Date | null; package: number | null }[]) {
+  const now = new Date();
+  const active = subs.filter(s => s.isActive && s.endDate && s.endDate > now);
+  return active[0] ?? subs[0] ?? null;
+}
+
+function buildSubInfo(
+  sub: { id: number; type: string | null; isActive: boolean; isPaid: boolean; startDate: Date; endDate: Date | null; package: number | null } | null,
+  pkg: { id: number; title: string } | null,
+): SubscriptionInfo {
+  if (!sub) {
+    return { status: "none", daysRemaining: 0, isExpired: false, subscriptionId: null, type: null, isActive: false, isPaid: false, startDate: null, endDate: null, packageId: null, packageTitle: null };
+  }
+  const now = new Date();
+  const endDate = sub.endDate ?? null;
+  const msRemaining = endDate ? endDate.getTime() - now.getTime() : null;
+  const daysRemaining = msRemaining !== null ? Math.ceil(msRemaining / (1000 * 60 * 60 * 24)) : 0;
+  const isExpired = endDate ? endDate <= now : false;
+  const status: "active" | "expired" = isExpired ? "expired" : "active";
+  return {
+    subscriptionId: sub.id,
+    type: sub.type,
+    status,
+    isActive: sub.isActive,
+    isPaid: sub.isPaid,
+    startDate: sub.startDate.toISOString(),
+    endDate: endDate ? endDate.toISOString() : null,
+    daysRemaining,
+    isExpired,
+    packageId: pkg?.id ?? sub.package ?? null,
+    packageTitle: pkg?.title ?? null,
+  };
+}
+
+/** Fetch subscription info for a single shop. */
+async function fetchSubInfoForShop(shopId: number): Promise<SubscriptionInfo> {
+  const subs = await db.query.subscriptions.findMany({
+    where: eq(subscriptions.shop, shopId),
+    orderBy: [desc(subscriptions.endDate)],
+    with: { package: true },
+  });
+  const best = pickBestSub(subs);
+  return buildSubInfo(best, best?.package ?? null);
+}
+
+/** Fetch subscription info for many shops efficiently (single query). */
+async function fetchSubInfoForShops(shopIds: number[]): Promise<Map<number, SubscriptionInfo>> {
+  const map = new Map<number, SubscriptionInfo>();
+  if (!shopIds.length) return map;
+
+  const allSubs = await db.query.subscriptions.findMany({
+    where: inArray(subscriptions.shop, shopIds),
+    orderBy: [desc(subscriptions.endDate)],
+    with: { package: true },
+  });
+
+  // Group by shopId
+  const byShop = new Map<number, typeof allSubs>();
+  for (const sub of allSubs) {
+    const arr = byShop.get(sub.shop) ?? [];
+    arr.push(sub);
+    byShop.set(sub.shop, arr);
+  }
+
+  for (const shopId of shopIds) {
+    const subs = byShop.get(shopId) ?? [];
+    const best = pickBestSub(subs);
+    map.set(shopId, buildSubInfo(best, best?.package ?? null));
+  }
+  return map;
+}
 
 const router = Router();
 
@@ -15,7 +104,9 @@ router.get("/", requireAdmin, async (req, res, next) => {
       where: eq(shops.admin, req.admin!.id),
       orderBy: (s, { asc }) => [asc(s.name)],
     });
-    return ok(res, rows);
+    const subInfoMap = await fetchSubInfoForShops(rows.map(s => s.id));
+    const result = rows.map(shop => ({ ...shop, subscriptionInfo: subInfoMap.get(shop.id) }));
+    return ok(res, result);
   } catch (e) { next(e); }
 });
 
@@ -132,7 +223,8 @@ router.get("/:shopId", requireAdminOrAttendant, async (req, res, next) => {
     if (req.admin && shop.admin !== req.admin.id && !req.admin.isSuperAdmin) {
       throw forbidden("Access denied");
     }
-    return ok(res, shop);
+    const subscriptionInfo = await fetchSubInfoForShop(shopId);
+    return ok(res, { ...shop, subscriptionInfo });
   } catch (e) { next(e); }
 });
 

@@ -220,6 +220,7 @@ export const supplierWalletTransactionsRelations = relations(supplierWalletTrans
 export const shopsRelations = relations(shops, ({ one, many }) => ({
   admin: one(admins, { fields: [shops.admin], references: [admins.id] }),
   inventory: many(inventory),
+  subscriptions: many(subscriptions),
 }));
 
 // ─── Admins ───────────────────────────────────────────────────────────────────
