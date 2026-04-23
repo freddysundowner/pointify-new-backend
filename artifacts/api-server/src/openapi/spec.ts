@@ -1077,32 +1077,18 @@ You will **never** see another admin's data unless you are the super-admin.
         responses: { ...noContentResp, 404: errResp[404] },
       },
     },
-    "/products/{id}/image": {
-      put: {
-        tags: ["Products"],
-        summary: "Upload product thumbnail",
-        description: "Send as `multipart/form-data` with a field named `image` (max 5 MB).",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        requestBody: {
-          required: true,
-          content: { "multipart/form-data": { schema: { type: "object", required: ["image"], properties: { image: { type: "string", format: "binary", description: "Image file (JPEG/PNG/WebP, max 5 MB)" } } } } },
-        },
-        responses: { ...dataResp("Thumbnail updated", { imageUrl: strField("Data URL of stored image") }), ...errResp },
-      },
-    },
     "/products/{id}/images": {
       post: {
         tags: ["Products"],
-        summary: "Upload additional product images",
-        description: "Send as `multipart/form-data` with field(s) named `images` (max 10 files, 5 MB each).",
+        summary: "Upload product images",
+        description: "Upload one or more product images. Send as `multipart/form-data` with field(s) named `images` (max 10 files, 5 MB each). The first image in the array is automatically used as the product thumbnail.",
         ...auth(["Admin"]),
         parameters: [idParam()],
         requestBody: {
           required: true,
-          content: { "multipart/form-data": { schema: { type: "object", required: ["images"], properties: { images: { type: "array", items: { type: "string", format: "binary" }, description: "Up to 10 image files" } } } } },
+          content: { "multipart/form-data": { schema: { type: "object", required: ["images"], properties: { images: { type: "array", items: { type: "string", format: "binary" }, description: "One or more image files (JPEG/PNG/WebP)" } } } } },
         },
-        responses: { ...dataResp("Images uploaded", { images: { type: "array", items: { type: "string" } } }), ...errResp },
+        responses: { ...dataResp("Images uploaded", { images: { type: "array", items: { type: "string" } }, thumbnailUrl: strField("URL of the first (default) image") }), ...errResp },
       },
     },
     "/products/{id}/serials": {
