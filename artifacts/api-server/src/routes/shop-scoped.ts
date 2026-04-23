@@ -16,6 +16,7 @@ import { ok, created, paginated } from "../lib/response.js";
 import { badRequest, forbidden } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
+import { attachBundleItems } from "../lib/attach-bundle-items.js";
 import { extractBearer, verifyToken } from "../lib/auth.js";
 
 const router = Router({ mergeParams: true });
@@ -89,7 +90,7 @@ router.get("/products", requireAdminOrAttendant, async (req, res, next) => {
       where, limit, offset, orderBy: (p, { asc }) => [asc(p.name)],
     });
     const total = await db.$count(products, where);
-    return paginated(res, rows, { total, page, limit });
+    return paginated(res, await attachBundleItems(rows), { total, page, limit });
   } catch (e) { next(e); }
 });
 

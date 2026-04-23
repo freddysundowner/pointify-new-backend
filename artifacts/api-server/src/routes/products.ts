@@ -14,6 +14,7 @@ import { notFound, badRequest, conflict } from "../lib/errors.js";
 import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
+import { attachBundleItems } from "../lib/attach-bundle-items.js";
 import multer from "multer";
 
 const router = Router();
@@ -75,7 +76,8 @@ async function loadProduct(req: any, _res: Response, next: NextFunction): Promis
     });
     if (!product) throw notFound("Product not found");
     await assertShopOwnership(req, product.shop);
-    req.product = product;
+    const [withItems] = await attachBundleItems([product]);
+    req.product = withItems;
     next();
   } catch (e) {
     next(e);
@@ -136,7 +138,7 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
       orderBy: (p, { asc }) => [asc(p.name)],
     });
     const total = await db.$count(products, where);
-    return paginated(res, rows, { total, page, limit });
+    return paginated(res, await attachBundleItems(rows), { total, page, limit });
   } catch (e) { next(e); }
 });
 
