@@ -285,6 +285,35 @@ export const stockRequestItems = pgTable(
   ]
 );
 
+// ─── Product history (unified event log) ──────────────────────────────────────
+// Written automatically whenever a sale, purchase, adjustment, bad stock,
+// stock count, or transfer involves a product. Provides a single timeline
+// per product across all event types.
+export const productHistory = pgTable(
+  "product_history",
+  {
+    id: serial("id").primaryKey(),
+    product: integer("product_id").notNull().references(() => products.id),
+    shop: integer("shop_id").notNull().references(() => shops.id),
+    // sale | sale_return | purchase | purchase_return
+    // adjustment | bad_stock | stock_count | transfer_in | transfer_out
+    eventType: text("event_type").notNull(),
+    referenceId: integer("reference_id"),
+    quantity: numeric("quantity", { precision: 14, scale: 4 }),
+    unitPrice: numeric("unit_price", { precision: 14, scale: 2 }),
+    quantityBefore: numeric("quantity_before", { precision: 14, scale: 4 }),
+    quantityAfter: numeric("quantity_after", { precision: 14, scale: 4 }),
+    note: text("note"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("product_history_product_idx").on(table.product),
+    index("product_history_shop_idx").on(table.shop),
+    index("product_history_created_at_idx").on(table.createdAt),
+    index("product_history_event_type_idx").on(table.eventType),
+  ]
+);
+
 // ─── Product attributes (configurable option groups, e.g. "Color", "Size") ───
 export const attributes = pgTable("attributes", {
   id: serial("id").primaryKey(),
@@ -350,3 +379,4 @@ export type Attribute = typeof attributes.$inferSelect;
 export type InsertAttribute = z.infer<typeof insertAttributeSchema>;
 export type AttributeVariant = typeof attributeVariants.$inferSelect;
 export type InsertAttributeVariant = z.infer<typeof insertAttributeVariantSchema>;
+export type ProductHistory = typeof productHistory.$inferSelect;

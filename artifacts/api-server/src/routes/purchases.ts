@@ -8,6 +8,7 @@ import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifyPurchaseOrderToSupplier } from "../lib/emailEvents.js";
+import { recordProductHistory } from "../lib/product-history.js";
 
 const router = Router();
 
@@ -131,6 +132,17 @@ router.post("/", requireAdmin, async (req, res, next) => {
       });
     }
 
+    await recordProductHistory(
+      itemRows.map((itemRow) => ({
+        product: itemRow.product,
+        shop: sid,
+        eventType: "purchase" as const,
+        referenceId: itemRow.id,
+        quantity: itemRow.quantity,
+        unitPrice: itemRow.unitPrice,
+        note: purchase.purchaseNo,
+      }))
+    );
     void notifyPurchaseOrderToSupplier(purchase.id);
     return created(res, { ...purchase, items: enrichedItems });
   } catch (e) { next(e); }

@@ -9,6 +9,7 @@ import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifySaleReceipt } from "../lib/emailEvents.js";
 import { notifySaleReceiptSms } from "../lib/smsEvents.js";
+import { recordProductHistory } from "../lib/product-history.js";
 
 const router = Router();
 
@@ -189,6 +190,17 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       });
     }
 
+    await recordProductHistory(
+      itemRows.map((itemRow) => ({
+        product: itemRow.product,
+        shop: itemRow.shop,
+        eventType: "sale" as const,
+        referenceId: itemRow.id,
+        quantity: itemRow.quantity,
+        unitPrice: itemRow.unitPrice,
+        note: receiptNo,
+      }))
+    );
     void notifySaleReceipt(sale.id);
     void notifySaleReceiptSms(sale.id);
     return created(res, { ...sale, items: itemRows });

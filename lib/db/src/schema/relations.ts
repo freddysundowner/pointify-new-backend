@@ -12,7 +12,7 @@ import { orders, orderItems } from "./orders";
 import {
   inventory, products, productCategories, batches, productSerials, bundleItems,
   stockCounts, stockCountItems, stockRequests, stockRequestItems,
-  adjustments, badStocks,
+  adjustments, badStocks, productHistory,
 } from "./catalog";
 import { productTransfers, transferItems } from "./transfers";
 import { packages, packageFeatures, subscriptions, subscriptionShops } from "./subscriptions";
@@ -118,6 +118,12 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   inventoryItems: many(inventory),
   batches: many(batches),
   serials: many(productSerials),
+  history: many(productHistory),
+}));
+
+export const productHistoryRelations = relations(productHistory, ({ one }) => ({
+  product: one(products, { fields: [productHistory.product], references: [products.id] }),
+  shop: one(shops, { fields: [productHistory.shop], references: [shops.id] }),
 }));
 
 export const productCategoriesRelations = relations(productCategories, ({ many, one }) => ({

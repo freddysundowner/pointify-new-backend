@@ -7,6 +7,7 @@ import { notFound, badRequest } from "../lib/errors.js";
 import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
+import { recordProductHistory } from "../lib/product-history.js";
 
 const router = Router();
 
@@ -54,6 +55,26 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       }))
     ).returning();
 
+    await recordProductHistory([
+      ...itemRows.map((itemRow) => ({
+        product: itemRow.product,
+        shop: transfer.fromShop,
+        eventType: "transfer_out" as const,
+        referenceId: itemRow.id,
+        quantity: itemRow.quantity,
+        unitPrice: itemRow.unitPrice,
+        note: transfer.transferNo ?? undefined,
+      })),
+      ...itemRows.map((itemRow) => ({
+        product: itemRow.product,
+        shop: transfer.toShop,
+        eventType: "transfer_in" as const,
+        referenceId: itemRow.id,
+        quantity: itemRow.quantity,
+        unitPrice: itemRow.unitPrice,
+        note: transfer.transferNo ?? undefined,
+      })),
+    ]);
     return created(res, { ...transfer, items: itemRows });
   } catch (e) { next(e); }
 });

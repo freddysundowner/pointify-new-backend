@@ -11,6 +11,7 @@ import { notFound, badRequest } from "../lib/errors.js";
 import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
+import { recordProductHistory } from "../lib/product-history.js";
 
 const router = Router();
 
@@ -99,6 +100,16 @@ router.post("/adjustments", requireAdminOrAttendant, async (req, res, next) => {
       reason,
       adjustedBy: req.attendant?.id ?? undefined,
     }).returning();
+    await recordProductHistory([{
+      product: adj.product,
+      shop: adj.shop,
+      eventType: "adjustment",
+      referenceId: adj.id,
+      quantity: adj.quantityAdjusted,
+      quantityBefore: adj.quantityBefore,
+      quantityAfter: adj.quantityAfter,
+      note: adj.reason ?? undefined,
+    }]);
     return created(res, adj);
   } catch (e) { next(e); }
 });
@@ -144,6 +155,15 @@ router.post("/bad-stocks", requireAdminOrAttendant, async (req, res, next) => {
       reason,
       writtenOffBy: req.attendant?.id ?? undefined,
     }).returning();
+    await recordProductHistory([{
+      product: row.product,
+      shop: row.shop,
+      eventType: "bad_stock",
+      referenceId: row.id,
+      quantity: row.quantity,
+      unitPrice: row.unitPrice,
+      note: row.reason,
+    }]);
     return created(res, row);
   } catch (e) { next(e); }
 });
@@ -200,6 +220,18 @@ router.post("/stock-counts", requireAdminOrAttendant, async (req, res, next) => 
       }))
     ).returning();
 
+    await recordProductHistory(
+      itemRows.map((itemRow) => ({
+        product: itemRow.product,
+        shop: count.shop,
+        eventType: "stock_count" as const,
+        referenceId: itemRow.id,
+        quantity: itemRow.physicalCount,
+        quantityBefore: itemRow.systemCount,
+        quantityAfter: itemRow.physicalCount,
+        note: `variance: ${itemRow.variance}`,
+      }))
+    );
     return created(res, { ...count, items: itemRows });
   } catch (e) { next(e); }
 });

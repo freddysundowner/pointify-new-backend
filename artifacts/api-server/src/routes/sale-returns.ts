@@ -8,6 +8,7 @@ import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifySaleRefund } from "../lib/emailEvents.js";
+import { recordProductHistory } from "../lib/product-history.js";
 
 const router = Router();
 
@@ -61,6 +62,17 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       }))
     ).returning();
 
+    await recordProductHistory(
+      itemRows.map((itemRow) => ({
+        product: itemRow.product,
+        shop: saleReturn.shop,
+        eventType: "sale_return" as const,
+        referenceId: itemRow.id,
+        quantity: itemRow.quantity,
+        unitPrice: itemRow.unitPrice,
+        note: saleReturn.returnNo,
+      }))
+    );
     void notifySaleRefund(saleReturn.id);
     return created(res, { ...saleReturn, items: itemRows });
   } catch (e) { next(e); }

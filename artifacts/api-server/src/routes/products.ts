@@ -6,7 +6,7 @@ import {
   products, productSerials, inventory,
   bundleItems, saleItems, sales, purchaseItems, purchases,
   adjustments, badStocks, transferItems, productTransfers, shops,
-  batches,
+  batches, productHistory,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -676,6 +676,32 @@ router.delete("/:id/images", requireAdmin, async (req, res, next) => {
 });
 
 // ── Bundle items ─────────────────────────────────────────────────────────────
+
+router.get("/:id/history", async (req, res, next) => {
+  try {
+    const productId = (req as any).product.id;
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const eventType = req.query["eventType"] ? String(req.query["eventType"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions = [eq(productHistory.product, productId)];
+    if (shopId) conditions.push(eq(productHistory.shop, shopId));
+    if (eventType) conditions.push(eq(productHistory.eventType, eventType));
+    if (from) conditions.push(gte(productHistory.createdAt, from));
+    if (to) conditions.push(lte(productHistory.createdAt, to));
+    const where = and(...conditions);
+
+    const rows = await db.select().from(productHistory)
+      .where(where)
+      .orderBy(sql`${productHistory.createdAt} DESC`)
+      .limit(limit).offset(offset);
+
+    const total = await db.$count(productHistory, where);
+    return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
 
 router.get("/:id/bundle-items", async (req, res, next) => {
   try {
