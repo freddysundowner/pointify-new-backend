@@ -3,12 +3,12 @@ import { eq, and, ilike, or, inArray } from "drizzle-orm";
 import {
   inventory, batches, adjustments, badStocks,
   stockCounts, stockCountItems, stockRequests, stockRequestItems,
-  products,
+  products, shops,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
-import { assertShopOwnership, resolveShopFilter } from "../lib/shop.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { recordProductHistory } from "../lib/product-history.js";
@@ -20,21 +20,25 @@ const router = Router();
 router.get("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { page, limit, offset } = getPagination(req);
-    const requestedShopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const productId = req.query["productId"] ? Number(req.query["productId"]) : null;
 
-    const allowedShops = await resolveShopFilter(req, requestedShopId);
-
-    const shopCondition = allowedShops === null
-      ? undefined
-      : allowedShops.length === 0
-        ? eq(inventory.id, -1)  // no access → empty result
-        : allowedShops.length === 1
-          ? eq(inventory.shop, allowedShops[0]!)
-          : inArray(inventory.shop, allowedShops);
+    // Derive shop constraint straight from the token — no guessing.
+    let shopCondition;
+    if (req.attendant) {
+      shopCondition = eq(inventory.shop, req.attendant.shopId);
+    } else if (req.admin && !req.admin.isSuperAdmin) {
+      const myShops = await db.query.shops.findMany({
+        where: eq(shops.admin, req.admin.id),
+        columns: { id: true },
+      });
+      const ids = myShops.map((s) => s.id);
+      shopCondition = ids.length ? inArray(inventory.shop, ids) : eq(inventory.id, -1);
+    }
 
     const conditions = [];
     if (shopCondition) conditions.push(shopCondition);
+    if (shopId) conditions.push(eq(inventory.shop, shopId));
     if (productId) conditions.push(eq(inventory.product, productId));
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
 
