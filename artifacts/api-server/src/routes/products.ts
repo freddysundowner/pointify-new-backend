@@ -7,7 +7,7 @@ import {
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
-import { notFound, badRequest } from "../lib/errors.js";
+import { notFound, badRequest, forbidden } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
 import multer from "multer";
@@ -44,6 +44,23 @@ async function resolveShopFilter(req: any, requestedShopId: number | null): Prom
     return ownedShops.map((s) => s.id);
   }
   return [];
+}
+
+/** Throws 403 if the calling admin does not own the given shopId.
+ *  Super-admins and attendants assigned to that shop are always allowed. */
+async function assertShopOwnership(req: any, shopId: number): Promise<void> {
+  if (req.admin?.isSuperAdmin) return;
+  if (req.attendant) {
+    if (req.attendant.shopId !== shopId) throw forbidden("You do not have access to this shop");
+    return;
+  }
+  if (req.admin) {
+    const owned = await db.query.shops.findFirst({
+      where: and(eq(shops.id, shopId), eq(shops.admin, req.admin.id)),
+      columns: { id: true },
+    });
+    if (!owned) throw forbidden("You do not own this shop");
+  }
 }
 
 router.get("/search", requireAdminOrAttendant, async (req, res, next) => {
@@ -112,6 +129,8 @@ router.post("/", requireAdmin, async (req, res, next) => {
       supplierId, description, alertQuantity, expiryDate, type,
     } = req.body;
     if (!name || !shopId) throw badRequest("name and shopId required");
+
+    await assertShopOwnership(req, Number(shopId));
 
     const [product] = await db.insert(products).values({
       name,
@@ -186,6 +205,7 @@ router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
       with: { category: true },
     });
     if (!product) throw notFound("Product not found");
+    await assertShopOwnership(req, product.shop);
     return ok(res, product);
   } catch (e) { next(e); }
 });
@@ -197,6 +217,13 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       wholesalePrice, dealerPrice, measureUnit, manufacturer,
       supplierId, description, alertQuantity, type,
     } = req.body;
+
+    const existing = await db.query.products.findFirst({
+      where: eq(products.id, Number(req.params["id"])),
+      columns: { id: true, shop: true },
+    });
+    if (!existing) throw notFound("Product not found");
+    await assertShopOwnership(req, existing.shop);
 
     const [updated] = await db.update(products).set({
       ...(name && { name }),
@@ -213,7 +240,7 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       ...(description !== undefined && { description }),
       ...(alertQuantity !== undefined && { alertQuantity: Number(alertQuantity) }),
       ...(type && { productType: type }),
-    }).where(eq(products.id, Number(req.params["id"]))).returning();
+    }).where(eq(products.id, existing.id)).returning();
     if (!updated) throw notFound("Product not found");
     return ok(res, updated);
   } catch (e) { next(e); }
@@ -221,7 +248,13 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
-    const [deleted] = await db.delete(products).where(eq(products.id, Number(req.params["id"]))).returning();
+    const existing = await db.query.products.findFirst({
+      where: eq(products.id, Number(req.params["id"])),
+      columns: { id: true, shop: true },
+    });
+    if (!existing) throw notFound("Product not found");
+    await assertShopOwnership(req, existing.shop);
+    const [deleted] = await db.delete(products).where(eq(products.id, existing.id)).returning();
     if (!deleted) throw notFound("Product not found");
     return noContent(res);
   } catch (e) { next(e); }
