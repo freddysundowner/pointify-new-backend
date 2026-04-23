@@ -340,6 +340,7 @@ You will **never** see another admin's data unless you are the super-admin.
     { name: "Communications",   description: "SMS / email notification settings" },
     { name: "Email Templates",  description: "Transactional email template management" },
     { name: "System",           description: "Super-admin system configuration" },
+    { name: "SMS",              description: "SMS credit balance and top-up" },
     { name: "Sync",             description: "Offline-sync endpoints" },
     { name: "Activities",       description: "Audit log / activity feed" },
   ],
@@ -1117,20 +1118,26 @@ If \`bundleItems\` is omitted or an empty array, the endpoint behaves exactly as
         ...auth(["Admin"]),
         parameters: [idParam()],
         ...body({
-          name:           strField("Product name"),
-          categoryId:     intId("Category ID (set to null to clear)"),
-          barcode:        strField("Barcode"),
-          serialNumber:   strField("Serial number"),
-          buyingPrice:    { type: "number" },
-          sellingPrice:   { type: "number" },
-          wholesalePrice: { type: "number" },
-          dealerPrice:    { type: "number" },
-          measureUnit:    strField("Unit of measure"),
-          manufacturer:   strField("Manufacturer"),
-          supplierId:     intId("Supplier ID"),
-          description:    strField("Description"),
-          alertQuantity:  { type: "number" },
-          type:           { type: "string", enum: ["product", "service", "bundle"] },
+          name:             strField("Product name"),
+          categoryId:       intId("Category ID (set to null to clear)"),
+          barcode:          strField("Barcode"),
+          serialNumber:     strField("Serial number"),
+          buyingPrice:      { type: "number" },
+          sellingPrice:     { type: "number" },
+          minSellingPrice:  { type: "number", description: "Minimum allowed selling price (floor price)" },
+          maxDiscount:      { type: "number", description: "Maximum discount percentage allowed (0–100)" },
+          wholesalePrice:   { type: "number" },
+          dealerPrice:      { type: "number" },
+          measureUnit:      strField("Unit of measure"),
+          manufacturer:     strField("Manufacturer"),
+          supplierId:       intId("Supplier ID"),
+          description:      strField("Description"),
+          alertQuantity:    { type: "number", description: "Deprecated alias — use reorderLevel instead" },
+          reorderLevel:     { type: "number", description: "Stock quantity that triggers a low-stock alert (stored in inventory)" },
+          isTaxable:        { type: "boolean", description: "Whether VAT / tax applies to this product" },
+          manageByPrice:    { type: "boolean", description: "When true, stock is tracked by value rather than unit quantity" },
+          expiryDate:       { ...isoDate, description: "Product expiry / best-before date" },
+          type:             { type: "string", enum: ["product", "service", "bundle"] },
         }),
         responses: { ...dataResp("Updated product"), ...errResp },
       },
@@ -1272,6 +1279,29 @@ If \`bundleItems\` is omitted or an empty array, the endpoint behaves exactly as
         }),
       },
     },
+    "/products/{id}/history": {
+      get: {
+        tags: ["Products"],
+        summary: "Product stock movement history",
+        description: "Returns a unified, time-ordered log of every stock movement event for this product — purchases received, sale deductions, adjustments, bad-stock write-offs, and inter-shop transfers. Pass `shopId` to scope to one location. Use `from`/`to` to narrow the date range.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [
+          idParam(),
+          shopIdQuery,
+          fromParam,
+          toParam,
+          ...paginationParams,
+        ],
+        responses: listResp("Stock movement events", {
+          date:        isoDate,
+          type:        strField("Event type: purchase | sale | adjustment | bad_stock | transfer_in | transfer_out"),
+          quantity:    { type: "number", description: "Signed quantity change (positive = stock in, negative = stock out)" },
+          balanceAfter:{ type: "number", description: "Estimated running balance after this event" },
+          reference:   strField("Source document reference (e.g. sale ID, purchase ID)"),
+          note:        strField("Human-readable description of the event"),
+        }),
+      },
+    },
 
     // ── Inventory ─────────────────────────────────────────────────────────────
     "/inventory": {
@@ -1285,10 +1315,12 @@ If \`bundleItems\` is omitted or an empty array, the endpoint behaves exactly as
           { name: "productId", in: "query", description: "Filter by product", schema: { type: "integer" } },
         ],
         responses: listResp("Inventory records", {
-          id:        intId("Record ID"),
-          shop:      intId("Shop ID"),
-          product:   intId("Product ID"),
-          quantity:  moneyStr,
+          id:           intId("Record ID"),
+          shop:         intId("Shop ID"),
+          product:      intId("Product ID"),
+          quantity:     moneyStr,
+          reorderLevel: { type: "number", description: "Quantity threshold for low-stock alert (null = not set)" },
+          status:       { type: "string", enum: ["active", "low", "out_of_stock"], description: "Derived stock status" },
           ...timestamps,
         }),
       },
@@ -3312,6 +3344,56 @@ If \`bundleItems\` is omitted or an empty array, the endpoint behaves exactly as
         responses: dataResp("Backup snapshot"),
       },
     },
+    "/reports/profit-loss": {
+      get: {
+        tags: ["Reports"],
+        summary: "Profit & loss statement",
+        description: "Returns total revenue, cost of goods sold, gross profit, total expenses, and net profit/loss for a period. Pass `shopId` to scope to one shop, `from`/`to` for a date range.",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("P&L statement", {
+          revenue:    moneyStr,
+          cogs:       moneyStr,
+          grossProfit:moneyStr,
+          expenses:   moneyStr,
+          netProfit:  moneyStr,
+          margin:     strField("Net profit margin %"),
+        }),
+      },
+    },
+    "/reports/inventory": {
+      get: {
+        tags: ["Reports"],
+        summary: "Inventory status report",
+        description: "Returns all products with their current stock quantity, reorder level, and status (active / low / out_of_stock). Pass `shopId` to scope to one shop.",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery],
+        responses: dataResp("Inventory status rows"),
+      },
+    },
+    "/reports/credit": {
+      get: {
+        tags: ["Reports"],
+        summary: "Customer credit (debtors) report",
+        description: "Returns all customers who have an outstanding credit balance along with their total credit sales and amount paid. Pass `shopId` to scope to one shop.",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Customer credit rows"),
+      },
+    },
+    "/reports/cross-shop": {
+      get: {
+        tags: ["Reports"],
+        summary: "Cross-shop performance comparison",
+        description: "Returns key metrics (revenue, profit, expenses, stock value) for each of your shops side-by-side. Useful for multi-branch owners. Super-admin can pass `adminId` to view another admin's shops.",
+        ...auth(["Admin"]),
+        parameters: [
+          fromParam, toParam,
+          { name: "adminId", in: "query", schema: { type: "integer" }, description: "Super-admin only: view another admin's shops" },
+        ],
+        responses: dataResp("Per-shop metric rows"),
+      },
+    },
 
     // ── System (super-admin) ──────────────────────────────────────────────────
     "/system/settings": {
@@ -3438,6 +3520,1008 @@ If \`bundleItems\` is omitted or an empty array, the endpoint behaves exactly as
           { name: "gateway", in: "path", required: true, schema: { type: "string" }, description: "Gateway identifier" },
         ],
         responses: { ...dataResp("Webhook processed"), 401: { description: "Invalid signature" }, 404: { description: "Intent not found" } },
+      },
+    },
+
+    // ── Admin: Self / Account ─────────────────────────────────────────────────
+    "/admin/profile": {
+      get: {
+        tags: ["Admin"],
+        summary: "Get own admin profile",
+        description: "Returns the authenticated admin's record (password and OTP excluded). Also includes `isSuperAdmin` flag.",
+        ...auth(["Admin"]),
+        responses: dataResp("Admin profile"),
+      },
+      put: {
+        tags: ["Admin"],
+        summary: "Update own admin profile",
+        description: "Updates the authenticated admin's editable fields. Changing `email` or `phone` clears the respective verified flag and triggers re-verification. All fields are optional.",
+        ...auth(["Admin"]),
+        ...body({
+          username:        strField("Display name"),
+          phone:           strField("Phone number (changing resets phoneVerified)"),
+          email:           { type: "string", format: "email", description: "Email address (changing resets emailVerified)" },
+          shop:            intId("Default shop ID (null to clear)"),
+          autoPrint:       { type: "boolean", description: "Auto-print receipt after each sale" },
+          saleSmsEnabled:  { type: "boolean", description: "Send SMS receipt after each sale" },
+          platform:        strField("Client platform identifier (android | ios | web)"),
+          appVersion:      strField("Client app version string"),
+        }),
+        responses: { ...dataResp("Updated admin profile"), ...errResp },
+      },
+    },
+    "/admin/account": {
+      delete: {
+        tags: ["Admin"],
+        summary: "Delete own account",
+        description: "Permanently deletes the authenticated admin's account and ALL data they own (shops, products, sales, customers, suppliers, finance, subscriptions, attendants, etc.) inside a single atomic transaction. A confirmation email is sent. This action is irreversible.",
+        ...auth(["Admin"]),
+        responses: { ...dataResp("Deletion summary", { deleted: { type: "boolean" }, email: strField("Email"), username: strField("Name") }), ...errResp },
+      },
+    },
+    "/admin/profile/password": {
+      put: {
+        tags: ["Admin"],
+        summary: "Change own password",
+        description: "Verifies the current password before setting a new one.",
+        ...auth(["Admin"]),
+        ...body({
+          currentPassword: { type: "string", format: "password", description: "Existing password" },
+          newPassword:     { type: "string", format: "password", description: "New password (min 6 chars recommended)" },
+        }, ["currentPassword", "newPassword"]),
+        responses: { ...dataResp("Password changed", { message: strField("Confirmation message") }), ...errResp },
+      },
+    },
+    "/admin/sms-credits": {
+      get: {
+        tags: ["Admin"],
+        summary: "Get own SMS credit balance",
+        description: "Returns the number of remaining outbound SMS messages available to this admin.",
+        ...auth(["Admin"]),
+        responses: dataResp("SMS credit balance", { smsCredit: intId("Remaining SMS credits") }),
+      },
+    },
+    "/admin/sms-credits/topup": {
+      post: {
+        tags: ["Admin"],
+        summary: "Top up SMS credits (super-admin only)",
+        description: "Adds the given number of SMS credits to the specified admin's balance.",
+        ...auth(["Admin"]),
+        ...body({
+          adminId: intId("Target admin ID"),
+          amount:  { type: "integer", description: "Number of SMS credits to add" },
+        }, ["adminId", "amount"]),
+        responses: { ...dataResp("Updated credit balance", { smsCredit: intId("New balance") }), ...errResp },
+      },
+    },
+    "/admin/referrals": {
+      get: {
+        tags: ["Admin"],
+        summary: "List referrals made by this admin",
+        description: "Returns all admins who registered using this admin's referral code.",
+        ...auth(["Admin"]),
+        responses: dataResp("Referred admins", {}),
+      },
+    },
+
+    // ── Admin: Super-admin management ─────────────────────────────────────────
+    "/admin/all": {
+      get: {
+        tags: ["Admin"],
+        summary: "List all admins (super-admin only)",
+        description: "Returns every admin on the platform with pagination. Use `search` to filter by email.",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams, searchParam],
+        responses: listResp("Admin records (passwords excluded)"),
+      },
+    },
+    "/admin/all/{id}": {
+      get: {
+        tags: ["Admin"],
+        summary: "Get any admin by ID (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Admin record"), 404: errResp[404] },
+      },
+      put: {
+        tags: ["Admin"],
+        summary: "Update any admin (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({
+          username:       strField("Display name"),
+          phone:          strField("Phone"),
+          saleSmsEnabled: { type: "boolean" },
+          smsCredit:      { type: "integer", description: "Override SMS credit balance" },
+        }),
+        responses: { ...dataResp("Updated admin"), ...errResp },
+      },
+    },
+    "/admin/shops": {
+      get: {
+        tags: ["Admin"],
+        summary: "List all shops on platform (super-admin only)",
+        description: "Returns every shop across all admins. Pass `adminId` to filter to a specific admin. Use `search` to match by shop name.",
+        ...auth(["Admin"]),
+        parameters: [
+          ...paginationParams, searchParam,
+          { name: "adminId", in: "query", schema: { type: "integer" }, description: "Filter by admin ID" },
+        ],
+        responses: listResp("Shop records"),
+      },
+    },
+    "/admin/subscriptions/summary": {
+      get: {
+        tags: ["Admin"],
+        summary: "Platform subscription summary (super-admin only)",
+        description: "Returns aggregate subscription metrics: total count, active count, total paid revenue, and pending (unpaid) revenue. Use `from`/`to` to scope to a date range.",
+        ...auth(["Admin"]),
+        parameters: [fromParam, toParam],
+        responses: dataResp("Subscription summary", {
+          totalSubscriptions:  intId("Total subscription records"),
+          activeSubscriptions: intId("Currently active subscriptions"),
+          totalRevenue:        moneyStr,
+          pendingRevenue:      moneyStr,
+        }),
+      },
+    },
+    "/admin/admins": {
+      get: {
+        tags: ["Admin"],
+        summary: "List admins with full details (super-admin only)",
+        description: "Similar to `GET /admin/all` but also includes subscription and shop counts per admin. Supports search by email, phone, or username.",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams, searchParam],
+        responses: listResp("Admin records"),
+      },
+    },
+    "/admin/admins/by-subscription": {
+      get: {
+        tags: ["Admin"],
+        summary: "List admins filtered by subscription status (super-admin only)",
+        description: "Pass `status` to filter: `trial_active`, `trial_expired`, `production_active`, or `production_expired`.",
+        ...auth(["Admin"]),
+        parameters: [
+          ...paginationParams,
+          { name: "status", in: "query", schema: { type: "string", enum: ["trial_active", "trial_expired", "production_active", "production_expired"] }, description: "Subscription filter" },
+        ],
+        responses: listResp("Admin-subscription joined rows"),
+      },
+    },
+    "/admin/admins/{id}": {
+      get: {
+        tags: ["Admin"],
+        summary: "Get admin by ID (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Admin record"), 404: errResp[404] },
+      },
+      put: {
+        tags: ["Admin"],
+        summary: "Update admin (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({
+          email:          { type: "string", format: "email" },
+          phone:          strField("Phone"),
+          username:       strField("Display name"),
+          emailVerified:  { type: "boolean" },
+          smsCredit:      { type: "integer" },
+          saleSmsEnabled: { type: "boolean" },
+        }),
+        responses: { ...dataResp("Updated admin"), ...errResp },
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "Delete admin account (super-admin only)",
+        description: "Permanently wipes the admin and all their data. A confirmation email is sent.",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Deletion summary"), ...errResp },
+      },
+    },
+    "/admin/subscriptions": {
+      get: {
+        tags: ["Admin"],
+        summary: "List all platform subscriptions (super-admin only)",
+        description: "Returns every subscription across all admins with pagination.",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams, fromParam, toParam],
+        responses: listResp("Subscription records"),
+      },
+    },
+    "/admin/subscriptions/stats": {
+      get: {
+        tags: ["Admin"],
+        summary: "Platform subscription stats (super-admin only)",
+        description: "Returns detailed subscription statistics: total, active, trial, production, paid, and unpaid counts along with revenue figures.",
+        ...auth(["Admin"]),
+        responses: dataResp("Subscription statistics"),
+      },
+    },
+
+    // ── Admin: Affiliates management (super-admin) ─────────────────────────────
+    "/admin/affiliates": {
+      get: {
+        tags: ["Admin"],
+        summary: "List all affiliates (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams, searchParam],
+        responses: listResp("Affiliate records (passwords excluded)"),
+      },
+      post: {
+        tags: ["Admin"],
+        summary: "Create affiliate (super-admin only)",
+        ...auth(["Admin"]),
+        ...body({
+          name:       strField("Full name"),
+          email:      { type: "string", format: "email" },
+          password:   { type: "string", format: "password" },
+          phone:      strField("Phone (optional)"),
+          address:    strField("Address (optional)"),
+          country:    strField("Country (optional)"),
+          isActive:   { type: "boolean", default: true },
+          commission: { type: "number", description: "Commission percentage (0–100)" },
+        }, ["name", "email", "password"]),
+        responses: { ...createdResp("Affiliate created"), ...errResp },
+      },
+    },
+    "/admin/affiliates/{id}": {
+      get: {
+        tags: ["Admin"],
+        summary: "Get affiliate (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Affiliate"), 404: errResp[404] },
+      },
+      put: {
+        tags: ["Admin"],
+        summary: "Update affiliate (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({
+          name:       strField("Full name"),
+          phone:      strField("Phone"),
+          address:    strField("Address"),
+          country:    strField("Country"),
+          isActive:   { type: "boolean" },
+          isBlocked:  { type: "boolean" },
+          commission: { type: "number", description: "Commission %" },
+        }),
+        responses: { ...dataResp("Updated affiliate"), ...errResp },
+      },
+    },
+    "/admin/affiliates/{id}/award": {
+      post: {
+        tags: ["Admin"],
+        summary: "Create award for affiliate (super-admin only)",
+        description: "Credits a commission award to the affiliate's wallet. `commissionAmount` overrides the auto-calculated percentage if provided.",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({
+          amount:           { type: "number", description: "Transaction amount (e.g. subscription value)" },
+          commissionAmount: { type: "number", description: "Override commission amount (optional — defaults to affiliate.commission%)" },
+          type:             strField("Award category: subscription | referral | bonus"),
+          awardType:        strField("Award sub-type label"),
+          shopId:           intId("Related shop ID (optional)"),
+        }, ["amount", "type", "awardType"]),
+        responses: { ...createdResp("Award created"), ...errResp },
+      },
+    },
+    "/admin/affiliate-transactions/{id}/complete": {
+      put: {
+        tags: ["Admin"],
+        summary: "Mark affiliate withdrawal as completed (super-admin only)",
+        description: "Deducts the transaction amount from the affiliate's wallet and marks the withdrawal as completed.",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Transaction completed", { id: intId("Transaction ID"), isCompleted: { type: "boolean" }, balance: moneyStr }), ...errResp },
+      },
+    },
+    "/admin/affiliate-transactions/{id}/payout-mpesa": {
+      post: {
+        tags: ["Admin"],
+        summary: "Initiate M-Pesa B2C payout for affiliate withdrawal (super-admin only)",
+        description: "Triggers an M-Pesa B2C (Business to Customer) payment to the affiliate's phone number. Completion happens asynchronously via callback.",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({ phone: strField("M-Pesa recipient phone number") }, ["phone"]),
+        responses: { ...dataResp("Payout initiated", { transactionId: intId("Transaction ID"), phone: strField("Phone"), amount: moneyStr, status: strField("initiated") }), ...errResp },
+      },
+    },
+
+    // ── Admin: Communications log (super-admin) ────────────────────────────────
+    "/admin/communications": {
+      get: {
+        tags: ["Admin"],
+        summary: "List communication records (super-admin only)",
+        description: "Returns the log of all outbound communications (email and SMS). Filter by `type`, `status`, `contact`, or date range.",
+        ...auth(["Admin"]),
+        parameters: [
+          ...paginationParams, fromParam, toParam,
+          { name: "type",    in: "query", schema: { type: "string", enum: ["email", "sms"] } },
+          { name: "status",  in: "query", schema: { type: "string", enum: ["sent", "failed", "pending"] } },
+          { name: "contact", in: "query", schema: { type: "string" }, description: "Filter by recipient address/phone" },
+        ],
+        responses: listResp("Communication log records"),
+      },
+    },
+    "/admin/communications/send": {
+      post: {
+        tags: ["Admin"],
+        summary: "Send a one-off email or SMS (super-admin only)",
+        description: "Dispatches a single email or SMS to a recipient. For email, provide `subject` and `body`. For SMS, provide `body` only.",
+        ...auth(["Admin"]),
+        ...body({
+          type:    { type: "string", enum: ["email", "sms"], description: "Channel to use" },
+          contact: strField("Recipient email address or phone number"),
+          subject: strField("Email subject (required for type=email)"),
+          body:    strField("Message content"),
+        }, ["type", "contact", "body"]),
+        responses: { ...createdResp("Message dispatched"), ...errResp },
+      },
+    },
+    "/admin/communications/bulk-sms": {
+      post: {
+        tags: ["Admin"],
+        summary: "Send bulk SMS (super-admin only)",
+        description: "Sends an SMS blast to a list of phone numbers or a predefined segment (`all_admins`, `trial_admins`, `active_admins`). Optionally uses a template key.",
+        ...auth(["Admin"]),
+        ...body({
+          segment:     { type: "string", enum: ["all_admins", "trial_admins", "active_admins"], description: "Recipient group (use instead of phones)" },
+          phones:      { type: "array", items: { type: "string" }, description: "Explicit list of phone numbers (use instead of segment)" },
+          message:     strField("SMS message text"),
+          templateKey: strField("SMS template key (optional — overrides message)"),
+        }),
+        responses: { ...dataResp("Bulk send summary", { sent: intId("Count sent"), failed: intId("Count failed") }), ...errResp },
+      },
+    },
+    "/admin/communications/{id}/resend": {
+      post: {
+        tags: ["Admin"],
+        summary: "Resend a communication (super-admin only)",
+        description: "Retries dispatching a previously failed email or SMS.",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Resent"), ...errResp },
+      },
+    },
+
+    // ── Admin: Email Templates (super-admin) ───────────────────────────────────
+    "/admin/email-templates": {
+      get: {
+        tags: ["Admin"],
+        summary: "List email templates (super-admin only)",
+        description: "Returns all configurable email templates stored in the database.",
+        ...auth(["Admin"]),
+        responses: dataResp("Email templates"),
+      },
+      post: {
+        tags: ["Admin"],
+        summary: "Create email template (super-admin only)",
+        ...auth(["Admin"]),
+        ...body({
+          key:     strField("Unique template key (e.g. welcome, password_reset)"),
+          subject: strField("Email subject line"),
+          body:    strField("HTML email body (supports Handlebars variables)"),
+        }, ["key", "subject", "body"]),
+        responses: { ...createdResp("Template created"), ...errResp },
+      },
+    },
+    "/admin/email-templates/{id}": {
+      get: {
+        tags: ["Admin"],
+        summary: "Get email template (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Email template"), 404: errResp[404] },
+      },
+      put: {
+        tags: ["Admin"],
+        summary: "Update email template (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({ subject: strField("Subject"), body: strField("HTML body") }),
+        responses: { ...dataResp("Updated template"), ...errResp },
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "Delete email template (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...noContentResp },
+      },
+    },
+
+    // ── Admin: Email Messages (super-admin) ────────────────────────────────────
+    "/admin/email-messages": {
+      get: {
+        tags: ["Admin"],
+        summary: "List email messages (super-admin only)",
+        description: "Returns all bulk/campaign email messages that have been created.",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams],
+        responses: listResp("Email messages"),
+      },
+      post: {
+        tags: ["Admin"],
+        summary: "Create email message (super-admin only)",
+        ...auth(["Admin"]),
+        ...body({
+          subject:     strField("Email subject"),
+          body:        strField("HTML body"),
+          recipientId: intId("Target admin ID (optional — omit for broadcast)"),
+        }, ["subject", "body"]),
+        responses: { ...createdResp("Email message created"), ...errResp },
+      },
+    },
+    "/admin/email-messages/{id}": {
+      put: {
+        tags: ["Admin"],
+        summary: "Update email message (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({ subject: strField("Subject"), body: strField("HTML body") }),
+        responses: { ...dataResp("Updated"), ...errResp },
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "Delete email message (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...noContentResp },
+      },
+    },
+    "/admin/email-messages/{id}/send": {
+      post: {
+        tags: ["Admin"],
+        summary: "Send email message to admins (super-admin only)",
+        description: "Dispatches the email message to a list of admin IDs, a named segment, or all admins.",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({
+          adminIds: { type: "array", items: { type: "integer" }, description: "Explicit list of admin IDs to send to" },
+          segment:  { type: "string", enum: ["all", "active", "trial", "expired"], description: "Recipient segment (alternative to adminIds)" },
+        }),
+        responses: { ...dataResp("Send summary", { sent: intId("Count sent"), failed: intId("Count failed") }), ...errResp },
+      },
+    },
+    "/admin/emails-sent": {
+      get: {
+        tags: ["Admin"],
+        summary: "List sent email log (super-admin only)",
+        description: "Returns records of every email actually dispatched by the platform.",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams, fromParam, toParam],
+        responses: listResp("Sent email records"),
+      },
+    },
+
+    // ── Admin: SMS credit management (super-admin) ─────────────────────────────
+    "/admin/sms/adjust-credits": {
+      post: {
+        tags: ["Admin"],
+        summary: "Adjust admin SMS credits (super-admin only)",
+        description: "Adds or subtracts SMS credits from the specified admin's balance. Use a positive `amount` to top up, negative to deduct.",
+        ...auth(["Admin"]),
+        ...body({
+          adminId: intId("Target admin ID"),
+          amount:  { type: "integer", description: "Credits to add (positive) or remove (negative)" },
+          note:    strField("Reason for adjustment (optional)"),
+        }, ["adminId", "amount"]),
+        responses: { ...dataResp("Updated credit balance"), ...errResp },
+      },
+    },
+
+    // ── Admin: Payment Gateways (super-admin) ─────────────────────────────────
+    "/admin/payment-gateways/catalog": {
+      get: {
+        tags: ["Admin"],
+        summary: "List supported gateway types (super-admin only)",
+        description: "Returns the built-in catalog of payment gateway integrations (M-Pesa, Paystack, Stripe, etc.) that can be configured.",
+        ...auth(["Admin"]),
+        responses: dataResp("Gateway catalog"),
+      },
+    },
+    "/admin/payment-gateways": {
+      get: {
+        tags: ["Admin"],
+        summary: "List configured payment gateways (super-admin only)",
+        description: "Returns all payment gateway configurations stored in the platform.",
+        ...auth(["Admin"]),
+        responses: dataResp("Configured gateways"),
+      },
+      post: {
+        tags: ["Admin"],
+        summary: "Create payment gateway configuration (super-admin only)",
+        ...auth(["Admin"]),
+        ...body({
+          name:        strField("Display name (e.g. 'M-Pesa Live')"),
+          gatewayId:   strField("Gateway type key from catalog (e.g. mpesa, paystack, stripe)"),
+          credentials: { type: "object", additionalProperties: true, description: "Gateway-specific credential key/value pairs" },
+          isActive:    { type: "boolean", default: true },
+        }, ["name", "gatewayId", "credentials"]),
+        responses: { ...createdResp("Gateway created"), ...errResp },
+      },
+    },
+    "/admin/payment-gateways/active": {
+      get: {
+        tags: ["Admin"],
+        summary: "List active payment gateways",
+        description: "Returns all payment gateways that are currently enabled. Available to all authenticated admins (not super-admin only).",
+        ...auth(["Admin"]),
+        responses: dataResp("Active gateway records"),
+      },
+    },
+    "/admin/payment-gateways/{id}": {
+      put: {
+        tags: ["Admin"],
+        summary: "Update payment gateway (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({
+          name:        strField("Display name"),
+          credentials: { type: "object", additionalProperties: true },
+          isActive:    { type: "boolean" },
+        }),
+        responses: { ...dataResp("Updated gateway"), ...errResp },
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "Delete payment gateway (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...noContentResp, 404: errResp[404] },
+      },
+    },
+
+    // ── Communications ────────────────────────────────────────────────────────
+    "/communications": {
+      get: {
+        tags: ["Communications"],
+        summary: "List communication records",
+        description: "Returns the communication log visible to the authenticated admin (email and SMS dispatched to their customers/attendants).",
+        ...auth(["Admin"]),
+        parameters: [
+          ...paginationParams, fromParam, toParam,
+          { name: "type",   in: "query", schema: { type: "string", enum: ["email", "sms"] } },
+          { name: "status", in: "query", schema: { type: "string" } },
+        ],
+        responses: listResp("Communication records"),
+      },
+    },
+    "/communications/email-templates": {
+      get: {
+        tags: ["Communications"],
+        summary: "List email templates (admin view)",
+        description: "Returns editable email templates for this admin (welcome, receipt, etc.).",
+        ...auth(["Admin"]),
+        responses: dataResp("Email templates"),
+      },
+      post: {
+        tags: ["Communications"],
+        summary: "Create email template",
+        ...auth(["Admin"]),
+        ...body({
+          key:     strField("Template key"),
+          subject: strField("Subject"),
+          body:    strField("HTML body"),
+        }, ["key", "subject", "body"]),
+        responses: { ...createdResp("Created"), ...errResp },
+      },
+    },
+    "/communications/email-templates/{id}": {
+      put: {
+        tags: ["Communications"],
+        summary: "Update email template",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({ subject: strField("Subject"), body: strField("HTML body") }),
+        responses: { ...dataResp("Updated"), ...errResp },
+      },
+      delete: {
+        tags: ["Communications"],
+        summary: "Delete email template",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...noContentResp },
+      },
+    },
+    "/communications/email-messages": {
+      get: {
+        tags: ["Communications"],
+        summary: "List sent email messages (admin view)",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams],
+        responses: listResp("Email messages"),
+      },
+    },
+    "/communications/sms-credits": {
+      get: {
+        tags: ["Communications"],
+        summary: "Get SMS credit balance (alias)",
+        description: "Returns remaining SMS credits for the authenticated admin. Alias for `GET /admin/sms-credits`.",
+        ...auth(["Admin"]),
+        responses: dataResp("SMS balance", { smsCredit: intId("Remaining credits") }),
+      },
+    },
+    "/communications/sms-templates": {
+      get: {
+        tags: ["Communications"],
+        summary: "List SMS templates",
+        description: "Returns the available SMS message templates (e.g. sale receipt, OTP). Admin view returns only templates assigned to their account; super-admin sees all.",
+        ...auth(["Admin"]),
+        responses: dataResp("SMS templates"),
+      },
+      post: {
+        tags: ["Communications"],
+        summary: "Create SMS template (super-admin only)",
+        ...auth(["Admin"]),
+        ...body({
+          key:     strField("Unique template key"),
+          body:    strField("SMS body text (supports {{variable}} placeholders)"),
+          isActive:{ type: "boolean", default: true },
+        }, ["key", "body"]),
+        responses: { ...createdResp("Template created"), ...errResp },
+      },
+    },
+    "/communications/sms-templates/{id}": {
+      get: {
+        tags: ["Communications"],
+        summary: "Get SMS template",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("SMS template"), 404: errResp[404] },
+      },
+      put: {
+        tags: ["Communications"],
+        summary: "Update SMS template (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({ body: strField("New template body"), isActive: { type: "boolean" } }),
+        responses: { ...dataResp("Updated"), ...errResp },
+      },
+      delete: {
+        tags: ["Communications"],
+        summary: "Delete SMS template (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...noContentResp },
+      },
+    },
+    "/communications/sms": {
+      post: {
+        tags: ["Communications"],
+        summary: "Send a one-off SMS",
+        description: "Dispatches a single SMS to a phone number using the admin's SMS credit balance. Uses the configured SMS provider.",
+        ...auth(["Admin"]),
+        ...body({
+          phone:       strField("Recipient phone number"),
+          message:     strField("SMS message text (max 160 chars per segment)"),
+          templateKey: strField("Optional SMS template key (overrides message)"),
+          variables:   { type: "object", additionalProperties: true, description: "Template variables" },
+        }, ["phone"]),
+        responses: { ...dataResp("SMS sent"), ...errResp },
+      },
+    },
+    "/communications/activities": {
+      get: {
+        tags: ["Communications"],
+        summary: "List activity log",
+        description: "Returns recent POS activity events (sales, adjustments, logins, etc.) for this admin's shops.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [...paginationParams, shopIdQuery, fromParam, toParam],
+        responses: listResp("Activity events"),
+      },
+    },
+
+    // ── SMS ───────────────────────────────────────────────────────────────────
+    "/sms/balance": {
+      get: {
+        tags: ["SMS"],
+        summary: "Get SMS credit balance",
+        description: "Returns the admin's current SMS credit balance. Credits are consumed per outbound SMS.",
+        ...auth(["Admin"]),
+        responses: dataResp("Balance", { smsCredit: intId("Remaining credits") }),
+      },
+    },
+    "/sms/top-up": {
+      post: {
+        tags: ["SMS"],
+        summary: "Top up SMS credits via M-Pesa",
+        description: "Initiates an M-Pesa STK push to purchase additional SMS credits. Returns a `checkoutRequestId` for polling or callback confirmation.",
+        ...auth(["Admin"]),
+        ...body({
+          phone:  strField("M-Pesa phone number for payment"),
+          amount: { type: "number", description: "Amount to pay (price per credit bundle depends on system settings)" },
+        }, ["phone", "amount"]),
+        responses: { ...dataResp("STK push initiated", { checkoutRequestId: strField("M-Pesa request ID"), message: strField("User-facing message") }), ...errResp },
+      },
+    },
+    "/sms/top-up/{ref}": {
+      get: {
+        tags: ["SMS"],
+        summary: "Check SMS top-up payment status",
+        description: "Polls the status of an M-Pesa top-up initiated by `POST /sms/top-up`. When confirmed, credits are added to the balance.",
+        ...auth(["Admin"]),
+        parameters: [{ name: "ref", in: "path", required: true, schema: { type: "string" }, description: "Checkout request ID or transaction reference" }],
+        responses: { ...dataResp("Payment status", { status: strField("pending | completed | failed"), smsCredit: intId("New balance after confirmation") }), 404: errResp[404] },
+      },
+    },
+    "/sms/transactions": {
+      get: {
+        tags: ["SMS"],
+        summary: "List SMS credit transactions",
+        description: "Returns the debit/credit history of this admin's SMS credit account (purchases and sends).",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams, fromParam, toParam],
+        responses: listResp("Credit transaction records"),
+      },
+    },
+
+    // ── Sync ─────────────────────────────────────────────────────────────────
+    "/sync/database/init": {
+      get: {
+        tags: ["Sync"],
+        summary: "Get initial sync payload",
+        description: "Returns the complete data set needed to initialise a new offline client (products, categories, customers, settings, shop info). Used on first login.",
+        ...auth(["Admin", "Attendant"]),
+        responses: dataResp("Initial sync payload"),
+      },
+    },
+    "/sync/checkupdate/desktop": {
+      get: {
+        tags: ["Sync"],
+        summary: "Check for desktop app update",
+        description: "Returns the latest desktop app version metadata. No authentication required (publicly accessible).",
+        responses: dataResp("Version info", { version: strField("Latest version string"), downloadUrl: strField("Download URL") }),
+      },
+    },
+    "/sync/dump": {
+      post: {
+        tags: ["Sync"],
+        summary: "Dump offline queue (authenticated)",
+        description: "Processes a batch of queued offline operations (creates/updates) submitted from an offline client. Operations are applied in the order received.",
+        ...auth(["Admin", "Attendant"]),
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  operations: {
+                    type: "array",
+                    description: "Array of queued offline operations",
+                    items: {
+                      type: "object",
+                      properties: {
+                        type:    strField("Operation type: create | update | delete"),
+                        entity:  strField("Entity name (e.g. sale, customer, product)"),
+                        payload: { type: "object", additionalProperties: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: { ...dataResp("Sync result", { applied: intId("Count applied"), failed: intId("Count failed") }), ...errResp },
+      },
+    },
+    "/sync/dump/online": {
+      post: {
+        tags: ["Sync"],
+        summary: "Dump offline queue (public endpoint)",
+        description: "Same as `POST /sync/dump` but accepts a token in the request body instead of the Authorization header. Used by clients that cannot set headers.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  token:      strField("JWT token"),
+                  operations: { type: "array", items: { type: "object" } },
+                },
+                required: ["token"],
+              },
+            },
+          },
+        },
+        responses: { ...dataResp("Sync result"), ...errResp },
+      },
+    },
+    "/sync/{shopId}": {
+      get: {
+        tags: ["Sync"],
+        summary: "Get sync delta for shop",
+        description: "Returns all data changed since the client's last sync timestamp for the given shop. Clients should pass `since` (ISO 8601) to limit the response.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [
+          idParam("shopId", "Shop ID"),
+          { name: "since", in: "query", schema: { type: "string", format: "date-time" }, description: "Return only records updated after this timestamp" },
+        ],
+        responses: dataResp("Sync delta payload"),
+      },
+      delete: {
+        tags: ["Sync"],
+        summary: "Clear sync state for shop",
+        description: "Resets the server-side sync cursor for the shop, forcing a full re-sync on the next client pull.",
+        ...auth(["Admin"]),
+        parameters: [idParam("shopId", "Shop ID")],
+        responses: { ...noContentResp },
+      },
+    },
+
+    // ── Activities ────────────────────────────────────────────────────────────
+    "/activities": {
+      get: {
+        tags: ["Activities"],
+        summary: "List activity log entries",
+        description: "Returns POS activity events scoped to the authenticated user's shops. Pass `shopId` to narrow to one shop.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [...paginationParams, shopIdQuery, fromParam, toParam],
+        responses: listResp("Activity events"),
+      },
+      post: {
+        tags: ["Activities"],
+        summary: "Create activity log entry",
+        description: "Records a custom activity event. Typically called by the client to log user-initiated actions (e.g. opening the app, taking a stock count).",
+        ...auth(["Admin", "Attendant"]),
+        ...body({
+          shopId:  intId("Shop ID"),
+          action:  strField("Action label (e.g. login, sale, stock_count)"),
+          details: { type: "object", additionalProperties: true, description: "Arbitrary action metadata" },
+        }, ["shopId", "action"]),
+        responses: { ...createdResp("Activity logged"), ...errResp },
+      },
+    },
+    "/activities/recent": {
+      get: {
+        tags: ["Activities"],
+        summary: "List recent activity log entries",
+        description: "Returns the most recent activity events (last 50 by default) across all of this admin's shops.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [shopIdQuery],
+        responses: listResp("Recent activity events"),
+      },
+    },
+
+    // ── Email Templates (standalone) ──────────────────────────────────────────
+    "/email-templates": {
+      get: {
+        tags: ["Email Templates"],
+        summary: "List email templates",
+        description: "Returns all email templates that the admin can customise (welcome email, sale receipt, OTP, etc.).",
+        ...auth(["Admin"]),
+        responses: dataResp("Email templates"),
+      },
+    },
+    "/email-templates/defaults": {
+      get: {
+        tags: ["Email Templates"],
+        summary: "List default email template keys",
+        description: "Returns the built-in template key catalogue — useful for discovering what templates can be overridden.",
+        ...auth(["Admin"]),
+        responses: dataResp("Template key catalogue"),
+      },
+    },
+    "/email-templates/{key}": {
+      get: {
+        tags: ["Email Templates"],
+        summary: "Get email template by key",
+        description: "Returns the current template (admin override if set, otherwise the system default).",
+        ...auth(["Admin"]),
+        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" }, description: "Template key (e.g. welcome, sale_receipt, otp)" }],
+        responses: { ...dataResp("Email template"), 404: errResp[404] },
+      },
+      put: {
+        tags: ["Email Templates"],
+        summary: "Create or update email template by key (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
+        ...body({
+          subject: strField("Email subject line"),
+          body:    strField("HTML body (Handlebars supported)"),
+          isActive:{ type: "boolean", description: "Enable or disable this template override" },
+        }, ["subject", "body"]),
+        responses: { ...dataResp("Upserted template"), ...errResp },
+      },
+      delete: {
+        tags: ["Email Templates"],
+        summary: "Delete email template override (super-admin only)",
+        description: "Removes the admin override, reverting to the system default template.",
+        ...auth(["Admin"]),
+        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
+        responses: { ...noContentResp, 404: errResp[404] },
+      },
+    },
+    "/email-templates/{key}/preview": {
+      get: {
+        tags: ["Email Templates"],
+        summary: "Preview rendered email template",
+        description: "Returns the fully-rendered HTML for the template using sample data.",
+        ...auth(["Admin"]),
+        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
+        responses: { 200: { description: "Rendered HTML", content: { "text/html": { schema: { type: "string" } } } } },
+      },
+      post: {
+        tags: ["Email Templates"],
+        summary: "Preview rendered email template with custom variables",
+        description: "Renders the template with provided variable overrides so you can check the output before sending.",
+        ...auth(["Admin"]),
+        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { type: "object", additionalProperties: true, description: "Variable overrides to merge into the template context" },
+            },
+          },
+        },
+        responses: { 200: { description: "Rendered HTML", content: { "text/html": { schema: { type: "string" } } } } },
+      },
+    },
+    "/email-templates/seed": {
+      post: {
+        tags: ["Email Templates"],
+        summary: "Seed default email templates (super-admin only)",
+        description: "Inserts or resets all system default email templates. Use with caution — existing overrides are preserved.",
+        ...auth(["Admin"]),
+        responses: { ...dataResp("Seed summary"), ...errResp },
+      },
+    },
+
+    // ── Bundle Items (standalone) ─────────────────────────────────────────────
+    "/bundle-items": {
+      get: {
+        tags: ["Products"],
+        summary: "List all bundle item components",
+        description: "Returns every bundle-component record across all products. Pass `productId` to filter to a specific bundle product.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [
+          ...paginationParams,
+          { name: "productId", in: "query", schema: { type: "integer" }, description: "Filter to components of this bundle product" },
+        ],
+        responses: listResp("Bundle item records"),
+      },
+      post: {
+        tags: ["Products"],
+        summary: "Create bundle item component",
+        description: "Adds a component product to a bundle. Alternative to `POST /products/{id}/bundle-items`.",
+        ...auth(["Admin"]),
+        ...body({
+          productId:          intId("Bundle product ID"),
+          componentProductId: intId("Component product ID"),
+          quantity:           { type: "number", description: "Component quantity per bundle unit" },
+        }, ["productId", "componentProductId", "quantity"]),
+        responses: { ...createdResp("Bundle item created"), ...errResp },
+      },
+    },
+    "/bundle-items/{id}": {
+      get: {
+        tags: ["Products"],
+        summary: "Get bundle item",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Bundle item"), 404: errResp[404] },
+      },
+      put: {
+        tags: ["Products"],
+        summary: "Update bundle item quantity",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({ quantity: { type: "number", description: "New quantity" } }, ["quantity"]),
+        responses: { ...dataResp("Updated bundle item"), ...errResp },
+      },
+      delete: {
+        tags: ["Products"],
+        summary: "Remove bundle item component",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...noContentResp, 404: errResp[404] },
       },
     },
 
