@@ -1,47 +1,43 @@
+// ── Reusable helpers ─────────────────────────────────────────────────────────
+
 const bearer = {
   BearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
 };
 
 const paginationParams = [
-  { name: "page", in: "query", schema: { type: "integer", default: 1 } },
-  { name: "limit", in: "query", schema: { type: "integer", default: 20 } },
+  { name: "page",  in: "query", description: "Page number (1-based)", schema: { type: "integer", default: 1, minimum: 1 } },
+  { name: "limit", in: "query", description: "Results per page",      schema: { type: "integer", default: 20, minimum: 1, maximum: 200 } },
 ];
 
-const searchParam = {
-  name: "search",
-  in: "query",
-  schema: { type: "string" },
-};
+const searchParam = { name: "search", in: "query", description: "Full-text search term", schema: { type: "string" } };
+const shopIdQuery = { name: "shopId", in: "query", required: false, description: "Filter by shop ID", schema: { type: "integer" } };
+const fromParam  = { name: "from", in: "query", description: "Start date (ISO 8601)", schema: { type: "string", format: "date-time" } };
+const toParam    = { name: "to",   in: "query", description: "End date (ISO 8601)",   schema: { type: "string", format: "date-time" } };
 
-const idParam = (name = "id") => ({
-  name,
-  in: "path",
-  required: true,
-  schema: { type: "integer" },
+const idParam = (name = "id", description = "Record ID") => ({
+  name, in: "path", required: true, description, schema: { type: "integer" },
 });
 
 const auth = (roles: string[]) => ({
   "x-roles": roles,
   security: [{ BearerAuth: [] }],
+  "x-security-note": `Required roles: ${roles.join(" | ")}`,
 });
 
-function ok(description: string, props: Record<string, unknown> = {}) {
+// ── Response helpers ─────────────────────────────────────────────────────────
+
+function dataResp(description: string, props: Record<string, unknown> = {}, required?: string[]) {
+  const schema: any = { type: "object", properties: props };
+  if (required?.length) schema.required = required;
   return {
     200: {
       description,
-      content: {
-        "application/json": {
-          schema: {
-            type: "object",
-            properties: { success: { type: "boolean" }, data: props },
-          },
-        },
-      },
+      content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean", example: true }, data: schema } } } },
     },
   };
 }
 
-function list(description: string) {
+function listResp(description: string, itemProps: Record<string, unknown> = {}) {
   return {
     200: {
       description,
@@ -50,15 +46,15 @@ function list(description: string) {
           schema: {
             type: "object",
             properties: {
-              success: { type: "boolean" },
-              data: { type: "array", items: {} },
+              success: { type: "boolean", example: true },
+              data: { type: "array", items: { type: "object", properties: itemProps } },
               meta: {
                 type: "object",
                 properties: {
-                  total: { type: "integer" },
-                  page: { type: "integer" },
-                  limit: { type: "integer" },
-                  totalPages: { type: "integer" },
+                  total:      { type: "integer", description: "Total records matching the query" },
+                  page:       { type: "integer", description: "Current page" },
+                  limit:      { type: "integer", description: "Results per page" },
+                  totalPages: { type: "integer", description: "Total pages" },
                 },
               },
             },
@@ -69,26 +65,186 @@ function list(description: string) {
   };
 }
 
-function body(props: Record<string, unknown>, required?: string[]) {
+function createdResp(description: string, props: Record<string, unknown> = {}) {
   return {
-    requestBody: {
-      required: true,
-      content: {
-        "application/json": {
-          schema: { type: "object", properties: props, required },
-        },
-      },
+    201: {
+      description,
+      content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean", example: true }, data: { type: "object", properties: props } } } } },
     },
   };
 }
+
+const noContentResp = { 204: { description: "Success — no content returned" } };
+
+const errResp = {
+  400: { description: "Bad request — validation or business rule error", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean", example: false }, error: { type: "string" } } } } } },
+  401: { description: "Unauthorized — missing or invalid token" },
+  403: { description: "Forbidden — insufficient role or ownership" },
+  404: { description: "Record not found" },
+  409: { description: "Conflict — duplicate value" },
+};
+
+function body(props: Record<string, unknown>, required?: string[], description?: string) {
+  const schema: any = { type: "object", properties: props };
+  if (required?.length) schema.required = required;
+  return {
+    requestBody: {
+      required: true,
+      description: description ?? "Request body",
+      content: { "application/json": { schema } },
+    },
+  };
+}
+
+// ── Reusable schema fragments ────────────────────────────────────────────────
+
+const moneyStr   = { type: "string", description: "Numeric string (e.g. \"1500.00\")", example: "1500.00" };
+const isoDate    = { type: "string", format: "date-time", example: "2026-04-23T08:00:00.000Z" };
+const boolFlag   = (desc: string) => ({ type: "boolean", description: desc });
+const intId      = (desc: string) => ({ type: "integer", description: desc });
+const strField   = (desc: string, example?: string) => ({ type: "string", description: desc, ...(example ? { example } : {}) });
+
+// Common output-only fields
+const recordId   = { id: { type: "integer", description: "Auto-generated primary key", readOnly: true } };
+const timestamps = {
+  createdAt: { ...isoDate, description: "Creation timestamp", readOnly: true },
+  updatedAt: { ...isoDate, description: "Last update timestamp", readOnly: true },
+};
+
+// ── Shared item schemas ──────────────────────────────────────────────────────
+
+const saleItemInput = {
+  type: "object",
+  required: ["productId", "quantity"],
+  properties: {
+    productId:  { type: "integer", description: "Product ID" },
+    quantity:   { type: "number",  description: "Quantity sold", minimum: 0.001 },
+    unitPrice:  { type: "number",  description: "Selling price per unit (overrides product default)" },
+    price:      { type: "number",  description: "Alias for unitPrice" },
+    costPrice:  { type: "number",  description: "Cost price for profit calculation", default: 0 },
+    discount:   { type: "number",  description: "Per-line discount amount",          default: 0 },
+    saleType:   { type: "string",  description: "Override sale type for this line (Retail | Wholesale | Dealer)" },
+  },
+};
+
+const purchaseItemInput = {
+  type: "object",
+  required: ["productId", "quantity"],
+  properties: {
+    productId:   { type: "integer", description: "Product ID" },
+    quantity:    { type: "number",  description: "Quantity received", minimum: 0.001 },
+    buyingPrice: { type: "number",  description: "Unit buying price" },
+    unitPrice:   { type: "number",  description: "Alias for buyingPrice" },
+    discount:    { type: "number",  description: "Per-line discount", default: 0 },
+    expiryDate:  { type: "string",  format: "date", description: "Batch expiry date (optional)" },
+    batchCode:   { type: "string",  description: "Batch code / lot number" },
+  },
+};
+
+const orderItemInput = {
+  type: "object",
+  required: ["productId", "quantity"],
+  properties: {
+    productId: { type: "integer", description: "Product ID" },
+    quantity:  { type: "number",  description: "Ordered quantity" },
+    price:     { type: "number",  description: "Unit price" },
+  },
+};
+
+const returnItemInput = {
+  type: "object",
+  required: ["productId", "quantity"],
+  properties: {
+    productId:  { type: "integer", description: "Product ID" },
+    saleItemId: { type: "integer", description: "Original sale item ID (sale returns only)" },
+    purchaseItemId: { type: "integer", description: "Original purchase item ID (purchase returns only)" },
+    quantity:   { type: "number",  description: "Returned quantity" },
+    unitPrice:  { type: "number",  description: "Unit price for refund calculation" },
+  },
+};
+
+const stockCountItemInput = {
+  type: "object",
+  required: ["productId"],
+  properties: {
+    productId:     { type: "integer", description: "Product ID" },
+    physicalCount: { type: "number",  description: "Physically counted quantity",  default: 0 },
+    systemCount:   { type: "number",  description: "System quantity at count time", default: 0 },
+  },
+};
+
+const transferItemInput = {
+  type: "object",
+  required: ["productId", "quantity"],
+  properties: {
+    productId: { type: "integer", description: "Product ID" },
+    quantity:  { type: "number",  description: "Transfer quantity" },
+    unitPrice: { type: "number",  description: "Unit price for valuation", default: 0 },
+  },
+};
+
+const stockRequestItemInput = {
+  type: "object",
+  required: ["productId"],
+  properties: {
+    productId: { type: "integer", description: "Product ID" },
+    quantity:  { type: "number",  description: "Requested quantity", default: 1 },
+  },
+};
+
+const walletChangeBody = {
+  amount:           { type: "number",  description: "Transaction amount (positive)" },
+  paymentNo:        { type: "string",  description: "Reference number (e.g. invoice)" },
+  paymentReference: { type: "string",  description: "External payment reference" },
+  paymentType:      { type: "string",  description: "Payment method label (e.g. M-Pesa, Cash)" },
+};
+
+// ── Subscription info object returned on every shop response ────────────────
+const subscriptionInfoSchema = {
+  type: "object",
+  description: "Active subscription summary — included on every shop object",
+  properties: {
+    subscriptionId: { type: "integer",  description: "Subscription record ID (null when status is none)", nullable: true },
+    type:           { type: "string",   description: "trial | production | null", nullable: true },
+    status:         { type: "string",   description: "active | expired | none", enum: ["active", "expired", "none"] },
+    isActive:       { type: "boolean",  description: "Whether the subscription is marked active" },
+    isPaid:         { type: "boolean",  description: "Whether payment has been confirmed" },
+    startDate:      { ...isoDate,       description: "Subscription start (ISO 8601)", nullable: true },
+    endDate:        { ...isoDate,       description: "Subscription expiry (ISO 8601)", nullable: true },
+    daysRemaining:  { type: "integer",  description: "Days until expiry (negative = already expired)" },
+    isExpired:      { type: "boolean",  description: "True when endDate is in the past" },
+    packageId:      { type: "integer",  description: "Package ID", nullable: true },
+    packageTitle:   { type: "string",   description: "Human-readable plan name", nullable: true },
+  },
+};
+
+// ────────────────────────────────────────────────────────────────────────────
 
 export const openApiSpec = {
   openapi: "3.0.3",
   info: {
     title: "Pointify POS API",
     version: "2.0.0",
-    description:
-      "Backend API for the Pointify POS system. Use the **Authorize** button with `Bearer <token>` to authenticate.\n\n**Token types:** Admin · Attendant · Customer · Affiliate",
+    description: `
+## Pointify POS — REST API
+
+Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authenticate.
+
+### Token types
+| Role | How to obtain | Where to use |
+|---|---|---|
+| **Admin** | \`POST /auth/admin/login\` | Shop management, products, reports, subscriptions |
+| **Attendant** | \`POST /auth/attendant/login\` | POS operations (sales, inventory, orders) |
+| **Customer** | \`POST /auth/customer/login\` | Online storefront, wallet |
+| **Affiliate** | \`POST /affiliates/login\` | Affiliate dashboard |
+
+### Common conventions
+- All amounts (prices, totals) are **numeric strings** in the response (e.g. \`"1500.00"\`) so precision is never lost in JSON.
+- Paginated endpoints return \`{ success, data[], meta: { total, page, limit, totalPages } }\`.
+- Errors return \`{ success: false, error: "Human-readable message" }\`.
+- Required fields are marked in each request body schema.
+- Optional fields can be omitted entirely or set to \`null\` to clear them.
+    `.trim(),
   },
   servers: [{ url: "/api", description: "Current server" }],
   components: {
@@ -98,157 +254,227 @@ export const openApiSpec = {
         type: "object",
         properties: {
           success: { type: "boolean", example: false },
-          error: { type: "string" },
+          error:   { type: "string",  example: "Product category not found" },
         },
       },
+      PaginatedMeta: {
+        type: "object",
+        properties: {
+          total:      { type: "integer" },
+          page:       { type: "integer" },
+          limit:      { type: "integer" },
+          totalPages: { type: "integer" },
+        },
+      },
+      SubscriptionInfo: subscriptionInfoSchema,
+      SaleItemInput:         { ...saleItemInput },
+      PurchaseItemInput:     { ...purchaseItemInput },
+      OrderItemInput:        { ...orderItemInput },
+      ReturnItemInput:       { ...returnItemInput },
+      StockCountItemInput:   { ...stockCountItemInput },
+      TransferItemInput:     { ...transferItemInput },
+      StockRequestItemInput: { ...stockRequestItemInput },
     },
   },
   tags: [
-    { name: "Auth" },
-    { name: "Shops" },
-    { name: "Shop Categories" },
-    { name: "Settings" },
-    { name: "Measures" },
-    { name: "Product Categories" },
-    { name: "Products" },
-    { name: "Inventory" },
-    { name: "Adjustments" },
-    { name: "Bad Stocks" },
-    { name: "Stock Counts" },
-    { name: "Stock Requests" },
-    { name: "Transfers" },
-    { name: "Customers" },
-    { name: "Orders" },
-    { name: "Sales" },
-    { name: "Sale Returns" },
-    { name: "Purchases" },
-    { name: "Purchase Returns" },
-    { name: "Suppliers" },
-    { name: "Expenses" },
-    { name: "Cashflow" },
-    { name: "Banks" },
-    { name: "Payment Methods" },
-    { name: "Affiliates" },
-    { name: "Subscriptions" },
-    { name: "Packages" },
-    { name: "Admin" },
-    { name: "Attendants" },
-    { name: "Permissions" },
-    { name: "Reports" },
-    { name: "Communications" },
-    { name: "Email Templates" },
-    { name: "Sync" },
-    { name: "Activities" },
+    { name: "Auth",             description: "Admin, attendant, and customer authentication" },
+    { name: "Shops",            description: "Shop management — each admin can own multiple shops" },
+    { name: "Shop Categories",  description: "Global shop category catalog (e.g. Retail, Restaurant)" },
+    { name: "Settings",         description: "Per-shop JSON settings store" },
+    { name: "Measures",         description: "Unit-of-measure catalog (kg, pcs, litres …)" },
+    { name: "Product Categories", description: "Admin-scoped product category tree" },
+    { name: "Products",         description: "Product catalog — includes pricing, variants, bundles, images" },
+    { name: "Inventory",        description: "Current stock levels per product/shop" },
+    { name: "Adjustments",      description: "Manual stock adjustments (add / remove)" },
+    { name: "Bad Stocks",       description: "Damaged/expired stock write-offs" },
+    { name: "Stock Counts",     description: "Physical stock-count sessions and variance tracking" },
+    { name: "Stock Requests",   description: "Inter-shop stock requisition from a warehouse" },
+    { name: "Transfers",        description: "Product transfers between shops/warehouses" },
+    { name: "Customers",        description: "Customer profiles, credit limits, and wallet accounts" },
+    { name: "Orders",           description: "Online / pre-orders that can be fulfilled into sales" },
+    { name: "Sales",            description: "POS sales transactions including items and payments" },
+    { name: "Sale Returns",     description: "Customer refund/return processing" },
+    { name: "Purchases",        description: "Supplier purchase orders and GRNs" },
+    { name: "Purchase Returns", description: "Return of goods to supplier" },
+    { name: "Suppliers",        description: "Supplier directory and credit/wallet management" },
+    { name: "Expenses",         description: "Operational expense recording" },
+    { name: "Cashflow",         description: "Cashflow entries linked to bank accounts" },
+    { name: "Banks",            description: "Bank/cashbox accounts" },
+    { name: "Payment Methods",  description: "Global POS payment method catalog (Cash, M-Pesa, Card …)" },
+    { name: "User Payments",    description: "Generic payment records (customer/supplier settlements)" },
+    { name: "Affiliates",       description: "Affiliate partner portal and commission management" },
+    { name: "Subscriptions",    description: "Shop subscription billing lifecycle" },
+    { name: "Packages",         description: "Subscription plan catalog" },
+    { name: "Admin",            description: "Admin profile management" },
+    { name: "Attendants",       description: "POS staff management and PIN authentication" },
+    { name: "Permissions",      description: "Attendant permission catalog" },
+    { name: "Reports",          description: "Business analytics and summary reports" },
+    { name: "Communications",   description: "SMS / email notification settings" },
+    { name: "Email Templates",  description: "Transactional email template management" },
+    { name: "System",           description: "Super-admin system configuration" },
+    { name: "Sync",             description: "Offline-sync endpoints" },
+    { name: "Activities",       description: "Audit log / activity feed" },
   ],
   paths: {
+
     // ── Health ────────────────────────────────────────────────────────────────
     "/healthz": {
       get: {
         tags: ["Auth"],
         summary: "Health check",
-        responses: { 200: { description: "OK" } },
+        description: "Returns 200 when the server is up. No authentication required.",
+        responses: { 200: { description: "Server is healthy" } },
       },
     },
 
-    // ── Auth ─────────────────────────────────────────────────────────────────
+    // ── Admin Auth ────────────────────────────────────────────────────────────
     "/auth/admin/register": {
       post: {
         tags: ["Auth"],
-        summary: "Register admin account",
+        summary: "Register a new admin account",
+        description: "Creates an admin account and sends a 6-digit OTP to the provided email for verification.",
         ...body({
-          name: { type: "string" },
-          email: { type: "string", format: "email" },
-          password: { type: "string" },
-          phone: { type: "string" },
-          referralCode: { type: "string" },
+          name:         { ...strField("Full name", "Jane Doe"), },
+          email:        { type: "string", format: "email", example: "jane@example.com" },
+          password:     { type: "string", format: "password", minLength: 6 },
+          phone:        { ...strField("Phone number (optional)", "+254712345678") },
+          referralCode: { ...strField("Affiliate referral code (optional)") },
         }, ["name", "email", "password"]),
-        responses: { 201: { description: "Admin registered, OTP sent" } },
+        responses: {
+          ...createdResp("Admin registered — OTP sent to email", {
+            id:      intId("Admin ID"),
+            email:   { type: "string" },
+            otp:     { type: "string", description: "6-digit OTP — only included in non-production environments" },
+            message: { type: "string" },
+          }),
+          ...errResp,
+        },
       },
     },
     "/auth/admin/verify-email": {
       post: {
         tags: ["Auth"],
         summary: "Verify email with OTP",
-        ...body({ email: { type: "string" }, otp: { type: "string" } }, ["email", "otp"]),
-        responses: { 200: { description: "Email verified" } },
+        description: "Confirms the admin's email address using the OTP sent during registration or via resend-otp.",
+        ...body({
+          email: { type: "string", format: "email" },
+          otp:   { ...strField("6-digit OTP from email") },
+        }, ["email", "otp"]),
+        responses: {
+          ...dataResp("Email verified", { message: { type: "string" } }),
+          400: { description: "Invalid or expired OTP" },
+        },
       },
     },
     "/auth/admin/resend-otp": {
       post: {
         tags: ["Auth"],
-        summary: "Resend OTP",
-        ...body({ email: { type: "string" } }, ["email"]),
-        responses: { 200: { description: "OTP resent" } },
+        summary: "Resend email verification OTP",
+        ...body({ email: { type: "string", format: "email" } }, ["email"]),
+        responses: {
+          ...dataResp("OTP resent", { message: { type: "string" }, otp: { type: "string", description: "Development only" } }),
+          404: { description: "Admin not found" },
+        },
       },
     },
     "/auth/admin/login": {
       post: {
         tags: ["Auth"],
         summary: "Admin login",
+        description: "Returns a JWT bearer token valid for 30 days.",
         ...body({
-          email: { type: "string" },
-          password: { type: "string" },
+          email:    { type: "string", format: "email" },
+          password: { type: "string", format: "password" },
         }, ["email", "password"]),
-        responses: ok("JWT token + admin object"),
+        responses: {
+          ...dataResp("Login successful", {
+            id:           intId("Admin ID"),
+            email:        { type: "string" },
+            username:     { type: "string" },
+            phone:        { type: "string" },
+            isSuperAdmin: { type: "boolean", description: "True for the configured SUPER_ADMIN_EMAIL" },
+            token:        { ...strField("JWT bearer token — include as `Authorization: Bearer <token>`") },
+          }),
+          401: { description: "Invalid credentials" },
+        },
       },
     },
     "/auth/admin/forgot-password": {
       post: {
         tags: ["Auth"],
         summary: "Request password reset OTP",
-        ...body({ email: { type: "string" } }, ["email"]),
-        responses: { 200: { description: "OTP sent" } },
+        ...body({ email: { type: "string", format: "email" } }, ["email"]),
+        responses: {
+          ...dataResp("OTP sent", { message: { type: "string" }, otp: { type: "string", description: "Development only" } }),
+          404: { description: "No account with that email" },
+        },
       },
     },
     "/auth/admin/reset-password": {
       post: {
         tags: ["Auth"],
-        summary: "Reset password with OTP",
+        summary: "Reset password with OTP (email)",
         ...body({
-          email: { type: "string" },
-          otp: { type: "string" },
-          password: { type: "string" },
+          email:    { type: "string", format: "email" },
+          otp:      { ...strField("OTP from forgot-password email") },
+          password: { type: "string", format: "password", minLength: 6 },
         }, ["email", "otp", "password"]),
-        responses: { 200: { description: "Password updated" } },
+        responses: {
+          ...dataResp("Password updated", { message: { type: "string" } }),
+          400: { description: "Invalid or expired OTP" },
+        },
       },
     },
     "/auth/admin/reset-password-sms": {
       post: {
         tags: ["Auth"],
-        summary: "Reset password via SMS OTP",
+        summary: "Reset password with OTP (SMS / phone)",
         ...body({
-          phone: { type: "string" },
-          otp: { type: "string" },
-          password: { type: "string" },
+          phone:    { ...strField("Registered phone number") },
+          otp:      { ...strField("OTP from SMS") },
+          password: { type: "string", format: "password", minLength: 6 },
         }, ["phone", "otp", "password"]),
-        responses: { 200: { description: "Password updated" } },
-      },
-    },
-    "/auth/admin/save-local": {
-      post: {
-        tags: ["Auth"],
-        summary: "Save admin credentials locally (offline mode)",
-        ...auth(["Admin"]),
-        responses: { 200: { description: "Credentials hash saved" } },
+        responses: {
+          ...dataResp("Password updated", { message: { type: "string" } }),
+          400: { description: "Invalid or expired OTP" },
+        },
       },
     },
     "/auth/admin/logout": {
       post: {
         tags: ["Auth"],
-        summary: "Admin logout",
+        summary: "Admin logout (stateless — invalidates client token)",
         ...auth(["Admin"]),
-        responses: { 200: { description: "Logged out" } },
+        responses: { ...dataResp("Logged out", { message: { type: "string" } }) },
       },
     },
+    "/auth/admin/save-local": {
+      post: {
+        tags: ["Auth"],
+        summary: "Mark credentials saved locally (mobile offline cache)",
+        ...auth(["Admin"]),
+        responses: { ...dataResp("Acknowledged", { message: { type: "string" } }) },
+      },
+    },
+
+    // ── Attendant Auth ────────────────────────────────────────────────────────
     "/auth/attendant/login": {
       post: {
         tags: ["Auth"],
-        summary: "Attendant login",
+        summary: "Attendant PIN login",
+        description: "Authenticates an attendant using their 4-digit PIN and shop ID.",
         ...body({
-          pin: { type: "string" },
-          shopId: { type: "integer" },
+          pin:    { ...strField("4-digit attendant PIN") },
+          shopId: intId("Shop the attendant belongs to"),
         }, ["pin", "shopId"]),
-        responses: ok("JWT token + attendant object"),
+        responses: {
+          ...dataResp("Login successful", {
+            id:       intId("Attendant ID"),
+            username: { type: "string" },
+            token:    { ...strField("JWT bearer token") },
+          }),
+          401: { description: "Invalid PIN or shop" },
+        },
       },
     },
     "/auth/attendant/logout": {
@@ -256,45 +482,54 @@ export const openApiSpec = {
         tags: ["Auth"],
         summary: "Attendant logout",
         ...auth(["Attendant"]),
-        responses: { 200: { description: "Logged out" } },
+        responses: { ...dataResp("Logged out", { message: { type: "string" } }) },
       },
     },
+
+    // ── Me ────────────────────────────────────────────────────────────────────
     "/auth/me": {
       get: {
         tags: ["Auth"],
-        summary: "Get current authenticated user",
+        summary: "Get current user profile",
+        description: "Returns the authenticated user's profile. Works for Admin and Attendant tokens.",
         ...auth(["Admin", "Attendant"]),
-        responses: ok("Current user profile"),
+        responses: {
+          ...dataResp("Current user profile", {
+            id:           intId("User ID"),
+            email:        { type: "string" },
+            username:     { type: "string" },
+            role:         { type: "string", enum: ["admin", "attendant"] },
+            isSuperAdmin: { type: "boolean", description: "Admin only" },
+          }),
+        },
       },
     },
     "/auth/me/last-seen": {
       put: {
         tags: ["Auth"],
-        summary: "Update last seen timestamp",
+        summary: "Update last-seen timestamp",
+        description: "Call on app foreground to keep activity timestamps current.",
         ...auth(["Admin", "Attendant"]),
-        responses: { 200: { description: "Updated" } },
+        responses: { ...dataResp("Updated", { message: { type: "string" } }) },
       },
     },
+
+    // ── Customer Auth ─────────────────────────────────────────────────────────
     "/auth/customer/register": {
       post: {
         tags: ["Auth"],
-        summary: "Customer self-registration",
+        summary: "Register a customer (online storefront)",
         ...body({
-          name: { type: "string" },
-          email: { type: "string" },
-          phone: { type: "string" },
-          password: { type: "string" },
-          shopId: { type: "integer" },
+          name:     { ...strField("Customer full name") },
+          shopId:   intId("Shop the customer belongs to"),
+          email:    { type: "string", format: "email", description: "Customer email (optional)" },
+          phone:    { ...strField("Phone number (optional)") },
+          password: { type: "string", format: "password", description: "Password (optional — required for login)" },
         }, ["name", "shopId"]),
-        responses: { 201: { description: "Customer registered" } },
-      },
-    },
-    "/auth/customer/me": {
-      get: {
-        tags: ["Auth"],
-        summary: "Get current customer profile",
-        ...auth(["Customer"]),
-        responses: ok("Customer profile"),
+        responses: {
+          ...createdResp("Customer registered", { id: intId("Customer ID"), name: { type: "string" }, email: { type: "string" } }),
+          ...errResp,
+        },
       },
     },
     "/auth/customer/login": {
@@ -302,19 +537,25 @@ export const openApiSpec = {
         tags: ["Auth"],
         summary: "Customer login",
         ...body({
-          emailOrPhone: { type: "string" },
-          password: { type: "string" },
-          shopId: { type: "integer" },
+          emailOrPhone: { ...strField("Email or phone number") },
+          password:     { type: "string", format: "password" },
+          shopId:       intId("Shop ID"),
         }, ["emailOrPhone", "password", "shopId"]),
-        responses: ok("JWT token + customer object"),
+        responses: {
+          ...dataResp("Login successful", { token: { type: "string" }, id: intId("Customer ID") }),
+          401: { description: "Invalid credentials" },
+        },
       },
     },
     "/auth/customer/forgot-password": {
       post: {
         tags: ["Auth"],
         summary: "Customer forgot password",
-        ...body({ emailOrPhone: { type: "string" }, shopId: { type: "integer" } }, ["emailOrPhone", "shopId"]),
-        responses: { 200: { description: "OTP sent" } },
+        ...body({
+          emailOrPhone: { ...strField("Registered email or phone") },
+          shopId:       intId("Shop ID"),
+        }, ["emailOrPhone", "shopId"]),
+        responses: { ...dataResp("OTP sent", { message: { type: "string" }, otp: { type: "string", description: "Dev only" } }) },
       },
     },
     "/auth/customer/reset-password": {
@@ -322,12 +563,20 @@ export const openApiSpec = {
         tags: ["Auth"],
         summary: "Customer reset password",
         ...body({
-          emailOrPhone: { type: "string" },
-          otp: { type: "string" },
-          password: { type: "string" },
-          shopId: { type: "integer" },
-        }, ["emailOrPhone", "otp", "password", "shopId"]),
-        responses: { 200: { description: "Password updated" } },
+          emailOrPhone: { ...strField("Registered email or phone") },
+          shopId:       intId("Shop ID"),
+          otp:          { ...strField("OTP from reset email/SMS") },
+          password:     { type: "string", format: "password", minLength: 6 },
+        }, ["emailOrPhone", "shopId", "otp", "password"]),
+        responses: { ...dataResp("Password updated", { message: { type: "string" } }), 400: { description: "Invalid/expired OTP" } },
+      },
+    },
+    "/auth/customer/me": {
+      get: {
+        tags: ["Auth"],
+        summary: "Get current customer profile",
+        ...auth(["Customer"]),
+        responses: { ...dataResp("Customer profile", { id: intId("Customer ID"), name: { type: "string" }, email: { type: "string" }, wallet: moneyStr }) },
       },
     },
 
@@ -335,126 +584,151 @@ export const openApiSpec = {
     "/shops": {
       get: {
         tags: ["Shops"],
-        summary: "List shops for authenticated admin",
+        summary: "List all shops for the authenticated admin",
+        description: "Returns every shop owned by the admin, each enriched with a `subscriptionInfo` object showing the current trial/plan status.",
         ...auth(["Admin"]),
-        responses: list("Shops list"),
+        responses: {
+          ...dataResp("Shops list", {
+            id:               intId("Shop ID"),
+            name:             strField("Shop name"),
+            address:          strField("Physical address"),
+            currency:         strField("ISO 4217 currency code", "KES"),
+            contact:          strField("Contact phone number"),
+            taxRate:          { ...moneyStr, description: "VAT/tax rate as a percentage string" },
+            subscriptionInfo: subscriptionInfoSchema,
+          }),
+        },
       },
       post: {
         tags: ["Shops"],
         summary: "Create a new shop",
+        description: "Creates the shop and automatically starts a 14-day free trial subscription (configurable via system settings).",
         ...auth(["Admin"]),
         ...body({
-          name: { type: "string", description: "Shop display name" },
-          categoryId: { type: "integer", nullable: true, description: "shop_categories.id" },
-          address: { type: "string", nullable: true },
-          receiptAddress: { type: "string", nullable: true, description: "Address line printed on customer receipts" },
-          currency: { type: "string", description: "ISO 4217 code, defaults to KES" },
-          phone: { type: "string", nullable: true, description: "Shop contact phone (stored in shops.contact)" },
-          taxRate: { type: "string", description: "Decimal string, e.g. \"16.00\"" },
-          paybillTill: { type: "string", nullable: true, description: "M-Pesa paybill or till number" },
-          paybillAccount: { type: "string", nullable: true, description: "M-Pesa paybill account reference" },
-          receiptEmail: { type: "string", description: "From-address for emailed receipts" },
-          warehouseEmail: { type: "string", nullable: true },
-          backupEmail: { type: "string", nullable: true, description: "Where periodic data backups are sent" },
-          backupInterval: { type: "string", nullable: true, description: "Free-form cadence label (e.g. daily, weekly)" },
-          locationLat: { type: "number", format: "float" },
-          locationLng: { type: "number", format: "float" },
-          showStockOnline: { type: "boolean" },
-          showPriceOnline: { type: "boolean" },
-          isWarehouse: { type: "boolean" },
-          allowBackup: { type: "boolean" },
-          useWarehouse: { type: "boolean" },
-          trackBatches: { type: "boolean" },
-          allowOnlineSelling: { type: "boolean" },
-          allowNegativeSelling: { type: "boolean" },
-          isProduction: { type: "boolean" },
+          name:                { ...strField("Shop name"), },
+          categoryId:          { ...intId("Shop category ID (optional)") },
+          address:             { ...strField("Physical address") },
+          receiptAddress:      { ...strField("Address shown on receipt (defaults to address)") },
+          currency:            { ...strField("ISO 4217 currency code", "KES") },
+          phone:               { ...strField("Contact phone number") },
+          taxRate:             { type: "number", description: "Tax/VAT rate as a percentage", default: 0 },
+          paybillTill:         { ...strField("M-Pesa paybill or till number") },
+          paybillAccount:      { ...strField("M-Pesa account number") },
+          receiptEmail:        { type: "string", format: "email", description: "Email to send receipts to" },
+          warehouseEmail:      { type: "string", format: "email", description: "Warehouse notification email" },
+          backupEmail:         { type: "string", format: "email", description: "Email to receive data backups" },
+          backupInterval:      { ...strField("Backup frequency (daily | weekly | monthly)") },
+          locationLat:         { type: "number", description: "GPS latitude" },
+          locationLng:         { type: "number", description: "GPS longitude" },
+          showStockOnline:     { ...boolFlag("Show stock levels on the online storefront") },
+          showPriceOnline:     { ...boolFlag("Show prices on the online storefront") },
+          isWarehouse:         { ...boolFlag("Mark this shop as a warehouse (stock source)") },
+          allowBackup:         { ...boolFlag("Enable automatic data backups") },
+          useWarehouse:        { ...boolFlag("This shop draws stock from a warehouse") },
+          trackBatches:        { ...boolFlag("Enable batch/lot tracking") },
+          allowOnlineSelling:  { ...boolFlag("Enable online orders for this shop") },
+          allowNegativeSelling:{ ...boolFlag("Allow sales when stock is zero (negative inventory)") },
+          isProduction:        { ...boolFlag("Mark as live/production shop") },
         }, ["name"]),
-        responses: ok("Created shop", {}),
-      },
-    },
-    "/shops/{shopId}": {
-      get: {
-        tags: ["Shops"],
-        summary: "Get shop by ID",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [idParam("shopId")],
-        responses: ok("Shop details"),
-      },
-      put: {
-        tags: ["Shops"],
-        summary: "Update shop (any subset of fields)",
-        ...auth(["Admin"]),
-        parameters: [idParam("shopId")],
-        ...body({
-          name: { type: "string" },
-          categoryId: { type: "integer", nullable: true },
-          address: { type: "string", nullable: true },
-          receiptAddress: { type: "string", nullable: true },
-          currency: { type: "string" },
-          phone: { type: "string", nullable: true },
-          taxRate: { type: "string" },
-          paybillTill: { type: "string", nullable: true },
-          paybillAccount: { type: "string", nullable: true },
-          receiptEmail: { type: "string" },
-          warehouseEmail: { type: "string", nullable: true },
-          backupEmail: { type: "string", nullable: true },
-          backupInterval: { type: "string", nullable: true },
-          locationLat: { type: "number", format: "float" },
-          locationLng: { type: "number", format: "float" },
-          showStockOnline: { type: "boolean" },
-          showPriceOnline: { type: "boolean" },
-          isWarehouse: { type: "boolean" },
-          allowBackup: { type: "boolean" },
-          useWarehouse: { type: "boolean" },
-          trackBatches: { type: "boolean" },
-          allowOnlineSelling: { type: "boolean" },
-          allowNegativeSelling: { type: "boolean" },
-          isProduction: { type: "boolean" },
-        }),
-        responses: ok("Updated shop"),
-      },
-      delete: {
-        tags: ["Shops"],
-        summary: "Delete shop",
-        ...auth(["Admin"]),
-        parameters: [idParam("shopId")],
-        responses: { 204: { description: "Deleted" } },
-      },
-    },
-    "/shops/{shopId}/data": {
-      delete: {
-        tags: ["Shops"],
-        summary: "Wipe all data for this shop (keep structure)",
-        ...auth(["Admin"]),
-        parameters: [idParam("shopId")],
-        responses: { 200: { description: "Data cleared" } },
+        responses: {
+          ...createdResp("Shop created", { id: intId("Shop ID"), name: { type: "string" } }),
+          ...errResp,
+        },
       },
     },
     "/shops/by-referral/{referralId}": {
       get: {
         tags: ["Shops"],
-        summary: "Find shop by referral code",
-        parameters: [{ name: "referralId", in: "path", required: true, schema: { type: "string" } }],
-        responses: ok("Shop matching referral code"),
+        summary: "Get shop by referral ID (public)",
+        description: "Fetches minimal shop info for the referral/affiliate link flow. No authentication required.",
+        parameters: [idParam("referralId", "Shop referral ID")],
+        responses: { ...dataResp("Shop info", { id: intId("Shop ID"), name: { type: "string" } }), 404: { description: "Shop not found" } },
+      },
+    },
+    "/shops/{shopId}": {
+      get: {
+        tags: ["Shops"],
+        summary: "Get a single shop",
+        description: "Returns full shop details including `subscriptionInfo`.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam("shopId", "Shop ID")],
+        responses: {
+          ...dataResp("Shop details", {
+            id: intId("Shop ID"), name: strField("Shop name"),
+            subscriptionInfo: subscriptionInfoSchema,
+          }),
+          404: { description: "Shop not found" }, 403: { description: "Access denied" },
+        },
+      },
+      put: {
+        tags: ["Shops"],
+        summary: "Update shop",
+        description: "All fields are optional. Only provided fields are updated.",
+        ...auth(["Admin"]),
+        parameters: [idParam("shopId", "Shop ID")],
+        ...body({
+          name:                strField("Shop name"),
+          categoryId:          intId("Shop category ID"),
+          address:             strField("Physical address"),
+          receiptAddress:      strField("Receipt address"),
+          currency:            strField("ISO 4217 currency code", "KES"),
+          phone:               strField("Contact phone"),
+          taxRate:             { type: "number", description: "Tax rate %" },
+          paybillTill:         strField("M-Pesa paybill/till"),
+          paybillAccount:      strField("M-Pesa account"),
+          receiptEmail:        { type: "string", format: "email" },
+          warehouseEmail:      { type: "string", format: "email" },
+          backupEmail:         { type: "string", format: "email" },
+          backupInterval:      strField("daily | weekly | monthly"),
+          locationLat:         { type: "number" },
+          locationLng:         { type: "number" },
+          showStockOnline:     { type: "boolean" },
+          showPriceOnline:     { type: "boolean" },
+          isWarehouse:         { type: "boolean" },
+          allowBackup:         { type: "boolean" },
+          useWarehouse:        { type: "boolean" },
+          trackBatches:        { type: "boolean" },
+          allowOnlineSelling:  { type: "boolean" },
+          allowNegativeSelling:{ type: "boolean" },
+          isProduction:        { type: "boolean" },
+        }),
+        responses: { ...dataResp("Shop updated"), ...errResp },
+      },
+      delete: {
+        tags: ["Shops"],
+        summary: "Delete shop",
+        ...auth(["Admin"]),
+        parameters: [idParam("shopId", "Shop ID")],
+        responses: { ...noContentResp, 403: errResp[403], 404: errResp[404] },
+      },
+    },
+    "/shops/{shopId}/data": {
+      delete: {
+        tags: ["Shops"],
+        summary: "Clear all shop data (irreversible)",
+        description: "Removes all transactional data linked to this shop without deleting the shop record itself.",
+        ...auth(["Admin"]),
+        parameters: [idParam("shopId", "Shop ID")],
+        responses: { ...dataResp("Shop data cleared", { message: { type: "string" }, shopId: intId("Shop ID") }), ...errResp },
       },
     },
     "/shops/{shopId}/redeem-usage": {
       post: {
         tags: ["Shops"],
-        summary: "Redeem free-trial usage unit",
+        summary: "Redeem subscription usage credit",
         ...auth(["Admin"]),
-        parameters: [idParam("shopId")],
-        responses: { 200: { description: "Usage redeemed" } },
+        parameters: [idParam("shopId", "Shop ID")],
+        responses: { ...dataResp("Usage redeemed", { message: { type: "string" } }), ...errResp },
       },
     },
     "/shops/{shopId}/backup-interval": {
       put: {
         tags: ["Shops"],
-        summary: "Update sync backup interval",
+        summary: "Update backup interval",
         ...auth(["Admin"]),
-        parameters: [idParam("shopId")],
-        ...body({ interval: { type: "integer" } }, ["interval"]),
-        responses: { 200: { description: "Updated" } },
+        parameters: [idParam("shopId", "Shop ID")],
+        ...body({ interval: strField("daily | weekly | monthly | never") }, ["interval"]),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
     },
 
@@ -462,16 +736,16 @@ export const openApiSpec = {
     "/shop-categories": {
       get: {
         tags: ["Shop Categories"],
-        summary: "List shop categories",
+        summary: "List shop categories (public)",
         parameters: [...paginationParams, searchParam],
-        responses: list("Shop categories"),
+        responses: listResp("Shop categories", { id: intId("ID"), name: strField("Category name"), icon: strField("Icon name/URL") }),
       },
       post: {
         tags: ["Shop Categories"],
         summary: "Create shop category",
         ...auth(["Admin"]),
-        ...body({ name: { type: "string" }, icon: { type: "string" } }, ["name"]),
-        responses: ok("Created", {}),
+        ...body({ name: strField("Category name"), icon: strField("Icon identifier (optional)") }, ["name"]),
+        responses: { ...createdResp("Created", { id: intId("ID"), name: { type: "string" } }), ...errResp },
       },
     },
     "/shop-categories/{id}": {
@@ -479,199 +753,47 @@ export const openApiSpec = {
         tags: ["Shop Categories"],
         summary: "Get shop category",
         parameters: [idParam()],
-        responses: ok("Shop category"),
+        responses: { ...dataResp("Category"), 404: errResp[404] },
       },
       put: {
         tags: ["Shop Categories"],
         summary: "Update shop category",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" } }),
-        responses: ok("Updated"),
+        ...body({ name: strField("Category name"), icon: strField("Icon identifier") }),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Shop Categories"],
         summary: "Delete shop category",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp, 404: errResp[404] },
       },
     },
 
-    // ── Settings ──────────────────────────────────────────────────────────────
+    // ── Settings (per-shop) ───────────────────────────────────────────────────
     "/settings/{shopId}": {
       get: {
         tags: ["Settings"],
         summary: "Get shop settings",
+        description: "Returns the JSONB settings blob for the shop. Creates an empty record if none exists yet.",
         ...auth(["Admin", "Attendant"]),
-        parameters: [idParam("shopId")],
-        responses: ok("Settings object"),
+        parameters: [idParam("shopId", "Shop ID")],
+        responses: { ...dataResp("Settings object (free-form JSON)") },
       },
       put: {
         tags: ["Settings"],
         summary: "Update shop settings",
+        description: "Deep-merges the provided object into the existing settings. Existing keys not in the request body are preserved.",
         ...auth(["Admin"]),
-        parameters: [idParam("shopId")],
-        ...body({
-          currency: { type: "string" },
-          taxRate: { type: "number" },
-          receiptFooter: { type: "string" },
-          lowStockAlert: { type: "integer" },
-        }),
-        responses: ok("Updated settings"),
-      },
-    },
-
-    // ── System (global config) ────────────────────────────────────────────────
-    "/system/settings": {
-      get: {
-        tags: ["System"],
-        summary: "List global system settings",
-        description: "Paginated list of all global key/value settings (e.g. mpesa, smtp, email). Super-admin only.",
-        ...auth(["Admin"]),
-        parameters: [...paginationParams, searchParam],
-        responses: list("Global settings"),
-      },
-    },
-    "/system/settings/{name}": {
-      get: {
-        tags: ["System"],
-        summary: "Get a global setting by name",
-        description: "Returns `{ name, setting: {} }` if the setting does not yet exist.",
-        ...auth(["Admin"]),
-        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
-        responses: ok("Setting"),
-      },
-      put: {
-        tags: ["System"],
-        summary: "Upsert a global setting (shallow-merge JSONB)",
-        description: "Body may be the raw value object or `{ setting: {...} }`. Existing keys are preserved and overwritten only by incoming keys.",
-        ...auth(["Admin"]),
-        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
-        ...body({ setting: { type: "object", additionalProperties: true } }),
-        responses: ok("Updated setting"),
-      },
-      delete: {
-        tags: ["System"],
-        summary: "Delete a global setting",
-        ...auth(["Admin"]),
-        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
-        responses: ok("Deleted"),
-      },
-    },
-    "/system/shop-categories": {
-      get: {
-        tags: ["System"],
-        summary: "List shop categories (system alias)",
-        parameters: [...paginationParams, searchParam],
-        responses: list("Shop categories"),
-      },
-    },
-    "/system/shop-categories/{id}": {
-      get: {
-        tags: ["System"],
-        summary: "Get shop category by id (system alias)",
-        parameters: [idParam()],
-        responses: ok("Shop category"),
-      },
-    },
-    "/system/shop-metrics": {
-      get: {
-        tags: ["System"],
-        summary: "Platform-wide metrics",
-        description: "Counts of shops and admins. Super-admin only.",
-        ...auth(["Admin"]),
-        responses: ok("Platform metrics", {
-          shops: { type: "integer" },
-          admins: { type: "integer" },
-          generatedAt: { type: "string", format: "date-time" },
-        }),
-      },
-    },
-
-    // ── Email Templates ───────────────────────────────────────────────────────
-    "/email-templates": {
-      get: {
-        tags: ["Email Templates"],
-        summary: "List all email templates (defaults merged with overrides)",
-        description: "Returns every template, marking which ones have been customized via `isOverridden`.",
-        ...auth(["Admin"]),
-        responses: list("Email templates"),
-      },
-    },
-    "/email-templates/defaults": {
-      get: {
-        tags: ["Email Templates"],
-        summary: "List built-in default templates only",
-        ...auth(["Admin"]),
-        responses: list("Default templates"),
-      },
-    },
-    "/email-templates/seed": {
-      post: {
-        tags: ["Email Templates"],
-        summary: "Seed default templates into the database",
-        description: "Inserts any default templates that aren't yet stored. Pass `?overwrite=true` (or `{ overwrite: true }`) to replace existing rows.",
-        ...auth(["Admin"]),
-        responses: ok("Seed result", {
-          created: { type: "array", items: { type: "string" } },
-          updated: { type: "array", items: { type: "string" } },
-          skipped: { type: "array", items: { type: "string" } },
-          totalDefaults: { type: "integer" },
-        }),
-      },
-    },
-    "/email-templates/{key}/preview": {
-      get: {
-        tags: ["Email Templates"],
-        summary: "Preview a template rendered with sample data",
-        description: "Default `format=html` returns a renderable HTML page (open in a browser). Use `format=json` for a JSON payload, `format=text` for plain text. Any extra query parameters override sample variables (e.g. `?adminName=Bob&shopName=Test`).",
-        ...auth(["Admin"]),
-        parameters: [
-          { name: "key", in: "path", required: true, schema: { type: "string" } },
-          { name: "format", in: "query", required: false, schema: { type: "string", enum: ["html", "json", "text"] } },
-        ],
-        responses: ok("Rendered preview"),
-      },
-      post: {
-        tags: ["Email Templates"],
-        summary: "Preview a template with custom variables",
-        ...auth(["Admin"]),
-        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
-        ...body({ variables: { type: "object", additionalProperties: true } }),
-        responses: ok("Rendered preview"),
-      },
-    },
-    "/email-templates/{key}": {
-      get: {
-        tags: ["Email Templates"],
-        summary: "Get a single template (override or default)",
-        ...auth(["Admin"]),
-        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
-        responses: ok("Email template"),
-      },
-      put: {
-        tags: ["Email Templates"],
-        summary: "Save / update a template",
-        description: "For built-in keys you can send only the fields you want to change. Custom keys must include `subject` and `html`.",
-        ...auth(["Admin"]),
-        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
-        ...body({
-          subject: { type: "string" },
-          html: { type: "string" },
-          text: { type: "string" },
-          category: { type: "string" },
-          description: { type: "string" },
-          variables: { type: "array", items: { type: "string" } },
-        }),
-        responses: ok("Updated template"),
-      },
-      delete: {
-        tags: ["Email Templates"],
-        summary: "Remove the override and revert to the built-in default",
-        ...auth(["Admin"]),
-        parameters: [{ name: "key", in: "path", required: true, schema: { type: "string" } }],
-        responses: ok("Reverted"),
+        parameters: [idParam("shopId", "Shop ID")],
+        requestBody: {
+          required: true,
+          description: "Settings key-value pairs to merge (any JSON object)",
+          content: { "application/json": { schema: { type: "object", additionalProperties: true, example: { theme: "dark", allowCredit: true } } } },
+        },
+        responses: { ...dataResp("Merged settings"), ...errResp },
       },
     },
 
@@ -679,41 +801,41 @@ export const openApiSpec = {
     "/measures": {
       get: {
         tags: ["Measures"],
-        summary: "List measure units",
+        summary: "List units of measure",
         ...auth(["Admin", "Attendant"]),
         parameters: [...paginationParams, searchParam],
-        responses: list("Measure units"),
+        responses: listResp("Measures", { id: intId("ID"), name: strField("Unit name", "kg") }),
       },
       post: {
         tags: ["Measures"],
-        summary: "Create measure unit",
+        summary: "Create unit of measure",
         ...auth(["Admin"]),
-        ...body({ name: { type: "string" } }, ["name"]),
-        responses: ok("Created measure unit", {}),
+        ...body({ name: strField("Unit name (e.g. kg, pcs, litres)") }, ["name"]),
+        responses: { ...createdResp("Created"), ...errResp },
       },
     },
     "/measures/{id}": {
       get: {
         tags: ["Measures"],
-        summary: "Get measure unit",
+        summary: "Get measure",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Measure unit"),
+        responses: { ...dataResp("Measure"), 404: errResp[404] },
       },
       put: {
         tags: ["Measures"],
-        summary: "Update measure unit",
+        summary: "Update measure",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" } }),
-        responses: ok("Updated"),
+        ...body({ name: strField("New unit name") }, ["name"]),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Measures"],
-        summary: "Delete measure unit",
+        summary: "Delete measure",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp, 404: errResp[404] },
       },
     },
 
@@ -722,24 +844,20 @@ export const openApiSpec = {
       get: {
         tags: ["Product Categories"],
         summary: "List product categories",
+        description: "Returns categories owned by the authenticated admin.",
         ...auth(["Admin", "Attendant"]),
-        parameters: [
-          ...paginationParams,
-          searchParam,
-          { name: "shopId", in: "query", schema: { type: "integer" } },
-        ],
-        responses: list("Product categories"),
+        parameters: [...paginationParams, searchParam],
+        responses: listResp("Product categories", { id: intId("ID"), name: strField("Category name"), admin: intId("Owner admin ID") }),
       },
       post: {
         tags: ["Product Categories"],
         summary: "Create product category",
         ...auth(["Admin"]),
-        ...body({
-          name: { type: "string" },
-          shopId: { type: "integer" },
-          color: { type: "string" },
-        }, ["name", "shopId"]),
-        responses: ok("Created", {}),
+        ...body({ name: strField("Category name (must be unique per admin)") }, ["name"]),
+        responses: {
+          ...createdResp("Created", { id: intId("ID"), name: { type: "string" }, admin: intId("Admin ID") }),
+          ...errResp,
+        },
       },
     },
     "/product-categories/{id}": {
@@ -748,22 +866,22 @@ export const openApiSpec = {
         summary: "Get product category",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Product category"),
+        responses: { ...dataResp("Category"), 404: errResp[404] },
       },
       put: {
         tags: ["Product Categories"],
-        summary: "Update product category",
+        summary: "Rename product category",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" }, color: { type: "string" } }),
-        responses: ok("Updated"),
+        ...body({ name: strField("New category name") }),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Product Categories"],
         summary: "Delete product category",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp, 404: errResp[404] },
       },
     },
 
@@ -771,362 +889,625 @@ export const openApiSpec = {
     "/products": {
       get: {
         tags: ["Products"],
-        summary: "List products",
+        summary: "List products (paginated)",
         ...auth(["Admin", "Attendant"]),
         parameters: [
-          ...paginationParams,
-          searchParam,
-          { name: "shopId", in: "query", schema: { type: "integer" } },
-          { name: "categoryId", in: "query", schema: { type: "integer" } },
-          { name: "lowStock", in: "query", schema: { type: "boolean" } },
+          ...paginationParams, searchParam,
+          shopIdQuery,
+          { name: "categoryId", in: "query", description: "Filter by product category", schema: { type: "integer" } },
         ],
-        responses: list("Products"),
+        responses: listResp("Products", {
+          id:             intId("Product ID"),
+          name:           strField("Product name"),
+          barcode:        strField("Barcode / SKU"),
+          buyingPrice:    moneyStr,
+          sellingPrice:   moneyStr,
+          wholesalePrice: moneyStr,
+          dealerPrice:    moneyStr,
+          measureUnit:    strField("Unit of measure"),
+          manufacturer:   strField("Manufacturer/brand"),
+          productType:    strField("product | service | bundle"),
+          isDeleted:      boolFlag("Soft-deleted flag"),
+          shop:           intId("Shop ID"),
+          category:       intId("Category ID"),
+          supplier:       intId("Supplier ID"),
+          thumbnailUrl:   strField("Thumbnail image URL/data"),
+          createdAt:      isoDate,
+        }),
       },
       post: {
         tags: ["Products"],
-        summary: "Create product",
+        summary: "Create a product",
+        ...auth(["Admin", "Attendant"]),
+        ...body({
+          name:           strField("Product name"),
+          shopId:         intId("Shop this product belongs to"),
+          categoryId:     { ...intId("Product category ID (optional)") },
+          barcode:        strField("Barcode / SKU (optional)"),
+          serialNumber:   strField("Serial number (optional)"),
+          buyingPrice:    { type: "number", description: "Unit buying/cost price" },
+          sellingPrice:   { type: "number", description: "Default retail selling price" },
+          wholesalePrice: { type: "number", description: "Wholesale selling price" },
+          dealerPrice:    { type: "number", description: "Dealer selling price" },
+          measureUnit:    strField("Unit of measure (e.g. pcs, kg)"),
+          manufacturer:   strField("Manufacturer or brand name"),
+          supplierId:     intId("Default supplier ID (optional)"),
+          description:    strField("Product description"),
+          alertQuantity:  { type: "number", description: "Low-stock alert threshold" },
+          expiryDate:     { type: "string", format: "date", description: "Product expiry date" },
+          type:           { type: "string", enum: ["product", "service", "bundle"], default: "product" },
+        }, ["name", "shopId"]),
+        responses: {
+          ...createdResp("Product created", { id: intId("Product ID"), name: { type: "string" } }),
+          ...errResp,
+        },
+      },
+    },
+    "/products/search": {
+      get: {
+        tags: ["Products"],
+        summary: "Quick product search",
+        description: "Returns up to 20 matches — optimised for POS autocomplete.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [
+          { name: "q",      in: "query", required: true,  description: "Search term", schema: { type: "string" } },
+          { name: "shopId", in: "query", required: true,  description: "Shop to search within", schema: { type: "integer" } },
+        ],
+        responses: listResp("Matched products"),
+      },
+    },
+    "/products/bulk-import": {
+      post: {
+        tags: ["Products"],
+        summary: "Bulk import products",
+        description: "Inserts an array of product objects in a single request.",
         ...auth(["Admin"]),
         ...body({
-          name: { type: "string" },
-          shopId: { type: "integer" },
-          categoryId: { type: "integer" },
-          barcode: { type: "string" },
-          buyingPrice: { type: "number" },
-          sellingPrice: { type: "number" },
-          quantity: { type: "number" },
-          unit: { type: "string" },
-          measureId: { type: "integer" },
-          alertQuantity: { type: "integer" },
-          expiryDate: { type: "string", format: "date" },
-        }, ["name", "shopId", "sellingPrice"]),
-        responses: ok("Created product", {}),
+          shopId:   intId("Shop to import into"),
+          products: {
+            type: "array",
+            description: "Array of product objects",
+            items: {
+              type: "object",
+              required: ["name"],
+              properties: {
+                name:           strField("Product name"),
+                categoryId:     intId("Category ID (optional)"),
+                barcode:        strField("Barcode"),
+                buyingPrice:    { type: "number" },
+                sellingPrice:   { type: "number" },
+                wholesalePrice: { type: "number" },
+                dealerPrice:    { type: "number" },
+                measureUnit:    strField("Unit of measure"),
+                manufacturer:   strField("Manufacturer"),
+                supplierId:     intId("Supplier ID"),
+                description:    strField("Description"),
+                type:           { type: "string", enum: ["product", "service", "bundle"] },
+              },
+            },
+          },
+        }, ["shopId", "products"]),
+        responses: {
+          ...dataResp("Import summary", {
+            created:  intId("Number of products created"),
+            skipped:  intId("Number of rows skipped due to errors"),
+            errors:   { type: "array", items: { type: "string" } },
+            products: { type: "array" },
+          }),
+          ...errResp,
+        },
+      },
+    },
+    "/products/attributes": {
+      get: {
+        tags: ["Products"],
+        summary: "List product attributes (colour, size, etc.)",
+        ...auth(["Admin", "Attendant"]),
+        responses: dataResp("Attributes with variants"),
+      },
+      post: {
+        tags: ["Products"],
+        summary: "Create product attribute",
+        ...auth(["Admin"]),
+        ...body({
+          title:     strField("Display title, e.g. 'Colour'"),
+          name:      strField("Machine-readable key, e.g. 'color'"),
+          inputType: strField("select | radio | text | checkbox"),
+          type:      strField("Attribute type (optional)"),
+          status:    strField("active | inactive"),
+        }, ["title", "name"]),
+        responses: { ...createdResp("Attribute created"), ...errResp },
+      },
+    },
+    "/products/attributes/{id}": {
+      get: {
+        tags: ["Products"],
+        summary: "Get attribute with variants",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Attribute"), 404: errResp[404] },
+      },
+    },
+    "/products/attributes/{id}/variants": {
+      post: {
+        tags: ["Products"],
+        summary: "Add variant to attribute",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({
+          name:   strField("Variant value, e.g. 'Red'"),
+          status: strField("active | inactive"),
+        }, ["name"]),
+        responses: { ...createdResp("Variant added"), ...errResp },
       },
     },
     "/products/{id}": {
       get: {
         tags: ["Products"],
-        summary: "Get product",
+        summary: "Get product by ID",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Product"),
+        responses: { ...dataResp("Product with category"), 404: errResp[404] },
       },
       put: {
         tags: ["Products"],
         summary: "Update product",
+        description: "Only provided fields are updated.",
         ...auth(["Admin"]),
         parameters: [idParam()],
         ...body({
-          name: { type: "string" },
-          buyingPrice: { type: "number" },
-          sellingPrice: { type: "number" },
-          quantity: { type: "number" },
+          name:           strField("Product name"),
+          categoryId:     intId("Category ID (set to null to clear)"),
+          barcode:        strField("Barcode"),
+          serialNumber:   strField("Serial number"),
+          buyingPrice:    { type: "number" },
+          sellingPrice:   { type: "number" },
+          wholesalePrice: { type: "number" },
+          dealerPrice:    { type: "number" },
+          measureUnit:    strField("Unit of measure"),
+          manufacturer:   strField("Manufacturer"),
+          supplierId:     intId("Supplier ID"),
+          description:    strField("Description"),
+          alertQuantity:  { type: "number" },
+          type:           { type: "string", enum: ["product", "service", "bundle"] },
         }),
-        responses: ok("Updated product"),
+        responses: { ...dataResp("Updated product"), ...errResp },
       },
       delete: {
         tags: ["Products"],
         summary: "Delete product",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp, 404: errResp[404] },
       },
     },
     "/products/{id}/image": {
       put: {
         tags: ["Products"],
-        summary: "Upload product image",
+        summary: "Upload product thumbnail",
+        description: "Send as `multipart/form-data` with a field named `image` (max 5 MB).",
         ...auth(["Admin"]),
         parameters: [idParam()],
         requestBody: {
-          content: { "multipart/form-data": { schema: { type: "object", properties: { image: { type: "string", format: "binary" } } } } },
+          required: true,
+          content: { "multipart/form-data": { schema: { type: "object", required: ["image"], properties: { image: { type: "string", format: "binary", description: "Image file (JPEG/PNG/WebP, max 5 MB)" } } } } },
         },
-        responses: ok("Image URL updated"),
+        responses: { ...dataResp("Thumbnail updated", { imageUrl: strField("Data URL of stored image") }), ...errResp },
       },
     },
-    "/products/search": {
-      get: {
+    "/products/{id}/images": {
+      post: {
         tags: ["Products"],
-        summary: "Quick product search by name/barcode",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [
-          { name: "q", in: "query", required: true, schema: { type: "string" } },
-          { name: "shopId", in: "query", required: true, schema: { type: "integer" } },
-        ],
-        responses: list("Matched products"),
+        summary: "Upload additional product images",
+        description: "Send as `multipart/form-data` with field(s) named `images` (max 10 files, 5 MB each).",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        requestBody: {
+          required: true,
+          content: { "multipart/form-data": { schema: { type: "object", required: ["images"], properties: { images: { type: "array", items: { type: "string", format: "binary" }, description: "Up to 10 image files" } } } } },
+        },
+        responses: { ...dataResp("Images uploaded", { images: { type: "array", items: { type: "string" } } }), ...errResp },
       },
     },
     "/products/{id}/serials": {
       get: {
         tags: ["Products"],
-        summary: "List serials for a product",
+        summary: "List serial numbers for a product",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: list("Serial numbers"),
+        responses: dataResp("Serial numbers"),
       },
       post: {
         tags: ["Products"],
-        summary: "Add serial numbers to product",
+        summary: "Add serial numbers to a product",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ serials: { type: "array", items: { type: "string" } } }, ["serials"]),
-        responses: ok("Serials added"),
-      },
-    },
-
-    // ── Bundle Items ──────────────────────────────────────────────────────────
-    "/bundle-items": {
-      get: {
-        tags: ["Products"],
-        summary: "List bundle items",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [{ name: "productId", in: "query", schema: { type: "integer" } }],
-        responses: list("Bundle items"),
-      },
-      post: {
-        tags: ["Products"],
-        summary: "Create bundle item",
-        ...auth(["Admin"]),
         ...body({
-          productId: { type: "integer" },
-          bundledProductId: { type: "integer" },
-          quantity: { type: "number" },
-        }, ["productId", "bundledProductId", "quantity"]),
-        responses: ok("Created", {}),
+          shopId:  intId("Shop to assign serials to"),
+          serials: { type: "array", items: { type: "string" }, description: "Array of serial number strings" },
+        }, ["shopId", "serials"]),
+        responses: { ...createdResp("Serials added"), ...errResp },
       },
     },
-    "/bundle-items/{id}": {
+    "/products/{id}/bundle-items": {
       get: {
         tags: ["Products"],
-        summary: "Get bundle item",
+        summary: "List bundle components",
+        description: "Returns the component products of a bundle-type product.",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Bundle item"),
+        responses: dataResp("Bundle items"),
       },
-      put: {
+      post: {
         tags: ["Products"],
-        summary: "Update bundle item",
+        summary: "Add component to bundle",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ quantity: { type: "number" } }),
-        responses: ok("Updated"),
+        ...body({
+          componentProductId: intId("Product ID of the component"),
+          quantity:           { type: "number", description: "Component quantity per bundle unit" },
+        }, ["componentProductId", "quantity"]),
+        responses: { ...createdResp("Component added"), ...errResp },
       },
-      delete: {
+    },
+    "/products/{id}/sales-history": {
+      get: {
         tags: ["Products"],
-        summary: "Delete bundle item",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        summary: "Product sales history",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam(), shopIdQuery, fromParam, toParam, ...paginationParams],
+        responses: listResp("Sale line items for this product"),
+      },
+    },
+    "/products/{id}/purchases-history": {
+      get: {
+        tags: ["Products"],
+        summary: "Product purchase history",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam(), shopIdQuery, fromParam, toParam, ...paginationParams],
+        responses: listResp("Purchase line items for this product"),
+      },
+    },
+    "/products/{id}/stock-history": {
+      get: {
+        tags: ["Products"],
+        summary: "Product stock adjustment & write-off history",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam(), shopIdQuery],
+        responses: dataResp("Adjustment and bad-stock events"),
+      },
+    },
+    "/products/{id}/transfer-history": {
+      get: {
+        tags: ["Products"],
+        summary: "Product transfer history",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam(), shopIdQuery, ...paginationParams],
+        responses: listResp("Transfer line items for this product"),
+      },
+    },
+    "/products/{id}/summary": {
+      get: {
+        tags: ["Products"],
+        summary: "Product performance summary",
+        description: "Returns aggregated sales, purchases, and current stock for a single product.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam(), shopIdQuery],
+        responses: dataResp("Product summary", {
+          product:      { type: "object" },
+          sales:        { type: "object", properties: { totalSoldQty: moneyStr, totalSoldValue: moneyStr, saleCount: intId("Count") } },
+          purchases:    { type: "object", properties: { totalPurchasedQty: moneyStr, totalPurchasedValue: moneyStr, purchaseCount: intId("Count") } },
+          currentStock: { ...moneyStr, description: "Current inventory quantity" },
+          stockValue:   { ...moneyStr, description: "currentStock × buyingPrice" },
+        }),
       },
     },
 
     // ── Inventory ─────────────────────────────────────────────────────────────
-    "/shops/{shopId}/inventory": {
+    "/inventory": {
       get: {
         tags: ["Inventory"],
-        summary: "List inventory for shop",
+        summary: "List inventory records",
+        description: "Each record represents the stock level of one product in one shop.",
         ...auth(["Admin", "Attendant"]),
-        parameters: [idParam("shopId"), ...paginationParams, searchParam],
-        responses: list("Inventory rows"),
+        parameters: [
+          ...paginationParams, shopIdQuery,
+          { name: "productId", in: "query", description: "Filter by product", schema: { type: "integer" } },
+        ],
+        responses: listResp("Inventory records", {
+          id:        intId("Record ID"),
+          shop:      intId("Shop ID"),
+          product:   intId("Product ID"),
+          quantity:  moneyStr,
+          ...timestamps,
+        }),
       },
     },
-    "/inventory/{id}": {
+    "/inventory/item/{id}": {
       get: {
         tags: ["Inventory"],
-        summary: "Get inventory record",
+        summary: "Get inventory record by ID",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Inventory record"),
+        responses: { ...dataResp("Inventory record"), 404: errResp[404] },
+      },
+    },
+    "/inventory/batches": {
+      get: {
+        tags: ["Inventory"],
+        summary: "List product batches",
+        description: "Batch records track expiry dates and lot numbers for perishable/tracked products.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [
+          ...paginationParams, shopIdQuery,
+          { name: "productId", in: "query", description: "Filter by product", schema: { type: "integer" } },
+        ],
+        responses: listResp("Batches", {
+          id:             intId("Batch ID"),
+          shop:           intId("Shop ID"),
+          product:        intId("Product ID"),
+          quantity:       moneyStr,
+          expirationDate: isoDate,
+        }),
       },
     },
 
     // ── Adjustments ───────────────────────────────────────────────────────────
-    "/adjustments": {
+    "/inventory/adjustments": {
       get: {
         tags: ["Adjustments"],
         summary: "List stock adjustments",
-        ...auth(["Admin"]),
-        parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Adjustments"),
+        ...auth(["Admin", "Attendant"]),
+        parameters: [...paginationParams, shopIdQuery],
+        responses: listResp("Adjustments"),
       },
       post: {
         tags: ["Adjustments"],
         summary: "Create stock adjustment",
+        description: "Use to correct stock levels. Provide `quantityBefore` + `quantityAfter` for an explicit change, or just `quantity` for the final target.",
         ...auth(["Admin", "Attendant"]),
         ...body({
-          productId: { type: "integer" },
-          shopId: { type: "integer" },
-          quantity: { type: "number" },
-          type: { type: "string", enum: ["increase", "decrease"] },
-          reason: { type: "string" },
-        }, ["productId", "shopId", "quantity", "type"]),
-        responses: ok("Created adjustment", {}),
+          shopId:         intId("Shop ID"),
+          productId:      intId("Product ID"),
+          quantityBefore: { type: "number", description: "Stock quantity before adjustment (alternative: omit and use quantity)" },
+          quantityAfter:  { type: "number", description: "Stock quantity after adjustment" },
+          quantity:       { type: "number", description: "Shorthand: set this as the new quantity (uses 0 as quantityBefore)" },
+          reason:         strField("Reason for adjustment (e.g. 'Damaged', 'Counted')"),
+          type:           { type: "string", enum: ["add", "remove"], description: "Inferred from before/after if omitted" },
+        }, ["shopId", "productId"]),
+        responses: { ...createdResp("Adjustment recorded"), ...errResp },
       },
     },
-    "/adjustments/{id}": {
-      get: {
-        tags: ["Adjustments"],
-        summary: "Get adjustment",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: ok("Adjustment"),
-      },
+    "/inventory/adjustments/{id}": {
       delete: {
         tags: ["Adjustments"],
         summary: "Delete adjustment",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
       },
     },
 
     // ── Bad Stocks ────────────────────────────────────────────────────────────
-    "/bad-stocks": {
+    "/inventory/bad-stocks": {
       get: {
         tags: ["Bad Stocks"],
-        summary: "List bad stocks (damaged / expired)",
-        ...auth(["Admin"]),
-        parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Bad stock records"),
+        summary: "List bad-stock / write-off records",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [...paginationParams, shopIdQuery],
+        responses: listResp("Bad stock records"),
       },
       post: {
         tags: ["Bad Stocks"],
-        summary: "Record bad stock",
+        summary: "Record damaged / expired stock write-off",
         ...auth(["Admin", "Attendant"]),
         ...body({
-          productId: { type: "integer" },
-          shopId: { type: "integer" },
-          quantity: { type: "number" },
-          reason: { type: "string" },
-        }, ["productId", "shopId", "quantity"]),
-        responses: ok("Created", {}),
+          shopId:    intId("Shop ID"),
+          productId: intId("Product ID"),
+          quantity:  { type: "number", description: "Quantity written off" },
+          unitPrice: { type: "number", description: "Unit cost for loss valuation (defaults to 0)" },
+          reason:    strField("Write-off reason (e.g. 'Expired', 'Damaged')"),
+        }, ["shopId", "productId", "quantity", "reason"]),
+        responses: { ...createdResp("Write-off recorded"), ...errResp },
       },
     },
-    "/bad-stocks/{id}": {
-      get: {
-        tags: ["Bad Stocks"],
-        summary: "Get bad stock record",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: ok("Bad stock"),
-      },
+    "/inventory/bad-stocks/{id}": {
       delete: {
         tags: ["Bad Stocks"],
-        summary: "Delete bad stock record",
+        summary: "Delete bad-stock record",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
       },
     },
 
     // ── Stock Counts ──────────────────────────────────────────────────────────
-    "/stock-counts": {
+    "/inventory/stock-counts": {
       get: {
         tags: ["Stock Counts"],
-        summary: "List stock counts",
-        ...auth(["Admin"]),
-        parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Stock counts"),
+        summary: "List stock-count sessions",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [...paginationParams, shopIdQuery],
+        responses: listResp("Stock-count sessions with items"),
       },
       post: {
         tags: ["Stock Counts"],
-        summary: "Create stock count session",
-        ...auth(["Admin"]),
+        summary: "Start a new stock-count session",
+        ...auth(["Admin", "Attendant"]),
         ...body({
-          shopId: { type: "integer" },
-          title: { type: "string" },
-        }, ["shopId"]),
-        responses: ok("Created stock count", {}),
+          shopId: intId("Shop being counted"),
+          items:  { type: "array", description: "Products counted in this session", items: stockCountItemInput },
+        }, ["shopId", "items"]),
+        responses: { ...createdResp("Stock count created"), ...errResp },
       },
     },
-    "/stock-counts/{id}": {
+    "/inventory/stock-counts/product-search": {
       get: {
         tags: ["Stock Counts"],
-        summary: "Get stock count with items",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: ok("Stock count"),
+        summary: "Search products for counting",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [
+          { name: "shopId", in: "query", required: true,  schema: { type: "integer" }, description: "Shop ID" },
+          { name: "q",      in: "query", required: false, schema: { type: "string"  }, description: "Search term (name or barcode)" },
+        ],
+        responses: dataResp("Matching products"),
       },
-      put: {
+    },
+    "/inventory/stock-counts/product-filter": {
+      get: {
         tags: ["Stock Counts"],
-        summary: "Update stock count (approve / add items)",
-        ...auth(["Admin"]),
+        summary: "List all products for counting with current inventory",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [{ name: "shopId", in: "query", required: true, schema: { type: "integer" } }],
+        responses: dataResp("Products with inventory"),
+      },
+    },
+    "/inventory/stock-counts/by-product/{productId}": {
+      get: {
+        tags: ["Stock Counts"],
+        summary: "Count history for a specific product",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam("productId", "Product ID"), ...paginationParams],
+        responses: listResp("Stock-count items"),
+      },
+    },
+    "/inventory/stock-counts/{id}": {
+      get: {
+        tags: ["Stock Counts"],
+        summary: "Get stock-count session",
+        ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        ...body({ status: { type: "string", enum: ["draft", "completed"] }, items: { type: "array" } }),
-        responses: ok("Updated"),
+        responses: { ...dataResp("Stock-count session with items"), 404: errResp[404] },
       },
       delete: {
         tags: ["Stock Counts"],
-        summary: "Delete stock count",
+        summary: "Delete stock-count session",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
       },
     },
-    "/stock-counts/product-search": {
-      get: {
+    "/inventory/stock-counts/{id}/items": {
+      post: {
         tags: ["Stock Counts"],
-        summary: "Search products for stock count",
+        summary: "Add items to an existing stock-count session",
         ...auth(["Admin", "Attendant"]),
-        parameters: [
-          { name: "q", in: "query", schema: { type: "string" } },
-          { name: "shopId", in: "query", required: true, schema: { type: "integer" } },
-        ],
-        responses: list("Products with current quantity"),
+        parameters: [idParam()],
+        ...body({ items: { type: "array", items: stockCountItemInput } }, ["items"]),
+        responses: { ...createdResp("Items added"), ...errResp },
       },
     },
-    "/stock-counts/by-product/{productId}": {
-      get: {
+    "/inventory/stock-counts/{id}/apply": {
+      post: {
         tags: ["Stock Counts"],
-        summary: "Stock count history for a product",
-        ...auth(["Admin"]),
-        parameters: [idParam("productId")],
-        responses: list("Stock count records for product"),
+        summary: "Apply stock-count results",
+        description: "Converts count variances into stock adjustments and updates inventory quantities.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Applied", { applied: intId("Adjustments created") }), ...errResp },
       },
     },
 
     // ── Stock Requests ────────────────────────────────────────────────────────
-    "/stock-requests": {
+    "/inventory/stock-requests": {
       get: {
         tags: ["Stock Requests"],
         summary: "List stock requests",
         ...auth(["Admin", "Attendant"]),
-        parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Stock requests"),
+        parameters: [...paginationParams, shopIdQuery],
+        responses: listResp("Stock requests with items"),
       },
       post: {
         tags: ["Stock Requests"],
         summary: "Create stock request",
+        description: "Requests stock from a warehouse shop.",
         ...auth(["Admin", "Attendant"]),
         ...body({
-          fromShopId: { type: "integer" },
-          toShopId: { type: "integer" },
-          items: { type: "array" },
-        }, ["fromShopId", "toShopId", "items"]),
-        responses: ok("Created", {}),
+          fromShopId:  intId("Requesting shop ID"),
+          warehouseId: intId("Warehouse shop ID"),
+          items:       { type: "array", items: stockRequestItemInput },
+        }, ["fromShopId", "warehouseId", "items"]),
+        responses: { ...createdResp("Stock request created"), ...errResp },
       },
     },
-    "/stock-requests/{id}": {
+    "/inventory/stock-requests/by-product/{productId}": {
+      get: {
+        tags: ["Stock Requests"],
+        summary: "Stock request history for a product",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam("productId", "Product ID"), ...paginationParams],
+        responses: listResp("Stock request items"),
+      },
+    },
+    "/inventory/stock-requests/{id}": {
       get: {
         tags: ["Stock Requests"],
         summary: "Get stock request",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Stock request"),
-      },
-      put: {
-        tags: ["Stock Requests"],
-        summary: "Update stock request status",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ status: { type: "string", enum: ["pending", "approved", "rejected", "fulfilled"] } }),
-        responses: ok("Updated"),
+        responses: { ...dataResp("Stock request with items"), 404: errResp[404] },
       },
       delete: {
         tags: ["Stock Requests"],
         summary: "Delete stock request",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
+      },
+    },
+    "/inventory/stock-requests/{id}/approve": {
+      put: {
+        tags: ["Stock Requests"],
+        summary: "Approve (process) stock request",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Updated"), 404: errResp[404] },
+      },
+    },
+    "/inventory/stock-requests/{id}/reject": {
+      put: {
+        tags: ["Stock Requests"],
+        summary: "Reject / void stock request",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Updated"), 404: errResp[404] },
+      },
+    },
+    "/inventory/stock-requests/{id}/accept": {
+      post: {
+        tags: ["Stock Requests"],
+        summary: "Accept stock request (warehouse confirms)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Accepted"), 404: errResp[404] },
+      },
+    },
+    "/inventory/stock-requests/{id}/dispatch": {
+      post: {
+        tags: ["Stock Requests"],
+        summary: "Mark stock request as dispatched",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Dispatched"), 404: errResp[404] },
+      },
+    },
+    "/inventory/stock-requests/{id}/status": {
+      put: {
+        tags: ["Stock Requests"],
+        summary: "Update stock request status (free-form)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({ status: strField("pending | processed | void | completed") }, ["status"]),
+        responses: { ...dataResp("Updated"), ...errResp },
+      },
+    },
+    "/inventory/stock-requests/{id}/items/{itemId}": {
+      delete: {
+        tags: ["Stock Requests"],
+        summary: "Remove item from stock request",
+        ...auth(["Admin"]),
+        parameters: [idParam(), idParam("itemId", "Request item ID")],
+        responses: { ...noContentResp },
       },
     },
 
@@ -1134,46 +1515,38 @@ export const openApiSpec = {
     "/transfers": {
       get: {
         tags: ["Transfers"],
-        summary: "List stock transfers",
-        ...auth(["Admin"]),
-        parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Transfers"),
+        summary: "List product transfers",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [...paginationParams, shopIdQuery],
+        responses: listResp("Transfers with items"),
       },
       post: {
         tags: ["Transfers"],
-        summary: "Create stock transfer",
-        ...auth(["Admin"]),
+        summary: "Create product transfer",
+        ...auth(["Admin", "Attendant"]),
         ...body({
-          fromShopId: { type: "integer" },
-          toShopId: { type: "integer" },
-          items: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                productId: { type: "integer" },
-                quantity: { type: "number" },
-              },
-            },
-          },
+          fromShopId: intId("Source shop ID"),
+          toShopId:   intId("Destination shop ID"),
+          note:       strField("Transfer note / reference (optional)"),
+          items:      { type: "array", items: transferItemInput },
         }, ["fromShopId", "toShopId", "items"]),
-        responses: ok("Transfer created", {}),
+        responses: { ...createdResp("Transfer created"), ...errResp },
       },
     },
     "/transfers/{id}": {
       get: {
         tags: ["Transfers"],
         summary: "Get transfer",
-        ...auth(["Admin"]),
+        ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Transfer with items"),
+        responses: { ...dataResp("Transfer with items"), 404: errResp[404] },
       },
       delete: {
         tags: ["Transfers"],
-        summary: "Delete transfer (if pending)",
-        ...auth(["Admin"]),
+        summary: "Delete transfer",
+        ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
       },
     },
 
@@ -1181,27 +1554,75 @@ export const openApiSpec = {
     "/customers": {
       get: {
         tags: ["Customers"],
-        summary: "List customers",
+        summary: "List customers (paginated)",
         ...auth(["Admin", "Attendant"]),
-        parameters: [
-          ...paginationParams,
-          searchParam,
-          { name: "shopId", in: "query", schema: { type: "integer" } },
-        ],
-        responses: list("Customers"),
+        parameters: [...paginationParams, searchParam, shopIdQuery],
+        responses: listResp("Customers", {
+          id:          intId("Customer ID"),
+          customerNo:  intId("Sequential customer number"),
+          name:        strField("Full name"),
+          phone:       strField("Phone number"),
+          email:       strField("Email address"),
+          address:     strField("Address"),
+          type:        strField("retail | wholesale | dealer | online | verified"),
+          creditLimit: moneyStr,
+          wallet:      moneyStr,
+          shop:        intId("Shop ID"),
+          createdAt:   isoDate,
+        }),
       },
       post: {
         tags: ["Customers"],
         summary: "Create customer",
         ...auth(["Admin", "Attendant"]),
         ...body({
-          name: { type: "string" },
-          phone: { type: "string" },
-          email: { type: "string" },
-          shopId: { type: "integer" },
-          creditLimit: { type: "number" },
-        }, ["name", "shopId"]),
-        responses: ok("Created customer", {}),
+          name:        strField("Customer full name"),
+          shopId:      intId("Shop ID"),
+          phone:       strField("Phone number"),
+          email:       { type: "string", format: "email", description: "Email (optional)" },
+          address:     strField("Delivery/billing address (optional)"),
+          creditLimit: { type: "number", description: "Maximum credit allowed (optional)" },
+          type:        { type: "string", enum: ["retail", "wholesale", "dealer", "online"], default: "retail" },
+        }, ["name", "shopId", "phone"]),
+        responses: { ...createdResp("Customer created", { id: intId("Customer ID"), customerNo: intId("Sequential no.") }), ...errResp },
+      },
+    },
+    "/customers/by-number": {
+      get: {
+        tags: ["Customers"],
+        summary: "Look up customer by number or phone",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [
+          { name: "customerNo", in: "query", schema: { type: "integer" }, description: "Customer sequential number" },
+          { name: "phone",      in: "query", schema: { type: "string"  }, description: "Phone number" },
+          shopIdQuery,
+        ],
+        responses: { ...dataResp("Customer"), 404: errResp[404] },
+      },
+    },
+    "/customers/bulk-import": {
+      post: {
+        tags: ["Customers"],
+        summary: "Bulk import customers",
+        ...auth(["Admin", "Attendant"]),
+        ...body({
+          customers: {
+            type: "array",
+            items: {
+              type: "object", required: ["name", "shopId"],
+              properties: {
+                name:        strField("Name"),
+                shopId:      intId("Shop ID"),
+                phone:       strField("Phone"),
+                email:       strField("Email"),
+                address:     strField("Address"),
+                creditLimit: { type: "number" },
+                type:        strField("retail | wholesale | dealer"),
+              },
+            },
+          },
+        }, ["customers"]),
+        responses: { ...dataResp("Import summary", { created: intId("Created"), skipped: intId("Skipped"), errors: { type: "array" } }), ...errResp },
       },
     },
     "/customers/{id}": {
@@ -1210,48 +1631,95 @@ export const openApiSpec = {
         summary: "Get customer",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Customer"),
+        responses: { ...dataResp("Customer"), 404: errResp[404] },
       },
       put: {
         tags: ["Customers"],
         summary: "Update customer",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" }, phone: { type: "string" }, creditLimit: { type: "number" } }),
-        responses: ok("Updated"),
+        ...body({
+          name:        strField("Name"),
+          phone:       strField("Phone"),
+          email:       strField("Email"),
+          address:     strField("Address"),
+          creditLimit: { type: "number" },
+          type:        strField("retail | wholesale | dealer"),
+        }),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Customers"],
         summary: "Delete customer",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
-      },
-    },
-    "/customers/{id}/wallet": {
-      get: {
-        tags: ["Customers"],
-        summary: "Get customer wallet transactions",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [idParam(), ...paginationParams],
-        responses: list("Wallet transactions"),
-      },
-      post: {
-        tags: ["Customers"],
-        summary: "Top up customer wallet",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [idParam()],
-        ...body({ amount: { type: "number" }, note: { type: "string" } }, ["amount"]),
-        responses: ok("Wallet updated"),
+        responses: { ...noContentResp, 404: errResp[404] },
       },
     },
     "/customers/{id}/verify": {
       put: {
         tags: ["Customers"],
-        summary: "Verify customer account",
+        summary: "Verify customer (mark as verified)",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: ok("Verified"),
+        responses: { ...dataResp("Verified", { message: { type: "string" } }), 404: errResp[404] },
+      },
+    },
+    "/customers/{id}/wallet": {
+      get: {
+        tags: ["Customers"],
+        summary: "Get wallet transactions (paginated)",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam(), ...paginationParams],
+        responses: listResp("Wallet transactions"),
+      },
+      post: {
+        tags: ["Customers"],
+        summary: "Top up wallet (legacy endpoint)",
+        description: "Use `/customers/{id}/wallet/deposit` for new integrations.",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam()],
+        ...body({ amount: { type: "number" } }, ["amount"]),
+        responses: { ...dataResp("Wallet updated", { wallet: moneyStr }), ...errResp },
+      },
+    },
+    "/customers/{id}/wallet-transactions": {
+      get: {
+        tags: ["Customers"],
+        summary: "Get wallet transactions (alias)",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam(), ...paginationParams],
+        responses: listResp("Wallet transactions"),
+      },
+    },
+    "/customers/{id}/wallet/deposit": {
+      post: {
+        tags: ["Customers"],
+        summary: "Deposit to customer wallet",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam()],
+        ...body({ amount: { type: "number", description: "Amount to deposit (positive)" }, ...walletChangeBody }, ["amount"]),
+        responses: { ...dataResp("Wallet updated", { wallet: moneyStr, transaction: { type: "object" } }), ...errResp },
+      },
+    },
+    "/customers/{id}/wallet/withdraw": {
+      post: {
+        tags: ["Customers"],
+        summary: "Withdraw from customer wallet",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam()],
+        ...body({ amount: { type: "number", description: "Amount to withdraw (positive)" }, ...walletChangeBody }, ["amount"]),
+        responses: { ...dataResp("Wallet updated", { wallet: moneyStr, transaction: { type: "object" } }), ...errResp },
+      },
+    },
+    "/customers/{id}/wallet/payment": {
+      post: {
+        tags: ["Customers"],
+        summary: "Apply wallet to outstanding balance",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam()],
+        ...body({ amount: { type: "number", description: "Amount to deduct" }, ...walletChangeBody }, ["amount"]),
+        responses: { ...dataResp("Wallet updated"), ...errResp },
       },
     },
 
@@ -1260,49 +1728,65 @@ export const openApiSpec = {
       get: {
         tags: ["Orders"],
         summary: "List orders",
-        ...auth(["Admin", "Attendant", "Customer"]),
+        ...auth(["Admin", "Attendant"]),
         parameters: [
-          ...paginationParams,
-          { name: "shopId", in: "query", schema: { type: "integer" } },
-          { name: "customerId", in: "query", schema: { type: "integer" } },
-          { name: "status", in: "query", schema: { type: "string" } },
+          ...paginationParams, shopIdQuery,
+          { name: "status", in: "query", schema: { type: "string" }, description: "pending | processing | shipped | delivered | completed | cancelled" },
         ],
-        responses: list("Orders"),
+        responses: listResp("Orders with items"),
       },
       post: {
         tags: ["Orders"],
-        summary: "Place order",
-        ...auth(["Admin", "Attendant", "Customer"]),
+        summary: "Create order",
+        description: "Creates a pending order. Use `POST /orders/{id}/fulfill` to convert it into a sale.",
+        ...auth(["Admin", "Attendant"]),
         ...body({
-          shopId: { type: "integer" },
-          customerId: { type: "integer" },
-          items: { type: "array" },
+          shopId:     intId("Shop ID"),
+          customerId: intId("Customer ID (optional)"),
+          note:       strField("Order note (optional)"),
+          items:      { type: "array", items: orderItemInput },
         }, ["shopId", "items"]),
-        responses: ok("Created order", {}),
+        responses: { ...createdResp("Order created"), ...errResp },
       },
     },
     "/orders/{id}": {
       get: {
         tags: ["Orders"],
         summary: "Get order",
-        ...auth(["Admin", "Attendant", "Customer"]),
+        ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Order with items"),
+        responses: { ...dataResp("Order with items"), 404: errResp[404] },
       },
+      delete: {
+        tags: ["Orders"],
+        summary: "Delete order",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...noContentResp },
+      },
+    },
+    "/orders/{id}/status": {
       put: {
         tags: ["Orders"],
         summary: "Update order status",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        ...body({ status: { type: "string" } }),
-        responses: ok("Updated"),
+        ...body({
+          status:   strField("pending | processing | shipped | delivered | completed | cancelled"),
+          shipping: { type: "object", description: "Shipping details (required when status = shipped)" },
+          reason:   strField("Cancellation reason (required when status = cancelled)"),
+        }, ["status"]),
+        responses: { ...dataResp("Updated order"), ...errResp },
       },
-      delete: {
+    },
+    "/orders/{id}/fulfill": {
+      post: {
         tags: ["Orders"],
-        summary: "Cancel / delete order",
-        ...auth(["Admin"]),
+        summary: "Fulfill order → create sale",
+        description: "Converts the order into a completed sale, deducts inventory, and triggers receipt notifications.",
+        ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...dataResp("Order fulfilled", { order: { type: "object" }, sale: { type: "object" } }), ...errResp },
       },
     },
 
@@ -1310,42 +1794,65 @@ export const openApiSpec = {
     "/sales": {
       get: {
         tags: ["Sales"],
-        summary: "List sales",
+        summary: "List sales (paginated)",
         ...auth(["Admin", "Attendant"]),
         parameters: [
-          ...paginationParams,
-          { name: "shopId", in: "query", schema: { type: "integer" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
-          { name: "customerId", in: "query", schema: { type: "integer" } },
+          ...paginationParams, shopIdQuery, fromParam, toParam,
+          { name: "customerId", in: "query", schema: { type: "integer" }, description: "Filter by customer" },
         ],
-        responses: list("Sales"),
+        responses: listResp("Sales with items and payments", {
+          id:                 intId("Sale ID"),
+          receiptNo:          strField("Auto-generated receipt number"),
+          totalAmount:        moneyStr,
+          totalWithDiscount:  moneyStr,
+          amountPaid:         moneyStr,
+          outstandingBalance: moneyStr,
+          saleDiscount:       moneyStr,
+          paymentType:        strField("Payment method name"),
+          saleType:           strField("Retail | Wholesale | Dealer"),
+          status:             strField("cashed | credit | refunded | voided"),
+          shop:               intId("Shop ID"),
+          customer:           intId("Customer ID"),
+          attendant:          intId("Attendant ID"),
+          createdAt:          isoDate,
+        }),
       },
       post: {
         tags: ["Sales"],
-        summary: "Create sale",
+        summary: "Record a sale",
+        description: "Creates the sale, its line items, and (if amountPaid > 0 and attendant token used) a payment record. Also triggers receipt email and SMS notifications.",
         ...auth(["Admin", "Attendant"]),
         ...body({
-          shopId: { type: "integer" },
-          customerId: { type: "integer" },
-          items: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                productId: { type: "integer" },
-                quantity: { type: "number" },
-                price: { type: "number" },
-                discount: { type: "number" },
-              },
-            },
-          },
-          paymentMethod: { type: "string", description: "Must match the `name` of an active row in the global /payment-methods catalog (case-insensitive — e.g. 'Cash', 'M-Pesa', 'Bank Transfer', 'Card'). Stored canonically on sales.paymentType and the matching sale_payments row. Defaults to 'Cash' if omitted. Unknown values return 400." },
-          amountPaid: { type: "number" },
-          discount: { type: "number" },
-          note: { type: "string" },
+          shopId:        intId("Shop ID"),
+          customerId:    intId("Customer ID (optional — for credit/loyalty tracking)"),
+          items:         { type: "array", description: "At least one item required", items: saleItemInput },
+          paymentMethod: { type: "string", description: "Payment method name — must match an active entry in the payment methods catalog", example: "Cash" },
+          amountPaid:    { type: "number", description: "Amount tendered by customer (defaults to totalWithDiscount)" },
+          discount:      { type: "number", description: "Order-level discount (on top of per-line discounts)", default: 0 },
+          note:          strField("Sale note / memo (optional)"),
+          saleType:      { type: "string", enum: ["Retail", "Wholesale", "Dealer"], default: "Retail" },
         }, ["shopId", "items"]),
-        responses: ok("Created sale", {}),
+        responses: {
+          ...createdResp("Sale recorded", {
+            id:                 intId("Sale ID"),
+            receiptNo:          strField("Receipt number"),
+            totalAmount:        moneyStr,
+            outstandingBalance: moneyStr,
+            status:             strField("cashed | credit"),
+            items:              { type: "array" },
+          }),
+          ...errResp,
+        },
+      },
+    },
+    "/sales/cross-shop": {
+      get: {
+        tags: ["Sales"],
+        summary: "Cross-shop sales summary",
+        description: "Returns aggregated sale totals grouped by shop. Useful for multi-shop dashboards.",
+        ...auth(["Admin"]),
+        parameters: [fromParam, toParam],
+        responses: dataResp("Cross-shop totals"),
       },
     },
     "/sales/{id}": {
@@ -1354,48 +1861,60 @@ export const openApiSpec = {
         summary: "Get sale",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Sale with items and payments"),
+        responses: { ...dataResp("Sale with items and payments"), 404: errResp[404] },
       },
       put: {
         tags: ["Sales"],
-        summary: "Update sale",
+        summary: "Update sale (note / discount only)",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ note: { type: "string" }, discount: { type: "number" } }),
-        responses: ok("Updated"),
+        ...body({
+          note:     strField("Updated sale note"),
+          discount: { type: "number", description: "Updated order-level discount" },
+        }),
+        responses: { ...dataResp("Updated sale"), ...errResp },
       },
       delete: {
         tags: ["Sales"],
-        summary: "Delete / void sale",
+        summary: "Void sale",
+        description: "Marks the sale as voided. Does not reverse inventory.",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Voided" } },
+        responses: { ...noContentResp, 404: errResp[404] },
+      },
+    },
+    "/sales/{id}/void": {
+      post: {
+        tags: ["Sales"],
+        summary: "Void sale (explicit POST)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Voided sale"), 404: errResp[404] },
+      },
+    },
+    "/sales/{id}/refund": {
+      post: {
+        tags: ["Sales"],
+        summary: "Mark sale as refunded",
+        description: "Changes status to 'refunded'. For itemised refunds use POST /sale-returns.",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        responses: { ...dataResp("Refunded sale"), 404: errResp[404] },
       },
     },
     "/sales/{id}/payments": {
       post: {
         tags: ["Sales"],
-        summary: "Add payment to sale",
+        summary: "Record additional payment on credit sale",
+        description: "Reduces the outstanding balance. Updates sale status to 'cashed' when fully paid.",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
         ...body({
-          amount: { type: "number" },
-          method: { type: "string", description: "Must match the `name` of an active row in the global /payment-methods catalog (case-insensitive). Stored canonically on sale_payments.paymentType. Unknown values return 400." },
-          reference: { type: "string" },
+          amount:    { type: "number", description: "Payment amount" },
+          method:    strField("Payment method name (must exist in catalog)"),
+          reference: strField("Transaction reference (optional)"),
         }, ["amount", "method"]),
-        responses: ok("Payment recorded"),
-      },
-    },
-    "/sales/cross-shop": {
-      get: {
-        tags: ["Sales"],
-        summary: "Cross-shop sales summary",
-        ...auth(["Admin"]),
-        parameters: [
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
-        ],
-        responses: list("Cross-shop totals"),
+        responses: { ...createdResp("Payment recorded"), ...errResp },
       },
     },
 
@@ -1404,36 +1923,38 @@ export const openApiSpec = {
       get: {
         tags: ["Sale Returns"],
         summary: "List sale returns",
-        ...auth(["Admin"]),
-        parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Sale returns"),
+        ...auth(["Admin", "Attendant"]),
+        parameters: [...paginationParams, shopIdQuery],
+        responses: listResp("Sale returns with items"),
       },
       post: {
         tags: ["Sale Returns"],
-        summary: "Create sale return",
+        summary: "Process customer return / refund",
         ...auth(["Admin", "Attendant"]),
         ...body({
-          saleId: { type: "integer" },
-          items: { type: "array" },
-          reason: { type: "string" },
-        }, ["saleId", "items"]),
-        responses: ok("Return created", {}),
+          saleId:       intId("Original sale ID"),
+          shopId:       intId("Shop ID"),
+          items:        { type: "array", items: returnItemInput, description: "Items being returned" },
+          reason:       strField("Return reason"),
+          refundMethod: { type: "string", description: "Refund method (cash | wallet | bank)", default: "cash" },
+        }, ["saleId", "shopId", "items"]),
+        responses: { ...createdResp("Return processed"), ...errResp },
       },
     },
     "/sale-returns/{id}": {
       get: {
         tags: ["Sale Returns"],
         summary: "Get sale return",
-        ...auth(["Admin"]),
+        ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Sale return"),
+        responses: { ...dataResp("Sale return with items"), 404: errResp[404] },
       },
       delete: {
         tags: ["Sale Returns"],
         summary: "Delete sale return",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
       },
     },
 
@@ -1441,29 +1962,37 @@ export const openApiSpec = {
     "/purchases": {
       get: {
         tags: ["Purchases"],
-        summary: "List purchases",
+        summary: "List purchases / GRNs (paginated)",
         ...auth(["Admin"]),
         parameters: [
-          ...paginationParams,
-          { name: "shopId", in: "query", schema: { type: "integer" } },
-          { name: "supplierId", in: "query", schema: { type: "integer" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
+          ...paginationParams, shopIdQuery, fromParam, toParam,
+          { name: "supplierId", in: "query", schema: { type: "integer" }, description: "Filter by supplier" },
         ],
-        responses: list("Purchases"),
+        responses: listResp("Purchases with items and payments"),
       },
       post: {
         tags: ["Purchases"],
-        summary: "Create purchase",
+        summary: "Create purchase / GRN",
+        description: "Records stock received from a supplier. Automatically triggers a purchase order email to the supplier.",
         ...auth(["Admin"]),
         ...body({
-          shopId: { type: "integer" },
-          supplierId: { type: "integer" },
-          items: { type: "array" },
-          amountPaid: { type: "number" },
-          note: { type: "string" },
+          shopId:      intId("Shop receiving the goods"),
+          supplierId:  intId("Supplier ID (optional)"),
+          items:       { type: "array", items: purchaseItemInput },
+          amountPaid:  { type: "number", description: "Amount paid upfront (0 for full credit)", default: 0 },
+          note:        strField("Purchase note / reference (optional)"),
+          paymentType: { type: "string", description: "Payment method (cash | bank | mpesa | credit)", default: "cash" },
         }, ["shopId", "items"]),
-        responses: ok("Created purchase", {}),
+        responses: {
+          ...createdResp("Purchase created", {
+            id:                 intId("Purchase ID"),
+            purchaseNo:         strField("Auto-generated purchase number"),
+            totalAmount:        moneyStr,
+            outstandingBalance: moneyStr,
+            items:              { type: "array" },
+          }),
+          ...errResp,
+        },
       },
     },
     "/purchases/{id}": {
@@ -1472,32 +2001,35 @@ export const openApiSpec = {
         summary: "Get purchase",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: ok("Purchase with items"),
+        responses: { ...dataResp("Purchase with items and payments"), 404: errResp[404] },
       },
       put: {
         tags: ["Purchases"],
-        summary: "Update purchase",
+        summary: "Update purchase note",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ note: { type: "string" } }),
-        responses: ok("Updated"),
+        ...body({ note: strField("Updated note") }),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Purchases"],
         summary: "Delete purchase",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp, 404: errResp[404] },
       },
     },
     "/purchases/{id}/payments": {
       post: {
         tags: ["Purchases"],
-        summary: "Add payment to purchase",
+        summary: "Record payment against purchase",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ amount: { type: "number" }, method: { type: "string" } }, ["amount", "method"]),
-        responses: ok("Payment added"),
+        ...body({
+          amount: { type: "number" },
+          method: strField("Payment method"),
+        }, ["amount", "method"]),
+        responses: { ...createdResp("Payment recorded"), ...errResp },
       },
     },
 
@@ -1506,36 +2038,38 @@ export const openApiSpec = {
       get: {
         tags: ["Purchase Returns"],
         summary: "List purchase returns",
-        ...auth(["Admin"]),
-        parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Purchase returns"),
+        ...auth(["Admin", "Attendant"]),
+        parameters: [...paginationParams, shopIdQuery],
+        responses: listResp("Purchase returns with items"),
       },
       post: {
         tags: ["Purchase Returns"],
-        summary: "Create purchase return",
-        ...auth(["Admin"]),
+        summary: "Return goods to supplier",
+        ...auth(["Admin", "Attendant"]),
         ...body({
-          purchaseId: { type: "integer" },
-          items: { type: "array" },
-          reason: { type: "string" },
-        }, ["purchaseId", "items"]),
-        responses: ok("Created", {}),
+          purchaseId:   intId("Original purchase ID"),
+          shopId:       intId("Shop ID"),
+          items:        { type: "array", items: returnItemInput },
+          reason:       strField("Return reason"),
+          refundMethod: { type: "string", default: "cash" },
+        }, ["purchaseId", "shopId", "items"]),
+        responses: { ...createdResp("Return created"), ...errResp },
       },
     },
     "/purchase-returns/{id}": {
       get: {
         tags: ["Purchase Returns"],
         summary: "Get purchase return",
-        ...auth(["Admin"]),
+        ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Purchase return"),
+        responses: { ...dataResp("Purchase return with items"), 404: errResp[404] },
       },
       delete: {
         tags: ["Purchase Returns"],
         summary: "Delete purchase return",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
       },
     },
 
@@ -1543,27 +2077,51 @@ export const openApiSpec = {
     "/suppliers": {
       get: {
         tags: ["Suppliers"],
-        summary: "List suppliers",
+        summary: "List suppliers (paginated)",
         ...auth(["Admin"]),
-        parameters: [
-          ...paginationParams,
-          searchParam,
-          { name: "shopId", in: "query", schema: { type: "integer" } },
-        ],
-        responses: list("Suppliers"),
+        parameters: [...paginationParams, searchParam, shopIdQuery],
+        responses: listResp("Suppliers", {
+          id:      intId("Supplier ID"),
+          name:    strField("Supplier name"),
+          phone:   strField("Phone"),
+          email:   strField("Email"),
+          address: strField("Address"),
+          wallet:  moneyStr,
+          shop:    intId("Shop ID"),
+        }),
       },
       post: {
         tags: ["Suppliers"],
         summary: "Create supplier",
         ...auth(["Admin"]),
         ...body({
-          name: { type: "string" },
-          phone: { type: "string" },
-          email: { type: "string" },
-          shopId: { type: "integer" },
-          creditLimit: { type: "number" },
+          name:    strField("Supplier / company name"),
+          shopId:  intId("Shop ID"),
+          phone:   strField("Contact phone (optional)"),
+          email:   { type: "string", format: "email", description: "Contact email (optional)" },
+          address: strField("Address (optional)"),
         }, ["name", "shopId"]),
-        responses: ok("Created supplier", {}),
+        responses: { ...createdResp("Supplier created"), ...errResp },
+      },
+    },
+    "/suppliers/bulk-import": {
+      post: {
+        tags: ["Suppliers"],
+        summary: "Bulk import suppliers",
+        ...auth(["Admin"]),
+        ...body({
+          suppliers: {
+            type: "array",
+            items: {
+              type: "object", required: ["name", "shopId"],
+              properties: {
+                name: strField("Name"), shopId: intId("Shop ID"),
+                phone: strField("Phone"), email: strField("Email"), address: strField("Address"),
+              },
+            },
+          },
+        }, ["suppliers"]),
+        responses: { ...dataResp("Import summary"), ...errResp },
       },
     },
     "/suppliers/{id}": {
@@ -1572,449 +2130,511 @@ export const openApiSpec = {
         summary: "Get supplier",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: ok("Supplier"),
+        responses: { ...dataResp("Supplier"), 404: errResp[404] },
       },
       put: {
         tags: ["Suppliers"],
         summary: "Update supplier",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" }, phone: { type: "string" } }),
-        responses: ok("Updated"),
+        ...body({ name: strField("Name"), phone: strField("Phone"), email: strField("Email"), address: strField("Address") }),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Suppliers"],
         summary: "Delete supplier",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp, 404: errResp[404] },
       },
     },
     "/suppliers/{id}/wallet": {
       get: {
         tags: ["Suppliers"],
-        summary: "Get supplier wallet transactions",
+        summary: "List supplier wallet transactions",
         ...auth(["Admin"]),
         parameters: [idParam(), ...paginationParams],
-        responses: list("Wallet transactions"),
+        responses: listResp("Wallet transactions"),
       },
       post: {
         tags: ["Suppliers"],
-        summary: "Record supplier payment",
+        summary: "Top up supplier wallet (legacy)",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ amount: { type: "number" }, note: { type: "string" } }, ["amount"]),
-        responses: ok("Payment recorded"),
+        ...body({ amount: { type: "number" } }, ["amount"]),
+        responses: { ...dataResp("Wallet updated", { wallet: moneyStr }), ...errResp },
+      },
+    },
+    "/suppliers/{id}/wallet-transactions": {
+      get: {
+        tags: ["Suppliers"],
+        summary: "List supplier wallet transactions (alias)",
+        ...auth(["Admin"]),
+        parameters: [idParam(), ...paginationParams],
+        responses: listResp("Wallet transactions"),
+      },
+    },
+    "/suppliers/{id}/wallet/deposit": {
+      post: {
+        tags: ["Suppliers"],
+        summary: "Deposit to supplier wallet",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({ amount: { type: "number" }, ...walletChangeBody }, ["amount"]),
+        responses: { ...dataResp("Wallet updated"), ...errResp },
+      },
+    },
+    "/suppliers/{id}/wallet/payment": {
+      post: {
+        tags: ["Suppliers"],
+        summary: "Record supplier payment (debit wallet)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({ amount: { type: "number" }, ...walletChangeBody }, ["amount"]),
+        responses: { ...dataResp("Wallet updated"), ...errResp },
       },
     },
 
-    // ── Expenses ──────────────────────────────────────────────────────────────
-    "/expense-categories": {
+    // ── Finance: Expense Categories ───────────────────────────────────────────
+    "/finance/expense-categories": {
       get: {
         tags: ["Expenses"],
         summary: "List expense categories",
-        ...auth(["Admin"]),
-        parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Expense categories"),
+        ...auth(["Admin", "Attendant"]),
+        parameters: [shopIdQuery],
+        responses: dataResp("Expense categories"),
       },
       post: {
         tags: ["Expenses"],
         summary: "Create expense category",
         ...auth(["Admin"]),
-        ...body({ name: { type: "string" }, shopId: { type: "integer" } }, ["name", "shopId"]),
-        responses: ok("Created", {}),
+        ...body({ name: strField("Category name"), shopId: intId("Shop ID") }, ["name", "shopId"]),
+        responses: { ...createdResp("Created"), ...errResp },
       },
     },
-    "/expense-categories/{id}": {
+    "/finance/expense-categories/{id}": {
       put: {
         tags: ["Expenses"],
         summary: "Update expense category",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" } }),
-        responses: ok("Updated"),
+        ...body({ name: strField("Category name") }, ["name"]),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Expenses"],
         summary: "Delete expense category",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
       },
     },
-    "/expenses": {
+
+    // ── Finance: Expenses ─────────────────────────────────────────────────────
+    "/finance/expenses": {
       get: {
         tags: ["Expenses"],
-        summary: "List expenses",
-        ...auth(["Admin"]),
-        parameters: [
-          ...paginationParams,
-          { name: "shopId", in: "query", schema: { type: "integer" } },
-          { name: "categoryId", in: "query", schema: { type: "integer" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
-        ],
-        responses: list("Expenses"),
+        summary: "List expenses (paginated)",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [...paginationParams, shopIdQuery, fromParam, toParam],
+        responses: listResp("Expenses", {
+          id:          intId("Expense ID"),
+          expenseNo:   strField("Auto-generated reference"),
+          description: strField("Description"),
+          amount:      moneyStr,
+          category:    intId("Expense category ID"),
+          isRecurring: boolFlag("Recurring expense"),
+          frequency:   strField("daily | weekly | monthly"),
+          createdAt:   isoDate,
+        }),
       },
       post: {
         tags: ["Expenses"],
-        summary: "Create expense",
+        summary: "Record an expense",
         ...auth(["Admin", "Attendant"]),
         ...body({
-          shopId: { type: "integer" },
-          categoryId: { type: "integer" },
-          amount: { type: "number" },
-          description: { type: "string" },
-          date: { type: "string", format: "date" },
-        }, ["shopId", "categoryId", "amount"]),
-        responses: ok("Created expense", {}),
+          shopId:      intId("Shop ID"),
+          amount:      { type: "number", description: "Expense amount" },
+          description: strField("What the expense was for (optional)"),
+          categoryId:  intId("Expense category ID (optional)"),
+          isRecurring: boolFlag("Mark as a recurring expense"),
+          frequency:   { type: "string", enum: ["daily", "weekly", "monthly"], description: "Recurrence interval (if isRecurring)" },
+        }, ["shopId", "amount"]),
+        responses: { ...createdResp("Expense recorded"), ...errResp },
       },
     },
-    "/expenses/{id}": {
+    "/finance/expenses/{id}": {
       get: {
         tags: ["Expenses"],
         summary: "Get expense",
-        ...auth(["Admin"]),
+        ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Expense"),
+        responses: { ...dataResp("Expense"), 404: errResp[404] },
       },
       put: {
         tags: ["Expenses"],
         summary: "Update expense",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ amount: { type: "number" }, description: { type: "string" } }),
-        responses: ok("Updated"),
+        ...body({ description: strField("Description"), amount: { type: "number" }, categoryId: intId("Category ID") }),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Expenses"],
         summary: "Delete expense",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
       },
     },
 
-    // ── Cashflow ──────────────────────────────────────────────────────────────
-    "/cashflow-categories": {
+    // ── Finance: Cashflow Categories ──────────────────────────────────────────
+    "/finance/cashflow-categories": {
       get: {
         tags: ["Cashflow"],
         summary: "List cashflow categories",
-        ...auth(["Admin"]),
-        parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Cashflow categories"),
+        ...auth(["Admin", "Attendant"]),
+        parameters: [shopIdQuery],
+        responses: dataResp("Cashflow categories"),
       },
       post: {
         tags: ["Cashflow"],
         summary: "Create cashflow category",
         ...auth(["Admin"]),
         ...body({
-          name: { type: "string" },
-          type: { type: "string", enum: ["cashin", "cashout"] },
-          shopId: { type: "integer" },
-        }, ["name", "type", "shopId"]),
-        responses: ok("Created", {}),
+          name:   strField("Category name"),
+          shopId: intId("Shop ID"),
+          type:   strField("inflow | outflow"),
+        }, ["name", "shopId", "type"]),
+        responses: { ...createdResp("Created"), ...errResp },
       },
     },
-    "/cashflow-categories/{id}": {
+    "/finance/cashflow-categories/{id}": {
       put: {
         tags: ["Cashflow"],
         summary: "Update cashflow category",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" } }),
-        responses: ok("Updated"),
+        ...body({ name: strField("Name") }, ["name"]),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Cashflow"],
         summary: "Delete cashflow category",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
       },
     },
-    "/cashflow": {
+
+    // ── Finance: Cashflows ────────────────────────────────────────────────────
+    "/finance/cashflows": {
       get: {
         tags: ["Cashflow"],
-        summary: "List cashflow entries",
-        ...auth(["Admin"]),
-        parameters: [
-          ...paginationParams,
-          { name: "shopId", in: "query", schema: { type: "integer" } },
-          { name: "type", in: "query", schema: { type: "string", enum: ["cashin", "cashout"] } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
-        ],
-        responses: list("Cashflow entries"),
+        summary: "List cashflow entries (paginated)",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [...paginationParams, shopIdQuery, fromParam, toParam],
+        responses: listResp("Cashflow entries"),
       },
       post: {
         tags: ["Cashflow"],
-        summary: "Create cashflow entry",
+        summary: "Record cashflow entry",
         ...auth(["Admin", "Attendant"]),
         ...body({
-          shopId: { type: "integer" },
-          categoryId: { type: "integer" },
-          amount: { type: "number" },
-          type: { type: "string", enum: ["cashin", "cashout"] },
-          bankId: { type: "integer" },
-          note: { type: "string" },
-        }, ["shopId", "amount", "type"]),
-        responses: ok("Created", {}),
+          shopId:      intId("Shop ID"),
+          description: strField("Description / narration"),
+          amount:      { type: "number" },
+          categoryId:  intId("Cashflow category ID (optional)"),
+          bankId:      intId("Bank account ID (optional)"),
+        }, ["shopId", "description", "amount"]),
+        responses: { ...createdResp("Cashflow entry created"), ...errResp },
       },
     },
-    "/cashflow/{id}": {
+    "/finance/cashflows/{id}": {
       get: {
         tags: ["Cashflow"],
         summary: "Get cashflow entry",
-        ...auth(["Admin"]),
+        ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Cashflow entry"),
-      },
-      put: {
-        tags: ["Cashflow"],
-        summary: "Update cashflow entry",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ amount: { type: "number" }, note: { type: "string" } }),
-        responses: ok("Updated"),
+        responses: { ...dataResp("Cashflow entry"), 404: errResp[404] },
       },
       delete: {
         tags: ["Cashflow"],
         summary: "Delete cashflow entry",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
-      },
-    },
-    "/cashflow/shop/cashflow": {
-      get: {
-        tags: ["Cashflow"],
-        summary: "Combined cashflow dashboard (cashin/cashout totals by period)",
-        ...auth(["Admin"]),
-        parameters: [
-          { name: "shopId", in: "query", required: true, schema: { type: "integer" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
-        ],
-        responses: ok("Cashflow summary"),
+        responses: { ...noContentResp },
       },
     },
 
-    // ── Banks ─────────────────────────────────────────────────────────────────
-    "/banks": {
+    // ── Finance: Banks ────────────────────────────────────────────────────────
+    "/finance/banks": {
       get: {
         tags: ["Banks"],
-        summary: "List banks",
-        ...auth(["Admin"]),
-        parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Banks"),
+        summary: "List bank / cashbox accounts",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [shopIdQuery],
+        responses: dataResp("Banks"),
       },
       post: {
         tags: ["Banks"],
         summary: "Create bank account",
         ...auth(["Admin"]),
         ...body({
-          name: { type: "string" },
-          accountNumber: { type: "string" },
-          shopId: { type: "integer" },
-          openingBalance: { type: "number" },
+          name:    strField("Account name (e.g. 'Main Cash', 'Equity Bank')"),
+          shopId:  intId("Shop ID"),
+          balance: { type: "number", description: "Opening balance (defaults to 0)" },
         }, ["name", "shopId"]),
-        responses: ok("Created", {}),
+        responses: { ...createdResp("Created"), ...errResp },
       },
     },
-    "/banks/{id}": {
+    "/finance/banks/{id}": {
       get: {
         tags: ["Banks"],
-        summary: "Get bank",
-        ...auth(["Admin"]),
+        summary: "Get bank account",
+        ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
-        responses: ok("Bank"),
+        responses: { ...dataResp("Bank account"), 404: errResp[404] },
       },
       put: {
         tags: ["Banks"],
-        summary: "Update bank",
+        summary: "Update bank account",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" }, accountNumber: { type: "string" } }),
-        responses: ok("Updated"),
+        ...body({ name: strField("Account name"), balance: { type: "number" } }),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Banks"],
-        summary: "Delete bank",
+        summary: "Delete bank account",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
+      },
+    },
+    "/finance/banks/{id}/transactions": {
+      get: {
+        tags: ["Banks"],
+        summary: "List bank transactions",
+        ...auth(["Admin", "Attendant"]),
+        parameters: [idParam(), ...paginationParams, fromParam, toParam],
+        responses: listResp("Bank cashflow transactions"),
       },
     },
 
-    // ── Payment Methods (POS catalog — global, super-admin controlled) ───────
-    "/payment-methods": {
+    // ── Payment Methods ───────────────────────────────────────────────────────
+    "/finance/payment-methods": {
       get: {
         tags: ["Payment Methods"],
-        summary: "List payment methods (POS checkout labels)",
-        description: "Global list of POS checkout-marking options (Cash, M-Pesa, Bank Transfer, Card). Pure labels — no integration. Read-only for any authenticated user; only the super-admin may create / update / delete.",
+        summary: "List payment methods (POS catalog)",
+        description: "Returns the global list of payment methods (Cash, M-Pesa, Card, etc.). Available to all authenticated POS users.",
         ...auth(["Admin", "Attendant"]),
-        responses: list("Payment methods"),
+        responses: dataResp("Payment methods", {
+          id:          intId("ID"),
+          name:        strField("Method name (used in sale/purchase paymentType)"),
+          description: strField("Optional description"),
+          isActive:    boolFlag("Whether this method is available at POS"),
+          sortOrder:   intId("Display sort order"),
+        }),
       },
       post: {
         tags: ["Payment Methods"],
         summary: "Create payment method (super-admin only)",
-        ...auth(["SuperAdmin"]),
+        ...auth(["Admin"]),
         ...body({
-          name: { type: "string" },
-          description: { type: "string" },
-          isActive: { type: "boolean" },
-          sortOrder: { type: "integer" },
+          name:        strField("Method name"),
+          description: strField("Description (optional)"),
+          isActive:    boolFlag("Active by default"),
+          sortOrder:   intId("Display order (lower = first)"),
         }, ["name"]),
-        responses: ok("Created", {}),
+        responses: { ...createdResp("Created"), ...errResp },
       },
     },
-    "/payment-methods/{id}": {
+    "/finance/payment-methods/{id}": {
       put: {
         tags: ["Payment Methods"],
         summary: "Update payment method (super-admin only)",
-        ...auth(["SuperAdmin"]),
+        ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" }, description: { type: "string" }, isActive: { type: "boolean" }, sortOrder: { type: "integer" } }),
-        responses: ok("Updated"),
+        ...body({ name: strField("Name"), description: strField("Description"), isActive: boolFlag("Active"), sortOrder: intId("Sort order") }),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Payment Methods"],
         summary: "Delete payment method (super-admin only)",
-        ...auth(["SuperAdmin"]),
+        ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
       },
     },
 
-    // ── Payment Gateways (online charge providers — super-admin only) ────────
-    "/admin/payment-gateways": {
+    // ── User Payments ─────────────────────────────────────────────────────────
+    "/finance/user-payments": {
       get: {
-        tags: ["Payment Gateways"],
-        summary: "List payment gateways (with credentials)",
-        description: "Online providers Pointify uses to charge admins for subscriptions and SMS credits (SunPay, Stripe, Paystack, M-Pesa Daraja). Returns full rows including config — super-admin only.",
-        ...auth(["SuperAdmin"]),
-        responses: list("Payment gateways"),
+        tags: ["User Payments"],
+        summary: "List user payments (paginated)",
+        ...auth(["Admin"]),
+        parameters: [
+          ...paginationParams, shopIdQuery,
+          { name: "type", in: "query", schema: { type: "string" }, description: "customer | supplier" },
+        ],
+        responses: listResp("User payment records"),
       },
       post: {
-        tags: ["Payment Gateways"],
-        summary: "Create payment gateway",
-        ...auth(["SuperAdmin"]),
+        tags: ["User Payments"],
+        summary: "Record user payment",
+        ...auth(["Admin", "Attendant"]),
         ...body({
-          name: { type: "string", description: "Friendly label, e.g. 'SunPay M-Pesa'" },
-          gateway: { type: "string", enum: ["sunpay"], description: "Adapter that dispatches the charge. Currently only 'sunpay' is wired; stripe / paystack / mpesa adapters are stubbed and will be enabled as they are implemented." },
-          config: { type: "object", description: "Adapter-specific credentials. SunPay: { apiKey, baseUrl?, webhookSecret? }" },
-          isActive: { type: "boolean" },
-        }, ["name","gateway"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/admin/payment-gateways/catalog": {
-      get: {
-        tags: ["Payment Gateways"],
-        summary: "List supported gateway types and their config schema",
-        description: "Returns every gateway adapter the server can dispatch to (e.g. SunPay) along with the credential fields each one expects. Use this to render the 'add payment gateway' form in the super-admin UI: pick a `gateway`, then render the `configFields` it requires.",
-        ...auth(["SuperAdmin"]),
-        responses: ok("Gateway catalog"),
-      },
-    },
-    "/admin/payment-gateways/active": {
-      get: {
-        tags: ["Payment Gateways"],
-        summary: "List active gateways for admin pickers",
-        description: "Returns only id/name/gateway (no credentials) for active gateways. Use this to populate the gateway picker on subscription / SMS top-up screens.",
-        ...auth(["Admin"]),
-        responses: list("Active payment gateways"),
-      },
-    },
-    "/admin/payment-gateways/{id}": {
-      put: {
-        tags: ["Payment Gateways"],
-        summary: "Update payment gateway",
-        ...auth(["SuperAdmin"]),
-        parameters: [idParam()],
-        ...body({ name: { type: "string" }, gateway: { type: "string", enum: ["sunpay","stripe","paystack","mpesa"] }, config: { type: "object" }, isActive: { type: "boolean" } }),
-        responses: ok("Updated"),
-      },
-      delete: {
-        tags: ["Payment Gateways"],
-        summary: "Delete payment gateway",
-        ...auth(["SuperAdmin"]),
-        parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+          shopId:      intId("Shop ID"),
+          amount:      { type: "number" },
+          type:        strField("customer | supplier"),
+          customerId:  intId("Customer ID (if type = customer)"),
+          supplierId:  intId("Supplier ID (if type = supplier)"),
+          paymentType: strField("Payment method"),
+          mpesaCode:   strField("M-Pesa transaction code (optional)"),
+        }, ["shopId", "amount", "type"]),
+        responses: { ...createdResp("Payment recorded"), ...errResp },
       },
     },
 
     // ── Affiliates ────────────────────────────────────────────────────────────
-    "/affiliates": {
+    "/affiliates/register": {
+      post: {
+        tags: ["Affiliates"],
+        summary: "Register affiliate partner",
+        ...body({
+          name:     strField("Full name"),
+          email:    { type: "string", format: "email" },
+          password: { type: "string", format: "password" },
+          phone:    strField("Phone (optional)"),
+          address:  strField("Address (optional)"),
+          country:  strField("Country (optional)"),
+        }, ["name", "email", "password"]),
+        responses: { ...createdResp("Affiliate registered"), 409: { description: "Email already registered" } },
+      },
+    },
+    "/affiliates/login": {
+      post: {
+        tags: ["Affiliates"],
+        summary: "Affiliate login",
+        ...body({ email: { type: "string", format: "email" }, password: { type: "string", format: "password" } }, ["email", "password"]),
+        responses: { ...dataResp("Login successful", { token: strField("JWT token"), affiliate: { type: "object" } }), 401: { description: "Invalid credentials" } },
+      },
+    },
+    "/affiliates/me": {
       get: {
         tags: ["Affiliates"],
-        summary: "List affiliates",
-        security: [{ BearerAuth: [] }],
-        parameters: [...paginationParams, searchParam],
-        responses: list("Affiliates"),
+        summary: "Get affiliate profile",
+        ...auth(["Affiliate"]),
+        responses: dataResp("Affiliate profile"),
+      },
+      put: {
+        tags: ["Affiliates"],
+        summary: "Update affiliate profile",
+        ...auth(["Affiliate"]),
+        ...body({ name: strField("Name"), phone: strField("Phone"), address: strField("Address"), country: strField("Country") }),
+        responses: { ...dataResp("Updated"), ...errResp },
+      },
+    },
+    "/affiliates/me/awards": {
+      get: {
+        tags: ["Affiliates"],
+        summary: "Affiliate's commission awards",
+        ...auth(["Affiliate"]),
+        parameters: [...paginationParams, fromParam, toParam],
+        responses: listResp("Awards"),
+      },
+    },
+    "/affiliates/me/transactions": {
+      get: {
+        tags: ["Affiliates"],
+        summary: "Affiliate's wallet transactions",
+        ...auth(["Affiliate"]),
+        parameters: [...paginationParams],
+        responses: listResp("Wallet transactions"),
+      },
+    },
+    "/affiliates/me/withdraw": {
+      post: {
+        tags: ["Affiliates"],
+        summary: "Request wallet withdrawal",
+        ...auth(["Affiliate"]),
+        ...body({
+          amount:           { type: "number", description: "Amount to withdraw" },
+          paymentType:      { type: "string", description: "mpesa | bank | paypal", default: "mpesa" },
+          paymentReference: strField("External reference (optional)"),
+          phone:            strField("M-Pesa phone number (optional)"),
+          accountName:      strField("Bank account name (optional)"),
+          accountNumber:    strField("Bank account number (optional)"),
+        }, ["amount"]),
+        responses: { ...createdResp("Withdrawal requested"), ...errResp },
+      },
+    },
+    "/affiliates/awards": {
+      get: {
+        tags: ["Affiliates"],
+        summary: "List all awards (admin)",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams, { name: "affiliateId", in: "query", schema: { type: "integer" } }],
+        responses: listResp("Awards"),
       },
       post: {
         tags: ["Affiliates"],
-        summary: "Create affiliate account",
+        summary: "Create award (super-admin only)",
+        ...auth(["Admin"]),
         ...body({
-          name: { type: "string" },
-          email: { type: "string" },
-          phone: { type: "string" },
-          commission: { type: "number" },
-        }, ["name", "email"]),
-        responses: ok("Created", {}),
+          affiliateId: intId("Affiliate ID"),
+          amount:      { type: "number" },
+          type:        strField("subscription | referral | bonus"),
+          awardType:   strField("Award sub-type"),
+          shopId:      intId("Related shop ID (optional)"),
+        }, ["affiliateId", "amount", "type"]),
+        responses: { ...createdResp("Award created"), ...errResp },
+      },
+    },
+    "/affiliates/transactions": {
+      get: {
+        tags: ["Affiliates"],
+        summary: "List affiliate transactions",
+        ...auth(["Affiliate"]),
+        parameters: [...paginationParams],
+        responses: listResp("Affiliate wallet transactions"),
+      },
+    },
+    "/affiliates": {
+      get: {
+        tags: ["Affiliates"],
+        summary: "List all affiliates (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams],
+        responses: listResp("Affiliates"),
       },
     },
     "/affiliates/{id}": {
       get: {
         tags: ["Affiliates"],
-        summary: "Get affiliate",
-        security: [{ BearerAuth: [] }],
+        summary: "Get affiliate (super-admin only)",
+        ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: ok("Affiliate"),
+        responses: { ...dataResp("Affiliate"), 404: errResp[404] },
       },
+    },
+    "/affiliates/{id}/block": {
       put: {
         tags: ["Affiliates"],
-        summary: "Update affiliate",
-        security: [{ BearerAuth: [] }],
-        parameters: [idParam()],
-        ...body({ name: { type: "string" }, commission: { type: "number" } }),
-        responses: ok("Updated"),
-      },
-      delete: {
-        tags: ["Affiliates"],
-        summary: "Delete affiliate",
+        summary: "Block affiliate (super-admin only)",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...dataResp("Blocked", { message: { type: "string" } }), ...errResp },
       },
     },
-    "/affiliates/{id}/transactions": {
-      get: {
+    "/affiliates/{id}/unblock": {
+      put: {
         tags: ["Affiliates"],
-        summary: "Affiliate transaction history",
-        security: [{ BearerAuth: [] }],
-        parameters: [idParam(), ...paginationParams],
-        responses: list("Transactions"),
-      },
-    },
-    "/awards": {
-      get: {
-        tags: ["Affiliates"],
-        summary: "List affiliate awards",
-        ...auth(["Admin"]),
-        parameters: [...paginationParams],
-        responses: list("Awards"),
-      },
-    },
-    "/awards/{id}": {
-      get: {
-        tags: ["Affiliates"],
-        summary: "Get award",
+        summary: "Unblock affiliate (super-admin only)",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: ok("Award"),
+        responses: { ...dataResp("Unblocked", { message: { type: "string" } }), ...errResp },
       },
     },
 
@@ -2022,22 +2642,41 @@ export const openApiSpec = {
     "/packages": {
       get: {
         tags: ["Packages"],
-        summary: "List subscription packages",
-        parameters: [...paginationParams],
-        responses: list("Packages"),
+        summary: "List active subscription packages (public)",
+        description: "Returns all active packages ordered by sortOrder. No authentication required.",
+        responses: dataResp("Active packages", {
+          id:            intId("Package ID"),
+          title:         strField("Display name", "Business Monthly"),
+          description:   strField("Plan description"),
+          type:          strField("trial | production"),
+          durationValue: intId("Duration quantity"),
+          durationUnit:  strField("days | weeks | months | years"),
+          amount:        moneyStr,
+          amountUsd:     moneyStr,
+          discount:      moneyStr,
+          maxShops:      intId("Max shops allowed (null = unlimited)"),
+          isActive:      boolFlag("Package is available for purchase"),
+          sortOrder:     intId("Display order"),
+          packageFeatures: { type: "array", items: { type: "object", properties: { feature: strField("Feature description") } } },
+        }),
       },
       post: {
         tags: ["Packages"],
-        summary: "Create package",
+        summary: "Create package (super-admin only)",
         ...auth(["Admin"]),
         ...body({
-          title: { type: "string" },
-          price: { type: "number" },
-          durationDays: { type: "integer" },
-          shopLimit: { type: "integer" },
-          description: { type: "string" },
-        }, ["title", "price", "durationDays"]),
-        responses: ok("Created", {}),
+          title:         strField("Display name"),
+          description:   strField("Plan description (optional)"),
+          durationValue: { type: "integer", description: "Duration quantity" },
+          durationUnit:  { type: "string",  enum: ["days", "weeks", "months", "years"] },
+          amount:        { type: "number",  description: "Price in local currency (KES)" },
+          amountUsd:     { type: "number",  description: "Price in USD" },
+          type:          { type: "string",  enum: ["trial", "production"] },
+          shops:         { type: "integer", description: "Max shops (omit for unlimited)" },
+          discount:      { type: "number",  description: "Percentage discount", default: 0 },
+          sortOrder:     { type: "integer", description: "Display order",        default: 0 },
+        }, ["title", "durationValue", "durationUnit", "amount", "amountUsd", "type"]),
+        responses: { ...createdResp("Package created"), ...errResp },
       },
     },
     "/packages/{id}": {
@@ -2045,121 +2684,102 @@ export const openApiSpec = {
         tags: ["Packages"],
         summary: "Get package",
         parameters: [idParam()],
-        responses: ok("Package with features"),
+        responses: { ...dataResp("Package with features"), 404: errResp[404] },
       },
       put: {
         tags: ["Packages"],
-        summary: "Update package",
+        summary: "Update package (super-admin only)",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ title: { type: "string" }, price: { type: "number" } }),
-        responses: ok("Updated"),
+        ...body({
+          title:         strField("Display name"),
+          description:   strField("Description"),
+          durationValue: { type: "integer" },
+          durationUnit:  { type: "string", enum: ["days", "weeks", "months", "years"] },
+          amount:        { type: "number" },
+          amountUsd:     { type: "number" },
+          isActive:      boolFlag("Activate or deactivate"),
+          sortOrder:     { type: "integer" },
+          discount:      { type: "number" },
+        }),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Packages"],
-        summary: "Delete package",
+        summary: "Delete package (super-admin only)",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp, 404: errResp[404] },
       },
     },
     "/packages/{id}/features": {
-      get: {
-        tags: ["Packages"],
-        summary: "List features for a package",
-        parameters: [idParam()],
-        responses: list("Package features"),
-      },
       post: {
         tags: ["Packages"],
-        summary: "Add feature to package",
+        summary: "Add features to package (super-admin only)",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ title: { type: "string" }, included: { type: "boolean" } }, ["title"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/package-features/{id}": {
-      put: {
-        tags: ["Packages"],
-        summary: "Update package feature",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ title: { type: "string" }, included: { type: "boolean" } }),
-        responses: ok("Updated"),
-      },
-      delete: {
-        tags: ["Packages"],
-        summary: "Delete package feature",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        ...body({ features: { type: "array", items: { type: "string" }, description: "Array of feature description strings" } }, ["features"]),
+        responses: { ...createdResp("Features added"), ...errResp },
       },
     },
 
     // ── Subscriptions ─────────────────────────────────────────────────────────
-    "/admin/subscriptions": {
+    "/subscriptions": {
       get: {
         tags: ["Subscriptions"],
-        summary: "List all subscriptions (super-admin)",
+        summary: "List subscriptions for this admin",
+        description: "Super-admin can pass `adminId` to view another admin's subscriptions.",
         ...auth(["Admin"]),
         parameters: [
           ...paginationParams,
-          { name: "status", in: "query", schema: { type: "string", enum: ["active", "trial", "expired", "unpaid"] } },
-          { name: "packageId", in: "query", schema: { type: "integer" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
+          { name: "adminId", in: "query", schema: { type: "integer" }, description: "Super-admin only: filter by admin" },
         ],
-        responses: list("Subscriptions"),
+        responses: listResp("Subscriptions with package and shops"),
       },
-    },
-    "/admin/subscriptions/stats": {
-      get: {
-        tags: ["Subscriptions"],
-        summary: "Platform-wide subscription statistics",
-        ...auth(["Admin"]),
-        responses: ok("Subscription stats"),
-      },
-    },
-    "/admin/subscriptions/summary": {
-      get: {
-        tags: ["Subscriptions"],
-        summary: "Platform revenue dashboard (by period)",
-        ...auth(["Admin"]),
-        responses: ok("Revenue by today/yesterday/thisWeek/thisMonth/lastMonth/allTime"),
-      },
-    },
-    "/subscriptions": {
       post: {
         tags: ["Subscriptions"],
         summary: "Create subscription",
+        description: "Creates a new subscription for one or more shops. Payment is handled separately via `POST /subscriptions/{id}/pay`.",
         ...auth(["Admin"]),
         ...body({
-          packageId: { type: "integer" },
-          shopIds: { type: "array", items: { type: "integer" } },
-        }, ["packageId"]),
-        responses: ok("Created subscription", {}),
-      },
-    },
-    "/subscriptions/by-shops": {
-      get: {
-        tags: ["Subscriptions"],
-        summary: "Get subscriptions for admin's shops",
-        ...auth(["Admin"]),
-        responses: list("Subscriptions"),
+          packageId:  intId("Package to subscribe to"),
+          shopIds:    { type: "array", items: { type: "integer" }, description: "IDs of shops to include in this subscription" },
+          mpesaCode:  strField("M-Pesa transaction code (optional — for immediate payment confirmation)"),
+          currency:   { type: "string", description: "Currency code", default: "kes" },
+        }, ["packageId", "shopIds"]),
+        responses: {
+          ...createdResp("Subscription created", {
+            id:        intId("Subscription ID"),
+            startDate: isoDate,
+            endDate:   isoDate,
+            isPaid:    boolFlag("Whether payment confirmed"),
+            isActive:  boolFlag("Whether subscription is active"),
+            invoiceNo: strField("Auto-generated invoice number"),
+          }),
+          ...errResp,
+        },
       },
     },
     "/subscriptions/assign-shops": {
       put: {
         tags: ["Subscriptions"],
-        summary: "Assign shops to existing subscription",
+        summary: "Assign shops to a subscription",
+        description: "Replaces the current shop list for the subscription.",
         ...auth(["Admin"]),
         ...body({
-          subscriptionId: { type: "integer" },
-          shopIds: { type: "array", items: { type: "integer" } },
-          mpesaCode: { type: "string" },
+          subscriptionId: intId("Subscription ID"),
+          shopIds:        { type: "array", items: { type: "integer" }, description: "New list of shop IDs" },
         }, ["subscriptionId", "shopIds"]),
-        responses: ok("Updated subscription"),
+        responses: { ...dataResp("Shop assignments updated"), ...errResp },
+      },
+    },
+    "/subscriptions/admin/summary": {
+      get: {
+        tags: ["Subscriptions"],
+        summary: "Platform subscription summary (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [fromParam, toParam],
+        responses: dataResp("Summary", { total: intId("Total"), active: intId("Active"), revenue: moneyStr }),
       },
     },
     "/subscriptions/{id}": {
@@ -2168,88 +2788,96 @@ export const openApiSpec = {
         summary: "Get subscription",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: ok("Subscription"),
+        responses: { ...dataResp("Subscription with package and shops"), 404: errResp[404] },
+      },
+      put: {
+        tags: ["Subscriptions"],
+        summary: "Update subscription (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [idParam()],
+        ...body({
+          isActive: boolFlag("Activate or deactivate"),
+          isPaid:   boolFlag("Mark as paid"),
+          endDate:  { ...isoDate, description: "Override expiry date" },
+        }),
+        responses: { ...dataResp("Updated"), ...errResp },
       },
       delete: {
         tags: ["Subscriptions"],
-        summary: "Delete subscription",
+        summary: "Delete subscription (super-admin only)",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp },
       },
     },
-    "/subscriptions/{id}/extend": {
-      put: {
+    "/subscriptions/{id}/pay": {
+      post: {
         tags: ["Subscriptions"],
-        summary: "Extend subscription end date",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ days: { type: "integer" }, reason: { type: "string" } }, ["days"]),
-        responses: ok("Extended"),
-      },
-    },
-    "/subscriptions/{id}/licence": {
-      get: {
-        tags: ["Subscriptions"],
-        summary: "Get subscription licence details",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: ok("Licence"),
-      },
-    },
-    "/subscriptions/{id}/verify": {
-      put: {
-        tags: ["Subscriptions"],
-        summary: "Verify subscription payment transaction",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ transactionCode: { type: "string" } }, ["transactionCode"]),
-        responses: ok("Verified"),
-      },
-    },
+        summary: "Initiate / confirm subscription payment",
+        description: `
+**Gateway path:** Provide \`paymentGatewayId\` to initiate an online payment. Returns a \`pending\` state with a \`checkoutUrl\` or \`checkoutRequestId\` depending on the gateway.
 
-    // ── Admin management ──────────────────────────────────────────────────────
-    "/admin/admins": {
-      get: {
-        tags: ["Admin"],
-        summary: "List all admins (super-admin)",
+**Manual path:** Omit \`paymentGatewayId\` and provide a \`paymentReference\` or \`mpesaCode\` to record a manual payment immediately.
+        `.trim(),
         ...auth(["Admin"]),
-        parameters: [...paginationParams, searchParam],
-        responses: list("Admins"),
+        parameters: [idParam()],
+        ...body({
+          paymentGatewayId:  intId("Payment gateway ID (optional — triggers online payment flow)"),
+          paymentMethod:     strField("Manual payment method label (used when no gateway)"),
+          paymentReference:  strField("External reference / transaction ID"),
+          mpesaCode:         strField("M-Pesa confirmation code"),
+          phone:             strField("Phone number for M-Pesa STK push (required for some gateways)"),
+        }),
+        responses: {
+          ...dataResp("Payment initiated or confirmed", {
+            subscription: { type: "object" },
+            payment: {
+              type: "object",
+              properties: {
+                gateway:           strField("Gateway identifier or 'manual'"),
+                status:            strField("pending | completed"),
+                checkoutUrl:       strField("Redirect URL (online gateways)"),
+                checkoutRequestId: strField("M-Pesa STK push request ID"),
+                externalRef:       strField("Internal payment reference for callback matching"),
+                amount:            intId("Amount charged"),
+                currency:          strField("Currency code"),
+              },
+            },
+          }),
+          ...errResp,
+        },
       },
     },
-    "/admin/admins/by-subscription": {
-      get: {
-        tags: ["Admin"],
-        summary: "List admins filtered by subscription status",
+    "/subscriptions/{id}/pay/mpesa": {
+      post: {
+        tags: ["Subscriptions"],
+        summary: "Pay via M-Pesa STK push",
         ...auth(["Admin"]),
-        parameters: [{ name: "status", in: "query", schema: { type: "string" } }, ...paginationParams],
-        responses: list("Admins"),
+        parameters: [idParam()],
+        ...body({
+          phone:     strField("Subscriber phone number for STK push"),
+          mpesaCode: strField("Provide to confirm an already-paid M-Pesa transaction"),
+        }),
+        responses: { ...dataResp("M-Pesa payment initiated"), ...errResp },
       },
     },
-    "/admin/admins/{id}": {
-      get: {
-        tags: ["Admin"],
-        summary: "Get admin by ID (super-admin)",
+    "/subscriptions/{id}/pay/paystack": {
+      post: {
+        tags: ["Subscriptions"],
+        summary: "Pay via Paystack",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: ok("Admin"),
+        ...body({ email: { type: "string", format: "email", description: "Customer email for Paystack checkout" } }),
+        responses: { ...dataResp("Paystack checkout URL"), ...errResp },
       },
-      put: {
-        tags: ["Admin"],
-        summary: "Update admin (super-admin)",
+    },
+    "/subscriptions/{id}/pay/stripe": {
+      post: {
+        tags: ["Subscriptions"],
+        summary: "Pay via Stripe Checkout",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ isActive: { type: "boolean" }, referralCredit: { type: "number" } }),
-        responses: ok("Updated"),
-      },
-      delete: {
-        tags: ["Admin"],
-        summary: "Hard-delete admin and all related data (super-admin)",
-        description: "Same destructive cascade as DELETE /admin/account, but invoked by a super-admin against any admin id. Wipes shops, products, sales, customers, suppliers, finance, subscriptions, attendants and communications in one transaction, then sends an account_deleted email.",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: ok("Account deleted (returns deleted admin summary)"),
+        responses: { ...dataResp("Stripe Checkout session URL"), ...errResp },
       },
     },
 
@@ -2259,24 +2887,37 @@ export const openApiSpec = {
         tags: ["Attendants"],
         summary: "List attendants",
         ...auth(["Admin"]),
-        parameters: [
-          ...paginationParams,
-          { name: "shopId", in: "query", schema: { type: "integer" } },
-        ],
-        responses: list("Attendants"),
+        parameters: [...paginationParams, shopIdQuery],
+        responses: listResp("Attendants (PIN and password excluded)", {
+          id:          intId("Attendant ID"),
+          username:    strField("Display name"),
+          shop:        intId("Shop ID"),
+          admin:       intId("Admin ID"),
+          permissions: { type: "array", items: { type: "string" }, description: "Permission keys" },
+          createdAt:   isoDate,
+        }),
       },
       post: {
         tags: ["Attendants"],
         summary: "Create attendant",
+        description: "Creates a POS staff account. A random 4-digit PIN is auto-generated if `pin` is omitted. A welcome email (with PIN) is sent to the admin.",
         ...auth(["Admin"]),
         ...body({
-          name: { type: "string" },
-          phone: { type: "string" },
-          pin: { type: "string" },
-          shopIds: { type: "array", items: { type: "integer" } },
-          permissionIds: { type: "array", items: { type: "integer" } },
-        }, ["name", "pin"]),
-        responses: ok("Created attendant", {}),
+          username:    strField("Attendant display name"),
+          shopId:      intId("Shop this attendant works in"),
+          pin:         strField("4-digit PIN (auto-generated if omitted)"),
+          permissions: { type: "array", items: { type: "string" }, description: "Permission keys (see GET /attendants/permissions)" },
+        }, ["username", "shopId"]),
+        responses: { ...createdResp("Attendant created"), ...errResp },
+      },
+    },
+    "/attendants/permissions": {
+      get: {
+        tags: ["Permissions"],
+        summary: "List available permission keys",
+        description: "Returns the full catalog of permission keys that can be assigned to attendants.",
+        ...auth(["Admin"]),
+        responses: dataResp("Permissions catalog"),
       },
     },
     "/attendants/{id}": {
@@ -2285,66 +2926,37 @@ export const openApiSpec = {
         summary: "Get attendant",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: ok("Attendant"),
+        responses: { ...dataResp("Attendant"), 404: errResp[404] },
       },
       put: {
         tags: ["Attendants"],
         summary: "Update attendant",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ name: { type: "string" }, pin: { type: "string" }, isActive: { type: "boolean" } }),
-        responses: ok("Updated"),
+        ...body({
+          username:    strField("Display name"),
+          pin:         strField("New 4-digit PIN"),
+          shopId:      intId("Reassign to different shop"),
+          permissions: { type: "array", items: { type: "string" } },
+        }),
+        responses: { ...dataResp("Updated attendant"), ...errResp },
       },
       delete: {
         tags: ["Attendants"],
         summary: "Delete attendant",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        responses: { ...noContentResp, 404: errResp[404] },
       },
     },
-    "/attendants/{id}/shops": {
-      put: {
-        tags: ["Attendants"],
-        summary: "Update attendant shop assignments",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ shopIds: { type: "array", items: { type: "integer" } } }, ["shopIds"]),
-        responses: ok("Updated"),
-      },
-    },
-
-    // ── Permissions ───────────────────────────────────────────────────────────
-    "/permissions": {
-      get: {
-        tags: ["Permissions"],
-        summary: "List available permissions",
-        ...auth(["Admin"]),
-        responses: list("Permissions"),
-      },
-      post: {
-        tags: ["Permissions"],
-        summary: "Create permission",
-        ...auth(["Admin"]),
-        ...body({ key: { type: "string" }, description: { type: "string" } }, ["key"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/permissions/{id}": {
+    "/attendants/{id}/permissions": {
       put: {
         tags: ["Permissions"],
-        summary: "Update permission",
+        summary: "Replace attendant permissions",
         ...auth(["Admin"]),
         parameters: [idParam()],
-        ...body({ key: { type: "string" }, description: { type: "string" } }),
-        responses: ok("Updated"),
-      },
-      delete: {
-        tags: ["Permissions"],
-        summary: "Delete permission",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
+        ...body({ permissions: { type: "array", items: { type: "string" } } }, ["permissions"]),
+        responses: { ...dataResp("Permissions updated", { message: { type: "string" } }), ...errResp },
       },
     },
 
@@ -2352,1170 +2964,455 @@ export const openApiSpec = {
     "/reports/sales": {
       get: {
         tags: ["Reports"],
-        summary: "Sales analysis report",
+        summary: "Sales summary",
         ...auth(["Admin"]),
-        parameters: [
-          { name: "shopId", in: "query", required: true, schema: { type: "integer" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
-          { name: "groupBy", in: "query", schema: { type: "string", enum: ["day", "week", "month"] } },
-        ],
-        responses: ok("Sales report data"),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Sales summary", { totalSales: intId("Count"), totalRevenue: moneyStr, totalPaid: moneyStr, totalOutstanding: moneyStr, totalDiscount: moneyStr }),
+      },
+    },
+    "/reports/sales/by-product": {
+      get: {
+        tags: ["Reports"],
+        summary: "Sales grouped by product",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Product sales rows"),
+      },
+    },
+    "/reports/sales/by-customer": {
+      get: {
+        tags: ["Reports"],
+        summary: "Sales grouped by customer",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Customer sales rows"),
+      },
+    },
+    "/reports/sales/by-attendant": {
+      get: {
+        tags: ["Reports"],
+        summary: "Sales grouped by attendant",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Attendant sales rows"),
+      },
+    },
+    "/reports/sales/by-payment-method": {
+      get: {
+        tags: ["Reports"],
+        summary: "Sales grouped by payment method",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Payment method rows"),
+      },
+    },
+    "/reports/profit": {
+      get: {
+        tags: ["Reports"],
+        summary: "Profit summary",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Profit summary", { revenue: moneyStr, cost: moneyStr, profit: moneyStr, margin: strField("Profit margin %") }),
+      },
+    },
+    "/reports/profit/yearly/{year}": {
+      get: {
+        tags: ["Reports"],
+        summary: "Monthly profit breakdown for a year",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery, { name: "year", in: "path", required: true, schema: { type: "integer" }, description: "4-digit year, e.g. 2026" }],
+        responses: dataResp("Monthly profit rows"),
+      },
+    },
+    "/reports/profit-analysis": {
+      get: {
+        tags: ["Reports"],
+        summary: "Profit trend analysis",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery],
+        responses: dataResp("Trend rows"),
       },
     },
     "/reports/purchases": {
       get: {
         tags: ["Reports"],
-        summary: "Purchase analysis report",
+        summary: "Purchases summary",
         ...auth(["Admin"]),
-        parameters: [
-          { name: "shopId", in: "query", required: true, schema: { type: "integer" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
-        ],
-        responses: ok("Purchase report data"),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Purchases summary"),
       },
     },
-    "/reports/top-products": {
+    "/reports/expenses": {
       get: {
         tags: ["Reports"],
-        summary: "Top selling products",
+        summary: "Expenses summary",
         ...auth(["Admin"]),
-        parameters: [
-          { name: "shopId", in: "query", required: true, schema: { type: "integer" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
-          { name: "limit", in: "query", schema: { type: "integer", default: 10 } },
-        ],
-        responses: list("Top products with sales totals"),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Expenses summary"),
       },
     },
     "/reports/stock": {
       get: {
         tags: ["Reports"],
+        summary: "Current stock levels summary",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery],
+        responses: dataResp("Stock summary"),
+      },
+    },
+    "/reports/stock-value": {
+      get: {
+        tags: ["Reports"],
         summary: "Stock valuation report",
         ...auth(["Admin"]),
-        parameters: [
-          { name: "shopId", in: "query", required: true, schema: { type: "integer" } },
-        ],
-        responses: ok("Stock valuation"),
+        parameters: [shopIdQuery],
+        responses: dataResp("Stock value summary"),
       },
     },
-    "/reports/cashflow": {
+    "/reports/stock-movement": {
       get: {
         tags: ["Reports"],
-        summary: "Cashflow report",
+        summary: "Stock movement (adjustments + transfers)",
         ...auth(["Admin"]),
-        parameters: [
-          { name: "shopId", in: "query", required: true, schema: { type: "integer" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
-        ],
-        responses: ok("Cashflow totals"),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Stock movement rows"),
       },
     },
-    "/reports/statement": {
+    "/reports/stock-count-analysis": {
       get: {
         tags: ["Reports"],
-        summary: "Customer or supplier account statement",
+        summary: "Stock count variance analysis",
         ...auth(["Admin"]),
-        parameters: [
-          { name: "customerId", in: "query", schema: { type: "integer" } },
-          { name: "supplierId", in: "query", schema: { type: "integer" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
-        ],
-        responses: ok("Account statement"),
+        parameters: [shopIdQuery],
+        responses: dataResp("Count analysis rows"),
       },
     },
-    "/reports/purchase-monthly": {
+    "/reports/top-products": {
       get: {
         tags: ["Reports"],
-        summary: "Monthly purchase analysis",
+        summary: "Top-selling products",
         ...auth(["Admin"]),
-        parameters: [
-          { name: "shopId", in: "query", required: true, schema: { type: "integer" } },
-          { name: "year", in: "query", schema: { type: "integer" } },
-        ],
-        responses: list("Monthly purchase totals"),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Top products"),
+      },
+    },
+    "/reports/product-sales": {
+      get: {
+        tags: ["Reports"],
+        summary: "All products with sales figures",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Product sales rows"),
       },
     },
     "/reports/monthly-product-sales": {
       get: {
         tags: ["Reports"],
-        summary: "Monthly sales per product",
+        summary: "Monthly product sales breakdown",
         ...auth(["Admin"]),
-        parameters: [
-          { name: "shopId", in: "query", required: true, schema: { type: "integer" } },
-          { name: "productId", in: "query", required: true, schema: { type: "integer" } },
-          { name: "year", in: "query", schema: { type: "integer" } },
-        ],
-        responses: list("Monthly product sales"),
+        parameters: [shopIdQuery],
+        responses: dataResp("Monthly rows"),
       },
     },
-    "/reports/stock-count-yearly/{productId}": {
+    "/reports/debtors": {
       get: {
         tags: ["Reports"],
-        summary: "Yearly stock count history for a product",
+        summary: "Customers with outstanding balances",
         ...auth(["Admin"]),
-        parameters: [idParam("productId")],
-        responses: list("Yearly stock counts"),
+        parameters: [shopIdQuery],
+        responses: dataResp("Debtor list"),
       },
-    },
-
-    // ── Communications ────────────────────────────────────────────────────────
-    "/communications": {
-      get: {
-        tags: ["Communications"],
-        summary: "List communications",
-        ...auth(["Admin"]),
-        parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Communications"),
-      },
-      post: {
-        tags: ["Communications"],
-        summary: "Create communication",
-        ...auth(["Admin"]),
-        ...body({
-          shopId: { type: "integer" },
-          subject: { type: "string" },
-          message: { type: "string" },
-          recipientType: { type: "string", enum: ["all", "customers", "specific"] },
-          recipientIds: { type: "array", items: { type: "integer" } },
-        }, ["shopId", "subject", "message"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/communications/{id}": {
-      get: {
-        tags: ["Communications"],
-        summary: "Get communication",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: ok("Communication"),
-      },
-      delete: {
-        tags: ["Communications"],
-        summary: "Delete communication",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
-      },
-    },
-
-    // ── Email Templates ───────────────────────────────────────────────────────
-    "/email-templates": {
-      get: {
-        tags: ["Email Templates"],
-        summary: "List email templates",
-        ...auth(["Admin"]),
-        parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }],
-        responses: list("Email templates"),
-      },
-      post: {
-        tags: ["Email Templates"],
-        summary: "Create email template",
-        ...auth(["Admin"]),
-        ...body({
-          shopId: { type: "integer" },
-          name: { type: "string" },
-          subject: { type: "string" },
-          body: { type: "string" },
-        }, ["shopId", "name", "subject", "body"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/email-templates/{id}": {
-      get: {
-        tags: ["Email Templates"],
-        summary: "Get email template",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: ok("Email template"),
-      },
-      put: {
-        tags: ["Email Templates"],
-        summary: "Update email template",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ subject: { type: "string" }, body: { type: "string" } }),
-        responses: ok("Updated"),
-      },
-      delete: {
-        tags: ["Email Templates"],
-        summary: "Delete email template",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: { 204: { description: "Deleted" } },
-      },
-    },
-
-    // ── SMS Templates (shared library) ────────────────────────────────────────
-    "/communications/sms-templates": {
-      get: {
-        tags: ["Communications"],
-        summary: "List SMS templates (shared across all admins)",
-        ...auth(["Admin"]),
-        parameters: [{ name: "search", in: "query", schema: { type: "string" } }, { name: "activeOnly", in: "query", schema: { type: "boolean" } }],
-        responses: list("SMS templates"),
-      },
-      post: {
-        tags: ["Communications"],
-        summary: "Create SMS template (super-admin only)",
-        ...auth(["Admin"]),
-        ...body({
-          name: { type: "string", description: "Unique template name" },
-          body: { type: "string", description: "SMS body. Use {{placeholder}} for variables." },
-          description: { type: "string" },
-          isActive: { type: "boolean", default: true },
-        }, ["name", "body"]),
-        responses: { 201: { description: "Created" } },
-      },
-    },
-    "/communications/sms-templates/{id}": {
-      get: {
-        tags: ["Communications"],
-        summary: "Get SMS template",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: ok("SMS template"),
-      },
-      put: {
-        tags: ["Communications"],
-        summary: "Update SMS template (super-admin only)",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ name: { type: "string" }, body: { type: "string" }, description: { type: "string" }, isActive: { type: "boolean" } }),
-        responses: ok("Updated"),
-      },
-      delete: {
-        tags: ["Communications"],
-        summary: "Delete SMS template (super-admin only)",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: ok("Deleted"),
-      },
-    },
-
-    // ── Sync ──────────────────────────────────────────────────────────────────
-    "/sync/{shopId}": {
-      get: {
-        tags: ["Sync"],
-        summary: "Pull all sync data for a shop (offline client bootstrap)",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [
-          idParam("shopId"),
-          { name: "since", in: "query", schema: { type: "string", format: "date-time" } },
-        ],
-        responses: ok("Sync payload"),
-      },
-      delete: {
-        tags: ["Sync"],
-        summary: "Delete shop sync state (admin only)",
-        ...auth(["Admin"]),
-        parameters: [idParam("shopId")],
-        responses: { 204: { description: "Deleted" } },
-      },
-    },
-    "/sync/{shopId}/push": {
-      post: {
-        tags: ["Sync"],
-        summary: "Push offline changes from client",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [idParam("shopId")],
-        ...body({ changes: { type: "array" } }, ["changes"]),
-        responses: ok("Sync result"),
-      },
-    },
-
-    // ── Activities ────────────────────────────────────────────────────────────
-    "/activities": {
-      get: {
-        tags: ["Activities"],
-        summary: "List activity log",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [
-          ...paginationParams,
-          { name: "shopId", in: "query", schema: { type: "integer" } },
-          { name: "userId", in: "query", schema: { type: "integer" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date" } },
-        ],
-        responses: list("Activity log entries"),
-      },
-      post: {
-        tags: ["Activities"],
-        summary: "Record activity",
-        ...auth(["Admin", "Attendant"]),
-        ...body({
-          shopId: { type: "integer" },
-          action: { type: "string" },
-          entityType: { type: "string" },
-          entityId: { type: "integer" },
-          metadata: { type: "object" },
-        }, ["action"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/activities/recent": {
-      get: {
-        tags: ["Activities"],
-        summary: "Recent activity feed",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }, { name: "limit", in: "query", schema: { type: "integer" } }],
-        responses: list("Recent activities"),
-      },
-    },
-    "/shops/{shopId}/activities": {
-      get: {
-        tags: ["Activities"],
-        summary: "List activities scoped to shop",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [idParam("shopId"), ...paginationParams],
-        responses: list("Activities for shop"),
-      },
-    },
-
-    // ── Sync (additional) ─────────────────────────────────────────────────────
-    "/sync/dump": {
-      post: {
-        tags: ["Sync"],
-        summary: "Bulk dump offline-collected data",
-        ...auth(["Admin", "Attendant"]),
-        ...body({ shopId: { type: "integer" }, payload: { type: "object" } }, ["shopId", "payload"]),
-        responses: ok("Dump accepted"),
-      },
-    },
-    "/sync/dump/online": {
-      post: {
-        tags: ["Sync"],
-        summary: "Bulk dump online (real-time mode)",
-        ...auth(["Admin", "Attendant"]),
-        ...body({ shopId: { type: "integer" }, payload: { type: "object" } }, ["shopId", "payload"]),
-        responses: ok("Dump accepted"),
-      },
-    },
-    "/sync/database/init": {
-      get: {
-        tags: ["Sync"],
-        summary: "Database init schema/seed for offline desktop client",
-        ...auth(["Admin", "Attendant"]),
-        responses: ok("Init payload (sql/json)"),
-      },
-    },
-    "/sync/checkupdate/desktop": {
-      get: {
-        tags: ["Sync"],
-        summary: "Check for desktop client updates",
-        responses: ok("Latest desktop version metadata"),
-      },
-    },
-
-    // ── Customers (additional) ────────────────────────────────────────────────
-    "/customers/by-number": {
-      get: {
-        tags: ["Customers"],
-        summary: "Lookup customer by customerNo",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [
-          { name: "customerNo", in: "query", required: false, schema: { type: "integer" } },
-          { name: "phone", in: "query", required: false, schema: { type: "string" } },
-          { name: "shopId", in: "query", required: false, schema: { type: "integer" } },
-        ],
-        responses: ok("Customer or null"),
-      },
-    },
-    "/customers/bulk-import": {
-      post: {
-        tags: ["Customers"],
-        summary: "Bulk import customers",
-        ...auth(["Admin", "Attendant"]),
-        ...body({ customers: { type: "array", items: { type: "object" } }, shopId: { type: "integer" } }, ["customers"]),
-        responses: ok("Import summary"),
-      },
-    },
-    "/customers/{id}/wallet-transactions": {
-      get: {
-        tags: ["Customers"],
-        summary: "List customer wallet ledger",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [idParam(), ...paginationParams],
-        responses: list("Wallet ledger"),
-      },
-    },
-    "/customers/{id}/wallet/deposit": {
-      post: {
-        tags: ["Customers"],
-        summary: "Deposit into customer wallet",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [idParam()],
-        ...body({ amount: { type: "number" }, note: { type: "string" } }, ["amount"]),
-        responses: ok("Wallet updated"),
-      },
-    },
-    "/customers/{id}/wallet/withdraw": {
-      post: {
-        tags: ["Customers"],
-        summary: "Withdraw from customer wallet",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [idParam()],
-        ...body({ amount: { type: "number" }, note: { type: "string" } }, ["amount"]),
-        responses: ok("Wallet updated"),
-      },
-    },
-    "/customers/{id}/wallet/payment": {
-      post: {
-        tags: ["Customers"],
-        summary: "Apply wallet payment to outstanding sale balance",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [idParam()],
-        ...body({ amount: { type: "number" }, saleId: { type: "integer" } }, ["amount"]),
-        responses: ok("Payment applied"),
-      },
-    },
-
-    // ── Suppliers (additional) ────────────────────────────────────────────────
-    "/suppliers/bulk-import": {
-      post: {
-        tags: ["Suppliers"],
-        summary: "Bulk import suppliers",
-        ...auth(["Admin"]),
-        ...body({ suppliers: { type: "array", items: { type: "object" } }, shopId: { type: "integer" } }, ["suppliers"]),
-        responses: ok("Import summary"),
-      },
-    },
-    "/suppliers/{id}/wallet-transactions": {
-      get: {
-        tags: ["Suppliers"],
-        summary: "List supplier wallet ledger",
-        ...auth(["Admin"]),
-        parameters: [idParam(), ...paginationParams],
-        responses: list("Wallet ledger"),
-      },
-    },
-    "/suppliers/{id}/wallet/deposit": {
-      post: {
-        tags: ["Suppliers"],
-        summary: "Deposit into supplier wallet",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ amount: { type: "number" }, note: { type: "string" } }, ["amount"]),
-        responses: ok("Wallet updated"),
-      },
-    },
-    "/suppliers/{id}/wallet/payment": {
-      post: {
-        tags: ["Suppliers"],
-        summary: "Apply wallet payment to supplier purchase",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ amount: { type: "number" }, purchaseId: { type: "integer" } }, ["amount"]),
-        responses: ok("Payment applied"),
-      },
-    },
-
-    // ── Products (additional) ─────────────────────────────────────────────────
-    "/products/attributes": {
-      get: { tags: ["Products"], summary: "List product attributes", ...auth(["Admin", "Attendant"]), responses: list("Attributes") },
-      post: {
-        tags: ["Products"], summary: "Create product attribute", ...auth(["Admin"]),
-        ...body({ name: { type: "string" } }, ["name"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/products/attributes/{id}": {
-      get: { tags: ["Products"], summary: "Get attribute with variants", ...auth(["Admin", "Attendant"]), parameters: [idParam()], responses: ok("Attribute") },
-    },
-    "/products/attributes/{id}/variants": {
-      post: {
-        tags: ["Products"], summary: "Add variant to attribute", ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ value: { type: "string" } }, ["value"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/products/bulk-import": {
-      post: {
-        tags: ["Products"], summary: "Bulk import products", ...auth(["Admin"]),
-        ...body({ products: { type: "array", items: { type: "object" } }, shopId: { type: "integer" } }, ["products"]),
-        responses: ok("Import summary"),
-      },
-    },
-    "/products/{id}/sales-history": {
-      get: { tags: ["Products"], summary: "Sales history for a product", ...auth(["Admin", "Attendant"]), parameters: [idParam(), ...paginationParams], responses: list("Sale items for product") },
-    },
-    "/products/{id}/purchases-history": {
-      get: { tags: ["Products"], summary: "Purchases history for a product", ...auth(["Admin", "Attendant"]), parameters: [idParam(), ...paginationParams], responses: list("Purchase items for product") },
-    },
-    "/products/{id}/stock-history": {
-      get: { tags: ["Products"], summary: "Stock movement history", ...auth(["Admin", "Attendant"]), parameters: [idParam(), ...paginationParams], responses: list("Adjustments / movements") },
-    },
-    "/products/{id}/transfer-history": {
-      get: { tags: ["Products"], summary: "Transfer history for product", ...auth(["Admin", "Attendant"]), parameters: [idParam(), ...paginationParams], responses: list("Transfers") },
-    },
-    "/products/{id}/summary": {
-      get: { tags: ["Products"], summary: "Aggregated product summary (sales, purchases, stock value)", ...auth(["Admin", "Attendant"]), parameters: [idParam()], responses: ok("Summary") },
-    },
-    "/products/{id}/images": {
-      post: {
-        tags: ["Products"], summary: "Upload multiple product images", ...auth(["Admin"]),
-        parameters: [idParam()],
-        requestBody: { content: { "multipart/form-data": { schema: { type: "object", properties: { images: { type: "array", items: { type: "string", format: "binary" } } } } } } },
-        responses: ok("Image URLs"),
-      },
-    },
-    "/products/{id}/bundle-items": {
-      get: { tags: ["Products"], summary: "List bundle items for product", ...auth(["Admin", "Attendant"]), parameters: [idParam()], responses: list("Bundle items") },
-      post: {
-        tags: ["Products"], summary: "Add bundle item to product", ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ bundledProductId: { type: "integer" }, quantity: { type: "number" } }, ["bundledProductId", "quantity"]),
-        responses: ok("Created", {}),
-      },
-    },
-
-    // ── Inventory (mounted at /inventory) ─────────────────────────────────────
-    "/inventory/item/{id}": {
-      get: { tags: ["Inventory"], summary: "Get inventory item by id", ...auth(["Admin", "Attendant"]), parameters: [idParam()], responses: ok("Inventory record") },
-    },
-    "/inventory/batches": {
-      get: { tags: ["Inventory"], summary: "List inventory batches", ...auth(["Admin", "Attendant"]), parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }], responses: list("Batches") },
-    },
-    "/inventory/adjustments": {
-      get: { tags: ["Adjustments"], summary: "List adjustments", ...auth(["Admin", "Attendant"]), parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }], responses: list("Adjustments") },
-      post: {
-        tags: ["Adjustments"], summary: "Create adjustment", ...auth(["Admin", "Attendant"]),
-        ...body({ productId: { type: "integer" }, shopId: { type: "integer" }, quantity: { type: "number" }, type: { type: "string" }, reason: { type: "string" } }, ["productId", "shopId", "quantity", "type"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/inventory/adjustments/{id}": {
-      delete: { tags: ["Adjustments"], summary: "Delete adjustment", ...auth(["Admin"]), parameters: [idParam()], responses: { 204: { description: "Deleted" } } },
-    },
-    "/inventory/bad-stocks": {
-      get: { tags: ["Bad Stocks"], summary: "List bad stocks", ...auth(["Admin", "Attendant"]), parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }], responses: list("Bad stocks") },
-      post: {
-        tags: ["Bad Stocks"], summary: "Record bad stock", ...auth(["Admin", "Attendant"]),
-        ...body({ productId: { type: "integer" }, shopId: { type: "integer" }, quantity: { type: "number" }, reason: { type: "string" } }, ["productId", "shopId", "quantity"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/inventory/bad-stocks/{id}": {
-      delete: { tags: ["Bad Stocks"], summary: "Delete bad stock", ...auth(["Admin"]), parameters: [idParam()], responses: { 204: { description: "Deleted" } } },
-    },
-    "/inventory/stock-counts": {
-      get: { tags: ["Stock Counts"], summary: "List stock counts (inventory router)", ...auth(["Admin", "Attendant"]), parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }], responses: list("Stock counts") },
-      post: {
-        tags: ["Stock Counts"], summary: "Create stock count", ...auth(["Admin", "Attendant"]),
-        ...body({ shopId: { type: "integer" }, title: { type: "string" }, items: { type: "array" } }, ["shopId"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/inventory/stock-counts/product-search": {
-      get: { tags: ["Stock Counts"], summary: "Search products for counting", ...auth(["Admin", "Attendant"]), parameters: [{ name: "q", in: "query", schema: { type: "string" } }, { name: "shopId", in: "query", schema: { type: "integer" } }], responses: list("Products") },
-    },
-    "/inventory/stock-counts/product-filter": {
-      get: { tags: ["Stock Counts"], summary: "Filter products for counting", ...auth(["Admin", "Attendant"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }], responses: list("Products") },
-    },
-    "/inventory/stock-counts/by-product/{productId}": {
-      get: { tags: ["Stock Counts"], summary: "Stock count history per product", ...auth(["Admin", "Attendant"]), parameters: [idParam("productId")], responses: list("Stock counts") },
-    },
-    "/inventory/stock-counts/{id}": {
-      get: { tags: ["Stock Counts"], summary: "Get stock count", ...auth(["Admin", "Attendant"]), parameters: [idParam()], responses: ok("Stock count with items") },
-      delete: { tags: ["Stock Counts"], summary: "Delete stock count", ...auth(["Admin"]), parameters: [idParam()], responses: { 204: { description: "Deleted" } } },
-    },
-    "/inventory/stock-counts/{id}/items": {
-      post: {
-        tags: ["Stock Counts"], summary: "Add items to stock count", ...auth(["Admin", "Attendant"]),
-        parameters: [idParam()],
-        ...body({ items: { type: "array", items: { type: "object", properties: { productId: { type: "integer" }, physicalCount: { type: "number" } } } } }, ["items"]),
-        responses: ok("Items added"),
-      },
-    },
-    "/inventory/stock-counts/{id}/apply": {
-      post: { tags: ["Stock Counts"], summary: "Apply stock count adjustments to inventory", ...auth(["Admin", "Attendant"]), parameters: [idParam()], responses: ok("Applied") },
-    },
-    "/inventory/stock-requests": {
-      get: { tags: ["Stock Requests"], summary: "List stock requests", ...auth(["Admin", "Attendant"]), parameters: [...paginationParams, { name: "shopId", in: "query", schema: { type: "integer" } }], responses: list("Stock requests") },
-      post: {
-        tags: ["Stock Requests"], summary: "Create stock request", ...auth(["Admin", "Attendant"]),
-        ...body({ fromShopId: { type: "integer" }, warehouseId: { type: "integer" }, items: { type: "array" } }, ["fromShopId", "items"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/inventory/stock-requests/by-product/{productId}": {
-      get: { tags: ["Stock Requests"], summary: "Requests by product", ...auth(["Admin", "Attendant"]), parameters: [idParam("productId")], responses: list("Stock requests") },
-    },
-    "/inventory/stock-requests/{id}": {
-      get: { tags: ["Stock Requests"], summary: "Get stock request", ...auth(["Admin", "Attendant"]), parameters: [idParam()], responses: ok("Stock request") },
-      delete: { tags: ["Stock Requests"], summary: "Delete stock request", ...auth(["Admin"]), parameters: [idParam()], responses: { 204: { description: "Deleted" } } },
-    },
-    "/inventory/stock-requests/{id}/approve": {
-      put: { tags: ["Stock Requests"], summary: "Approve stock request", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Approved") },
-    },
-    "/inventory/stock-requests/{id}/reject": {
-      put: { tags: ["Stock Requests"], summary: "Reject stock request", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Rejected") },
-    },
-    "/inventory/stock-requests/{id}/status": {
-      put: {
-        tags: ["Stock Requests"], summary: "Update stock request status", ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ status: { type: "string" } }, ["status"]),
-        responses: ok("Updated"),
-      },
-    },
-    "/inventory/stock-requests/{id}/accept": {
-      post: { tags: ["Stock Requests"], summary: "Accept stock request (warehouse)", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Accepted") },
-    },
-    "/inventory/stock-requests/{id}/dispatch": {
-      post: { tags: ["Stock Requests"], summary: "Dispatch accepted stock request", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Dispatched") },
-    },
-    "/inventory/stock-requests/{id}/items/{itemId}": {
-      delete: { tags: ["Stock Requests"], summary: "Remove item from stock request", ...auth(["Admin"]), parameters: [idParam(), idParam("itemId")], responses: { 204: { description: "Deleted" } } },
-    },
-
-    // ── Orders (additional) ───────────────────────────────────────────────────
-    "/orders/{id}/fulfill": {
-      post: {
-        tags: ["Orders"], summary: "Fulfill order — convert to sale, deduct stock", ...auth(["Admin", "Attendant"]),
-        parameters: [idParam()],
-        ...body({ paymentMethod: { type: "string" }, amountPaid: { type: "number" } }),
-        responses: ok("Fulfilled — sale created"),
-      },
-    },
-    "/orders/{id}/status": {
-      put: {
-        tags: ["Orders"], summary: "Update order status", ...auth(["Admin", "Attendant"]),
-        parameters: [idParam()],
-        ...body({ status: { type: "string" } }, ["status"]),
-        responses: ok("Updated"),
-      },
-    },
-
-    // ── Finance (additional) ──────────────────────────────────────────────────
-    "/finance/banks/{id}/transactions": {
-      get: { tags: ["Banks"], summary: "List bank transactions", ...auth(["Admin", "Attendant"]), parameters: [idParam(), ...paginationParams, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: list("Bank transactions") },
-    },
-
-    // ── Admin (additional) ────────────────────────────────────────────────────
-    "/admin/profile": {
-      get: { tags: ["Admin"], summary: "Current admin profile", ...auth(["Admin"]), responses: ok("Admin profile") },
-      put: {
-        tags: ["Admin"],
-        summary: "Update current admin profile (any safe field)",
-        description: "Updates only the fields present in the request body. Sensitive fields (password, smsCredit, referralCredit, isSuperAdmin, FKs) are ignored. Changing email or phone resets the corresponding verification flag.",
-        ...auth(["Admin"]),
-        ...body({
-          username: { type: "string" },
-          name: { type: "string", description: "Alias for username" },
-          email: { type: "string", format: "email" },
-          phone: { type: "string" },
-          shop: { type: "integer", description: "Default primary shop id" },
-          autoPrint: { type: "boolean" },
-          saleSmsEnabled: { type: "boolean", description: "Master SMS opt-in: enables per-sale receipt SMS to customers AND the daily summary SMS to the admin." },
-          platform: { type: "string" },
-          appVersion: { type: "string" },
-        }),
-        responses: ok("Updated admin profile"),
-      },
-    },
-    "/admin/profile/password": {
-      put: {
-        tags: ["Admin"], summary: "Change password", ...auth(["Admin"]),
-        ...body({ currentPassword: { type: "string" }, newPassword: { type: "string" } }, ["currentPassword", "newPassword"]),
-        responses: ok("Password updated"),
-      },
-    },
-    "/admin/account": {
-      delete: {
-        tags: ["Admin"],
-        summary: "Permanently delete the current admin's account and all related data",
-        description: "Wipes the admin and EVERY record they own (shops, products, sales, customers, suppliers, finance, subscriptions, attendants, communications, etc.) inside a single transaction, then sends an account_deleted confirmation email. This action cannot be undone.",
-        ...auth(["Admin"]),
-        responses: ok("Account deleted (returns deleted admin summary)"),
-      },
-    },
-    "/admin/sms-credits": {
-      get: { tags: ["Admin"], summary: "Get SMS credit balance", ...auth(["Admin"]), responses: ok("Balance") },
-    },
-    "/admin/sms-credits/topup": {
-      post: {
-        tags: ["Admin"], summary: "Top-up SMS credits", ...auth(["Admin"]),
-        ...body({ amount: { type: "number" }, credits: { type: "integer" }, phone: { type: "string" } }, ["amount", "credits"]),
-        responses: ok("Top-up recorded"),
-      },
-    },
-    "/admin/referrals": {
-      get: { tags: ["Admin"], summary: "List referral signups for current admin", ...auth(["Admin"]), responses: list("Referrals") },
-    },
-    "/admin/all": {
-      get: { tags: ["Admin"], summary: "List all admins (super-admin)", ...auth(["Admin"]), parameters: [...paginationParams, searchParam], responses: list("Admins") },
-    },
-        "/admin/shops": {
-      get: { tags: ["Admin"], summary: "List shops across admins (super-admin)", ...auth(["Admin"]), parameters: [...paginationParams, { name: "adminId", in: "query", schema: { type: "integer" } }], responses: list("Shops") },
-    },
-    "/admin/affiliates": {
-      get: { tags: ["Affiliates"], summary: "List affiliates (super-admin)", ...auth(["Admin"]), parameters: [...paginationParams, searchParam], responses: list("Affiliates") },
-      post: {
-        tags: ["Affiliates"], summary: "Create affiliate (super-admin)", ...auth(["Admin"]),
-        ...body({ name: { type: "string" }, email: { type: "string" }, phone: { type: "string" }, commission: { type: "number" } }, ["name", "email"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/admin/affiliates/{id}": {
-      get: { tags: ["Affiliates"], summary: "Get affiliate (super-admin)", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Affiliate") },
-      put: { tags: ["Affiliates"], summary: "Update affiliate", ...auth(["Admin"]), parameters: [idParam()], ...body({ commission: { type: "number" } }), responses: ok("Updated") },
-    },
-    "/admin/affiliates/{id}/award": {
-      post: {
-        tags: ["Affiliates"], summary: "Award affiliate commission", ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ amount: { type: "number" }, reason: { type: "string" } }, ["amount"]),
-        responses: ok("Award recorded"),
-      },
-    },
-    "/admin/affiliate-transactions/{id}/complete": {
-      put: { tags: ["Affiliates"], summary: "Mark affiliate transaction completed", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Completed") },
-    },
-    "/admin/affiliate-transactions/{id}/payout-mpesa": {
-      post: {
-        tags: ["Affiliates"], summary: "Trigger M-Pesa payout for affiliate transaction", ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ phone: { type: "string" } }),
-        responses: ok("Payout initiated"),
-      },
-    },
-    "/admin/communications": {
-      get: { tags: ["Communications"], summary: "Platform communications log (super-admin)", ...auth(["Admin"]), parameters: [...paginationParams], responses: list("Communications") },
-    },
-    "/admin/communications/send": {
-      post: {
-        tags: ["Communications"], summary: "Send platform-wide communication", ...auth(["Admin"]),
-        ...body({ subject: { type: "string" }, message: { type: "string" }, channel: { type: "string", enum: ["email", "sms", "in_app"] }, recipientType: { type: "string", enum: ["all", "admins", "customers", "specific"] }, recipientIds: { type: "array", items: { type: "integer" } }, to: { type: "string" }, body: { type: "string" }, type: { type: "string" } }, ["message"]),
-        responses: ok("Sent"),
-      },
-    },
-    "/admin/communications/bulk-sms": {
-      post: {
-        tags: ["Communications"], summary: "Send bulk SMS (super-admin)", ...auth(["Admin"]),
-        ...body({ message: { type: "string" }, recipients: { type: "array", items: { type: "string" } } }, ["message", "recipients"]),
-        responses: ok("Bulk SMS dispatched"),
-      },
-    },
-    "/admin/communications/{id}/resend": {
-      post: { tags: ["Communications"], summary: "Resend a communication", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Resent") },
-    },
-    "/admin/email-templates": {
-      get: { tags: ["Email Templates"], summary: "List platform email templates", ...auth(["Admin"]), responses: list("Templates") },
-      post: {
-        tags: ["Email Templates"], summary: "Create platform email template", ...auth(["Admin"]),
-        ...body({ name: { type: "string" }, subject: { type: "string" }, body: { type: "string" } }, ["name", "subject", "body"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/admin/email-templates/{id}": {
-      get: { tags: ["Email Templates"], summary: "Get platform template", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Template") },
-      put: { tags: ["Email Templates"], summary: "Update template", ...auth(["Admin"]), parameters: [idParam()], ...body({ subject: { type: "string" }, body: { type: "string" } }), responses: ok("Updated") },
-      delete: { tags: ["Email Templates"], summary: "Delete template", ...auth(["Admin"]), parameters: [idParam()], responses: { 204: { description: "Deleted" } } },
-    },
-    "/admin/email-messages": {
-      get: { tags: ["Email Templates"], summary: "List queued/email messages", ...auth(["Admin"]), parameters: [...paginationParams], responses: list("Messages") },
-      post: {
-        tags: ["Email Templates"], summary: "Queue email message", ...auth(["Admin"]),
-        ...body({ to: { type: "string" }, subject: { type: "string" }, body: { type: "string" }, templateId: { type: "integer" } }, ["to", "subject"]),
-        responses: ok("Queued", {}),
-      },
-    },
-    "/admin/email-messages/{id}": {
-      put: { tags: ["Email Templates"], summary: "Update email message", ...auth(["Admin"]), parameters: [idParam()], ...body({ subject: { type: "string" }, body: { type: "string" } }), responses: ok("Updated") },
-      delete: { tags: ["Email Templates"], summary: "Delete email message", ...auth(["Admin"]), parameters: [idParam()], responses: { 204: { description: "Deleted" } } },
-    },
-    "/admin/email-messages/{id}/send": {
-      post: { tags: ["Email Templates"], summary: "Send queued email", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Sent") },
-    },
-    "/admin/emails-sent": {
-      get: { tags: ["Email Templates"], summary: "Sent emails log", ...auth(["Admin"]), parameters: [...paginationParams], responses: list("Sent emails") },
-    },
-    "/admin/sms/adjust-credits": {
-      post: {
-        tags: ["Admin"], summary: "Adjust SMS credits for any admin (super-admin)", ...auth(["Admin"]),
-        ...body({ adminId: { type: "integer" }, shopId: { type: "integer" }, delta: { type: "integer" }, reason: { type: "string" }, amount: { type: "integer" }, description: { type: "string" } }, ["delta"]),
-        responses: ok("Adjusted"),
-      },
-    },
-    // ── Affiliates (self-service) ─────────────────────────────────────────────
-    "/affiliates/register": {
-      post: {
-        tags: ["Affiliates"], summary: "Register as affiliate",
-        ...body({ name: { type: "string" }, email: { type: "string" }, phone: { type: "string" }, password: { type: "string" } }, ["name", "email", "password"]),
-        responses: ok("Registered", {}),
-      },
-    },
-    "/affiliates/login": {
-      post: {
-        tags: ["Affiliates"], summary: "Affiliate login",
-        ...body({ email: { type: "string" }, password: { type: "string" } }, ["email", "password"]),
-        responses: ok("JWT token + affiliate"),
-      },
-    },
-    "/affiliates/me": {
-      get: { tags: ["Affiliates"], summary: "Current affiliate profile", ...auth(["Affiliate"]), responses: ok("Profile") },
-      put: { tags: ["Affiliates"], summary: "Update affiliate profile", ...auth(["Affiliate"]), ...body({ name: { type: "string" }, phone: { type: "string" } }), responses: ok("Updated") },
-    },
-    "/affiliates/me/awards": {
-      get: { tags: ["Affiliates"], summary: "Affiliate's own awards", ...auth(["Affiliate"]), parameters: [...paginationParams], responses: list("Awards") },
-    },
-    "/affiliates/me/transactions": {
-      get: { tags: ["Affiliates"], summary: "Affiliate's own transactions", ...auth(["Affiliate"]), parameters: [...paginationParams], responses: list("Transactions") },
-    },
-    "/affiliates/me/withdraw": {
-      post: {
-        tags: ["Affiliates"], summary: "Request withdrawal", ...auth(["Affiliate"]),
-        ...body({ amount: { type: "number" }, phone: { type: "string" }, accountName: { type: "string" }, accountNumber: { type: "string" }, paymentType: { type: "string" } }, ["amount"]),
-        responses: ok("Withdrawal requested"),
-      },
-    },
-    "/affiliates/awards": {
-      post: {
-        tags: ["Affiliates"], summary: "Create award (admin)", ...auth(["Admin"]),
-        ...body({ affiliateId: { type: "integer" }, amount: { type: "number" }, reason: { type: "string" } }, ["affiliateId", "amount"]),
-        responses: ok("Created", {}),
-      },
-    },
-    "/affiliates/transactions": {
-      get: { tags: ["Affiliates"], summary: "List affiliate transactions (self)", ...auth(["Affiliate"]), parameters: [...paginationParams], responses: list("Transactions") },
-    },
-    "/affiliates/{id}/block": {
-      put: { tags: ["Affiliates"], summary: "Block affiliate", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Blocked") },
-    },
-    "/affiliates/{id}/unblock": {
-      put: { tags: ["Affiliates"], summary: "Unblock affiliate", ...auth(["Admin"]), parameters: [idParam()], responses: ok("Unblocked") },
-    },
-
-    // ── SMS ───────────────────────────────────────────────────────────────────
-    "/sms/balance": {
-      get: { tags: ["Communications"], summary: "Current SMS credit balance", ...auth(["Admin"]), responses: ok("Balance") },
-    },
-    "/sms/top-up": {
-      post: {
-        tags: ["Communications"],
-        summary: "Initiate SMS credit top-up via SunPay M-Pesa STK push",
-        description: "Triggers an STK push. Provide EITHER `credits` (number of SMSes — charge = credits × pricePerCredit) OR `amount` (KES to spend — credits awarded = floor(amount / pricePerCredit)). `pricePerCredit` is the global setting `system/settings/sms_pricing` (default 1 KES). Credits are added only after SunPay confirms payment.",
-        ...auth(["Admin"]),
-        ...body({ credits: { type: "integer", minimum: 1, description: "Number of SMSes to buy. Mutually exclusive with `amount`." }, amount: { type: "integer", minimum: 1, description: "KES to spend. Mutually exclusive with `credits`. Credits awarded = floor(amount / pricePerCredit)." }, paymentGatewayId: { type: "integer", description: "id of an active payment_gateways row (e.g. SunPay) used to charge the admin" }, phone: { type: "string", description: "Defaults to admin.phone" } }, ["paymentGatewayId"]),
-        responses: { 201: { description: "STK push initiated — returns externalRef for polling" } },
-      },
-    },
-    "/sms/top-up/{ref}": {
-      get: {
-        tags: ["Communications"],
-        summary: "Check status of a SunPay top-up",
-        description: "Returns the intent state. If still pending, polls SunPay so credits are applied without waiting for the webhook.",
-        ...auth(["Admin"]),
-        parameters: [{ name: "ref", in: "path", required: true, schema: { type: "string" } }],
-        responses: ok("Top-up status"),
-      },
-    },
-    "/sms/transactions": {
-      get: {
-        tags: ["Communications"], summary: "List SMS credit transactions", ...auth(["Admin"]),
-        parameters: [...paginationParams, { name: "type", in: "query", schema: { type: "string" } }, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }],
-        responses: list("Transactions"),
-      },
-    },
-
-    // ── Subscriptions (additional) ────────────────────────────────────────────
-    "/subscriptions/{id}/pay": {
-      post: {
-        tags: ["Subscriptions"],
-        summary: "Pay subscription via a configured payment gateway",
-        description: "Charges the admin via the chosen payment_gateways row. Currently supports SunPay (M-Pesa STK push). Returns status='pending' until the gateway webhook confirms.",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({
-          paymentGatewayId: { type: "integer", description: "id of an active payment_gateways row" },
-          phone: { type: "string", description: "Required for SunPay / M-Pesa gateways" },
-          paymentReference: { type: "string" },
-        }, ["paymentGatewayId"]),
-        responses: ok("Payment recorded or STK push initiated"),
-      },
-    },
-    "/subscriptions/{id}/pay/mpesa": {
-      post: {
-        tags: ["Subscriptions"], summary: "Pay subscription via M-Pesa STK push", ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ phone: { type: "string" }, mpesaCode: { type: "string" } }),
-        responses: ok("STK push initiated or payment confirmed"),
-      },
-    },
-    "/subscriptions/{id}/pay/paystack": {
-      post: {
-        tags: ["Subscriptions"], summary: "Pay subscription via Paystack", ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({ email: { type: "string" } }),
-        responses: ok("Checkout URL"),
-      },
-    },
-    "/subscriptions/{id}/pay/stripe": {
-      post: {
-        tags: ["Subscriptions"], summary: "Pay subscription via Stripe", ...auth(["Admin"]),
-        parameters: [idParam()],
-        responses: ok("Checkout URL"),
-      },
-    },
-
-    // ── Payments webhooks ─────────────────────────────────────────────────────
-    "/payments/mpesa/callback": {
-      post: { tags: ["Subscriptions"], summary: "M-Pesa STK callback (webhook)", responses: ok("Acknowledged") },
-    },
-    "/payments/mpesa/validation": {
-      post: { tags: ["Subscriptions"], summary: "M-Pesa C2B validation (webhook)", responses: ok("Acknowledged") },
-    },
-    "/payments/mpesa/confirmation": {
-      post: { tags: ["Subscriptions"], summary: "M-Pesa C2B confirmation (webhook)", responses: ok("Acknowledged") },
-    },
-    "/payments/paystack/webhook": {
-      post: { tags: ["Subscriptions"], summary: "Paystack webhook", responses: ok("Acknowledged") },
-    },
-    "/payments/stripe/webhook": {
-      post: { tags: ["Subscriptions"], summary: "Stripe webhook", responses: ok("Acknowledged") },
-    },
-    "/payments/sunpay/callback/{ref}": {
-      post: {
-        tags: ["Subscriptions"],
-        summary: "SunPay per-transaction callback (plain, no signature)",
-        description: "Called by SunPay for the specific top-up identified by externalRef. Credits the admin and writes the ledger row idempotently.",
-        parameters: [{ name: "ref", in: "path", required: true, schema: { type: "string" } }],
-        responses: ok("Acknowledged"),
-      },
-    },
-    "/payments/sunpay/webhook": {
-      post: {
-        tags: ["Subscriptions"],
-        summary: "SunPay account-wide webhook (HMAC-SHA256 signed)",
-        description: "X-Webhook-Signature header verified against system/settings/sunpay.webhookSecret. Routes SMSTOPUP-* refs into the credit flow.",
-        responses: ok("Acknowledged"),
-      },
-    },
-
-    // ── Reports (additional) ──────────────────────────────────────────────────
-    "/reports/sales/by-product": {
-      get: { tags: ["Reports"], summary: "Sales aggregated by product", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: list("Rows") },
-    },
-    "/reports/sales/by-customer": {
-      get: { tags: ["Reports"], summary: "Sales aggregated by customer", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: list("Rows") },
-    },
-    "/reports/expenses": {
-      get: { tags: ["Reports"], summary: "Expenses summary", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }], responses: ok("Summary") },
-    },
-    "/reports/profit-loss": {
-      get: { tags: ["Reports"], summary: "Profit and loss report", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: ok("P&L") },
-    },
-    "/reports/inventory": {
-      get: { tags: ["Reports"], summary: "Inventory valuation summary", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }], responses: ok("Summary") },
-    },
-    "/reports/credit": {
-      get: { tags: ["Reports"], summary: "Outstanding credit summary", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }], responses: ok("Summary") },
-    },
-    "/reports/cross-shop": {
-      get: { tags: ["Reports"], summary: "Cross-shop sales totals", ...auth(["Admin"]), parameters: [{ name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: list("Per-shop totals") },
-    },
-    "/reports/discounted-sales": {
-      get: { tags: ["Reports"], summary: "Discounted sales report", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: ok("Rows + summary") },
-    },
-    "/reports/stock-value": {
-      get: { tags: ["Reports"], summary: "Stock value at cost and sale price", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }], responses: ok("Stock valuation rows") },
-    },
-    "/reports/stock-count-analysis": {
-      get: { tags: ["Reports"], summary: "Stock count variance analysis", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: ok("Variance rows") },
-    },
-    "/reports/out-of-stock/export": {
-      get: { tags: ["Reports"], summary: "Out-of-stock products export", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }], responses: ok("Export rows") },
-    },
-    "/reports/backup": {
-      get: { tags: ["Reports"], summary: "Backup snapshot for a shop", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", required: true, schema: { type: "integer" } }], responses: ok("Backup payload") },
     },
     "/reports/dues": {
-      get: { tags: ["Reports"], summary: "Outstanding sales dues", ...auth(["Admin"]), parameters: [{ name: "shopId", in: "query", schema: { type: "integer" } }], responses: ok("Rows + summary") },
+      get: {
+        tags: ["Reports"],
+        summary: "Outstanding credit sales",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery],
+        responses: dataResp("Due sales"),
+      },
     },
-    "/reports/profit/yearly/{year}": {
-      get: { tags: ["Reports"], summary: "Yearly profit per month", ...auth(["Admin"]), parameters: [{ name: "year", in: "path", required: true, schema: { type: "integer" } }, { name: "shopId", in: "query", schema: { type: "integer" } }], responses: ok("Months + totals") },
+    "/reports/discounted-sales": {
+      get: {
+        tags: ["Reports"],
+        summary: "Sales where a discount was applied",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery, fromParam, toParam],
+        responses: dataResp("Discounted sales"),
+      },
+    },
+    "/reports/out-of-stock/export": {
+      get: {
+        tags: ["Reports"],
+        summary: "Export out-of-stock products",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery],
+        responses: dataResp("Out-of-stock rows"),
+      },
+    },
+    "/reports/backup": {
+      get: {
+        tags: ["Reports"],
+        summary: "Full data backup snapshot",
+        ...auth(["Admin"]),
+        parameters: [shopIdQuery],
+        responses: dataResp("Backup snapshot"),
+      },
     },
 
-    // ── Shop-scoped (mounted under /shops/{shopId}) ───────────────────────────
+    // ── System (super-admin) ──────────────────────────────────────────────────
+    "/system/settings": {
+      get: {
+        tags: ["System"],
+        summary: "List all system settings (super-admin only)",
+        description: "Returns the full key/value store. Each row has a `name` (key) and a JSONB `setting` object.",
+        ...auth(["Admin"]),
+        parameters: [...paginationParams, searchParam],
+        responses: listResp("System settings"),
+      },
+    },
+    "/system/settings/{name}": {
+      get: {
+        tags: ["System"],
+        summary: "Get system setting by key",
+        description: "Common keys: `email`, `sms`, `mpesa`, `trial`, `platform`.",
+        ...auth(["Admin"]),
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" }, description: "Setting key" }],
+        responses: dataResp("Setting object"),
+      },
+      put: {
+        tags: ["System"],
+        summary: "Create or update system setting (super-admin only)",
+        description: "Deep-merges the provided object into the existing setting. Keys not in the request body are preserved.\n\n**Common setting keys and their schemas:**\n\n`email` → `{ provider, apiKey, fromName, fromAddress, replyTo }`\n\n`sms` → `{ provider, apiKey, endpoint, senderId }`\n\n`trial` → `{ days: number }` — controls the default free trial length\n\n`mpesa` → `{ shortCode, consumerKey, consumerSecret, passkey, callbackUrl }`",
+        ...auth(["Admin"]),
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object", additionalProperties: true,
+                example: { days: 14 },
+              },
+            },
+          },
+        },
+        responses: { ...dataResp("Setting updated"), ...errResp },
+      },
+      delete: {
+        tags: ["System"],
+        summary: "Delete system setting (super-admin only)",
+        ...auth(["Admin"]),
+        parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
+        responses: { ...noContentResp, 404: errResp[404] },
+      },
+    },
+    "/system/shop-categories": {
+      get: {
+        tags: ["System"],
+        summary: "List shop categories (system view)",
+        parameters: [...paginationParams, searchParam],
+        responses: listResp("Shop categories"),
+      },
+    },
+    "/system/shop-categories/{id}": {
+      get: {
+        tags: ["System"],
+        summary: "Get shop category (system view)",
+        parameters: [idParam()],
+        responses: { ...dataResp("Shop category"), 404: errResp[404] },
+      },
+    },
+    "/system/shop-metrics": {
+      get: {
+        tags: ["System"],
+        summary: "Platform metrics (super-admin only)",
+        description: "Returns global shop and admin counts.",
+        ...auth(["Admin"]),
+        responses: dataResp("Platform metrics", { shops: intId("Total shops"), admins: intId("Total admins"), generatedAt: isoDate }),
+      },
+    },
+
+    // ── Payment webhooks ──────────────────────────────────────────────────────
+    "/payments/mpesa/callback": {
+      post: { tags: ["Communications"], summary: "M-Pesa STK callback (legacy)", responses: { 200: { description: "Accepted" } } },
+    },
+    "/payments/mpesa/validation": {
+      post: { tags: ["Communications"], summary: "M-Pesa validation webhook (legacy)", responses: { 200: { description: "Accepted" } } },
+    },
+    "/payments/mpesa/confirmation": {
+      post: { tags: ["Communications"], summary: "M-Pesa confirmation webhook (legacy)", responses: { 200: { description: "Accepted" } } },
+    },
+    "/payments/paystack/webhook": {
+      post: { tags: ["Communications"], summary: "Paystack webhook (legacy stub)", responses: { 200: { description: "Received" } } },
+    },
+    "/payments/stripe/webhook": {
+      post: { tags: ["Communications"], summary: "Stripe webhook (legacy stub)", responses: { 200: { description: "Received" } } },
+    },
+    "/payments/{gateway}/callback/{ref}": {
+      post: {
+        tags: ["Communications"],
+        summary: "Per-transaction gateway callback",
+        description: "Called by a payment gateway after a charge completes. The `ref` must match an internal `pay_intent:<ref>` record.",
+        parameters: [
+          { name: "gateway", in: "path", required: true, schema: { type: "string" }, description: "Gateway identifier (e.g. sunpay, mpesa)" },
+          { name: "ref",     in: "path", required: true, schema: { type: "string" }, description: "External reference from the original charge" },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  status:    strField("Payment status from gateway (success | failed)"),
+                  mpesaRef:  strField("M-Pesa confirmation code (optional)"),
+                  reference: strField("Transaction reference (optional)"),
+                },
+              },
+            },
+          },
+        },
+        responses: { ...dataResp("Callback processed"), 400: { description: "Gateway mismatch" }, 404: { description: "Intent not found" } },
+      },
+    },
+    "/payments/{gateway}/webhook": {
+      post: {
+        tags: ["Communications"],
+        summary: "Account-wide gateway webhook (signature-verified)",
+        description: "Receives webhook events from a gateway. Signature is verified using the credentials of the matching payment gateway record.",
+        parameters: [
+          { name: "gateway", in: "path", required: true, schema: { type: "string" }, description: "Gateway identifier" },
+        ],
+        responses: { ...dataResp("Webhook processed"), 401: { description: "Invalid signature" }, 404: { description: "Intent not found" } },
+      },
+    },
+
+    // ── Shop-scoped aliases (legacy frontend compat) ──────────────────────────
     "/shops/{shopId}/products": {
-      get: { tags: ["Products"], summary: "List products for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams, searchParam, { name: "category", in: "query", schema: { type: "integer" } }, { name: "barcode", in: "query", schema: { type: "string" } }], responses: list("Products") },
+      get: { tags: ["Products"], summary: "Products for shop (shop-scoped alias)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams, searchParam], responses: listResp("Products") },
     },
-    "/shops/{shopId}/products/bulk-import": {
-      post: { tags: ["Products"], summary: "Bulk import products into shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], ...body({ products: { type: "array", items: { type: "object" } } }, ["products"]), responses: ok("Import summary") },
-    },
-    "/shops/{shopId}/categories": {
-      get: { tags: ["Product Categories"], summary: "List categories for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: list("Categories") },
-    },
-    "/shops/{shopId}/customers": {
-      get: { tags: ["Customers"], summary: "List customers for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams, searchParam], responses: list("Customers") },
-    },
-    "/shops/{shopId}/customers/overdue": {
-      get: { tags: ["Customers"], summary: "Overdue customers", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: list("Customers") },
-    },
-    "/shops/{shopId}/customers/analysis": {
-      get: { tags: ["Customers"], summary: "Customer base analytics", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: ok("Stats") },
-    },
-    "/shops/{shopId}/customers/debtors/export": {
-      get: { tags: ["Customers"], summary: "Export debtors", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: ok("Export rows") },
-    },
-    "/shops/{shopId}/customers/bulk-import": {
-      post: { tags: ["Customers"], summary: "Bulk import customers into shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], ...body({ customers: { type: "array", items: { type: "object" } } }, ["customers"]), responses: ok("Import summary") },
-    },
-    "/shops/{shopId}/suppliers": {
-      get: { tags: ["Suppliers"], summary: "List suppliers for shop", ...auth(["Admin"]), parameters: [idParam("shopId"), ...paginationParams, searchParam], responses: list("Suppliers") },
-    },
-    "/shops/{shopId}/suppliers/bulk-import": {
-      post: { tags: ["Suppliers"], summary: "Bulk import suppliers into shop", ...auth(["Admin"]), parameters: [idParam("shopId")], ...body({ suppliers: { type: "array", items: { type: "object" } } }, ["suppliers"]), responses: ok("Import summary") },
+    "/shops/{shopId}/products/{id}": {
+      get:    { tags: ["Products"],   summary: "Get product (shop-scoped)",    ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), idParam()], responses: dataResp("Product") },
+      put:    { tags: ["Products"],   summary: "Update product (shop-scoped)", ...auth(["Admin"]),              parameters: [idParam("shopId"), idParam()], ...body({}), responses: dataResp("Updated") },
+      delete: { tags: ["Products"],   summary: "Delete product (shop-scoped)", ...auth(["Admin"]),              parameters: [idParam("shopId"), idParam()], responses: noContentResp },
     },
     "/shops/{shopId}/sales": {
-      get: { tags: ["Sales"], summary: "List sales for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: list("Sales") },
+      get:  { tags: ["Sales"], summary: "Sales for shop",    ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams, fromParam, toParam], responses: listResp("Sales") },
+      post: { tags: ["Sales"], summary: "Record sale (shop-scoped)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], ...body({}), responses: createdResp("Sale recorded") },
     },
-    "/shops/{shopId}/sales/cross-shop": {
-      get: { tags: ["Sales"], summary: "Cross-shop sales summary for this shop scope", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: ok("Summary") },
+    "/shops/{shopId}/sales/{id}": {
+      get:    { tags: ["Sales"], summary: "Get sale (shop-scoped)",   ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), idParam()], responses: dataResp("Sale") },
+      delete: { tags: ["Sales"], summary: "Void sale (shop-scoped)",  ...auth(["Admin"]),              parameters: [idParam("shopId"), idParam()], responses: noContentResp },
     },
-    "/shops/{shopId}/sales/statement": {
-      get: { tags: ["Sales"], summary: "Shop sales statement", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: list("Sales") },
+    "/shops/{shopId}/sales/{id}/void":     { post: { tags: ["Sales"], summary: "Void sale (shop-scoped)",   ...auth(["Admin"]), parameters: [idParam("shopId"), idParam()], responses: dataResp("Voided") } },
+    "/shops/{shopId}/sales/{id}/refund":   { post: { tags: ["Sales"], summary: "Refund sale (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId"), idParam()], responses: dataResp("Refunded") } },
+    "/shops/{shopId}/sales/{id}/payments": { post: { tags: ["Sales"], summary: "Add payment (shop-scoped)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), idParam()], ...body({ amount: { type: "number" }, method: { type: "string" } }, ["amount", "method"]), responses: createdResp("Payment recorded") } },
+    "/shops/{shopId}/customers": {
+      get:  { tags: ["Customers"], summary: "Customers for shop",          ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams, searchParam], responses: listResp("Customers") },
+      post: { tags: ["Customers"], summary: "Create customer (shop-scoped)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], ...body({}), responses: createdResp("Customer created") },
     },
-    "/shops/{shopId}/sales/email-report": {
-      post: { tags: ["Sales"], summary: "Email sales report (queued, stub)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: ok("Queued") },
+    "/shops/{shopId}/customers/{id}": {
+      get:    { tags: ["Customers"], summary: "Get customer (shop-scoped)",    ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), idParam()], responses: dataResp("Customer") },
+      put:    { tags: ["Customers"], summary: "Update customer (shop-scoped)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), idParam()], ...body({}), responses: dataResp("Updated") },
+      delete: { tags: ["Customers"], summary: "Delete customer (shop-scoped)", ...auth(["Admin"]),              parameters: [idParam("shopId"), idParam()], responses: noContentResp },
     },
-    "/shops/{shopId}/sale-returns": {
-      get: { tags: ["Sale Returns"], summary: "List sale returns for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: list("Sale returns") },
+    "/shops/{shopId}/suppliers": {
+      get:  { tags: ["Suppliers"], summary: "Suppliers for shop",           ...auth(["Admin"]), parameters: [idParam("shopId"), ...paginationParams], responses: listResp("Suppliers") },
+      post: { tags: ["Suppliers"], summary: "Create supplier (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], ...body({}), responses: createdResp("Supplier created") },
+    },
+    "/shops/{shopId}/suppliers/{id}": {
+      get:    { tags: ["Suppliers"], summary: "Get supplier (shop-scoped)",    ...auth(["Admin"]), parameters: [idParam("shopId"), idParam()], responses: dataResp("Supplier") },
+      put:    { tags: ["Suppliers"], summary: "Update supplier (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId"), idParam()], ...body({}), responses: dataResp("Updated") },
+      delete: { tags: ["Suppliers"], summary: "Delete supplier (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId"), idParam()], responses: noContentResp },
     },
     "/shops/{shopId}/purchases": {
-      get: { tags: ["Purchases"], summary: "List purchases for shop", ...auth(["Admin"]), parameters: [idParam("shopId"), ...paginationParams, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: list("Purchases") },
+      get:  { tags: ["Purchases"], summary: "Purchases for shop",           ...auth(["Admin"]), parameters: [idParam("shopId"), ...paginationParams], responses: listResp("Purchases") },
+      post: { tags: ["Purchases"], summary: "Create purchase (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], ...body({}), responses: createdResp("Purchase created") },
     },
-    "/shops/{shopId}/purchases/monthly-analysis": {
-      get: { tags: ["Purchases"], summary: "Monthly purchase analytics", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: list("Months") },
+    "/shops/{shopId}/purchases/{id}": {
+      get:    { tags: ["Purchases"], summary: "Get purchase (shop-scoped)",    ...auth(["Admin"]), parameters: [idParam("shopId"), idParam()], responses: dataResp("Purchase") },
+      delete: { tags: ["Purchases"], summary: "Delete purchase (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId"), idParam()], responses: noContentResp },
     },
-    "/shops/{shopId}/purchases/email-report": {
-      post: { tags: ["Purchases"], summary: "Email purchases report (queued, stub)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: ok("Queued") },
-    },
-    "/shops/{shopId}/purchase-returns": {
-      get: { tags: ["Purchase Returns"], summary: "List purchase returns for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: list("Purchase returns") },
-    },
-    "/shops/{shopId}/orders": {
-      get: { tags: ["Orders"], summary: "List orders for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: list("Orders") },
-    },
-    "/shops/{shopId}/transfers": {
-      get: { tags: ["Transfers"], summary: "List transfers for shop (in/out)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: list("Transfers") },
-    },
-    "/shops/{shopId}/batches": {
-      get: { tags: ["Inventory"], summary: "List batches for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: list("Batches") },
-    },
-    "/shops/{shopId}/serials": {
-      get: { tags: ["Products"], summary: "List serials for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: list("Serials") },
-    },
-    "/shops/{shopId}/banks": {
-      get: { tags: ["Banks"], summary: "List banks for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: list("Banks") },
+    "/shops/{shopId}/inventory": {
+      get: { tags: ["Inventory"], summary: "Inventory for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: listResp("Inventory") },
     },
     "/shops/{shopId}/expenses": {
-      get: { tags: ["Expenses"], summary: "List expenses for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: list("Expenses") },
+      get:  { tags: ["Expenses"], summary: "Expenses for shop",           ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams, fromParam, toParam], responses: listResp("Expenses") },
+      post: { tags: ["Expenses"], summary: "Record expense (shop-scoped)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], ...body({ amount: { type: "number" }, description: { type: "string" } }, ["amount"]), responses: createdResp("Expense recorded") },
     },
-    "/shops/{shopId}/expenses/stats": {
-      get: { tags: ["Expenses"], summary: "Expense statistics", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: ok("Stats") },
-    },
-    "/shops/{shopId}/expense-categories": {
-      get: { tags: ["Expenses"], summary: "Expense categories for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: list("Categories") },
-    },
-    "/shops/{shopId}/cashflows": {
-      get: { tags: ["Cashflow"], summary: "Cashflows for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams, { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: list("Cashflows") },
-    },
-    "/shops/{shopId}/cashflows/total-by-category": {
-      get: { tags: ["Cashflow"], summary: "Cashflow totals grouped by category", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: list("Group rows") },
-    },
-    "/shops/{shopId}/cashflow-categories": {
-      get: { tags: ["Cashflow"], summary: "Cashflow categories for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: list("Categories") },
-    },
-    "/shops/{shopId}/payment-methods": {
-      get: { tags: ["Payment Methods"], summary: "Payment methods for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: list("Methods") },
-    },
-    "/shops/{shopId}/bad-stocks": {
-      get: { tags: ["Bad Stocks"], summary: "Bad stocks for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: list("Bad stocks") },
-    },
-    "/shops/{shopId}/bad-stocks/analysis": {
-      get: { tags: ["Bad Stocks"], summary: "Bad stocks aggregated by product", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: list("Group rows") },
-    },
-    "/shops/{shopId}/bad-stocks/summary": {
-      get: { tags: ["Bad Stocks"], summary: "Bad stocks summary totals", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: ok("Summary") },
-    },
-    "/shops/{shopId}/adjustments": {
-      get: { tags: ["Adjustments"], summary: "Adjustments for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: list("Adjustments") },
-    },
-    "/shops/{shopId}/stock-counts": {
-      get: { tags: ["Stock Counts"], summary: "Stock counts for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: list("Stock counts") },
-    },
-    "/shops/{shopId}/stock-counts/product-search": {
-      get: { tags: ["Stock Counts"], summary: "Search products for counting (shop)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), { name: "q", in: "query", schema: { type: "string" } }], responses: list("Products") },
-    },
-    "/shops/{shopId}/stock-counts/product-filter": {
-      get: { tags: ["Stock Counts"], summary: "Filter products for counting (shop)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: list("Products") },
-    },
-    "/shops/{shopId}/stock-requests": {
-      get: { tags: ["Stock Requests"], summary: "Stock requests for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: list("Stock requests") },
+    "/shops/{shopId}/orders": {
+      get:  { tags: ["Orders"], summary: "Orders for shop",    ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: listResp("Orders") },
+      post: { tags: ["Orders"], summary: "Create order (shop-scoped)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], ...body({}), responses: createdResp("Order created") },
     },
     "/shops/{shopId}/attendants": {
-      get: { tags: ["Attendants"], summary: "Attendants for shop", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: list("Attendants") },
+      get: { tags: ["Attendants"], summary: "Attendants for shop", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: listResp("Attendants") },
+    },
+    "/shops/{shopId}/stock-counts": {
+      get: { tags: ["Stock Counts"], summary: "Stock counts for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: listResp("Stock counts") },
+    },
+    "/shops/{shopId}/stock-counts/product-search": {
+      get: { tags: ["Stock Counts"], summary: "Search products for counting (shop-scoped)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), { name: "q", in: "query", schema: { type: "string" } }], responses: dataResp("Products") },
+    },
+    "/shops/{shopId}/stock-counts/product-filter": {
+      get: { tags: ["Stock Counts"], summary: "Filter products for counting (shop-scoped)", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId")], responses: dataResp("Products") },
+    },
+    "/shops/{shopId}/stock-requests": {
+      get: { tags: ["Stock Requests"], summary: "Stock requests for shop", ...auth(["Admin", "Attendant"]), parameters: [idParam("shopId"), ...paginationParams], responses: listResp("Stock requests") },
     },
     "/shops/{shopId}/reports/sales": {
-      get: { tags: ["Reports"], summary: "Sales summary for shop", ...auth(["Admin"]), parameters: [idParam("shopId"), { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: ok("Summary") },
+      get: { tags: ["Reports"], summary: "Sales summary (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId"), fromParam, toParam], responses: dataResp("Sales summary") },
     },
     "/shops/{shopId}/reports/profit": {
-      get: { tags: ["Reports"], summary: "Profit summary for shop", ...auth(["Admin"]), parameters: [idParam("shopId"), { name: "from", in: "query", schema: { type: "string", format: "date" } }, { name: "to", in: "query", schema: { type: "string", format: "date" } }], responses: ok("Profit") },
+      get: { tags: ["Reports"], summary: "Profit summary (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId"), fromParam, toParam], responses: dataResp("Profit summary") },
     },
     "/shops/{shopId}/reports/profit-analysis": {
-      get: { tags: ["Reports"], summary: "Monthly profit analysis", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: list("Rows") },
+      get: { tags: ["Reports"], summary: "Monthly profit analysis (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Rows") },
     },
     "/shops/{shopId}/reports/product-sales": {
-      get: { tags: ["Reports"], summary: "Sales by product (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: list("Rows") },
+      get: { tags: ["Reports"], summary: "Sales by product (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Rows") },
     },
     "/shops/{shopId}/reports/top-products": {
-      get: { tags: ["Reports"], summary: "Top products (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: list("Rows") },
+      get: { tags: ["Reports"], summary: "Top products (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Rows") },
     },
     "/shops/{shopId}/reports/monthly-product-sales": {
-      get: { tags: ["Reports"], summary: "Monthly product sales (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: list("Rows") },
+      get: { tags: ["Reports"], summary: "Monthly product sales (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Rows") },
     },
     "/shops/{shopId}/reports/discounted-sales": {
-      get: { tags: ["Reports"], summary: "Discounted sales (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: list("Sales") },
+      get: { tags: ["Reports"], summary: "Discounted sales (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Sales") },
     },
     "/shops/{shopId}/reports/purchases": {
-      get: { tags: ["Reports"], summary: "Purchases summary (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: ok("Summary") },
+      get: { tags: ["Reports"], summary: "Purchases summary (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Summary") },
     },
     "/shops/{shopId}/reports/expenses": {
-      get: { tags: ["Reports"], summary: "Expenses summary (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: ok("Summary") },
+      get: { tags: ["Reports"], summary: "Expenses summary (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Summary") },
     },
     "/shops/{shopId}/reports/stock": {
-      get: { tags: ["Reports"], summary: "Stock summary (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: ok("Summary") },
+      get: { tags: ["Reports"], summary: "Stock summary (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Summary") },
     },
     "/shops/{shopId}/reports/stock-movement": {
-      get: { tags: ["Reports"], summary: "Stock movement (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: list("Adjustments") },
+      get: { tags: ["Reports"], summary: "Stock movement (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Adjustments") },
     },
     "/shops/{shopId}/reports/debtors": {
-      get: { tags: ["Reports"], summary: "Debtors (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: list("Customers") },
+      get: { tags: ["Reports"], summary: "Debtors (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Customers") },
     },
     "/shops/{shopId}/reports/dues": {
-      get: { tags: ["Reports"], summary: "Outstanding sales dues (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: list("Sales") },
+      get: { tags: ["Reports"], summary: "Outstanding dues (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Sales") },
     },
     "/shops/{shopId}/reports/profit/yearly/{year}": {
-      get: { tags: ["Reports"], summary: "Yearly profit (shop)", ...auth(["Admin"]), parameters: [idParam("shopId"), { name: "year", in: "path", required: true, schema: { type: "integer" } }], responses: ok("Yearly") },
+      get: { tags: ["Reports"], summary: "Yearly profit (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId"), { name: "year", in: "path", required: true, schema: { type: "integer" } }], responses: dataResp("Yearly data") },
     },
     "/shops/{shopId}/reports/stock-value": {
-      get: { tags: ["Reports"], summary: "Stock value (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: ok("Summary") },
+      get: { tags: ["Reports"], summary: "Stock value (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Summary") },
     },
     "/shops/{shopId}/reports/stock-count-analysis": {
-      get: { tags: ["Reports"], summary: "Stock count analysis (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: list("Stock counts") },
+      get: { tags: ["Reports"], summary: "Stock count analysis (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Stock counts") },
     },
     "/shops/{shopId}/reports/out-of-stock/export": {
-      get: { tags: ["Reports"], summary: "Out-of-stock export (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: ok("Rows") },
+      get: { tags: ["Reports"], summary: "Out-of-stock export (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Rows") },
     },
     "/shops/{shopId}/reports/backup": {
-      get: { tags: ["Reports"], summary: "Backup snapshot (shop)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: ok("Snapshot") },
+      get: { tags: ["Reports"], summary: "Backup snapshot (shop-scoped)", ...auth(["Admin"]), parameters: [idParam("shopId")], responses: dataResp("Snapshot") },
     },
   },
 };
