@@ -12,3 +12,9 @@ id = "gjlgQ41uFIdqECEoLy0k9"
 uri = "file://schema_comparison.md"
 type = "text"
 title = "MongoDB → PostgreSQL Schema Comparison"
+
+[[outputs]]
+id = "S6REDFZ72YoGKI-qZEicH"
+uri = "file://POS_SYSTEM_GUIDE.md"
+type = "text"
+title = "POS System — Complete Operational Guide"
