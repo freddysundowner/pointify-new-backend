@@ -147,7 +147,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
       ...(locationLng !== undefined && { locationLng: numOrZero(locationLng) }),
       ...(showStockOnline !== undefined && { showStockOnline: Boolean(showStockOnline) }),
       ...(showPriceOnline !== undefined && { showPriceOnline: Boolean(showPriceOnline) }),
-      ...(isWarehouse !== undefined && { isWarehouse: Boolean(isWarehouse) }),
+      isWarehouse: isWarehouse !== undefined ? Boolean(isWarehouse) : false,
       ...(allowBackup !== undefined && { allowBackup: Boolean(allowBackup) }),
       ...(trackBatches !== undefined && { trackBatches: Boolean(trackBatches) }),
       ...(allowOnlineSelling !== undefined && { allowOnlineSelling: Boolean(allowOnlineSelling) }),
