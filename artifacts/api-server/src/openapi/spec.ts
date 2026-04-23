@@ -1129,9 +1129,8 @@ You will **never** see another admin's data unless you are the super-admin.
         ...auth(["Admin"]),
         parameters: [idParam()],
         ...body({
-          shopId:  intId("Shop to assign serials to"),
           serials: { type: "array", items: { type: "string" }, description: "Array of serial number strings" },
-        }, ["shopId", "serials"]),
+        }, ["serials"]),
         responses: { ...createdResp("Serials added"), ...errResp },
       },
     },

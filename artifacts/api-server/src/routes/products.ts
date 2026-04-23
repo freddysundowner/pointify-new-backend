@@ -334,11 +334,15 @@ router.post("/:id/serials", requireAdmin, async (req, res, next) => {
     if (!Array.isArray(serials) || serials.length === 0) throw badRequest("serials array required");
     const productId = Number(req.params["id"]);
 
-    const { shopId } = req.body;
-    if (!shopId) throw badRequest("shopId required");
+    const product = await db.query.products.findFirst({
+      where: eq(products.id, productId),
+      columns: { id: true, shop: true },
+    });
+    if (!product) throw notFound("Product not found");
+    await assertShopOwnership(req, product.shop);
 
     const rows = await db.insert(productSerials).values(
-      serials.map((serialNumber: string) => ({ product: productId, shop: Number(shopId), serialNumber }))
+      serials.map((serialNumber: string) => ({ product: product.id, shop: product.shop, serialNumber }))
     ).returning();
     return created(res, rows);
   } catch (e) { next(e); }
