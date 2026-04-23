@@ -118,7 +118,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
       receiptEmail, warehouseEmail, backupEmail, backupInterval,
       locationLat, locationLng,
       showStockOnline, showPriceOnline,
-      isWarehouse, allowBackup, useWarehouse, trackBatches,
+      isWarehouse, allowBackup, trackBatches,
       allowOnlineSelling, allowNegativeSelling, isProduction,
     } = req.body ?? {};
     if (!name) throw badRequest("name is required");
@@ -149,7 +149,6 @@ router.post("/", requireAdmin, async (req, res, next) => {
       ...(showPriceOnline !== undefined && { showPriceOnline: Boolean(showPriceOnline) }),
       ...(isWarehouse !== undefined && { isWarehouse: Boolean(isWarehouse) }),
       ...(allowBackup !== undefined && { allowBackup: Boolean(allowBackup) }),
-      ...(useWarehouse !== undefined && { useWarehouse: Boolean(useWarehouse) }),
       ...(trackBatches !== undefined && { trackBatches: Boolean(trackBatches) }),
       ...(allowOnlineSelling !== undefined && { allowOnlineSelling: Boolean(allowOnlineSelling) }),
       ...(allowNegativeSelling !== undefined && { allowNegativeSelling: Boolean(allowNegativeSelling) }),
@@ -239,7 +238,7 @@ router.put("/:shopId", requireAdmin, async (req, res, next) => {
       paybillTill, paybillAccount,
       receiptEmail, warehouseEmail, backupEmail, backupInterval,
       showStockOnline, showPriceOnline, locationLat, locationLng,
-      isWarehouse, allowBackup, useWarehouse, trackBatches,
+      isWarehouse, allowBackup, trackBatches,
       allowOnlineSelling, allowNegativeSelling, isProduction } = req.body ?? {};
 
     const blank = (v: unknown) => v === undefined || v === null || v === "";
@@ -265,7 +264,6 @@ router.put("/:shopId", requireAdmin, async (req, res, next) => {
       ...(locationLng !== undefined && { locationLng: numOrZero(locationLng) }),
       ...(isWarehouse !== undefined && { isWarehouse: Boolean(isWarehouse) }),
       ...(allowBackup !== undefined && { allowBackup: Boolean(allowBackup) }),
-      ...(useWarehouse !== undefined && { useWarehouse: Boolean(useWarehouse) }),
       ...(trackBatches !== undefined && { trackBatches: Boolean(trackBatches) }),
       ...(allowOnlineSelling !== undefined && { allowOnlineSelling: Boolean(allowOnlineSelling) }),
       ...(allowNegativeSelling !== undefined && { allowNegativeSelling: Boolean(allowNegativeSelling) }),
