@@ -146,8 +146,12 @@ function validatePrices(prices: {
   wholesalePrice?: number | string | null;
   dealerPrice?: number | string | null;
 }): void {
-  const parse = (v: number | string | null | undefined) =>
-    v != null && v !== "" ? Number(v) : null;
+  const parse = (v: number | string | null | undefined): number | null => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    if (isNaN(n)) return null; // treat non-numeric as absent
+    return n;
+  };
 
   const buying    = parse(prices.buyingPrice);
   const selling   = parse(prices.sellingPrice);
@@ -161,7 +165,8 @@ function validatePrices(prices: {
     ["dealerPrice", dealer],
   ];
   for (const [field, val] of fields) {
-    if (val !== null && val < 0) throw badRequest(`${field} must be a positive number`);
+    if (val !== null && val < 0)
+      throw badRequest(`${field} must be a positive number`);
   }
 
   if (selling !== null && wholesale !== null && wholesale > selling)
@@ -251,6 +256,11 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
     if (!existing) throw notFound("Product not found");
     await assertShopOwnership(req, existing.shop);
 
+    // Name: if provided it must not be blank
+    const trimmedName = name !== undefined ? String(name).trim() : undefined;
+    if (trimmedName !== undefined && trimmedName === "")
+      throw badRequest("name cannot be empty");
+
     // Merge incoming prices with existing ones so partial updates still validate correctly
     validatePrices({
       buyingPrice:    buyingPrice    !== undefined ? buyingPrice    : existing.buyingPrice,
@@ -260,7 +270,7 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
     });
 
     const [updated] = await db.update(products).set({
-      ...(name && { name }),
+      ...(trimmedName !== undefined && { name: trimmedName }),
       ...(categoryId !== undefined && { category: categoryId ? Number(categoryId) : null }),
       ...(barcode !== undefined && { barcode }),
       ...(serialNumber !== undefined && { serialNumber }),
