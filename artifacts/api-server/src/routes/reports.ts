@@ -140,21 +140,26 @@ router.get("/profit-loss", requireAdmin, async (req, res, next) => {
     const salesWhere = shopDate(shopId, from, to, sales);
     const expensesWhere = shopDate(shopId, from, to, expenses);
 
-    const [[salesSummary], [expensesSummary]] = await Promise.all([
+    const [[revenueSummary], [costSummary], [expensesSummary]] = await Promise.all([
       db.select({
         revenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
-        cost: sql<string>`COALESCE(SUM(${sales.totalAmount}::numeric * 0.7), 0)`,
       }).from(sales).where(salesWhere),
+      db.select({
+        cost: sql<string>`COALESCE(SUM(${saleItems.costPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
+      }).from(saleItems)
+        .innerJoin(sales, eq(saleItems.sale, sales.id))
+        .where(salesWhere),
       db.select({
         totalExpenses: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)`,
       }).from(expenses).where(expensesWhere),
     ]);
 
-    const revenue = parseFloat(salesSummary?.revenue ?? "0");
+    const revenue = parseFloat(revenueSummary?.revenue ?? "0");
+    const cost = parseFloat(costSummary?.cost ?? "0");
     const expensesTotal = parseFloat(expensesSummary?.totalExpenses ?? "0");
-    const profit = revenue - expensesTotal;
+    const profit = revenue - cost - expensesTotal;
 
-    return ok(res, { revenue, expenses: expensesTotal, profit });
+    return ok(res, { revenue, cost, expenses: expensesTotal, profit });
   } catch (e) { next(e); }
 });
 

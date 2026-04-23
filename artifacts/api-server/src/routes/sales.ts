@@ -248,12 +248,49 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Restore inventory for every item in a sale (idempotency: guarded by caller's status check)
+async function restoreSaleInventory(saleId: number): Promise<void> {
+  const items = await db.query.saleItems.findMany({ where: eq(saleItems.sale, saleId) });
+  if (!items.length) return;
+  const enriched = await Promise.all(
+    items.map(async (item) => {
+      const qty = parseFloat(item.quantity);
+      const existing = await db.query.inventory.findFirst({
+        where: and(eq(inventory.product, item.product), eq(inventory.shop, item.shop)),
+        columns: { quantity: true },
+      });
+      const qtyBefore = existing?.quantity ?? "0";
+      const qtyAfter = String(parseFloat(qtyBefore) + qty);
+      await db.insert(inventory)
+        .values({ product: item.product, shop: item.shop, quantity: item.quantity })
+        .onConflictDoUpdate({
+          target: [inventory.product, inventory.shop],
+          set: { quantity: sql`${inventory.quantity} + ${qty}::numeric` },
+        });
+      return { ...item, qtyBefore, qtyAfter };
+    })
+  );
+  await recordProductHistory(
+    enriched.map((item) => ({
+      product: item.product,
+      shop: item.shop,
+      eventType: "sale_return" as const,
+      referenceId: item.id,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      quantityBefore: item.qtyBefore,
+      quantityAfter: item.qtyAfter,
+    }))
+  );
+}
+
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params["id"]);
-    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true } });
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true, status: true } });
     if (!existing) throw notFound("Sale not found");
     await assertShopOwnership(req, existing.shop);
+    if (existing.status !== "voided") await restoreSaleInventory(id);
     const [updated] = await db.update(sales)
       .set({ status: "voided" })
       .where(eq(sales.id, id))
@@ -266,9 +303,10 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
 router.post("/:id/void", requireAdmin, async (req, res, next) => {
   try {
     const saleId = Number(req.params["id"]);
-    const existing = await db.query.sales.findFirst({ where: eq(sales.id, saleId), columns: { shop: true } });
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, saleId), columns: { shop: true, status: true } });
     if (!existing) throw notFound("Sale not found");
     await assertShopOwnership(req, existing.shop);
+    if (existing.status !== "voided") await restoreSaleInventory(saleId);
     const [updated] = await db.update(sales)
       .set({ status: "voided" })
       .where(eq(sales.id, saleId))
@@ -284,7 +322,7 @@ router.post("/:id/refund", requireAdmin, async (req, res, next) => {
     const sale = await db.query.sales.findFirst({ where: eq(sales.id, saleId) });
     if (!sale) throw notFound("Sale not found");
     await assertShopOwnership(req, sale.shop);
-
+    if (sale.status !== "refunded" && sale.status !== "voided") await restoreSaleInventory(saleId);
     const [updated] = await db.update(sales)
       .set({ status: "refunded" })
       .where(eq(sales.id, saleId))

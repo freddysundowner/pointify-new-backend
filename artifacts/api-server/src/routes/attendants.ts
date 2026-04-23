@@ -73,9 +73,10 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
   try {
     const { username, pin, permissions: perms, shopId } = req.body;
     if (shopId) await assertShopOwnership(req, Number(shopId));
+    const pinHash = pin ? await bcrypt.hash(String(pin), 10) : undefined;
     const [updated] = await db.update(attendants).set({
       ...(username && { username }),
-      ...(pin && { pin: String(pin) }),
+      ...(pin && { pin: String(pin), password: pinHash }),
       ...(perms && { permissions: perms }),
       ...(shopId && { shop: Number(shopId) }),
     }).where(and(eq(attendants.id, Number(req.params["id"])), eq(attendants.admin, req.admin!.id))).returning();

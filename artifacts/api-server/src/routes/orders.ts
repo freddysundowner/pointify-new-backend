@@ -9,6 +9,7 @@ import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifyOrderConfirmation, notifyOrderShipped, notifyOrderDelivered, notifyOrderCancelled, notifySaleReceipt } from "../lib/emailEvents.js";
 import { notifySaleReceiptSms } from "../lib/smsEvents.js";
+import { recordProductHistory } from "../lib/product-history.js";
 
 const router = Router();
 
@@ -145,19 +146,28 @@ router.post("/:id/fulfill", requireAdminOrAttendant, async (req, res, next) => {
           ).returning()
         : [];
 
-      for (const item of order.orderItems) {
+      const historyEntries: any[] = [];
+      for (let idx = 0; idx < order.orderItems.length; idx++) {
+        const item = order.orderItems[idx];
         const existing = await tx.query.inventory.findFirst({
           where: and(eq(inventory.shop, order.shop), eq(inventory.product, item.product)),
         });
         if (!existing) continue;
-        const newQty = parseFloat(existing.quantity ?? "0") - parseFloat(item.quantity);
-        if (newQty < 0) {
-          // eslint-disable-next-line no-console
-          console.warn(`[orders.fulfill] inventory went negative for product=${item.product} shop=${order.shop} newQty=${newQty}`);
-        }
+        const qtyBefore = existing.quantity ?? "0";
+        const qtyAfter = String(Math.max(0, parseFloat(qtyBefore) - parseFloat(item.quantity)));
         await tx.update(inventory)
-          .set({ quantity: sql`${inventory.quantity} - ${item.quantity}` })
+          .set({ quantity: sql`GREATEST(0, ${inventory.quantity} - ${item.quantity}::numeric)` })
           .where(and(eq(inventory.shop, order.shop), eq(inventory.product, item.product)));
+        historyEntries.push({
+          product: item.product,
+          shop: order.shop,
+          eventType: "sale" as const,
+          referenceId: itemRows[idx]?.id ?? 0,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          quantityBefore: qtyBefore,
+          quantityAfter: qtyAfter,
+        });
       }
 
       const [updated] = await tx.update(orders)
@@ -165,9 +175,12 @@ router.post("/:id/fulfill", requireAdminOrAttendant, async (req, res, next) => {
         .where(eq(orders.id, orderId))
         .returning();
 
-      return { order: updated, sale: { ...sale, items: itemRows } };
+      return { order: updated, sale: { ...sale, items: itemRows }, historyEntries };
     });
 
+    if (result.historyEntries.length > 0) {
+      void recordProductHistory(result.historyEntries);
+    }
     void notifySaleReceipt(result.sale.id);
     void notifySaleReceiptSms(result.sale.id);
     return ok(res, result);

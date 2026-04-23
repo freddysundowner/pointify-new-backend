@@ -87,7 +87,7 @@ router.get("/:id", requireAdmin, async (req, res, next) => {
 
 router.put("/:id", requireAdmin, async (req, res, next) => {
   try {
-    const { name, phone, email, address } = req.body;
+    const { name, phone, email, address, creditLimit } = req.body;
     const id = Number(req.params["id"]);
     const existing = await db.query.suppliers.findFirst({ where: eq(suppliers.id, id), columns: { shop: true } });
     if (!existing) throw notFound("Supplier not found");
@@ -97,6 +97,7 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       ...(phone !== undefined && { phone }),
       ...(email !== undefined && { email }),
       ...(address !== undefined && { address }),
+      ...(creditLimit !== undefined && { creditLimit: creditLimit !== null ? String(creditLimit) : null }),
     }).where(eq(suppliers.id, id)).returning();
     if (!updated) throw notFound("Supplier not found");
     return ok(res, updated);
@@ -117,16 +118,12 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
 
 router.get("/:id/wallet", requireAdmin, async (req, res, next) => {
   try {
-    const { page, limit, offset } = getPagination(req);
-    const supplierId = Number(req.params["id"]);
-    const rows = await db.query.supplierWalletTransactions.findMany({
-      where: eq(supplierWalletTransactions.supplier, supplierId),
-      limit,
-      offset,
-      orderBy: (t, { desc }) => [desc(t.createdAt)],
+    const supplier = await db.query.suppliers.findFirst({
+      where: eq(suppliers.id, Number(req.params["id"])),
+      columns: { wallet: true },
     });
-    const total = await db.$count(supplierWalletTransactions, eq(supplierWalletTransactions.supplier, supplierId));
-    return paginated(res, rows, { total, page, limit });
+    if (!supplier) throw notFound("Supplier not found");
+    return ok(res, { wallet: supplier.wallet ?? "0.00" });
   } catch (e) { next(e); }
 });
 

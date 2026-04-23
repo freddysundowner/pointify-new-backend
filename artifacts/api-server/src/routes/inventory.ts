@@ -125,6 +125,13 @@ router.post("/adjustments", requireAdminOrAttendant, async (req, res, next) => {
       quantityAfter: adj.quantityAfter,
       note: adj.reason ?? undefined,
     }]);
+    // Apply the adjusted quantity directly to inventory
+    await db.insert(inventory)
+      .values({ product: adj.product, shop: adj.shop, quantity: adj.quantityAfter })
+      .onConflictDoUpdate({
+        target: [inventory.product, inventory.shop],
+        set: { quantity: adj.quantityAfter },
+      });
     return created(res, adj);
   } catch (e) { next(e); }
 });
@@ -162,6 +169,14 @@ router.post("/bad-stocks", requireAdminOrAttendant, async (req, res, next) => {
     }
     await assertShopOwnership(req, Number(shopId));
 
+    // Read current inventory before writing off so we can track before/after
+    const badStockInv = await db.query.inventory.findFirst({
+      where: and(eq(inventory.product, Number(productId)), eq(inventory.shop, Number(shopId))),
+      columns: { quantity: true },
+    });
+    const badQtyBefore = badStockInv?.quantity ?? "0";
+    const badQtyAfter = String(Math.max(0, parseFloat(badQtyBefore) - parseFloat(String(quantity))));
+
     const [row] = await db.insert(badStocks).values({
       shop: Number(shopId),
       product: Number(productId),
@@ -170,6 +185,12 @@ router.post("/bad-stocks", requireAdminOrAttendant, async (req, res, next) => {
       reason,
       writtenOffBy: req.attendant?.id ?? undefined,
     }).returning();
+
+    // Deduct written-off quantity from inventory
+    await db.update(inventory)
+      .set({ quantity: badQtyAfter })
+      .where(and(eq(inventory.product, Number(productId)), eq(inventory.shop, Number(shopId))));
+
     await recordProductHistory([{
       product: row.product,
       shop: row.shop,
@@ -177,6 +198,8 @@ router.post("/bad-stocks", requireAdminOrAttendant, async (req, res, next) => {
       referenceId: row.id,
       quantity: row.quantity,
       unitPrice: row.unitPrice,
+      quantityBefore: badQtyBefore,
+      quantityAfter: badQtyAfter,
       note: row.reason,
     }]);
     return created(res, row);
@@ -378,6 +401,20 @@ router.post("/stock-counts/:id/apply", requireAdminOrAttendant, async (req, res,
         .where(and(eq(inventory.shop, count.shop), eq(inventory.product, item.product)));
     }
 
+    if (adjustmentRows.length > 0) {
+      await recordProductHistory(
+        adjustmentRows.map((adj) => ({
+          product: adj.product,
+          shop: adj.shop,
+          eventType: "adjustment" as const,
+          referenceId: adj.id,
+          quantity: adj.quantityAdjusted,
+          quantityBefore: adj.quantityBefore,
+          quantityAfter: adj.quantityAfter,
+          note: adj.reason ?? undefined,
+        }))
+      );
+    }
     return ok(res, { stockCountId, adjustments: adjustmentRows, applied: adjustmentRows.length });
   } catch (e) { next(e); }
 });

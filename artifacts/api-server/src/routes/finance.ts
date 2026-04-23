@@ -304,6 +304,26 @@ router.post("/cashflows", requireAdminOrAttendant, async (req, res, next) => {
       bank: bankId ? Number(bankId) : null,
       cashflowNo: `CF${Date.now()}`,
     }).returning();
+
+    // Update bank balance if this cashflow is linked to a bank account.
+    // Direction is determined by the cashflow category's type (cashin = add, cashout = subtract).
+    if (bankId) {
+      let direction = 1; // default: cashin
+      if (categoryId) {
+        const cat = await db.query.cashflowCategories.findFirst({
+          where: eq(cashflowCategories.id, Number(categoryId)),
+          columns: { type: true },
+        });
+        if (cat?.type === "cashout") direction = -1;
+      }
+      const bank = await db.query.banks.findFirst({
+        where: eq(banks.id, Number(bankId)),
+        columns: { balance: true },
+      });
+      const newBalance = (parseFloat(bank?.balance ?? "0") + direction * parseFloat(String(amount))).toFixed(2);
+      await db.update(banks).set({ balance: newBalance }).where(eq(banks.id, Number(bankId)));
+    }
+
     return created(res, row);
   } catch (e) { next(e); }
 });

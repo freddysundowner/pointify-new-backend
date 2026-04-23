@@ -192,16 +192,12 @@ router.put("/:id/verify", requireAdmin, async (req, res, next) => {
 
 router.get("/:id/wallet", requireAdminOrAttendant, async (req, res, next) => {
   try {
-    const { page, limit, offset } = getPagination(req);
-    const customerId = Number(req.params["id"]);
-    const rows = await db.query.customerWalletTransactions.findMany({
-      where: eq(customerWalletTransactions.customer, customerId),
-      limit,
-      offset,
-      orderBy: (t, { desc }) => [desc(t.createdAt)],
+    const customer = await db.query.customers.findFirst({
+      where: eq(customers.id, Number(req.params["id"])),
+      columns: { wallet: true },
     });
-    const total = await db.$count(customerWalletTransactions, eq(customerWalletTransactions.customer, customerId));
-    return paginated(res, rows, { total, page, limit });
+    if (!customer) throw notFound("Customer not found");
+    return ok(res, { wallet: customer.wallet ?? "0.00" });
   } catch (e) { next(e); }
 });
 

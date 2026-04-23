@@ -1,5 +1,5 @@
 import { Router, type Response, type NextFunction } from "express";
-import { eq, ilike, and, gte, lte, sql, inArray, lower } from "drizzle-orm";
+import { eq, ilike, and, gte, lte, sql, inArray, lower, or } from "drizzle-orm";
 import path from "path";
 import fs from "fs";
 import {
@@ -540,7 +540,12 @@ router.get("/:id/transfer-history", async (req, res, next) => {
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
 
-    const where = eq(transferItems.product, productId);
+    const shopCondition = shopId
+      ? or(eq(productTransfers.fromShop, shopId), eq(productTransfers.toShop, shopId))
+      : undefined;
+    const where = shopCondition
+      ? and(eq(transferItems.product, productId), shopCondition)
+      : eq(transferItems.product, productId);
 
     const rows = await db.select({
       id: transferItems.id,
@@ -558,12 +563,11 @@ router.get("/:id/transfer-history", async (req, res, next) => {
       .limit(limit).offset(offset)
       .orderBy(sql`${productTransfers.createdAt} DESC`);
 
-    const filtered = shopId
-      ? rows.filter((r) => r.fromShop === shopId || r.toShop === shopId)
-      : rows;
-
-    const total = await db.$count(transferItems, where);
-    return paginated(res, filtered, { total, page, limit });
+    const [{ count }] = await db.select({ count: sql<number>`COUNT(*)` })
+      .from(transferItems)
+      .leftJoin(productTransfers, eq(transferItems.transfer, productTransfers.id))
+      .where(where);
+    return paginated(res, rows, { total: Number(count ?? 0), page, limit });
   } catch (e) { next(e); }
 });
 
