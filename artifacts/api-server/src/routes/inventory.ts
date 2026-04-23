@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, ilike, or } from "drizzle-orm";
+import { eq, and, ilike, or, inArray } from "drizzle-orm";
 import {
   inventory, batches, adjustments, badStocks,
   stockCounts, stockCountItems, stockRequests, stockRequestItems,
@@ -8,7 +8,7 @@ import {
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
-import { assertShopOwnership } from "../lib/shop.js";
+import { assertShopOwnership, resolveShopFilter } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { recordProductHistory } from "../lib/product-history.js";
@@ -20,11 +20,21 @@ const router = Router();
 router.get("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { page, limit, offset } = getPagination(req);
-    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const requestedShopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const productId = req.query["productId"] ? Number(req.query["productId"]) : null;
 
+    const allowedShops = await resolveShopFilter(req, requestedShopId);
+
+    const shopCondition = allowedShops === null
+      ? undefined
+      : allowedShops.length === 0
+        ? eq(inventory.id, -1)  // no access → empty result
+        : allowedShops.length === 1
+          ? eq(inventory.shop, allowedShops[0]!)
+          : inArray(inventory.shop, allowedShops);
+
     const conditions = [];
-    if (shopId) conditions.push(eq(inventory.shop, shopId));
+    if (shopCondition) conditions.push(shopCondition);
     if (productId) conditions.push(eq(inventory.product, productId));
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
 
@@ -38,6 +48,7 @@ router.get("/item/:id", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const row = await db.query.inventory.findFirst({ where: eq(inventory.id, Number(req.params["id"])) });
     if (!row) throw notFound("Inventory record not found");
+    await assertShopOwnership(req, row.shop);
     return ok(res, row);
   } catch (e) { next(e); }
 });

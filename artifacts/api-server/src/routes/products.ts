@@ -11,7 +11,7 @@ import {
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest, conflict } from "../lib/errors.js";
-import { assertShopOwnership } from "../lib/shop.js";
+import { assertShopOwnership, resolveShopFilter } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
 import { attachBundleItems } from "../lib/attach-bundle-items.js";
@@ -32,36 +32,7 @@ const diskStorage = multer.diskStorage({
 });
 const upload = multer({ storage: diskStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-/** Resolve which shop IDs the caller is allowed to see.
- *  - attendant  → only their assigned shop
- *  - admin      → all shops they own (or a specific one if shopId query param given)
- *  - superAdmin → unrestricted (returns null = no shop filter)
- */
-async function resolveShopFilter(req: any, requestedShopId: number | null): Promise<number[] | null> {
-  if (req.attendant) {
-    const sid = req.attendant.shopId as number;
-    if (requestedShopId && requestedShopId !== sid) return []; // cross-shop blocked → empty
-    return [sid];
-  }
-  if (req.admin) {
-    if (req.admin.isSuperAdmin) return null; // super admin: no restriction
-    if (requestedShopId) {
-      // verify admin owns this shop
-      const owned = await db.query.shops.findFirst({
-        where: and(eq(shops.id, requestedShopId), eq(shops.admin, req.admin.id)),
-        columns: { id: true },
-      });
-      return owned ? [requestedShopId] : []; // empty list → 0 results if they don't own it
-    }
-    // no specific shop → return all shops this admin owns
-    const ownedShops = await db.query.shops.findMany({
-      where: eq(shops.admin, req.admin.id),
-      columns: { id: true },
-    });
-    return ownedShops.map((s) => s.id);
-  }
-  return [];
-}
+
 
 /** Middleware: resolves :id → product row, asserts caller owns its shop.
  *  Attaches the full product to req.product. Apply after auth middleware.
