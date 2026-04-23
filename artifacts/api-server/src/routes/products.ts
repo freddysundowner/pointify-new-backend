@@ -258,15 +258,20 @@ router.post("/", requireAdmin, async (req, res, next) => {
       manufacturer: manufacturer ?? "",
       supplier: supplierId ? Number(supplierId) : null,
       description,
+      expiryDate: expiryDate ? new Date(expiryDate) : null,
       type: bundlePayload.length > 0 ? "bundle" : (type ?? "product"),
       createdBy: req.attendant?.id ?? null,
     }).returning();
 
-    // Always seed a zero-quantity inventory row so stock queries never miss a product
+    // Seed inventory row with the opening quantity and reorder level (alert quantity)
+    const openingQty = quantity != null ? String(quantity) : "0";
+    const reorderLvl = alertQuantity != null ? String(alertQuantity) : "0";
     await db.insert(inventory).values({
       product: product.id,
       shop: Number(shopId),
-      quantity: "0",
+      quantity: openingQty,
+      reorderLevel: reorderLvl,
+      status: Number(openingQty) <= 0 ? "out_of_stock" : "active",
     }).onConflictDoNothing();
 
     // Insert bundle components if provided
