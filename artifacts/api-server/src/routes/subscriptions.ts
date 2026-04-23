@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import {
-  subscriptions, subscriptionShops, packages, packageFeatures,
+  subscriptions, subscriptionShops, packages,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -13,80 +13,12 @@ import { smsSubscriptionPaymentSuccess } from "../lib/smsEvents.js";
 import { admins, shops, settings } from "@workspace/db";
 import { chargeWithGateway, loadGateway } from "../lib/gateways/index.js";
 import crypto from "node:crypto";
+import packagesRouter from "./packages.js";
 
 const router = Router();
 
-// ── Packages (read-only for all admins, write for super-admin) ────────────────
-
-router.get("/packages", async (req, res, next) => {
-  try {
-    const rows = await db.query.packages.findMany({
-      where: eq(packages.isActive, true),
-      orderBy: (p, { asc }) => [asc(p.sortOrder)],
-      with: { packageFeatures: true },
-    });
-    return ok(res, rows);
-  } catch (e) { next(e); }
-});
-
-router.post("/packages", requireAdmin, async (req, res, next) => {
-  try {
-    if (!req.admin!.isSuperAdmin) throw unauthorized("Super admin required");
-    const { title, description, durationValue, durationUnit, amount, amountUsd, type, shops: maxShops, discount, sortOrder } = req.body;
-    if (!title || !durationValue || !durationUnit || !amount || !amountUsd || !type) {
-      throw badRequest("title, durationValue, durationUnit, amount, amountUsd, type required");
-    }
-    const [pkg] = await db.insert(packages).values({
-      title, description, durationValue, durationUnit,
-      amount: String(amount), amountUsd: String(amountUsd),
-      type, shops: maxShops ?? null,
-      discount: discount ? String(discount) : "0",
-      sortOrder: sortOrder ?? 0,
-    }).returning();
-    return created(res, pkg);
-  } catch (e) { next(e); }
-});
-
-router.put("/packages/:id", requireAdmin, async (req, res, next) => {
-  try {
-    if (!req.admin!.isSuperAdmin) throw unauthorized("Super admin required");
-    const { title, description, durationValue, durationUnit, amount, amountUsd, isActive, sortOrder, discount } = req.body;
-    const [updated] = await db.update(packages).set({
-      ...(title && { title }),
-      ...(description !== undefined && { description }),
-      ...(durationValue !== undefined && { durationValue }),
-      ...(durationUnit && { durationUnit }),
-      ...(amount !== undefined && { amount: String(amount) }),
-      ...(amountUsd !== undefined && { amountUsd: String(amountUsd) }),
-      ...(isActive !== undefined && { isActive: Boolean(isActive) }),
-      ...(sortOrder !== undefined && { sortOrder }),
-      ...(discount !== undefined && { discount: String(discount) }),
-    }).where(eq(packages.id, Number(req.params["id"]))).returning();
-    if (!updated) throw notFound("Package not found");
-    return ok(res, updated);
-  } catch (e) { next(e); }
-});
-
-router.delete("/packages/:id", requireAdmin, async (req, res, next) => {
-  try {
-    if (!req.admin!.isSuperAdmin) throw unauthorized("Super admin required");
-    await db.delete(packages).where(eq(packages.id, Number(req.params["id"])));
-    return noContent(res);
-  } catch (e) { next(e); }
-});
-
-router.post("/packages/:id/features", requireAdmin, async (req, res, next) => {
-  try {
-    if (!req.admin!.isSuperAdmin) throw unauthorized("Super admin required");
-    const { features } = req.body;
-    if (!features?.length) throw badRequest("features array required");
-
-    const rows = await db.insert(packageFeatures).values(
-      features.map((feature: string) => ({ package: Number(req.params["id"]), feature }))
-    ).returning();
-    return created(res, rows);
-  } catch (e) { next(e); }
-});
+// ── Packages (delegated to dedicated packages router) ─────────────────────────
+router.use("/packages", packagesRouter);
 
 // ── Subscriptions ─────────────────────────────────────────────────────────────
 
