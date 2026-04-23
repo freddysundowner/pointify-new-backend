@@ -987,8 +987,8 @@ If \`bundleItems\` is omitted or an empty array, the endpoint behaves exactly as
                       type: "object",
                       required: ["componentProductId", "quantity"],
                       properties: {
-                        componentProductId: { type: "integer", description: "ID of an existing product to include as a bundle component", example: 12 },
-                        quantity:           { type: "number",  description: "How many units of this component are included in the bundle",   example: 2 },
+                        componentProductId: { type: "integer", description: "ID of an existing product to include as a bundle component. **Note:** this field is named `componentProductId` in the request but appears as `componentProduct` in all responses (GET and POST).", example: 12 },
+                        quantity:           { type: "number",  description: "How many units of this component are included in the bundle", example: 2 },
                       },
                     },
                     example: [
@@ -1035,7 +1035,7 @@ If \`bundleItems\` is omitted or an empty array, the endpoint behaves exactly as
                 properties: {
                   id:               intId("Bundle item row ID"),
                   product:          intId("Parent bundle product ID"),
-                  componentProduct: intId("Component product ID"),
+                  componentProduct: { type: "integer", description: "Component product ID. This is the value supplied as `componentProductId` in the request — the response field is named `componentProduct` (the database column name).", example: 12 },
                   quantity:         { type: "string", description: "Component quantity (stored as string)", example: "2" },
                   createdAt:        isoDate,
                 },
@@ -1213,10 +1213,10 @@ If \`bundleItems\` is omitted or an empty array, the endpoint behaves exactly as
         ...auth(["Admin"]),
         parameters: [idParam()],
         ...body({
-          componentProductId: intId("Product ID of the component"),
-          quantity:           { type: "number", description: "Component quantity per bundle unit" },
+          componentProductId: { type: "integer", description: "ID of the product to add as a component. **Note:** sent as `componentProductId` in the request; returned as `componentProduct` in the response.", example: 12 },
+          quantity:           { type: "number",  description: "Component quantity per bundle unit", example: 2 },
         }, ["componentProductId", "quantity"]),
-        responses: { ...createdResp("Component added"), ...errResp },
+        responses: { ...createdResp("Component added. The created row uses `componentProduct` (not `componentProductId`) as the field name in the response body."), ...errResp },
       },
     },
     "/products/{id}/sales-history": {
