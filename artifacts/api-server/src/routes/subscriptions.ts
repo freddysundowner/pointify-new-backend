@@ -119,9 +119,14 @@ router.put("/assign-shops", requireAdmin, async (req, res, next) => {
     const { subscriptionId, shopIds } = req.body;
     if (!subscriptionId || !shopIds?.length) throw badRequest("subscriptionId and shopIds required");
 
-    await db.delete(subscriptionShops).where(eq(subscriptionShops.subscription, Number(subscriptionId)));
+    const sid = Number(subscriptionId);
+    const sub = await db.query.subscriptions.findFirst({ where: eq(subscriptions.id, sid), columns: { admin: true } });
+    if (!sub) throw notFound("Subscription not found");
+    if (!req.admin!.isSuperAdmin && sub.admin !== req.admin!.id) throw unauthorized("Access denied");
+
+    await db.delete(subscriptionShops).where(eq(subscriptionShops.subscription, sid));
     const rows = await db.insert(subscriptionShops).values(
-      shopIds.map((id: number) => ({ subscription: Number(subscriptionId), shop: Number(id) }))
+      shopIds.map((id: number) => ({ subscription: sid, shop: Number(id) }))
     ).returning();
     return ok(res, rows);
   } catch (e) { next(e); }

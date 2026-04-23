@@ -53,9 +53,10 @@ router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
 router.put("/:id", requireAdmin, async (req, res, next) => {
   try {
     const { name } = req.body;
+    const id = Number(req.params["id"]);
     const [updated] = await db.update(productCategories)
       .set({ ...(name && { name }) })
-      .where(eq(productCategories.id, Number(req.params["id"])))
+      .where(and(eq(productCategories.id, id), eq(productCategories.admin, req.admin!.id)))
       .returning();
     if (!updated) throw notFound("Product category not found");
     return ok(res, updated);
@@ -64,7 +65,10 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
-    const [deleted] = await db.delete(productCategories).where(eq(productCategories.id, Number(req.params["id"]))).returning();
+    const id = Number(req.params["id"]);
+    const [deleted] = await db.delete(productCategories)
+      .where(and(eq(productCategories.id, id), eq(productCategories.admin, req.admin!.id)))
+      .returning();
     if (!deleted) throw notFound("Product category not found");
     return noContent(res);
   } catch (e) { next(e); }

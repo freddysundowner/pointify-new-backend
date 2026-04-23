@@ -312,6 +312,10 @@ router.put("/:shopId/backup-interval", requireAdmin, async (req, res, next) => {
     const { interval } = req.body;
     if (!interval) throw badRequest("interval is required");
 
+    const existing = await db.query.shops.findFirst({ where: eq(shops.id, shopId) });
+    if (!existing) throw notFound("Shop not found");
+    if (existing.admin !== req.admin!.id && !req.admin!.isSuperAdmin) throw forbidden("Access denied");
+
     const [updated] = await db.update(shops)
       .set({ backupInterval: String(interval) })
       .where(eq(shops.id, shopId))

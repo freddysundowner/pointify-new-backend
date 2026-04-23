@@ -4,6 +4,7 @@ import { settings } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok } from "../lib/response.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
+import { assertShopOwnership } from "../lib/shop.js";
 
 const router = Router();
 
@@ -28,6 +29,7 @@ router.get("/:shopId", requireAdminOrAttendant, async (req, res, next) => {
 router.put("/:shopId", requireAdmin, async (req, res, next) => {
   try {
     const shopId = Number(req.params["shopId"]);
+    await assertShopOwnership(req, shopId);
     const key = shopKey(shopId);
     const existing = await db.query.settings.findFirst({ where: eq(settings.name, key) });
     const merged = { ...(existing?.setting ?? {}), ...req.body };
