@@ -2,10 +2,14 @@ import express, { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
+import path from "path";
+import { fileURLToPath } from "url";
 import router from "./routes/index.js";
 import { errorHandler } from "./middlewares/error.js";
 import { logger } from "./lib/logger.js";
 import { openApiSpec } from "./openapi/spec.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app: Express = express();
 
@@ -76,6 +80,9 @@ app.get(["/api/docs", "/api/docs/"], (_req, res) => {
 </body>
 </html>`);
 });
+
+// Serve uploaded files (product images, etc.)
+app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
 app.use("/api", router);
 

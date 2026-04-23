@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { eq, ilike, and, gte, lte, sql, inArray, lower } from "drizzle-orm";
+import path from "path";
+import fs from "fs";
 import {
   products, productSerials, inventory,
   bundleItems, saleItems, sales, purchaseItems, purchases,
@@ -14,7 +16,19 @@ import { getPagination, getSearch } from "../lib/paginate.js";
 import multer from "multer";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+// ── Upload storage ────────────────────────────────────────────────────────────
+const UPLOADS_DIR = path.join(process.cwd(), "uploads", "products");
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const diskStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || `.${file.mimetype.split("/")[1] ?? "jpg"}`;
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const upload = multer({ storage: diskStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 /** Resolve which shop IDs the caller is allowed to see.
  *  - attendant  → only their assigned shop
@@ -306,16 +320,33 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
 
 router.put("/:id/image", requireAdmin, upload.single("image"), async (req, res, next) => {
   try {
-    const file = (req as any).file;
+    const file = (req as any).file as Express.Multer.File | undefined;
     if (!file) throw badRequest("image file required");
-    const imageUrl = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+
+    const existing = await db.query.products.findFirst({
+      where: eq(products.id, Number(req.params["id"])),
+      columns: { id: true, shop: true, thumbnailUrl: true },
+    });
+    if (!existing) {
+      // Product not found — delete the just-uploaded file
+      fs.unlink(file.path, () => {});
+      throw notFound("Product not found");
+    }
+    await assertShopOwnership(req, existing.shop);
+
+    // Delete the old thumbnail from disk if it was a local upload
+    if (existing.thumbnailUrl?.startsWith("/uploads/")) {
+      const oldPath = path.join(process.cwd(), existing.thumbnailUrl);
+      fs.unlink(oldPath, () => {}); // fire-and-forget
+    }
+
+    const imageUrl = `/uploads/products/${file.filename}`;
 
     const [updated] = await db.update(products)
       .set({ thumbnailUrl: imageUrl })
-      .where(eq(products.id, Number(req.params["id"])))
+      .where(eq(products.id, existing.id))
       .returning();
-    if (!updated) throw notFound("Product not found");
-    return ok(res, { imageUrl: updated.thumbnailUrl });
+    return ok(res, { imageUrl: updated!.thumbnailUrl });
   } catch (e) { next(e); }
 });
 
@@ -535,23 +566,28 @@ router.get("/:id/summary", requireAdminOrAttendant, async (req, res, next) => {
 
 router.post("/:id/images", requireAdmin, upload.array("images", 10), async (req, res, next) => {
   try {
-    const files = ((req as any).files ?? []) as Array<{ mimetype: string; buffer: Buffer }>;
+    const files = ((req as any).files ?? []) as Express.Multer.File[];
     if (!files.length) throw badRequest("at least one image file required");
-
-    const newUrls = files.map((f) => `data:${f.mimetype};base64,${f.buffer.toString("base64")}`);
 
     const existing = await db.query.products.findFirst({
       where: eq(products.id, Number(req.params["id"])),
+      columns: { id: true, shop: true, images: true },
     });
-    if (!existing) throw notFound("Product not found");
+    if (!existing) {
+      for (const f of files) fs.unlink(f.path, () => {});
+      throw notFound("Product not found");
+    }
+    await assertShopOwnership(req, existing.shop);
 
+    const newUrls = files.map((f) => `/uploads/products/${f.filename}`);
     const merged = [...(existing.images ?? []), ...newUrls];
+
     const [updated] = await db.update(products)
       .set({ images: merged })
-      .where(eq(products.id, Number(req.params["id"])))
+      .where(eq(products.id, existing.id))
       .returning();
 
-    return ok(res, { images: updated?.images ?? [], note: "images stored as data URLs (stub)" });
+    return ok(res, { images: updated?.images ?? [] });
   } catch (e) { next(e); }
 });
 
