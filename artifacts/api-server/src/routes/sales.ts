@@ -55,12 +55,14 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const customerId = req.query["customerId"] ? Number(req.query["customerId"]) : null;
+    const status = req.query["status"] ? String(req.query["status"]) : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
     const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
 
     const conditions = [];
     if (shopId) conditions.push(eq(sales.shop, shopId));
     if (customerId) conditions.push(eq(sales.customer, customerId));
+    if (status) conditions.push(eq(sales.status, status));
     if (from) conditions.push(gte(sales.createdAt, from));
     if (to) conditions.push(lte(sales.createdAt, to));
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
@@ -81,11 +83,30 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const {
       shopId, customerId, items, paymentMethod, amountPaid, discount, note, saleType,
+      dueDate,    // when the credit payment is expected (ISO string)
+      saleDate,   // backdate the sale to this date (ISO string)
+      payments,   // [{method, amount}] for split payment — overrides paymentMethod/amountPaid
+      held,       // true → create a held/tab sale (inventory NOT deducted yet)
     } = req.body;
     if (!shopId || !items?.length) throw badRequest("shopId and items required");
     await assertShopOwnership(req, Number(shopId));
 
-    const methodName = await resolvePaymentMethodName(paymentMethod);
+    // ── Resolve payment details ─────────────────────────────────────────────
+    type ResolvedPayment = { methodName: string; amount: number };
+    let resolvedPayments: ResolvedPayment[] = [];
+
+    if (!held && (!Array.isArray(payments) || payments.length === 0)) {
+      // Single-method path (backward compat)
+      const mn = await resolvePaymentMethodName(paymentMethod);
+      resolvedPayments = [{ methodName: mn, amount: -1 }]; // placeholder, resolved below
+    } else if (!held && Array.isArray(payments) && payments.length > 0) {
+      for (const p of payments) {
+        const mn = await resolvePaymentMethodName(p.method);
+        const amt = parseFloat(String(p.amount ?? 0));
+        if (amt < 0) throw badRequest("Payment amount cannot be negative");
+        resolvedPayments.push({ methodName: mn, amount: amt });
+      }
+    }
 
     let totalAmount = 0;
     for (const item of items) {
@@ -93,10 +114,55 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     }
     const saleDiscount = discount ?? 0;
     const totalWithDiscount = totalAmount - saleDiscount;
-    const paid = amountPaid ?? totalWithDiscount;
-    const outstanding = Math.max(0, totalWithDiscount - paid);
+
+    // Finalise "paid" amount
+    let paid = 0;
+    if (held) {
+      paid = 0; // held sales collect payment on checkout
+    } else if (resolvedPayments.length === 1 && resolvedPayments[0]!.amount === -1) {
+      // Single-method: use amountPaid or default to full
+      paid = amountPaid !== undefined ? Math.max(0, parseFloat(String(amountPaid))) : totalWithDiscount;
+      resolvedPayments[0]!.amount = paid;
+    } else {
+      paid = resolvedPayments.reduce((s, p) => s + p.amount, 0);
+    }
+    const outstanding = held ? totalWithDiscount : Math.max(0, totalWithDiscount - paid);
+
+    // ── Credit sale validation ──────────────────────────────────────────────
+    if (!held && outstanding > 0) {
+      if (!customerId) throw badRequest("Credit sales require a customer");
+
+      const cust = await db.query.customers.findFirst({
+        where: eq(customers.id, Number(customerId)),
+        columns: { creditLimit: true },
+      });
+      if (cust?.creditLimit) {
+        const limit = parseFloat(String(cust.creditLimit));
+        const [{ existingDebt }] = await db.select({
+          existingDebt: sql<string>`COALESCE(SUM(${sales.outstandingBalance}::numeric), 0)`,
+        }).from(sales).where(
+          and(
+            eq(sales.customer, Number(customerId)),
+            sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+          )
+        );
+        const totalAfter = parseFloat(existingDebt ?? "0") + outstanding;
+        if (totalAfter > limit)
+          throw badRequest(`Credit limit of ${limit} exceeded. Current debt: ${existingDebt}, this sale adds: ${outstanding.toFixed(2)}`);
+      }
+    }
+
+    // ── Payment type label and cached method totals ─────────────────────────
+    const paymentTypeLabel = held ? "cash"
+      : resolvedPayments.length > 1 ? "split"
+      : resolvedPayments[0]?.methodName ?? "cash";
+
+    const mpesaAmt = resolvedPayments.filter(p => /mpesa|m-pesa/i.test(p.methodName)).reduce((s, p) => s + p.amount, 0);
+    const bankAmt  = resolvedPayments.filter(p => /bank|transfer/i.test(p.methodName)).reduce((s, p) => s + p.amount, 0);
+    const cardAmt  = resolvedPayments.filter(p => /card/i.test(p.methodName)).reduce((s, p) => s + p.amount, 0);
 
     const receiptNo = `REC${Date.now()}`;
+    const saleStatus = held ? "held" : outstanding > 0 ? "credit" : "cashed";
 
     const [sale] = await db.insert(sales).values({
       shop: Number(shopId),
@@ -105,14 +171,19 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       totalWithDiscount: String(totalWithDiscount),
       totalTax: "0",
       saleDiscount: String(saleDiscount),
-      amountPaid: String(paid),
-      outstandingBalance: String(outstanding),
+      amountPaid: String(paid.toFixed(2)),
+      mpesaTotal: String(mpesaAmt.toFixed(2)),
+      bankTotal:  String(bankAmt.toFixed(2)),
+      cardTotal:  String(cardAmt.toFixed(2)),
+      outstandingBalance: String(outstanding.toFixed(2)),
       saleType: saleType ?? "Retail",
-      paymentType: methodName,
-      status: outstanding > 0 ? "credit" : "cashed",
+      paymentType: paymentTypeLabel,
+      status: saleStatus,
       saleNote: note,
+      dueDate: !held && outstanding > 0 && dueDate ? new Date(dueDate) : null,
       receiptNo,
       attendant: req.attendant?.id ?? undefined,
+      ...(saleDate ? { createdAt: new Date(saleDate) } : {}),
     } as typeof sales.$inferInsert).returning();
 
     const itemRows = await db.insert(saleItems).values(
@@ -129,94 +200,95 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       }))
     ).returning();
 
-    // Deduct inventory and consume batches (FEFO) for each sold item
-    const invSnapshots = new Map<number, string>(); // productId -> qtyBefore
-    await Promise.all(
-      itemRows.map(async (itemRow, i) => {
-        const item = items[i];
-        const soldQty = Number(item.quantity ?? 1);
-        const productId = Number(item.productId);
-        const sid = Number(shopId);
+    // Held sales skip inventory deduction — items are reserved when checking out
+    if (!held) {
+      const invSnapshots = new Map<number, string>();
+      await Promise.all(
+        itemRows.map(async (itemRow, i) => {
+          const item = items[i];
+          const soldQty = Number(item.quantity ?? 1);
+          const productId = Number(item.productId);
+          const sid = Number(shopId);
 
-        // Read inventory BEFORE deducting so we can record accurate before/after
-        const existingInv = await db.query.inventory.findFirst({
-          where: and(eq(inventory.product, productId), eq(inventory.shop, sid)),
-          columns: { quantity: true },
-        });
-        invSnapshots.set(productId, existingInv ? String(existingInv.quantity) : "0");
+          const existingInv = await db.query.inventory.findFirst({
+            where: and(eq(inventory.product, productId), eq(inventory.shop, sid)),
+            columns: { quantity: true },
+          });
+          invSnapshots.set(productId, existingInv ? String(existingInv.quantity) : "0");
 
-        // Deduct from inventory (floor at 0 to avoid negative stock)
-        await db.update(inventory)
-          .set({
-            quantity: sql`GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric)`,
-            status: sql`CASE
-              WHEN GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric) <= 0 THEN 'out_of_stock'
-              WHEN GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric) <= ${inventory.reorderLevel} THEN 'low'
-              ELSE 'active'
-            END`,
-          })
-          .where(and(eq(inventory.product, productId), eq(inventory.shop, sid)));
+          await db.update(inventory)
+            .set({
+              quantity: sql`GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric)`,
+              status: sql`CASE
+                WHEN GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric) <= 0 THEN 'out_of_stock'
+                WHEN GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric) <= ${inventory.reorderLevel} THEN 'low'
+                ELSE 'active'
+              END`,
+            })
+            .where(and(eq(inventory.product, productId), eq(inventory.shop, sid)));
 
-        // Consume batches FEFO (earliest expiry first, then oldest by created_at)
-        const availableBatches = await db.query.batches.findMany({
-          where: and(eq(batches.product, productId), eq(batches.shop, sid)),
-          orderBy: (b, { asc }) => [
-            sql`${b.expirationDate} IS NULL`,   // nulls last
-            asc(b.expirationDate),
-            asc(b.createdAt),
-          ],
-        });
+          const availableBatches = await db.query.batches.findMany({
+            where: and(eq(batches.product, productId), eq(batches.shop, sid)),
+            orderBy: (b, { asc }) => [
+              sql`${b.expirationDate} IS NULL`,
+              asc(b.expirationDate),
+              asc(b.createdAt),
+            ],
+          });
 
-        let remaining = soldQty;
-        for (const batch of availableBatches) {
-          if (remaining <= 0) break;
-          const available = Number(batch.quantity);
-          if (available <= 0) continue;
-          const taken = Math.min(remaining, available);
-          remaining -= taken;
+          let remaining = soldQty;
+          for (const batch of availableBatches) {
+            if (remaining <= 0) break;
+            const available = Number(batch.quantity);
+            if (available <= 0) continue;
+            const taken = Math.min(remaining, available);
+            remaining -= taken;
+            await db.update(batches)
+              .set({ quantity: sql`GREATEST(0, ${batches.quantity} - ${taken}::numeric)` })
+              .where(eq(batches.id, batch.id));
+            await db.insert(saleItemBatches).values({
+              saleItem: itemRow.id,
+              batch: batch.id,
+              quantityTaken: String(taken),
+            });
+          }
+        })
+      );
 
-          await db.update(batches)
-            .set({ quantity: sql`GREATEST(0, ${batches.quantity} - ${taken}::numeric)` })
-            .where(eq(batches.id, batch.id));
-
-          await db.insert(saleItemBatches).values({
-            saleItem: itemRow.id,
-            batch: batch.id,
-            quantityTaken: String(taken),
+      // Insert a salePayments row for each payment method
+      for (const p of resolvedPayments) {
+        if (p.amount > 0 && req.attendant) {
+          await db.insert(salePayments).values({
+            sale: sale.id,
+            receivedBy: req.attendant.id,
+            amount: String(p.amount.toFixed(2)),
+            balance: String(outstanding.toFixed(2)),
+            paymentType: p.methodName,
           });
         }
-      })
-    );
+      }
 
-    if (paid > 0 && req.attendant) {
-      await db.insert(salePayments).values({
-        sale: sale.id,
-        receivedBy: req.attendant.id,
-        amount: String(paid),
-        balance: String(outstanding),
-        paymentType: methodName,
-      });
+      await recordProductHistory(
+        itemRows.map((itemRow) => {
+          const qtyBefore = invSnapshots.get(itemRow.product) ?? "0";
+          const qtyAfter  = String(Math.max(0, parseFloat(qtyBefore) - parseFloat(itemRow.quantity)));
+          return {
+            product: itemRow.product,
+            shop: itemRow.shop,
+            eventType: "sale" as const,
+            referenceId: itemRow.id,
+            quantity: itemRow.quantity,
+            unitPrice: itemRow.unitPrice,
+            quantityBefore: qtyBefore,
+            quantityAfter: qtyAfter,
+            note: receiptNo,
+          };
+        })
+      );
+      void notifySaleReceipt(sale.id);
+      void notifySaleReceiptSms(sale.id);
     }
 
-    await recordProductHistory(
-      itemRows.map((itemRow) => {
-        const qtyBefore = invSnapshots.get(itemRow.product) ?? "0";
-        const qtyAfter  = String(Math.max(0, parseFloat(qtyBefore) - parseFloat(itemRow.quantity)));
-        return {
-          product: itemRow.product,
-          shop: itemRow.shop,
-          eventType: "sale" as const,
-          referenceId: itemRow.id,
-          quantity: itemRow.quantity,
-          unitPrice: itemRow.unitPrice,
-          quantityBefore: qtyBefore,
-          quantityAfter: qtyAfter,
-          note: receiptNo,
-        };
-      })
-    );
-    void notifySaleReceipt(sale.id);
-    void notifySaleReceiptSms(sale.id);
     return created(res, { ...sale, items: itemRows });
   } catch (e) { next(e); }
 });
@@ -229,6 +301,218 @@ router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
     });
     if (!sale) throw notFound("Sale not found");
     return ok(res, sale);
+  } catch (e) { next(e); }
+});
+
+// ── Hold / unhold a sale (tab) ────────────────────────────────────────────────
+
+router.post("/:id/hold", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const id = Number(req.params["id"]);
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true, status: true } });
+    if (!existing) throw notFound("Sale not found");
+    await assertShopOwnership(req, existing.shop);
+    if (!["cashed", "credit"].includes(existing.status))
+      throw badRequest(`Cannot hold a sale with status "${existing.status}"`);
+    const [updated] = await db.update(sales).set({ status: "held" }).where(eq(sales.id, id)).returning();
+    if (!updated) throw notFound("Sale not found");
+    return ok(res, updated);
+  } catch (e) { next(e); }
+});
+
+// Add items to a held sale (e.g. customer keeps ordering at a bar tab)
+router.post("/:id/items", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const saleId = Number(req.params["id"]);
+    const { items } = req.body;
+    if (!items?.length) throw badRequest("items required");
+
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, saleId) });
+    if (!existing) throw notFound("Sale not found");
+    await assertShopOwnership(req, existing.shop);
+    if (existing.status !== "held") throw badRequest("Can only add items to a held sale");
+
+    let addedAmount = 0;
+    for (const item of items) addedAmount += (item.price ?? 0) * (item.quantity ?? 1);
+
+    const newTotal = (parseFloat(existing.totalAmount) + addedAmount).toFixed(2);
+    const newTotalWithDiscount = (parseFloat(existing.totalWithDiscount) + addedAmount).toFixed(2);
+    const newOutstanding = (parseFloat(existing.outstandingBalance) + addedAmount).toFixed(2);
+
+    const itemRows = await db.insert(saleItems).values(
+      items.map((item: any) => ({
+        sale: saleId,
+        shop: existing.shop,
+        product: Number(item.productId),
+        quantity: String(item.quantity ?? 1),
+        unitPrice: String(item.unitPrice ?? item.price ?? 0),
+        costPrice: String(item.costPrice ?? 0),
+        lineDiscount: String(item.discount ?? 0),
+        saleType: item.saleType ?? existing.saleType ?? "Retail",
+        attendant: req.attendant?.id ?? undefined,
+      }))
+    ).returning();
+
+    const [updated] = await db.update(sales).set({
+      totalAmount: newTotal,
+      totalWithDiscount: newTotalWithDiscount,
+      outstandingBalance: newOutstanding,
+    }).where(eq(sales.id, saleId)).returning();
+
+    return ok(res, { ...updated, addedItems: itemRows });
+  } catch (e) { next(e); }
+});
+
+// Finalize (checkout) a held sale — deducts inventory and applies payment
+router.post("/:id/checkout", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const saleId = Number(req.params["id"]);
+    const { paymentMethod, amountPaid, payments, dueDate } = req.body;
+
+    const existing = await db.query.sales.findFirst({
+      where: eq(sales.id, saleId),
+      with: { saleItems: true },
+    });
+    if (!existing) throw notFound("Sale not found");
+    await assertShopOwnership(req, existing.shop);
+    if (existing.status !== "held") throw badRequest("Sale is not held");
+
+    // ── Resolve payments ────────────────────────────────────────────────────
+    type RP = { methodName: string; amount: number };
+    let resolvedPayments: RP[] = [];
+    const totalWithDiscount = parseFloat(existing.totalWithDiscount);
+
+    if (Array.isArray(payments) && payments.length > 0) {
+      for (const p of payments) {
+        const mn = await resolvePaymentMethodName(p.method);
+        const amt = parseFloat(String(p.amount ?? 0));
+        if (amt < 0) throw badRequest("Payment amount cannot be negative");
+        resolvedPayments.push({ methodName: mn, amount: amt });
+      }
+    } else {
+      const mn = await resolvePaymentMethodName(paymentMethod);
+      const amt = amountPaid !== undefined ? Math.max(0, parseFloat(String(amountPaid))) : totalWithDiscount;
+      resolvedPayments = [{ methodName: mn, amount: amt }];
+    }
+
+    const paid = resolvedPayments.reduce((s, p) => s + p.amount, 0);
+    const outstanding = Math.max(0, totalWithDiscount - paid);
+
+    // Credit validation
+    if (outstanding > 0) {
+      if (!existing.customer) throw badRequest("Credit checkout requires a customer");
+      const cust = await db.query.customers.findFirst({
+        where: eq(customers.id, existing.customer),
+        columns: { creditLimit: true },
+      });
+      if (cust?.creditLimit) {
+        const limit = parseFloat(String(cust.creditLimit));
+        const [{ existingDebt }] = await db.select({
+          existingDebt: sql<string>`COALESCE(SUM(${sales.outstandingBalance}::numeric), 0)`,
+        }).from(sales).where(
+          and(eq(sales.customer, existing.customer), sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`)
+        );
+        const totalAfter = parseFloat(existingDebt ?? "0") + outstanding;
+        if (totalAfter > limit)
+          throw badRequest(`Credit limit of ${limit} exceeded. Debt: ${existingDebt}, this checkout adds: ${outstanding.toFixed(2)}`);
+      }
+    }
+
+    const paymentTypeLabel = resolvedPayments.length > 1 ? "split" : resolvedPayments[0]?.methodName ?? "cash";
+    const mpesaAmt = resolvedPayments.filter(p => /mpesa|m-pesa/i.test(p.methodName)).reduce((s, p) => s + p.amount, 0);
+    const bankAmt  = resolvedPayments.filter(p => /bank|transfer/i.test(p.methodName)).reduce((s, p) => s + p.amount, 0);
+    const cardAmt  = resolvedPayments.filter(p => /card/i.test(p.methodName)).reduce((s, p) => s + p.amount, 0);
+
+    // ── Deduct inventory (FEFO) ─────────────────────────────────────────────
+    const allItems = (existing as any).saleItems as typeof saleItems.$inferSelect[];
+    const invSnapshots = new Map<number, string>();
+    await Promise.all(
+      allItems.map(async (itemRow) => {
+        const soldQty = parseFloat(itemRow.quantity);
+        const productId = itemRow.product;
+        const sid = existing.shop;
+
+        const existingInv = await db.query.inventory.findFirst({
+          where: and(eq(inventory.product, productId), eq(inventory.shop, sid)),
+          columns: { quantity: true },
+        });
+        invSnapshots.set(productId, existingInv ? String(existingInv.quantity) : "0");
+
+        await db.update(inventory)
+          .set({
+            quantity: sql`GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric)`,
+            status: sql`CASE
+              WHEN GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric) <= 0 THEN 'out_of_stock'
+              WHEN GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric) <= ${inventory.reorderLevel} THEN 'low'
+              ELSE 'active'
+            END`,
+          })
+          .where(and(eq(inventory.product, productId), eq(inventory.shop, sid)));
+
+        const availableBatches = await db.query.batches.findMany({
+          where: and(eq(batches.product, productId), eq(batches.shop, sid)),
+          orderBy: (b, { asc }) => [sql`${b.expirationDate} IS NULL`, asc(b.expirationDate), asc(b.createdAt)],
+        });
+        let remaining = soldQty;
+        for (const batch of availableBatches) {
+          if (remaining <= 0) break;
+          const available = Number(batch.quantity);
+          if (available <= 0) continue;
+          const taken = Math.min(remaining, available);
+          remaining -= taken;
+          await db.update(batches)
+            .set({ quantity: sql`GREATEST(0, ${batches.quantity} - ${taken}::numeric)` })
+            .where(eq(batches.id, batch.id));
+          await db.insert(saleItemBatches).values({ saleItem: itemRow.id, batch: batch.id, quantityTaken: String(taken) });
+        }
+      })
+    );
+
+    await recordProductHistory(
+      allItems.map((itemRow) => {
+        const qtyBefore = invSnapshots.get(itemRow.product) ?? "0";
+        const qtyAfter  = String(Math.max(0, parseFloat(qtyBefore) - parseFloat(itemRow.quantity)));
+        return {
+          product: itemRow.product,
+          shop: existing.shop,
+          eventType: "sale" as const,
+          referenceId: itemRow.id,
+          quantity: itemRow.quantity,
+          unitPrice: itemRow.unitPrice,
+          quantityBefore: qtyBefore,
+          quantityAfter: qtyAfter,
+          note: existing.receiptNo ?? String(saleId),
+        };
+      })
+    );
+
+    for (const p of resolvedPayments) {
+      if (p.amount > 0 && req.attendant) {
+        await db.insert(salePayments).values({
+          sale: saleId,
+          receivedBy: req.attendant.id,
+          amount: String(p.amount.toFixed(2)),
+          balance: String(outstanding.toFixed(2)),
+          paymentType: p.methodName,
+        });
+      }
+    }
+
+    const [updated] = await db.update(sales).set({
+      status: outstanding > 0 ? "credit" : "cashed",
+      amountPaid: String(paid.toFixed(2)),
+      mpesaTotal: String(mpesaAmt.toFixed(2)),
+      bankTotal:  String(bankAmt.toFixed(2)),
+      cardTotal:  String(cardAmt.toFixed(2)),
+      outstandingBalance: String(outstanding.toFixed(2)),
+      paymentType: paymentTypeLabel,
+      dueDate: outstanding > 0 && dueDate ? new Date(dueDate) : null,
+    }).where(eq(sales.id, saleId)).returning();
+    if (!updated) throw notFound("Sale not found");
+
+    void notifySaleReceipt(saleId);
+    void notifySaleReceiptSms(saleId);
+    return ok(res, updated);
   } catch (e) { next(e); }
 });
 

@@ -152,12 +152,14 @@ router.post("/:id/wallet", requireAdmin, async (req, res, next) => {
     if (!supplier) throw notFound("Supplier not found");
     await assertShopOwnership(req, supplier.shop);
 
-    const newBalance = (parseFloat(supplier.wallet ?? "0") + parseFloat(String(amount))).toFixed(2);
+    const numAmount = parseFloat(String(amount));
+    if (Number.isNaN(numAmount) || numAmount <= 0) throw badRequest("amount must be positive");
+    const newBalance = (parseFloat(supplier.wallet ?? "0") + numAmount).toFixed(2);
     await db.update(suppliers).set({ wallet: newBalance }).where(eq(suppliers.id, supplierId));
     await db.insert(supplierWalletTransactions).values({
       supplier: supplierId,
       shop: supplier.shop,
-      amount: String(amount),
+      amount: String(numAmount.toFixed(2)),
       balance: newBalance,
       type: "deposit",
     });
