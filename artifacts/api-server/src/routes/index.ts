@@ -34,6 +34,7 @@ import activitiesRouter from "./activities.js";
 import shopScopedRouter from "./shop-scoped.js";
 import systemRouter from "./system.js";
 import emailTemplatesRouter from "./email-templates.js";
+import publicRouter from "./public.js";
 
 const router: IRouter = Router();
 
@@ -73,5 +74,6 @@ router.use("/permissions", permissionsRouter);
 router.use("/activities", activitiesRouter);
 router.use("/shops/:shopId/activities", activitiesRouter);
 router.use("/shops/:shopId", shopScopedRouter);
+router.use("/public", publicRouter);
 
 export default router;

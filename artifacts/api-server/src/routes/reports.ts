@@ -1,14 +1,15 @@
 import { Router } from "express";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import {
   sales, saleItems, salePayments, purchases, purchaseItems, expenses,
   customers, suppliers, products, inventory, cashflows, admins,
   badStocks, stockCounts, stockCountItems, adjustments,
+  expenseCategories, banks, shops,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok } from "../lib/response.js";
 import { badRequest } from "../lib/errors.js";
-import { requireAdmin } from "../middlewares/auth.js";
+import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 
 const router = Router();
 
@@ -665,6 +666,829 @@ router.get("/dues/overdue", requireAdmin, async (req, res, next) => {
     }).from(sales).where(where);
 
     return ok(res, { rows, summary });
+  } catch (e) { next(e); }
+});
+
+// ── Enhanced Sales by Product (with name, cost, margin) ───────────────────────
+
+router.get("/sales/by-product/detail", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
+    if (shopId) conditions.push(eq(saleItems.shop, shopId));
+    if (from) conditions.push(gte(sales.createdAt, from));
+    if (to) conditions.push(lte(sales.createdAt, to));
+
+    const rows = await db.select({
+      productId: saleItems.product,
+      productName: products.name,
+      productType: products.type,
+      categoryId: products.category,
+      totalQty: sql<string>`COALESCE(SUM(${saleItems.quantity}::numeric), 0)`,
+      totalRevenue: sql<string>`COALESCE(SUM(${saleItems.unitPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
+      totalCost: sql<string>`COALESCE(SUM(${saleItems.costPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
+      grossProfit: sql<string>`COALESCE(SUM((${saleItems.unitPrice}::numeric - ${saleItems.costPrice}::numeric) * ${saleItems.quantity}::numeric), 0)`,
+      averageSellingPrice: sql<string>`COALESCE(AVG(${saleItems.unitPrice}::numeric), 0)`,
+    })
+    .from(saleItems)
+    .innerJoin(sales, eq(saleItems.sale, sales.id))
+    .leftJoin(products, eq(saleItems.product, products.id))
+    .where(and(...conditions))
+    .groupBy(saleItems.product, products.name, products.type, products.category)
+    .orderBy(sql`COALESCE(SUM(${saleItems.unitPrice}::numeric * ${saleItems.quantity}::numeric), 0) DESC`)
+    .limit(200);
+
+    const enriched = rows.map((r) => {
+      const revenue = parseFloat(r.totalRevenue);
+      const cost = parseFloat(r.totalCost);
+      const margin = revenue > 0 ? ((revenue - cost) / revenue * 100) : 0;
+      return { ...r, marginPercent: margin.toFixed(2) };
+    });
+
+    const grandRevenue = enriched.reduce((s, r) => s + parseFloat(r.totalRevenue), 0);
+    const grandCost = enriched.reduce((s, r) => s + parseFloat(r.totalCost), 0);
+    const grandProfit = enriched.reduce((s, r) => s + parseFloat(r.grossProfit), 0);
+
+    return ok(res, {
+      rows: enriched,
+      summary: {
+        grandRevenue: grandRevenue.toFixed(2),
+        grandCost: grandCost.toFixed(2),
+        grandProfit: grandProfit.toFixed(2),
+        overallMarginPercent: grandRevenue > 0 ? ((grandProfit / grandRevenue) * 100).toFixed(2) : "0.00",
+        productCount: rows.length,
+      },
+    });
+  } catch (e) { next(e); }
+});
+
+// ── Daily Sales Time Series (for charts) ──────────────────────────────────────
+
+router.get("/sales/daily", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const days = req.query["days"] ? Math.max(1, Math.min(365, Number(req.query["days"]))) : 30;
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const conditions = [
+      gte(sales.createdAt, since),
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+    ];
+    if (shopId) conditions.push(eq(sales.shop, shopId));
+    if (req.attendant) conditions.push(eq(sales.attendant, req.attendant.id));
+
+    const rows = await db.select({
+      day: sql<string>`TO_CHAR(${sales.createdAt}, 'YYYY-MM-DD')`,
+      totalSales: sql<number>`COUNT(*)`,
+      totalRevenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
+      totalPaid: sql<string>`COALESCE(SUM(${sales.amountPaid}::numeric), 0)`,
+      totalDiscount: sql<string>`COALESCE(SUM(${sales.saleDiscount}::numeric), 0)`,
+    })
+    .from(sales)
+    .where(and(...conditions))
+    .groupBy(sql`TO_CHAR(${sales.createdAt}, 'YYYY-MM-DD')`)
+    .orderBy(sql`TO_CHAR(${sales.createdAt}, 'YYYY-MM-DD') ASC`);
+
+    return ok(res, { days, since, rows });
+  } catch (e) { next(e); }
+});
+
+// ── Monthly Sales (for trend charts) ─────────────────────────────────────────
+
+router.get("/sales/monthly", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const year = req.query["year"] ? Number(req.query["year"]) : new Date().getFullYear();
+
+    const conditions = [
+      gte(sales.createdAt, new Date(`${year}-01-01`)),
+      lte(sales.createdAt, new Date(`${year}-12-31T23:59:59`)),
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+    ];
+    if (shopId) conditions.push(eq(sales.shop, shopId));
+    if (req.attendant) conditions.push(eq(sales.attendant, req.attendant.id));
+
+    const rows = await db.select({
+      month: sql<number>`EXTRACT(MONTH FROM ${sales.createdAt})`,
+      totalSales: sql<number>`COUNT(*)`,
+      totalRevenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
+      totalPaid: sql<string>`COALESCE(SUM(${sales.amountPaid}::numeric), 0)`,
+      totalCost: sql<string>`COALESCE(SUM(${saleItems.costPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
+    })
+    .from(sales)
+    .leftJoin(saleItems, eq(saleItems.sale, sales.id))
+    .where(and(...conditions))
+    .groupBy(sql`EXTRACT(MONTH FROM ${sales.createdAt})`)
+    .orderBy(sql`EXTRACT(MONTH FROM ${sales.createdAt}) ASC`);
+
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const m = i + 1;
+      const row = rows.find((r) => Number(r.month) === m);
+      const revenue = parseFloat(row?.totalRevenue ?? "0");
+      const cost = parseFloat(row?.totalCost ?? "0");
+      return {
+        month: m,
+        totalSales: row?.totalSales ?? 0,
+        revenue,
+        cost,
+        profit: revenue - cost,
+      };
+    });
+
+    return ok(res, { year, months });
+  } catch (e) { next(e); }
+});
+
+// ── Income Report (revenue breakdown by payment method + time series) ──────────
+
+router.get("/income", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+    const days = req.query["days"] ? Number(req.query["days"]) : 30;
+    const since = from ?? new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const baseCond = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
+    if (shopId) baseCond.push(eq(sales.shop, shopId));
+    if (from) baseCond.push(gte(sales.createdAt, from)); else baseCond.push(gte(sales.createdAt, since));
+    if (to) baseCond.push(lte(sales.createdAt, to));
+    const where = and(...baseCond);
+
+    const [totals, byPaymentMethod, byDay, cashflowSummary] = await Promise.all([
+      db.select({
+        totalRevenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
+        totalPaid: sql<string>`COALESCE(SUM(${sales.amountPaid}::numeric), 0)`,
+        totalOutstanding: sql<string>`COALESCE(SUM(${sales.outstandingBalance}::numeric), 0)`,
+        totalDiscount: sql<string>`COALESCE(SUM(${sales.saleDiscount}::numeric), 0)`,
+        saleCount: sql<number>`COUNT(*)`,
+      }).from(sales).where(where),
+
+      db.select({
+        paymentType: salePayments.paymentType,
+        totalAmount: sql<string>`COALESCE(SUM(${salePayments.amount}::numeric), 0)`,
+        saleCount: sql<number>`COUNT(DISTINCT ${salePayments.sale})`,
+      })
+      .from(salePayments)
+      .innerJoin(sales, eq(salePayments.sale, sales.id))
+      .where(where)
+      .groupBy(salePayments.paymentType)
+      .orderBy(sql`COALESCE(SUM(${salePayments.amount}::numeric), 0) DESC`),
+
+      db.select({
+        day: sql<string>`TO_CHAR(${sales.createdAt}, 'YYYY-MM-DD')`,
+        revenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
+        saleCount: sql<number>`COUNT(*)`,
+      })
+      .from(sales)
+      .where(where)
+      .groupBy(sql`TO_CHAR(${sales.createdAt}, 'YYYY-MM-DD')`)
+      .orderBy(sql`TO_CHAR(${sales.createdAt}, 'YYYY-MM-DD') ASC`),
+
+      shopId
+        ? db.select({
+            totalCashIn: sql<string>`COALESCE(SUM(CASE WHEN ${cashflows.type} = 'cashin' THEN ${cashflows.amount}::numeric ELSE 0 END), 0)`,
+            totalCashOut: sql<string>`COALESCE(SUM(CASE WHEN ${cashflows.type} = 'cashout' THEN ${cashflows.amount}::numeric ELSE 0 END), 0)`,
+          }).from(cashflows).where(eq(cashflows.shop, shopId))
+        : Promise.resolve([{ totalCashIn: "0", totalCashOut: "0" }]),
+    ]);
+
+    return ok(res, {
+      period: { from: since, to: to ?? new Date() },
+      totals: totals[0],
+      byPaymentMethod,
+      dailyTimeSeries: byDay,
+      cashflows: cashflowSummary[0],
+    });
+  } catch (e) { next(e); }
+});
+
+// ── Expenses by Category ──────────────────────────────────────────────────────
+
+router.get("/expenses/by-category", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (shopId) conditions.push(eq(expenses.shop, shopId));
+    if (from) conditions.push(gte(expenses.createdAt, from));
+    if (to) conditions.push(lte(expenses.createdAt, to));
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const rows = await db.select({
+      categoryId: expenses.category,
+      categoryName: expenseCategories.name,
+      totalExpenses: sql<number>`COUNT(*)`,
+      totalAmount: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)`,
+    })
+    .from(expenses)
+    .leftJoin(expenseCategories, eq(expenses.category, expenseCategories.id))
+    .where(where)
+    .groupBy(expenses.category, expenseCategories.name)
+    .orderBy(sql`COALESCE(SUM(${expenses.amount}::numeric), 0) DESC`);
+
+    const grandTotal = rows.reduce((s, r) => s + parseFloat(r.totalAmount ?? "0"), 0);
+
+    const recentExpenses = await db.query.expenses.findMany({
+      where,
+      orderBy: [desc(expenses.createdAt)],
+      limit: 50,
+    });
+
+    return ok(res, {
+      rows,
+      grandTotal: grandTotal.toFixed(2),
+      recentExpenses,
+    });
+  } catch (e) { next(e); }
+});
+
+// ── Accounts Summary (cash position) ─────────────────────────────────────────
+// Returns: bank balances, total receivables, total payables, net position
+
+router.get("/accounts", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+
+    const salesWhere = shopId
+      ? and(eq(sales.shop, shopId), sql`${sales.outstandingBalance}::numeric > 0`, sql`${sales.status} NOT IN ('voided','refunded','held')`)
+      : and(sql`${sales.outstandingBalance}::numeric > 0`, sql`${sales.status} NOT IN ('voided','refunded','held')`);
+
+    const purchasesWhere = shopId
+      ? and(eq(purchases.shop, shopId), sql`${purchases.outstandingBalance}::numeric > 0`)
+      : sql`${purchases.outstandingBalance}::numeric > 0`;
+
+    const [
+      receivables,
+      payables,
+      cashflowTotals,
+      bankList,
+      expensesThisMonth,
+    ] = await Promise.all([
+      db.select({
+        totalReceivables: sql<string>`COALESCE(SUM(${sales.outstandingBalance}::numeric), 0)`,
+        count: sql<number>`COUNT(*)`,
+      }).from(sales).where(salesWhere),
+
+      db.select({
+        totalPayables: sql<string>`COALESCE(SUM(${purchases.outstandingBalance}::numeric), 0)`,
+        count: sql<number>`COUNT(*)`,
+      }).from(purchases).where(purchasesWhere),
+
+      shopId
+        ? db.select({
+            totalCashIn: sql<string>`COALESCE(SUM(CASE WHEN ${cashflows.type} = 'cashin' THEN ${cashflows.amount}::numeric ELSE 0 END), 0)`,
+            totalCashOut: sql<string>`COALESCE(SUM(CASE WHEN ${cashflows.type} = 'cashout' THEN ${cashflows.amount}::numeric ELSE 0 END), 0)`,
+          }).from(cashflows).where(eq(cashflows.shop, shopId))
+        : [{ totalCashIn: "0", totalCashOut: "0" }],
+
+      shopId
+        ? db.query.banks.findMany({ where: eq(banks.shop, shopId), columns: { id: true, name: true, balance: true, currency: true } })
+        : [],
+
+      (() => {
+        const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
+        const expCond = shopId ? and(eq(expenses.shop, shopId), gte(expenses.createdAt, startOfMonth)) : gte(expenses.createdAt, startOfMonth);
+        return db.select({ total: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)` }).from(expenses).where(expCond);
+      })(),
+    ]);
+
+    const totalReceivables = parseFloat(receivables[0]?.totalReceivables ?? "0");
+    const totalPayables = parseFloat(payables[0]?.totalPayables ?? "0");
+    const cashIn = parseFloat((cashflowTotals as any)[0]?.totalCashIn ?? "0");
+    const cashOut = parseFloat((cashflowTotals as any)[0]?.totalCashOut ?? "0");
+    const bankTotal = bankList.reduce((s, b) => s + parseFloat(String(b.balance ?? 0)), 0);
+
+    return ok(res, {
+      receivables: {
+        total: totalReceivables.toFixed(2),
+        count: receivables[0]?.count ?? 0,
+      },
+      payables: {
+        total: totalPayables.toFixed(2),
+        count: payables[0]?.count ?? 0,
+      },
+      cashflows: {
+        totalCashIn: cashIn.toFixed(2),
+        totalCashOut: cashOut.toFixed(2),
+        net: (cashIn - cashOut).toFixed(2),
+      },
+      banks: bankList,
+      bankTotal: bankTotal.toFixed(2),
+      expensesThisMonth: (expensesThisMonth as any)[0]?.total ?? "0",
+      netPosition: (totalReceivables - totalPayables + bankTotal).toFixed(2),
+    });
+  } catch (e) { next(e); }
+});
+
+// ── Debt Aging (AR Aging Analysis) ────────────────────────────────────────────
+// Buckets: current (not yet due) | 1-30 | 31-60 | 61-90 | 90+ days overdue
+
+router.get("/debts/aging", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const now = new Date();
+
+    const conditions = [
+      sql`${sales.outstandingBalance}::numeric > 0`,
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+    ];
+    if (shopId) conditions.push(eq(sales.shop, shopId));
+    const where = and(...conditions);
+
+    const rows = await db.select({
+      saleId: sales.id,
+      receiptNo: sales.receiptNo,
+      customerId: sales.customer,
+      customerName: customers.name,
+      customerPhone: customers.phone,
+      totalAmount: sales.totalWithDiscount,
+      amountPaid: sales.amountPaid,
+      outstandingBalance: sales.outstandingBalance,
+      dueDate: sales.dueDate,
+      createdAt: sales.createdAt,
+      daysOverdue: sql<number>`GREATEST(0, EXTRACT(DAY FROM NOW() - COALESCE(${sales.dueDate}, ${sales.createdAt})))`,
+    })
+    .from(sales)
+    .leftJoin(customers, eq(sales.customer, customers.id))
+    .where(where)
+    .orderBy(sql`GREATEST(0, EXTRACT(DAY FROM NOW() - COALESCE(${sales.dueDate}, ${sales.createdAt}))) DESC`)
+    .limit(1000);
+
+    // Bucket rows
+    const buckets = {
+      current: rows.filter((r) => Number(r.daysOverdue) === 0),
+      days1to30: rows.filter((r) => Number(r.daysOverdue) >= 1 && Number(r.daysOverdue) <= 30),
+      days31to60: rows.filter((r) => Number(r.daysOverdue) >= 31 && Number(r.daysOverdue) <= 60),
+      days61to90: rows.filter((r) => Number(r.daysOverdue) >= 61 && Number(r.daysOverdue) <= 90),
+      days90plus: rows.filter((r) => Number(r.daysOverdue) > 90),
+    };
+
+    const bucketSummary = Object.entries(buckets).reduce((acc, [key, items]) => ({
+      ...acc,
+      [key]: {
+        count: items.length,
+        total: items.reduce((s, r) => s + parseFloat(String(r.outstandingBalance ?? 0)), 0).toFixed(2),
+        items,
+      },
+    }), {} as Record<string, unknown>);
+
+    const grandTotal = rows.reduce((s, r) => s + parseFloat(String(r.outstandingBalance ?? 0)), 0);
+
+    return ok(res, {
+      asOf: now.toISOString(),
+      grandTotal: grandTotal.toFixed(2),
+      totalDebts: rows.length,
+      buckets: bucketSummary,
+    });
+  } catch (e) { next(e); }
+});
+
+// ── Enhanced Dues with customer name ─────────────────────────────────────────
+
+router.get("/dues/detail", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const overdue = req.query["overdue"] === "true";
+    const now = new Date();
+
+    const conditions = [
+      sql`${sales.outstandingBalance}::numeric > 0`,
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+    ];
+    if (shopId) conditions.push(eq(sales.shop, shopId));
+    if (overdue) {
+      conditions.push(sql`${sales.dueDate} IS NOT NULL`);
+      conditions.push(lte(sales.dueDate, now));
+    }
+    const where = and(...conditions);
+
+    const rows = await db.select({
+      saleId: sales.id,
+      receiptNo: sales.receiptNo,
+      customerId: sales.customer,
+      customerName: customers.name,
+      customerPhone: customers.phone,
+      totalAmount: sales.totalWithDiscount,
+      amountPaid: sales.amountPaid,
+      outstandingBalance: sales.outstandingBalance,
+      dueDate: sales.dueDate,
+      saleType: sales.saleType,
+      paymentType: sales.paymentType,
+      createdAt: sales.createdAt,
+      daysOverdue: sql<number>`GREATEST(0, EXTRACT(DAY FROM NOW() - COALESCE(${sales.dueDate}, ${sales.createdAt})))`,
+    })
+    .from(sales)
+    .leftJoin(customers, eq(sales.customer, customers.id))
+    .where(where)
+    .orderBy(sql`${sales.dueDate} ASC NULLS LAST`)
+    .limit(1000);
+
+    const [summary] = await db.select({
+      totalDues: sql<string>`COALESCE(SUM(${sales.outstandingBalance}::numeric), 0)`,
+      saleCount: sql<number>`COUNT(*)`,
+    }).from(sales).where(where);
+
+    return ok(res, { rows, summary });
+  } catch (e) { next(e); }
+});
+
+// ── Comprehensive Stock Take Report ───────────────────────────────────────────
+// Full per-product snapshot: qty, cost, sale value, status, last adjustment,
+// variance from last stock count
+
+router.get("/stock-take", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const status = req.query["status"] ? String(req.query["status"]) : null;
+
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (shopId) conditions.push(eq(inventory.shop, shopId));
+    if (status) conditions.push(eq(inventory.status, status));
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const rows = await db.select({
+      productId: inventory.product,
+      shopId: inventory.shop,
+      productName: products.name,
+      productType: products.type,
+      barcode: products.barcode,
+      status: inventory.status,
+      quantity: inventory.quantity,
+      reorderLevel: inventory.reorderLevel,
+      buyingPrice: products.buyingPrice,
+      sellingPrice: products.sellingPrice,
+      stockValueAtCost: sql<string>`COALESCE(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric, 0)`,
+      stockValueAtSale: sql<string>`COALESCE(${inventory.quantity}::numeric * ${products.sellingPrice}::numeric, 0)`,
+      potentialProfit: sql<string>`COALESCE(${inventory.quantity}::numeric * (${products.sellingPrice}::numeric - ${products.buyingPrice}::numeric), 0)`,
+      updatedAt: inventory.createdAt,
+    })
+    .from(inventory)
+    .leftJoin(products, eq(inventory.product, products.id))
+    .where(where)
+    .orderBy(sql`COALESCE(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric, 0) DESC`);
+
+    const summary = {
+      totalProducts: rows.length,
+      totalUnits: rows.reduce((s, r) => s + parseFloat(String(r.quantity ?? 0)), 0),
+      totalValueAtCost: rows.reduce((s, r) => s + parseFloat(String(r.stockValueAtCost ?? 0)), 0).toFixed(2),
+      totalValueAtSale: rows.reduce((s, r) => s + parseFloat(String(r.stockValueAtSale ?? 0)), 0).toFixed(2),
+      potentialProfit: rows.reduce((s, r) => s + parseFloat(String(r.potentialProfit ?? 0)), 0).toFixed(2),
+      outOfStock: rows.filter((r) => r.status === "out_of_stock").length,
+      lowStock: rows.filter((r) => r.status === "low").length,
+      healthy: rows.filter((r) => r.status === "active").length,
+    };
+
+    return ok(res, { rows, summary });
+  } catch (e) { next(e); }
+});
+
+// ── Comprehensive Purchases Report ────────────────────────────────────────────
+
+router.get("/purchases/detail", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const supplierId = req.query["supplierId"] ? Number(req.query["supplierId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (shopId) conditions.push(eq(purchases.shop, shopId));
+    if (supplierId) conditions.push(eq(purchases.supplier, supplierId));
+    if (from) conditions.push(gte(purchases.createdAt, from));
+    if (to) conditions.push(lte(purchases.createdAt, to));
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const [summary, bySupplier, topProducts] = await Promise.all([
+      db.select({
+        totalPurchases: sql<number>`COUNT(*)`,
+        totalAmount: sql<string>`COALESCE(SUM(${purchases.totalAmount}::numeric), 0)`,
+        totalPaid: sql<string>`COALESCE(SUM(${purchases.amountPaid}::numeric), 0)`,
+        totalOutstanding: sql<string>`COALESCE(SUM(${purchases.outstandingBalance}::numeric), 0)`,
+      }).from(purchases).where(where),
+
+      db.select({
+        supplierId: purchases.supplier,
+        supplierName: suppliers.name,
+        supplierPhone: suppliers.phone,
+        purchaseCount: sql<number>`COUNT(*)`,
+        totalAmount: sql<string>`COALESCE(SUM(${purchases.totalAmount}::numeric), 0)`,
+        totalPaid: sql<string>`COALESCE(SUM(${purchases.amountPaid}::numeric), 0)`,
+        totalOutstanding: sql<string>`COALESCE(SUM(${purchases.outstandingBalance}::numeric), 0)`,
+      })
+      .from(purchases)
+      .leftJoin(suppliers, eq(purchases.supplier, suppliers.id))
+      .where(where)
+      .groupBy(purchases.supplier, suppliers.name, suppliers.phone)
+      .orderBy(sql`COALESCE(SUM(${purchases.totalAmount}::numeric), 0) DESC`),
+
+      db.select({
+        productId: purchaseItems.product,
+        productName: products.name,
+        totalQty: sql<string>`COALESCE(SUM(${purchaseItems.quantity}::numeric), 0)`,
+        totalCost: sql<string>`COALESCE(SUM(${purchaseItems.unitPrice}::numeric * ${purchaseItems.quantity}::numeric), 0)`,
+      })
+      .from(purchaseItems)
+      .innerJoin(purchases, eq(purchaseItems.purchase, purchases.id))
+      .leftJoin(products, eq(purchaseItems.product, products.id))
+      .where(where)
+      .groupBy(purchaseItems.product, products.name)
+      .orderBy(sql`COALESCE(SUM(${purchaseItems.unitPrice}::numeric * ${purchaseItems.quantity}::numeric), 0) DESC`)
+      .limit(50),
+    ]);
+
+    return ok(res, { summary: summary[0], bySupplier, topProducts });
+  } catch (e) { next(e); }
+});
+
+// ── Comprehensive Profit & Loss ───────────────────────────────────────────────
+
+router.get("/profit-loss/detail", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const baseSalesWhere = shopDate(shopId, from, to, sales);
+    const salesWhere = baseSalesWhere
+      ? and(baseSalesWhere, sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`)
+      : sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`;
+    const expensesWhere = shopDate(shopId, from, to, expenses);
+    const purchasesWhere = shopDate(shopId, from, to, purchases);
+
+    const [
+      [revenueSummary],
+      [costSummary],
+      [expensesSummary],
+      [purchasesSummary],
+      [discountSummary],
+      [returnsSummary],
+      expenseByCategory,
+      byPaymentMethod,
+    ] = await Promise.all([
+      db.select({
+        revenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
+        saleCount: sql<number>`COUNT(*)`,
+        totalDiscount: sql<string>`COALESCE(SUM(${sales.saleDiscount}::numeric), 0)`,
+      }).from(sales).where(salesWhere),
+
+      db.select({
+        cost: sql<string>`COALESCE(SUM(${saleItems.costPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
+      }).from(saleItems).innerJoin(sales, eq(saleItems.sale, sales.id)).where(salesWhere),
+
+      db.select({
+        totalExpenses: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)`,
+      }).from(expenses).where(expensesWhere),
+
+      db.select({
+        totalPurchases: sql<string>`COALESCE(SUM(${purchases.totalAmount}::numeric), 0)`,
+      }).from(purchases).where(purchasesWhere),
+
+      db.select({
+        totalDiscount: sql<string>`COALESCE(SUM(${sales.saleDiscount}::numeric), 0)`,
+      }).from(sales).where(salesWhere),
+
+      // Voided/refunded totals to show shrinkage
+      db.select({
+        voidedAmount: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'voided' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+        refundedAmount: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'refunded' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+      }).from(sales).where(shopDate(shopId, from, to, sales) ?? sql`1=1`),
+
+      db.select({
+        categoryName: expenseCategories.name,
+        total: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)`,
+      })
+      .from(expenses)
+      .leftJoin(expenseCategories, eq(expenses.category, expenseCategories.id))
+      .where(expensesWhere)
+      .groupBy(expenseCategories.name)
+      .orderBy(sql`COALESCE(SUM(${expenses.amount}::numeric), 0) DESC`),
+
+      db.select({
+        paymentType: salePayments.paymentType,
+        total: sql<string>`COALESCE(SUM(${salePayments.amount}::numeric), 0)`,
+      })
+      .from(salePayments)
+      .innerJoin(sales, eq(salePayments.sale, sales.id))
+      .where(salesWhere)
+      .groupBy(salePayments.paymentType)
+      .orderBy(sql`COALESCE(SUM(${salePayments.amount}::numeric), 0) DESC`),
+    ]);
+
+    const revenue = parseFloat(revenueSummary?.revenue ?? "0");
+    const cost = parseFloat(costSummary?.cost ?? "0");
+    const expensesTotal = parseFloat(expensesSummary?.totalExpenses ?? "0");
+    const grossProfit = revenue - cost;
+    const grossMargin = revenue > 0 ? (grossProfit / revenue * 100) : 0;
+    const netProfit = grossProfit - expensesTotal;
+    const netMargin = revenue > 0 ? (netProfit / revenue * 100) : 0;
+
+    return ok(res, {
+      period: { from, to },
+      income: {
+        revenue: revenue.toFixed(2),
+        saleCount: revenueSummary?.saleCount ?? 0,
+        totalDiscount: discountSummary?.totalDiscount ?? "0",
+        voidedAmount: returnsSummary?.voidedAmount ?? "0",
+        refundedAmount: returnsSummary?.refundedAmount ?? "0",
+      },
+      cogs: {
+        cost: cost.toFixed(2),
+        grossProfit: grossProfit.toFixed(2),
+        grossMarginPercent: grossMargin.toFixed(2),
+      },
+      expenses: {
+        total: expensesTotal.toFixed(2),
+        byCategory: expenseByCategory,
+      },
+      purchases: {
+        total: purchasesSummary?.totalPurchases ?? "0",
+      },
+      netProfit: netProfit.toFixed(2),
+      netMarginPercent: netMargin.toFixed(2),
+      byPaymentMethod,
+    });
+  } catch (e) { next(e); }
+});
+
+// ── Business Summary Dashboard ─────────────────────────────────────────────────
+// Single call that returns all key KPIs for a dashboard view.
+
+router.get("/business-summary", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const days = req.query["days"] ? Number(req.query["days"]) : 30;
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const salesWhere = and(
+      shopId ? eq(sales.shop, shopId) : sql`1=1`,
+      gte(sales.createdAt, since),
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+    );
+    const expWhere = and(
+      shopId ? eq(expenses.shop, shopId) : sql`1=1`,
+      gte(expenses.createdAt, since),
+    );
+    const purchasesWhere = and(
+      shopId ? eq(purchases.shop, shopId) : sql`1=1`,
+      gte(purchases.createdAt, since),
+    );
+
+    const [
+      salesSummary,
+      costSummary,
+      expensesSummary,
+      receivables,
+      payables,
+      topProducts,
+      topCustomers,
+      inventorySummary,
+      recentSales,
+    ] = await Promise.all([
+      db.select({
+        totalSales: sql<number>`COUNT(*)`,
+        totalRevenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
+        totalPaid: sql<string>`COALESCE(SUM(${sales.amountPaid}::numeric), 0)`,
+        totalOutstanding: sql<string>`COALESCE(SUM(${sales.outstandingBalance}::numeric), 0)`,
+        totalDiscount: sql<string>`COALESCE(SUM(${sales.saleDiscount}::numeric), 0)`,
+      }).from(sales).where(salesWhere),
+
+      db.select({
+        totalCost: sql<string>`COALESCE(SUM(${saleItems.costPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
+      }).from(saleItems).innerJoin(sales, eq(saleItems.sale, sales.id)).where(salesWhere),
+
+      db.select({
+        totalExpenses: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)`,
+      }).from(expenses).where(expWhere),
+
+      db.select({
+        totalReceivables: sql<string>`COALESCE(SUM(${sales.outstandingBalance}::numeric), 0)`,
+        count: sql<number>`COUNT(*)`,
+      }).from(sales).where(
+        and(
+          shopId ? eq(sales.shop, shopId) : sql`1=1`,
+          sql`${sales.outstandingBalance}::numeric > 0`,
+          sql`${sales.status} NOT IN ('voided','refunded','held')`,
+        )
+      ),
+
+      db.select({
+        totalPayables: sql<string>`COALESCE(SUM(${purchases.outstandingBalance}::numeric), 0)`,
+        count: sql<number>`COUNT(*)`,
+      }).from(purchases).where(
+        and(
+          shopId ? eq(purchases.shop, shopId) : sql`1=1`,
+          sql`${purchases.outstandingBalance}::numeric > 0`,
+        )
+      ),
+
+      db.select({
+        productId: saleItems.product,
+        productName: products.name,
+        totalQty: sql<string>`COALESCE(SUM(${saleItems.quantity}::numeric), 0)`,
+        totalRevenue: sql<string>`COALESCE(SUM(${saleItems.unitPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
+      })
+      .from(saleItems)
+      .innerJoin(sales, eq(saleItems.sale, sales.id))
+      .leftJoin(products, eq(saleItems.product, products.id))
+      .where(salesWhere)
+      .groupBy(saleItems.product, products.name)
+      .orderBy(sql`COALESCE(SUM(${saleItems.unitPrice}::numeric * ${saleItems.quantity}::numeric), 0) DESC`)
+      .limit(5),
+
+      db.select({
+        customerId: sales.customer,
+        customerName: customers.name,
+        totalSales: sql<number>`COUNT(*)`,
+        totalSpent: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
+      })
+      .from(sales)
+      .leftJoin(customers, eq(sales.customer, customers.id))
+      .where(and(salesWhere, sql`${sales.customer} IS NOT NULL`))
+      .groupBy(sales.customer, customers.name)
+      .orderBy(sql`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0) DESC`)
+      .limit(5),
+
+      db.select({
+        totalProducts: sql<number>`COUNT(*)`,
+        totalValue: sql<string>`COALESCE(SUM(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric), 0)`,
+        outOfStock: sql<number>`COUNT(CASE WHEN ${inventory.status} = 'out_of_stock' THEN 1 END)`,
+        lowStock: sql<number>`COUNT(CASE WHEN ${inventory.status} = 'low' THEN 1 END)`,
+      })
+      .from(inventory)
+      .leftJoin(products, eq(inventory.product, products.id))
+      .where(shopId ? eq(inventory.shop, shopId) : undefined),
+
+      db.query.sales.findMany({
+        where: shopId ? and(eq(sales.shop, shopId), sql`${sales.status} NOT IN ('voided','refunded')`) : sql`${sales.status} NOT IN ('voided','refunded')`,
+        orderBy: [desc(sales.createdAt)],
+        limit: 10,
+      }),
+    ]);
+
+    const revenue = parseFloat(salesSummary[0]?.totalRevenue ?? "0");
+    const cost = parseFloat(costSummary[0]?.totalCost ?? "0");
+    const expensesTotal = parseFloat(expensesSummary[0]?.totalExpenses ?? "0");
+    const grossProfit = revenue - cost;
+    const netProfit = grossProfit - expensesTotal;
+
+    return ok(res, {
+      period: { days, since },
+      sales: {
+        ...salesSummary[0],
+        averageOrderValue: (salesSummary[0]?.totalSales ?? 0) > 0
+          ? (revenue / Number(salesSummary[0]?.totalSales ?? 1)).toFixed(2)
+          : "0.00",
+      },
+      profitability: {
+        grossProfit: grossProfit.toFixed(2),
+        grossMarginPercent: revenue > 0 ? (grossProfit / revenue * 100).toFixed(2) : "0.00",
+        netProfit: netProfit.toFixed(2),
+        netMarginPercent: revenue > 0 ? (netProfit / revenue * 100).toFixed(2) : "0.00",
+        totalExpenses: expensesTotal.toFixed(2),
+        totalCost: cost.toFixed(2),
+      },
+      receivables: receivables[0],
+      payables: payables[0],
+      inventory: inventorySummary[0],
+      topProducts,
+      topCustomers,
+      recentSales,
+    });
+  } catch (e) { next(e); }
+});
+
+// ── Attendant Sales Summary ────────────────────────────────────────────────────
+
+router.get("/sales/by-attendant", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
+    if (shopId) conditions.push(eq(sales.shop, shopId));
+    if (from) conditions.push(gte(sales.createdAt, from));
+    if (to) conditions.push(lte(sales.createdAt, to));
+
+    const rows = await db.select({
+      attendantId: sales.attendant,
+      totalSales: sql<number>`COUNT(*)`,
+      totalRevenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
+      totalDiscount: sql<string>`COALESCE(SUM(${sales.saleDiscount}::numeric), 0)`,
+      totalOutstanding: sql<string>`COALESCE(SUM(${sales.outstandingBalance}::numeric), 0)`,
+    })
+    .from(sales)
+    .where(and(...conditions))
+    .groupBy(sales.attendant)
+    .orderBy(sql`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0) DESC`);
+
+    return ok(res, rows);
   } catch (e) { next(e); }
 });
 

@@ -89,7 +89,7 @@ All 275+ endpoints across 25 sections implemented and verified passing:
 | Finance | banks, expenses, cashflows, payment-methods, user-payments |
 | Communications | SMS (contact/message fields), email templates/messages, activities |
 | Orders | CRUD |
-| Reports | sales, purchases, inventory, P&L, expenses, credit, by-product, by-customer, cross-shop |
+| Reports | sales, purchases, inventory, P&L, expenses, credit, by-product, by-customer, cross-shop, debts aging, accounts summary, stock-take, income, expenses/by-category, business-summary dashboard, sales/daily chart, sales/monthly, profit-loss/detail, purchases/detail |
 | Subscriptions | packages list, subscriptions list |
 | Admin | profile, SMS credits, referrals |
 
@@ -106,6 +106,8 @@ All 275+ endpoints across 25 sections implemented and verified passing:
 - **Backup snapshot**: `GET /shops/:shopId/reports/backup` returns a full JSON snapshot (products, customers, inventory, last-30-days sales/purchases/expenses); `?format=download` triggers file download; scheduled nightly backup job emails the snapshot to `shop.backupEmail`
 - **Receipt customisation**: `shop.receiptLogo` (img URL), `shop.receiptFooter` (custom text), `shop.receiptShowTax` (bool), `shop.receiptShowDiscount` (bool) now reflected in HTML receipt template
 - **Shop settings extended**: `PUT /shops/:shopId` and `POST /shops` now accept all new receipt/loyalty fields (`receiptLogo`, `receiptFooter`, `receiptShowTax`, `receiptShowDiscount`, `loyaltyEnabled`, `pointsPerAmount`, `pointsValue`)
+- **Customer-facing online ordering** (`/api/public/...`): `GET /public/shops/:shopId` (shop info), `GET /public/shops/:shopId/products` (paginated, searchable catalog, stock/price visibility controlled per shop), `GET /public/shops/:shopId/categories` (categories with products in that shop), `POST /public/orders` (customer JWT, place order), `GET /public/orders/:orderNo` (track order), `GET /public/my-orders` (list own orders), `GET /public/me` (own profile). All browse endpoints are unauthenticated; order endpoints require a customer JWT.
+- **Comprehensive reports** (all under `/api/reports/`): `debts/aging` (AR buckets: current/1-30/31-60/61-90/90+ days), `accounts` (cash position, receivables, payables, bank balances, net), `stock-take` (full per-product snapshot with cost/sale values, margin), `income` (revenue breakdown by payment method + daily time series), `expenses/by-category`, `sales/daily` (daily chart for last N days), `sales/monthly` (12-month trend), `sales/by-product/detail` (with margins), `profit-loss/detail` (P&L with expense breakdown), `purchases/detail` (by supplier + top products), `dues/detail` (all outstanding with aging), `sales/by-attendant`, `business-summary` (all KPIs in one call)
 
 ### MongoDB → PostgreSQL design decisions
 
