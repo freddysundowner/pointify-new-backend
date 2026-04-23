@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, inArray, desc } from "drizzle-orm";
+import { eq, inArray, or, desc } from "drizzle-orm";
 import {
   packages, settings, shops, subscriptions, subscriptionShops,
   sales, saleReturns,
@@ -11,6 +11,9 @@ import {
   activities,
   expenses, cashflows,
   inventory,
+  products, batches, productSerials, bundleItems as bundleItemsTable,
+  customers, customerWalletTransactions,
+  suppliers, supplierWalletTransactions,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent } from "../lib/response.js";
@@ -305,41 +308,51 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
     if (existing.admin !== req.admin!.id && !req.admin!.isSuperAdmin) throw forbidden("Access denied");
 
     await db.transaction(async (tx) => {
-      // Delete returns first (they reference sales/purchases which we delete next)
-      // saleReturnItems cascade from saleReturns
-      await tx.delete(saleReturns).where(eq(saleReturns.shop, shopId));
-      // purchaseReturnItems cascade from purchaseReturns
-      await tx.delete(purchaseReturns).where(eq(purchaseReturns.shop, shopId));
+      // ── 1. Transactional records ─────────────────────────────────────────────
+      // Delete returns first (they hold FKs back to sales/purchases)
+      await tx.delete(saleReturns).where(eq(saleReturns.shop, shopId));       // cascades saleReturnItems
+      await tx.delete(purchaseReturns).where(eq(purchaseReturns.shop, shopId)); // cascades purchaseReturnItems
 
-      // Delete sales (saleItems → saleItemBatches and salePayments cascade)
-      await tx.delete(sales).where(eq(sales.shop, shopId));
+      await tx.delete(sales).where(eq(sales.shop, shopId));           // cascades saleItems → saleItemBatches + salePayments
+      await tx.delete(purchases).where(eq(purchases.shop, shopId));   // cascades purchaseItems + purchasePayments
+      await tx.delete(orders).where(eq(orders.shop, shopId));         // cascades orderItems
+      await tx.delete(productTransfers).where(eq(productTransfers.fromShop, shopId)); // cascades transferItems
+      await tx.delete(stockCounts).where(eq(stockCounts.shop, shopId));   // cascades stockCountItems
+      await tx.delete(stockRequests).where(eq(stockRequests.fromShop, shopId)); // cascades stockRequestItems
 
-      // Delete purchases (purchaseItems and purchasePayments cascade)
-      await tx.delete(purchases).where(eq(purchases.shop, shopId));
-
-      // Delete orders (orderItems cascade)
-      await tx.delete(orders).where(eq(orders.shop, shopId));
-
-      // Delete product transfers (transferItems cascade)
-      await tx.delete(productTransfers).where(eq(productTransfers.fromShop, shopId));
-
-      // Delete stock counts (stockCountItems cascade)
-      await tx.delete(stockCounts).where(eq(stockCounts.shop, shopId));
-
-      // Delete stock requests (stockRequestItems cascade)
-      await tx.delete(stockRequests).where(eq(stockRequests.fromShop, shopId));
-
-      // Delete standalone transactional tables
       await tx.delete(adjustments).where(eq(adjustments.shop, shopId));
       await tx.delete(badStocks).where(eq(badStocks.shop, shopId));
       await tx.delete(activities).where(eq(activities.shop, shopId));
       await tx.delete(expenses).where(eq(expenses.shop, shopId));
       await tx.delete(cashflows).where(eq(cashflows.shop, shopId));
 
-      // Reset inventory quantities to zero (keep the rows — products stay)
-      await tx.update(inventory)
-        .set({ quantity: "0", totalQuantity: "0" })
-        .where(eq(inventory.shop, shopId));
+      // ── 2. Wallet transactions (reference customers/suppliers deleted next) ──
+      await tx.delete(customerWalletTransactions).where(eq(customerWalletTransactions.shop, shopId));
+      await tx.delete(supplierWalletTransactions).where(eq(supplierWalletTransactions.shop, shopId));
+
+      // ── 3. Catalog data ──────────────────────────────────────────────────────
+      // bundleItems has FKs to products on both parent and component columns
+      const shopProductIds = (
+        await tx.select({ id: products.id }).from(products).where(eq(products.shop, shopId))
+      ).map((r) => r.id);
+
+      if (shopProductIds.length > 0) {
+        await tx.delete(bundleItemsTable).where(
+          or(
+            inArray(bundleItemsTable.product, shopProductIds),
+            inArray(bundleItemsTable.componentProduct, shopProductIds),
+          ),
+        );
+      }
+
+      await tx.delete(productSerials).where(eq(productSerials.shop, shopId));
+      await tx.delete(batches).where(eq(batches.shop, shopId));
+      await tx.delete(inventory).where(eq(inventory.shop, shopId));
+      await tx.delete(products).where(eq(products.shop, shopId));
+
+      // ── 4. Customers and suppliers ───────────────────────────────────────────
+      await tx.delete(customers).where(eq(customers.shop, shopId));
+      await tx.delete(suppliers).where(eq(suppliers.shop, shopId));
     });
 
     return ok(res, { message: "Shop data cleared", shopId });
