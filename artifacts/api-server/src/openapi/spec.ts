@@ -982,14 +982,15 @@ If \`bundleItems\` is omitted or an empty array, the endpoint behaves exactly as
                   type:           { type: "string",  enum: ["product", "service", "bundle"], description: "Product type. Ignored when `bundleItems` is provided — type is set to `bundle` automatically.", example: "product" },
                   bundleItems: {
                     type: "array",
-                    description: "Optional list of component products that make up this bundle. When provided (and non-empty) the product is automatically created as type `bundle`. All items are validated before any data is written.",
+                    description: "Optional list of component products that make up this bundle. When provided (and non-empty) the product is automatically created as type `bundle`. All items are validated before any data is written.\n\n**Each item must contain only `componentProductId` and `quantity`.** Do NOT include a `product` field — the parent product ID is assigned automatically from the newly created product and any `product` value you pass will be silently ignored.",
                     items: {
                       type: "object",
                       required: ["componentProductId", "quantity"],
                       properties: {
-                        componentProductId: { type: "integer", description: "ID of an existing product to include as a bundle component. **Note:** this field is named `componentProductId` in the request but appears as `componentProduct` in all responses (GET and POST).", example: 12 },
-                        quantity:           { type: "number",  description: "How many units of this component are included in the bundle", example: 2 },
+                        componentProductId: { type: "integer", description: "ID of an existing product to include as a bundle component. Must belong to a shop you own. **Note:** named `componentProductId` in the request but appears as `componentProduct` in all responses.", example: 12 },
+                        quantity:           { type: "number",  description: "How many units of this component are included in one bundle", example: 2 },
                       },
+                      additionalProperties: false,
                     },
                     example: [
                       { componentProductId: 12, quantity: 1 },
