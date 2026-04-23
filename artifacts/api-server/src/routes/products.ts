@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, ilike, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { eq, ilike, and, gte, lte, sql, inArray, lower } from "drizzle-orm";
 import {
   products, productSerials, inventory, attributes, attributeVariants,
   bundleItems, saleItems, sales, purchaseItems, purchases,
@@ -7,7 +7,7 @@ import {
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
-import { notFound, badRequest, forbidden } from "../lib/errors.js";
+import { notFound, badRequest, forbidden, conflict } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
 import multer from "multer";
@@ -121,6 +121,20 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** Returns true if a product with that name already exists in the shop (case-insensitive). */
+async function isDuplicateName(shopId: number, name: string, excludeId?: number): Promise<boolean> {
+  const conditions = [
+    eq(products.shop, shopId),
+    sql`lower(${products.name}) = lower(${name})`,
+    ...(excludeId !== undefined ? [sql`${products.id} <> ${excludeId}`] : []),
+  ] as const;
+  const existing = await db.query.products.findFirst({
+    where: and(...conditions),
+    columns: { id: true },
+  });
+  return !!existing;
+}
+
 /** Validate that the four price tiers are internally consistent.
  *  All provided prices must be ≥ 0 and follow:
  *  sellingPrice ≥ wholesalePrice ≥ dealerPrice ≥ buyingPrice
@@ -174,6 +188,9 @@ router.post("/", requireAdmin, async (req, res, next) => {
     validatePrices({ buyingPrice, sellingPrice, wholesalePrice, dealerPrice });
 
     await assertShopOwnership(req, Number(shopId));
+
+    if (await isDuplicateName(Number(shopId), String(name)))
+      throw conflict(`A product named "${name}" already exists in this shop`);
 
     const [product] = await db.insert(products).values({
       name,
@@ -570,25 +587,88 @@ router.post("/bulk-import", requireAdmin, async (req, res, next) => {
     if (!Array.isArray(payload) || payload.length === 0) throw badRequest("products array required");
     if (!shopId) throw badRequest("shopId required");
 
-    const values = payload.map((p: any) => ({
-      name: String(p.name),
-      shop: Number(shopId),
-      category: p.categoryId ? Number(p.categoryId) : null,
-      barcode: p.barcode ?? null,
-      serialNumber: p.serialNumber ?? null,
-      buyingPrice: p.buyingPrice != null ? String(p.buyingPrice) : null,
-      sellingPrice: p.sellingPrice != null ? String(p.sellingPrice) : null,
-      wholesalePrice: p.wholesalePrice != null ? String(p.wholesalePrice) : null,
-      dealerPrice: p.dealerPrice != null ? String(p.dealerPrice) : null,
-      measureUnit: p.measureUnit ?? "",
-      manufacturer: p.manufacturer ?? "",
-      supplier: p.supplierId ? Number(p.supplierId) : null,
-      description: p.description ?? null,
-      type: p.type ?? "product",
-    }));
+    const sid = Number(shopId);
+    await assertShopOwnership(req, sid);
 
-    const inserted = await db.insert(products).values(values).returning();
-    return ok(res, { created: inserted.length, skipped: 0, errors: [], products: inserted });
+    // Fetch all existing product names in this shop once (lowercased for comparison)
+    const existingRows = await db.query.products.findMany({
+      where: eq(products.shop, sid),
+      columns: { name: true },
+    });
+    const existingNames = new Set(existingRows.map((r) => r.name.toLowerCase()));
+
+    const toInsert: typeof payload = [];
+    const skipped: Array<{ index: number; name: string; reason: string }> = [];
+    const seenInBatch = new Set<string>();
+
+    for (let i = 0; i < payload.length; i++) {
+      const p = payload[i];
+      const rawName = p.name ? String(p.name).trim() : "";
+
+      if (!rawName) {
+        skipped.push({ index: i, name: "", reason: "name is required" });
+        continue;
+      }
+
+      const key = rawName.toLowerCase();
+
+      // Duplicate within this batch
+      if (seenInBatch.has(key)) {
+        skipped.push({ index: i, name: rawName, reason: "duplicate name in the submitted list" });
+        continue;
+      }
+
+      // Duplicate already in the shop
+      if (existingNames.has(key)) {
+        skipped.push({ index: i, name: rawName, reason: `"${rawName}" already exists in this shop` });
+        continue;
+      }
+
+      // Price validation
+      try {
+        validatePrices({
+          buyingPrice: p.buyingPrice,
+          sellingPrice: p.sellingPrice,
+          wholesalePrice: p.wholesalePrice,
+          dealerPrice: p.dealerPrice,
+        });
+      } catch (err: any) {
+        skipped.push({ index: i, name: rawName, reason: err?.message ?? "invalid price" });
+        continue;
+      }
+
+      seenInBatch.add(key);
+      toInsert.push(p);
+    }
+
+    let inserted: any[] = [];
+    if (toInsert.length > 0) {
+      inserted = await db.insert(products).values(
+        toInsert.map((p: any) => ({
+          name: String(p.name).trim(),
+          shop: sid,
+          category: p.categoryId ? Number(p.categoryId) : null,
+          barcode: p.barcode ?? null,
+          serialNumber: p.serialNumber ?? null,
+          buyingPrice: p.buyingPrice != null ? String(p.buyingPrice) : null,
+          sellingPrice: p.sellingPrice != null ? String(p.sellingPrice) : null,
+          wholesalePrice: p.wholesalePrice != null ? String(p.wholesalePrice) : null,
+          dealerPrice: p.dealerPrice != null ? String(p.dealerPrice) : null,
+          measureUnit: p.measureUnit ?? "",
+          manufacturer: p.manufacturer ?? "",
+          supplier: p.supplierId ? Number(p.supplierId) : null,
+          description: p.description ?? null,
+          productType: p.type ?? "product",
+        }))
+      ).returning();
+    }
+
+    return ok(res, {
+      created: inserted.length,
+      skipped: skipped.length,
+      skippedProducts: skipped,
+      products: inserted,
+    });
   } catch (e) { next(e); }
 });
 
