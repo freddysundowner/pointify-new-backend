@@ -12,13 +12,22 @@ const app: Express = express();
 app.use(
   pinoHttp({
     logger,
+    customLogLevel(_req, res, err) {
+      if (err || res.statusCode >= 500) return "error";
+      if (res.statusCode >= 400) return "warn";
+      return "info";
+    },
+    customSuccessMessage(req, res, responseTime) {
+      const url = (req.url ?? "/").split("?")[0];
+      return `${req.method} ${url} ${res.statusCode} — ${responseTime}ms`;
+    },
+    customErrorMessage(req, res, err) {
+      const url = (req.url ?? "/").split("?")[0];
+      return `${req.method} ${url} ${res.statusCode} — ${err.message}`;
+    },
     serializers: {
-      req(req) {
-        return { id: req.id, method: req.method, url: req.url?.split("?")[0] };
-      },
-      res(res) {
-        return { statusCode: res.statusCode };
-      },
+      req: () => undefined,
+      res: () => undefined,
     },
   }),
 );

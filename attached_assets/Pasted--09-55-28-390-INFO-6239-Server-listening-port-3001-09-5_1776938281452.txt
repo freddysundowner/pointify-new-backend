@@ -1,0 +1,123 @@
+[09:55:28.390] INFO (6239): Server listening
+    port: 3001
+[09:55:28.426] INFO (6239): scheduler: registered 10 daily jobs (morning nudges + SMS jobs + 20:00 daily report + 20:05 daily SMS summary)
+[09:55:44.104] INFO (6239): request completed
+    req: {
+      "id": 1,
+      "method": "GET",
+      "url": "/api/docs/"
+    }
+    res: {
+      "statusCode": 304
+    }
+    responseTime: 4
+[09:55:44.866] INFO (6239): request completed
+    req: {
+      "id": 2,
+      "method": "GET",
+      "url": "/api/openapi.json"
+    }
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 5
+[09:55:59.618] INFO (6239): request completed
+    req: {
+      "id": 3,
+      "method": "GET",
+      "url": "/api/healthz"
+    }
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 2
+[09:56:04.721] INFO (6239): request completed
+    req: {
+      "id": 4,
+      "method": "GET",
+      "url": "/api/openapi.json"
+    }
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 4
+[09:56:09.076] INFO (6239): request completed
+    req: {
+      "id": 5,
+      "method": "GET",
+      "url": "/api/openapi.json"
+    }
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 4
+[09:56:21.548] INFO (6239): request completed
+    req: {
+      "id": 6,
+      "method": "GET",
+      "url": "/api/docs"
+    }
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 1
+[09:56:25.780] INFO (6239): request completed
+    req: {
+      "id": 7,
+      "method": "GET",
+      "url": "/api/products/search"
+    }
+    res: {
+      "statusCode": 401
+    }
+    responseTime: 2
+[09:56:37.992] INFO (6239): request completed
+    req: {
+      "id": 8,
+      "method": "GET",
+      "url": "/api/products/search"
+    }
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 16
+[09:56:49.251] INFO (6239): request completed
+    req: {
+      "id": 9,
+      "method": "GET",
+      "url": "/api/products/search"
+    }
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 13
+[09:56:58.472] INFO (6239): request completed
+    req: {
+      "id": 10,
+      "method": "GET",
+      "url": "/api/products/search"
+    }
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 4
+[09:57:06.279] INFO (6239): request completed
+    req: {
+      "id": 11,
+      "method": "GET",
+      "url": "/api/products/search"
+    }
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 2
+[09:57:23.838] INFO (6239): request completed
+    req: {
+      "id": 12,
+      "method": "GET",
+      "url": "/api/products/search"
+    }
+    res: {
+      "statusCode": 304
+    }
+    responseTime: 12

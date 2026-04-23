@@ -14,7 +14,11 @@ export const logger = pino({
     : {
         transport: {
           target: "pino-pretty",
-          options: { colorize: true },
+          options: {
+            colorize: true,
+            ignore: "pid,hostname,req,res,responseTime",
+            messageFormat: "{msg}",
+          },
         },
       }),
 });

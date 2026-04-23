@@ -28,7 +28,7 @@ app.listen(port, (err) => {
     process.exit(1);
   }
 
-  logger.info({ port }, "Server listening");
+  logger.info(`Server listening on port ${port}`);
   void seedDefaultPaymentMethods();
   void seedDefaultSmsTemplates();
   void seedDefaultEmailTemplates();
