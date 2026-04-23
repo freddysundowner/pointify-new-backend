@@ -244,7 +244,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
       manufacturer: manufacturer ?? "",
       supplier: supplierId ? Number(supplierId) : null,
       description,
-      productType: bundlePayload.length > 0 ? "bundle" : (type ?? "product"),
+      type: bundlePayload.length > 0 ? "bundle" : (type ?? "product"),
       createdBy: req.attendant?.id ?? null,
     }).returning();
 
@@ -318,7 +318,7 @@ router.post("/bulk-import", requireAdmin, async (req, res, next) => {
           dealerPrice: p.dealerPrice != null ? String(p.dealerPrice) : null,
           measureUnit: p.measureUnit ?? "", manufacturer: p.manufacturer ?? "",
           supplier: p.supplierId ? Number(p.supplierId) : null,
-          description: p.description ?? null, productType: p.type ?? "product",
+          description: p.description ?? null, type: p.type ?? "product",
         }))
       ).returning();
       if (inserted.length > 0) {
@@ -379,7 +379,7 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       ...(supplierId !== undefined && { supplier: supplierId ? Number(supplierId) : null }),
       ...(description !== undefined && { description }),
       ...(alertQuantity !== undefined && { alertQuantity: Number(alertQuantity) }),
-      ...(type && { productType: type }),
+      ...(type && { type }),
     }).where(eq(products.id, existing.id)).returning();
     if (!updated) throw notFound("Product not found");
     return ok(res, updated);
