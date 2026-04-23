@@ -121,6 +121,47 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** Validate that the four price tiers are internally consistent.
+ *  All provided prices must be ≥ 0 and follow:
+ *  sellingPrice ≥ wholesalePrice ≥ dealerPrice ≥ buyingPrice
+ */
+function validatePrices(prices: {
+  buyingPrice?: number | string | null;
+  sellingPrice?: number | string | null;
+  wholesalePrice?: number | string | null;
+  dealerPrice?: number | string | null;
+}): void {
+  const parse = (v: number | string | null | undefined) =>
+    v != null && v !== "" ? Number(v) : null;
+
+  const buying    = parse(prices.buyingPrice);
+  const selling   = parse(prices.sellingPrice);
+  const wholesale = parse(prices.wholesalePrice);
+  const dealer    = parse(prices.dealerPrice);
+
+  const fields: [string, number | null][] = [
+    ["buyingPrice", buying],
+    ["sellingPrice", selling],
+    ["wholesalePrice", wholesale],
+    ["dealerPrice", dealer],
+  ];
+  for (const [field, val] of fields) {
+    if (val !== null && val < 0) throw badRequest(`${field} must be a positive number`);
+  }
+
+  if (selling !== null && wholesale !== null && wholesale > selling)
+    throw badRequest("wholesalePrice must be less than or equal to sellingPrice");
+
+  if (wholesale !== null && dealer !== null && dealer > wholesale)
+    throw badRequest("dealerPrice must be less than or equal to wholesalePrice");
+
+  if (dealer !== null && buying !== null && buying > dealer)
+    throw badRequest("buyingPrice must be less than or equal to dealerPrice");
+
+  if (selling !== null && buying !== null && buying > selling)
+    throw badRequest("buyingPrice must be less than or equal to sellingPrice");
+}
+
 router.post("/", requireAdmin, async (req, res, next) => {
   try {
     const {
@@ -129,6 +170,8 @@ router.post("/", requireAdmin, async (req, res, next) => {
       supplierId, description, alertQuantity, expiryDate, type,
     } = req.body;
     if (!name || !shopId) throw badRequest("name and shopId required");
+
+    validatePrices({ buyingPrice, sellingPrice, wholesalePrice, dealerPrice });
 
     await assertShopOwnership(req, Number(shopId));
 
@@ -220,10 +263,18 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 
     const existing = await db.query.products.findFirst({
       where: eq(products.id, Number(req.params["id"])),
-      columns: { id: true, shop: true },
+      columns: { id: true, shop: true, buyingPrice: true, sellingPrice: true, wholesalePrice: true, dealerPrice: true },
     });
     if (!existing) throw notFound("Product not found");
     await assertShopOwnership(req, existing.shop);
+
+    // Merge incoming prices with existing ones so partial updates still validate correctly
+    validatePrices({
+      buyingPrice:    buyingPrice    !== undefined ? buyingPrice    : existing.buyingPrice,
+      sellingPrice:   sellingPrice   !== undefined ? sellingPrice   : existing.sellingPrice,
+      wholesalePrice: wholesalePrice !== undefined ? wholesalePrice : existing.wholesalePrice,
+      dealerPrice:    dealerPrice    !== undefined ? dealerPrice    : existing.dealerPrice,
+    });
 
     const [updated] = await db.update(products).set({
       ...(name && { name }),
