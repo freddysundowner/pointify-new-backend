@@ -945,7 +945,16 @@ You will **never** see another admin's data unless you are the super-admin.
       post: {
         tags: ["Products"],
         summary: "Create a product",
-        description: "Creates a product in the specified shop. The `shopId` must belong to a shop you own (admin) or your assigned shop (attendant) — otherwise returns 403. `buyingPrice`, `sellingPrice`, `wholesalePrice`, and `dealerPrice` are all optional but highly recommended for accurate profit reporting.",
+        description: `Creates a product in the specified shop. The \`shopId\` must belong to a shop you own (admin) or your assigned shop (attendant) — otherwise returns 403. \`buyingPrice\`, \`sellingPrice\`, \`wholesalePrice\`, and \`dealerPrice\` are all optional but highly recommended for accurate profit reporting.
+
+**Creating a bundle product in one request**
+
+Pass an optional \`bundleItems\` array alongside the product fields. Each entry must contain \`componentProductId\` (an existing product in the same or any accessible shop) and \`quantity\`. When \`bundleItems\` is provided and non-empty:
+- \`productType\` is automatically set to \`"bundle"\` — you do not need to also pass \`type: "bundle"\`
+- All bundle item rows are validated before anything is written, so the request is fully atomic
+- The response includes the created product **and** a \`bundleItems\` array with the inserted component rows
+
+If \`bundleItems\` is omitted or an empty array, the endpoint behaves exactly as before.`,
         ...auth(["Admin", "Attendant"]),
         requestBody: {
           required: true,
@@ -970,14 +979,69 @@ You will **never** see another admin's data unless you are the super-admin.
                   description:    { type: "string",  description: "Product description",                                 example: "Full-cream pasteurised milk, 500 ml tetra pack" },
                   alertQuantity:  { type: "number",  description: "Low-stock alert threshold",                           example: 10 },
                   expiryDate:     { type: "string",  format: "date", description: "Product expiry date",                 example: "2026-12-31" },
-                  type:           { type: "string",  enum: ["product", "service", "bundle"], description: "Product type", example: "product" },
+                  type:           { type: "string",  enum: ["product", "service", "bundle"], description: "Product type. Ignored when `bundleItems` is provided — type is set to `bundle` automatically.", example: "product" },
+                  bundleItems: {
+                    type: "array",
+                    description: "Optional list of component products that make up this bundle. When provided (and non-empty) the product is automatically created as type `bundle`. All items are validated before any data is written.",
+                    items: {
+                      type: "object",
+                      required: ["componentProductId", "quantity"],
+                      properties: {
+                        componentProductId: { type: "integer", description: "ID of an existing product to include as a bundle component", example: 12 },
+                        quantity:           { type: "number",  description: "How many units of this component are included in the bundle",   example: 2 },
+                      },
+                    },
+                    example: [
+                      { componentProductId: 12, quantity: 1 },
+                      { componentProductId: 15, quantity: 2 },
+                    ],
+                  },
+                },
+              },
+              examples: {
+                plain_product: {
+                  summary: "Regular product",
+                  value: { name: "Premium Milk 500ml", shopId: 1, buyingPrice: 45, sellingPrice: 60, measureUnit: "pcs" },
+                },
+                bundle_product: {
+                  summary: "Bundle product (one-shot)",
+                  value: {
+                    name: "Breakfast Combo",
+                    shopId: 1,
+                    sellingPrice: 500,
+                    buyingPrice: 350,
+                    description: "Milk + bread + butter bundle",
+                    bundleItems: [
+                      { componentProductId: 12, quantity: 1 },
+                      { componentProductId: 15, quantity: 2 },
+                    ],
+                  },
                 },
               },
             },
           },
         },
         responses: {
-          ...createdResp("Product created", { id: intId("Product ID"), name: { type: "string" } }),
+          ...createdResp("Product created. When `bundleItems` were supplied, the response includes a `bundleItems` array with the created component rows.", {
+            id:          intId("Product ID"),
+            name:        { type: "string", example: "Breakfast Combo" },
+            productType: { type: "string", enum: ["product", "service", "bundle"], example: "bundle" },
+            shop:        intId("Shop ID"),
+            bundleItems: {
+              type: "array",
+              description: "Created bundle component rows. Empty array when the product is not a bundle.",
+              items: {
+                type: "object",
+                properties: {
+                  id:               intId("Bundle item row ID"),
+                  product:          intId("Parent bundle product ID"),
+                  componentProduct: intId("Component product ID"),
+                  quantity:         { type: "string", description: "Component quantity (stored as string)", example: "2" },
+                  createdAt:        isoDate,
+                },
+              },
+            },
+          }),
           ...errResp,
         },
       },
