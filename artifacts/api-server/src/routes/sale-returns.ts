@@ -4,6 +4,7 @@ import { saleReturns, saleReturnItems, sales } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifySaleRefund } from "../lib/emailEvents.js";
@@ -32,6 +33,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { saleId, shopId, items, reason, refundMethod } = req.body;
     if (!saleId || !shopId || !items?.length) throw badRequest("saleId, shopId and items required");
+    await assertShopOwnership(req, Number(shopId));
 
     const sale = await db.query.sales.findFirst({ where: eq(sales.id, Number(saleId)) });
     if (!sale) throw notFound("Sale not found");

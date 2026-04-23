@@ -8,6 +8,7 @@ import {
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 
@@ -79,6 +80,7 @@ router.post("/adjustments", requireAdminOrAttendant, async (req, res, next) => {
     if (!shopId || !productId) {
       throw badRequest("shopId and productId required");
     }
+    await assertShopOwnership(req, Number(shopId));
     const qBefore = quantityBefore ?? (quantity !== undefined ? 0 : undefined);
     const qAfter = quantityAfter ?? (quantity !== undefined ? quantity : undefined);
     if (qBefore === undefined || qAfter === undefined) {
@@ -128,6 +130,7 @@ router.post("/bad-stocks", requireAdminOrAttendant, async (req, res, next) => {
     if (!shopId || !productId || quantity === undefined || !reason) {
       throw badRequest("shopId, productId, quantity and reason required");
     }
+    await assertShopOwnership(req, Number(shopId));
 
     const [row] = await db.insert(badStocks).values({
       shop: Number(shopId),
@@ -172,6 +175,7 @@ router.post("/stock-counts", requireAdminOrAttendant, async (req, res, next) => 
   try {
     const { shopId, items } = req.body;
     if (!shopId || !items?.length) throw badRequest("shopId and items required");
+    await assertShopOwnership(req, Number(shopId));
 
     const [count] = await db.insert(stockCounts).values({
       shop: Number(shopId),

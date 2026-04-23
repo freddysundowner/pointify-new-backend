@@ -4,6 +4,7 @@ import { purchaseReturns, purchaseReturnItems, purchases } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 
@@ -31,6 +32,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { purchaseId, shopId, items, reason, refundMethod } = req.body;
     if (!purchaseId || !shopId || !items?.length) throw badRequest("purchaseId, shopId and items required");
+    await assertShopOwnership(req, Number(shopId));
 
     const purchase = await db.query.purchases.findFirst({ where: eq(purchases.id, Number(purchaseId)) });
     if (!purchase) throw notFound("Purchase not found");

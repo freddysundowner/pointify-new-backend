@@ -5,6 +5,7 @@ import { attendants, permissions } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest, forbidden } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin } from "../middlewares/auth.js";
 import { notifyAttendantWelcome } from "../lib/emailEvents.js";
 import { getPagination } from "../lib/paginate.js";
@@ -30,6 +31,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
   try {
     const { username, shopId, pin, permissions: perms } = req.body;
     if (!username || !shopId) throw badRequest("username and shopId required");
+    await assertShopOwnership(req, Number(shopId));
 
     const rawPin = String(pin ?? Math.floor(1000 + Math.random() * 9000));
     const hashedPin = await bcrypt.hash(rawPin, 10);
@@ -70,6 +72,7 @@ router.get("/:id", requireAdmin, async (req, res, next) => {
 router.put("/:id", requireAdmin, async (req, res, next) => {
   try {
     const { username, pin, permissions: perms, shopId } = req.body;
+    if (shopId) await assertShopOwnership(req, Number(shopId));
     const [updated] = await db.update(attendants).set({
       ...(username && { username }),
       ...(pin && { pin: String(pin) }),

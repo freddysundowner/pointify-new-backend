@@ -4,6 +4,7 @@ import { suppliers, supplierWalletTransactions } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin } from "../middlewares/auth.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
 
@@ -30,6 +31,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
   try {
     const { name, phone, email, shopId, creditLimit, address } = req.body;
     if (!name || !shopId) throw badRequest("name and shopId required");
+    await assertShopOwnership(req, Number(shopId));
     const [supplier] = await db.insert(suppliers).values({
       name, phone, email, address,
       shop: Number(shopId),
@@ -42,6 +44,10 @@ router.post("/bulk-import", requireAdmin, async (req, res, next) => {
   try {
     const list = Array.isArray(req.body?.suppliers) ? req.body.suppliers : null;
     if (!list) throw badRequest("suppliers array required");
+
+    const uniqueShopIds = [...new Set(list.filter((s: any) => s?.shopId).map((s: any) => Number(s.shopId)))];
+    for (const sid of uniqueShopIds) await assertShopOwnership(req, sid);
+
     const errors: { index: number; message: string }[] = [];
     let createdCount = 0;
     let skipped = 0;

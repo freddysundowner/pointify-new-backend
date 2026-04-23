@@ -7,6 +7,7 @@ import {
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant, requireSuperAdmin } from "../middlewares/auth.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
 
@@ -29,6 +30,7 @@ router.post("/expense-categories", requireAdmin, async (req, res, next) => {
   try {
     const { name, shopId } = req.body;
     if (!name || !shopId) throw badRequest("name and shopId required");
+    await assertShopOwnership(req, Number(shopId));
     const [row] = await db.insert(expenseCategories).values({ name, shop: Number(shopId) }).returning();
     return created(res, row);
   } catch (e) { next(e); }
@@ -67,6 +69,7 @@ router.post("/cashflow-categories", requireAdmin, async (req, res, next) => {
   try {
     const { name, shopId, type } = req.body;
     if (!name || !shopId || !type) throw badRequest("name, shopId and type required");
+    await assertShopOwnership(req, Number(shopId));
     const [row] = await db.insert(cashflowCategories).values({ name, shop: Number(shopId), type }).returning();
     return created(res, row);
   } catch (e) { next(e); }
@@ -113,6 +116,7 @@ router.post("/expenses", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { shopId, description, amount, categoryId, isRecurring, frequency } = req.body;
     if (!shopId || !amount) throw badRequest("shopId and amount required");
+    await assertShopOwnership(req, Number(shopId));
 
     const [row] = await db.insert(expenses).values({
       shop: Number(shopId),
@@ -172,6 +176,7 @@ router.post("/banks", requireAdmin, async (req, res, next) => {
   try {
     const { name, shopId, balance } = req.body;
     if (!name || !shopId) throw badRequest("name and shopId required");
+    await assertShopOwnership(req, Number(shopId));
     const [row] = await db.insert(banks).values({
       name,
       shop: Number(shopId),
@@ -256,6 +261,7 @@ router.post("/cashflows", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { shopId, description, amount, categoryId, bankId } = req.body;
     if (!shopId || !description || !amount) throw badRequest("shopId, description and amount required");
+    await assertShopOwnership(req, Number(shopId));
 
     const [row] = await db.insert(cashflows).values({
       shop: Number(shopId),
@@ -355,6 +361,7 @@ router.post("/user-payments", requireAdminOrAttendant, async (req, res, next) =>
   try {
     const { shopId, amount, type, customerId, supplierId, paymentType, mpesaCode } = req.body;
     if (!shopId || !amount || !type) throw badRequest("shopId, amount and type required");
+    await assertShopOwnership(req, Number(shopId));
 
     const [row] = await db.insert(userPayments).values({
       shopId: Number(shopId),

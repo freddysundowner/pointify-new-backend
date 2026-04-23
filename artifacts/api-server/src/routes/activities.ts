@@ -4,6 +4,7 @@ import { activities } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, paginated, created } from "../lib/response.js";
 import { badRequest } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 
@@ -51,6 +52,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     if (!shopId || !action || !attendantId) {
       throw badRequest("shopId, action and attendantId are required");
     }
+    await assertShopOwnership(req, shopId);
     const [row] = await db
       .insert(activities)
       .values({

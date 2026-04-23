@@ -4,6 +4,7 @@ import { orders, orderItems, sales, saleItems, inventory } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifyOrderConfirmation, notifyOrderShipped, notifyOrderDelivered, notifyOrderCancelled, notifySaleReceipt } from "../lib/emailEvents.js";
@@ -38,6 +39,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { shopId, customerId, items, note } = req.body;
     if (!shopId || !items?.length) throw badRequest("shopId and items required");
+    await assertShopOwnership(req, Number(shopId));
 
     const [order] = await db.insert(orders).values({
       shop: Number(shopId),

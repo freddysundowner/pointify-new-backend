@@ -4,6 +4,7 @@ import { purchases, purchaseItems, purchasePayments, batches, inventory } from "
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifyPurchaseOrderToSupplier } from "../lib/emailEvents.js";
@@ -43,6 +44,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
     if (!shopId || !items?.length) throw badRequest("shopId and items required");
 
     const sid = Number(shopId);
+    await assertShopOwnership(req, sid);
     let totalAmount = 0;
     for (const item of items) totalAmount += (item.buyingPrice ?? 0) * (item.quantity ?? 1);
 

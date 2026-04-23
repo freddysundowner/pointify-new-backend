@@ -4,6 +4,7 @@ import { customers, customerWalletTransactions } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { notifyCustomerWelcome, notifyWalletTopup } from "../lib/emailEvents.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
@@ -37,6 +38,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     const { name, phone, email, shopId, creditLimit, type, address } = req.body;
     if (!name || !shopId) throw badRequest("name and shopId required");
     if (!phone) throw badRequest("phone required");
+    await assertShopOwnership(req, Number(shopId));
 
     const existing = await db.query.customers.findMany({ where: eq(customers.shop, Number(shopId)) });
     const nextNo = existing.length + 1;

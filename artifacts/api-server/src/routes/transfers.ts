@@ -4,6 +4,7 @@ import { productTransfers, transferItems } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 
@@ -34,6 +35,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { fromShopId, toShopId, items, note } = req.body;
     if (!fromShopId || !toShopId || !items?.length) throw badRequest("fromShopId, toShopId and items required");
+    await assertShopOwnership(req, Number(fromShopId));
 
     const [transfer] = await db.insert(productTransfers).values({
       fromShop: Number(fromShopId),
