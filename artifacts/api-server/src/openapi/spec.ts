@@ -230,20 +230,48 @@ export const openApiSpec = {
 
 Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authenticate.
 
+---
+
+### Step-by-step: first time setup
+1. **Register** → \`POST /auth/admin/register\` (name, email, password)
+2. **Verify email** → \`POST /auth/admin/verify-email\` (email + OTP from inbox)
+3. **Login** → \`POST /auth/admin/login\` → copy the \`token\` from the response
+4. **Authorize** → paste \`Bearer <token>\` into the Authorize dialog (top-right lock icon)
+5. **Create a shop** → \`POST /shops\` (only \`name\` is required)
+6. **Add products** → \`POST /products\` (name + shopId)
+7. **Record a sale** → \`POST /sales\` (shopId + items array)
+
+---
+
 ### Token types
-| Role | How to obtain | Where to use |
+| Role | How to obtain | Scope |
 |---|---|---|
-| **Admin** | \`POST /auth/admin/login\` | Shop management, products, reports, subscriptions |
-| **Attendant** | \`POST /auth/attendant/login\` | POS operations (sales, inventory, orders) |
+| **Admin** | \`POST /auth/admin/login\` | All shop management, products, reports, subscriptions |
+| **Attendant** | \`POST /auth/attendant/login\` (PIN + shopId) | POS operations within the assigned shop only |
 | **Customer** | \`POST /auth/customer/login\` | Online storefront, wallet |
 | **Affiliate** | \`POST /affiliates/login\` | Affiliate dashboard |
 
+---
+
+### Automatic data scoping
+Every list endpoint (**GET /products**, **GET /sales**, **GET /customers**, etc.) is automatically scoped to the caller's own data:
+
+- **Admin token** → returns data from all shops you own. Pass \`shopId\` query param to narrow to one shop.
+- **Attendant token** → returns data from their assigned shop only. Passing a different shopId is ignored.
+- **Super-admin token** → unrestricted; sees all data across all admins.
+
+You will **never** see another admin's data unless you are the super-admin.
+
+---
+
 ### Common conventions
-- All amounts (prices, totals) are **numeric strings** in the response (e.g. \`"1500.00"\`) so precision is never lost in JSON.
-- Paginated endpoints return \`{ success, data[], meta: { total, page, limit, totalPages } }\`.
-- Errors return \`{ success: false, error: "Human-readable message" }\`.
-- Required fields are marked in each request body schema.
-- Optional fields can be omitted entirely or set to \`null\` to clear them.
+- **Amounts** are numeric strings in responses (e.g. \`"1500.00"\`) — precision is never lost.
+- **Paginated** endpoints return \`{ success, data[], meta: { total, page, limit, totalPages } }\`.
+- **Date filters**: \`from\` and \`to\` accept ISO 8601 strings, e.g. \`2026-01-01T00:00:00.000Z\`.
+- **Errors** return \`{ success: false, error: "Human-readable message" }\`.
+- **Required fields** are marked with a red asterisk in each request body.
+- **Optional fields** can be omitted entirely or set to \`null\` to clear them.
+- **shopId** in a request body must belong to a shop you own — passing another admin's shopId returns \`403 Forbidden\`.
     `.trim(),
   },
   servers: [{ url: "/api", description: "Current server" }],
@@ -888,6 +916,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Products"],
         summary: "List products (paginated)",
+        description: "Returns products scoped to the caller: **admin** → all products across your shops (pass `shopId` to filter to one shop); **attendant** → products in their assigned shop only. Supports full-text search via `search`, category filter via `categoryId`, and standard `page`/`limit` pagination.",
         ...auth(["Admin", "Attendant"]),
         parameters: [
           ...paginationParams, searchParam,
@@ -916,6 +945,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       post: {
         tags: ["Products"],
         summary: "Create a product",
+        description: "Creates a product in the specified shop. The `shopId` must belong to a shop you own (admin) or your assigned shop (attendant) — otherwise returns 403. `buyingPrice`, `sellingPrice`, `wholesalePrice`, and `dealerPrice` are all optional but highly recommended for accurate profit reporting.",
         ...auth(["Admin", "Attendant"]),
         requestBody: {
           required: true,
@@ -1217,7 +1247,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Inventory"],
         summary: "List inventory records",
-        description: "Each record represents the stock level of one product in one shop.",
+        description: "Returns one record per (product, shop) combination showing the current stock quantity. Scoped to your shops — pass `shopId` to filter to a specific shop. Pass `productId` to see stock across all your shops for one product. Use `GET /products/{id}/summary` for a richer per-product snapshot.",
         ...auth(["Admin", "Attendant"]),
         parameters: [
           ...paginationParams, shopIdQuery,
@@ -1525,6 +1555,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Transfers"],
         summary: "List product transfers",
+        description: "Returns all transfers where the source or destination shop belongs to you. Pass `shopId` to filter to a single shop. Each transfer record includes its line items.",
         ...auth(["Admin", "Attendant"]),
         parameters: [...paginationParams, shopIdQuery],
         responses: listResp("Transfers with items"),
@@ -1532,6 +1563,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       post: {
         tags: ["Transfers"],
         summary: "Create product transfer",
+        description: "Moves stock from `fromShopId` to `toShopId`. Both shops must belong to you. The source shop's inventory is decremented and the destination shop's inventory is incremented immediately.",
         ...auth(["Admin", "Attendant"]),
         ...body({
           fromShopId: intId("Source shop ID"),
@@ -1564,6 +1596,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Customers"],
         summary: "List customers (paginated)",
+        description: "Returns customers scoped to your shops. Pass `shopId` to filter to one shop. Supports name/phone search via `search`. Customer `type` controls the default selling price used at POS (`retail` → `sellingPrice`, `wholesale` → `wholesalePrice`, `dealer` → `dealerPrice`).",
         ...auth(["Admin", "Attendant"]),
         parameters: [...paginationParams, searchParam, shopIdQuery],
         responses: listResp("Customers", {
@@ -1804,6 +1837,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Sales"],
         summary: "List sales (paginated)",
+        description: "Returns sales scoped to your shops. Pass `shopId` to filter to one shop. Use `from`/`to` (ISO 8601) to narrow by date range. Each sale includes its line items and payment records. **Tip:** use the `GET /reports/sales` endpoint for aggregated revenue totals instead of paging through this list.",
         ...auth(["Admin", "Attendant"]),
         parameters: [
           ...paginationParams, shopIdQuery, fromParam, toParam,
@@ -1887,6 +1921,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Sales"],
         summary: "Get sale",
+        description: "Fetches a single sale with all its line items and payment records. Returns 403 if the sale belongs to a shop you don't own.",
         ...auth(["Admin", "Attendant"]),
         parameters: [idParam()],
         responses: { ...dataResp("Sale with items and payments"), 404: errResp[404] },
@@ -1894,6 +1929,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       put: {
         tags: ["Sales"],
         summary: "Update sale (note / discount only)",
+        description: "Only `note` and `discount` can be changed after a sale is recorded. To reverse items use `POST /sale-returns`. To cancel the entire sale use the void endpoint.",
         ...auth(["Admin"]),
         parameters: [idParam()],
         ...body({
@@ -1951,6 +1987,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Sale Returns"],
         summary: "List sale returns",
+        description: "Returns itemised refund records scoped to your shops. Pass `shopId` to filter to one shop.",
         ...auth(["Admin", "Attendant"]),
         parameters: [...paginationParams, shopIdQuery],
         responses: listResp("Sale returns with items"),
@@ -1958,6 +1995,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       post: {
         tags: ["Sale Returns"],
         summary: "Process customer return / refund",
+        description: "Records an itemised customer return and restocks the returned quantities. `saleId` links to the original sale. `items` specifies which products are being returned and in what quantity. The optional `refundMethod` controls how the refund is issued (cash, wallet, or bank).",
         ...auth(["Admin", "Attendant"]),
         ...body({
           saleId:       intId("Original sale ID"),
@@ -1991,6 +2029,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Purchases"],
         summary: "List purchases / GRNs (paginated)",
+        description: "Returns stock-received records (GRNs) scoped to your shops. Pass `shopId` to filter to one shop, `supplierId` to filter by supplier, and `from`/`to` for a date range. Each record includes line items and any associated payments.",
         ...auth(["Admin"]),
         parameters: [
           ...paginationParams, shopIdQuery, fromParam, toParam,
@@ -2046,6 +2085,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Purchases"],
         summary: "Get purchase",
+        description: "Returns the full GRN record including all line items and payments. Returns 404 if not found or 403 if not owned by you.",
         ...auth(["Admin"]),
         parameters: [idParam()],
         responses: { ...dataResp("Purchase with items and payments"), 404: errResp[404] },
@@ -2085,6 +2125,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Purchase Returns"],
         summary: "List purchase returns",
+        description: "Returns stock-returned-to-supplier records scoped to your shops. Pass `shopId` to filter to one shop.",
         ...auth(["Admin", "Attendant"]),
         parameters: [...paginationParams, shopIdQuery],
         responses: listResp("Purchase returns with items"),
@@ -2092,6 +2133,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       post: {
         tags: ["Purchase Returns"],
         summary: "Return goods to supplier",
+        description: "Records goods returned to a supplier and removes the returned quantities from inventory. `purchaseId` links to the original GRN. The optional `refundMethod` records how the supplier credits you back.",
         ...auth(["Admin", "Attendant"]),
         ...body({
           purchaseId:   intId("Original purchase ID"),
@@ -2125,6 +2167,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Suppliers"],
         summary: "List suppliers (paginated)",
+        description: "Returns suppliers scoped to your shops. Pass `shopId` to filter to one shop. Use `search` to find by name. The `wallet` field shows the supplier's credit balance (positive = you owe them, use `POST /{id}/wallet/payment` to reduce it).",
         ...auth(["Admin"]),
         parameters: [...paginationParams, searchParam, shopIdQuery],
         responses: listResp("Suppliers", {
@@ -2155,6 +2198,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       post: {
         tags: ["Suppliers"],
         summary: "Bulk import suppliers",
+        description: "Creates multiple suppliers in a single request. Each row requires `name` and `shopId`. Duplicate names within the same shop are skipped and counted as errors.",
         ...auth(["Admin"]),
         ...body({
           suppliers: {
@@ -2247,6 +2291,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Expenses"],
         summary: "List expense categories",
+        description: "Returns expense categories for the specified shop. Pass `shopId` to filter. Categories must exist before you can record expenses against them.",
         ...auth(["Admin", "Attendant"]),
         parameters: [shopIdQuery],
         responses: dataResp("Expense categories"),
@@ -2282,6 +2327,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Expenses"],
         summary: "List expenses (paginated)",
+        description: "Returns expense records scoped to your shops. Pass `shopId` to filter to one shop. Use `from`/`to` for a date range. Each record includes its `expenseNo` (auto-generated) and optional category link.",
         ...auth(["Admin", "Attendant"]),
         parameters: [...paginationParams, shopIdQuery, fromParam, toParam],
         responses: listResp("Expenses", {
@@ -2298,6 +2344,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       post: {
         tags: ["Expenses"],
         summary: "Record an expense",
+        description: "Records a business expense against a shop. `categoryId` is optional but strongly recommended for reporting. Set `isRecurring: true` and provide `frequency` to mark it as a scheduled recurring cost.",
         ...auth(["Admin", "Attendant"]),
         ...body({
           shopId:      intId("Shop ID"),
@@ -2340,6 +2387,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Cashflow"],
         summary: "List cashflow categories",
+        description: "Returns cashflow categories (type: `inflow` or `outflow`) for a shop. Pass `shopId` to filter. Create categories before recording cashflow entries.",
         ...auth(["Admin", "Attendant"]),
         parameters: [shopIdQuery],
         responses: dataResp("Cashflow categories"),
@@ -2379,6 +2427,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Cashflow"],
         summary: "List cashflow entries (paginated)",
+        description: "Returns cashflow journal entries scoped to your shops. Pass `shopId` to filter, `from`/`to` for a date range. Use `bankId` when filtering to a specific bank/cashbox account.",
         ...auth(["Admin", "Attendant"]),
         parameters: [...paginationParams, shopIdQuery, fromParam, toParam],
         responses: listResp("Cashflow entries"),
@@ -2386,6 +2435,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       post: {
         tags: ["Cashflow"],
         summary: "Record cashflow entry",
+        description: "Logs a manual cashflow entry (e.g. owner withdrawal, bank transfer). `categoryId` links to a cashflow category and `bankId` links to a bank/cashbox account — both optional but useful for reporting.",
         ...auth(["Admin", "Attendant"]),
         ...body({
           shopId:      intId("Shop ID"),
@@ -2419,6 +2469,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Banks"],
         summary: "List bank / cashbox accounts",
+        description: "Returns bank and cashbox accounts for a shop. Pass `shopId` to filter. Use these accounts to link cashflow entries and track account balances separately.",
         ...auth(["Admin", "Attendant"]),
         parameters: [shopIdQuery],
         responses: dataResp("Banks"),
@@ -2520,6 +2571,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["User Payments"],
         summary: "List user payments (paginated)",
+        description: "Returns generic payment records for customers or suppliers (not tied to a specific sale/purchase). Pass `shopId` to filter to one shop. Pass `type=customer` or `type=supplier` to narrow by direction.",
         ...auth(["Admin"]),
         parameters: [
           ...paginationParams, shopIdQuery,
@@ -2933,6 +2985,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Attendants"],
         summary: "List attendants",
+        description: "Returns all POS staff accounts for your shops. Pass `shopId` to filter to a specific shop. PIN and password are never included in the response. Each attendant includes their `permissions` array.",
         ...auth(["Admin"]),
         parameters: [...paginationParams, shopIdQuery],
         responses: listResp("Attendants (PIN and password excluded)", {
@@ -3012,6 +3065,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Sales summary",
+        description: "Returns aggregated revenue figures for a period. Pass `shopId` to scope to one shop (omit for all your shops). Use `from`/`to` to set the date range. Returns `totalSales` (count), `totalRevenue`, `totalPaid`, `totalOutstanding`, and `totalDiscount`.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Sales summary", { totalSales: intId("Count"), totalRevenue: moneyStr, totalPaid: moneyStr, totalOutstanding: moneyStr, totalDiscount: moneyStr }),
@@ -3021,6 +3075,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Sales grouped by product",
+        description: "Aggregates all sale line items by product for a period. Returns product name, quantity sold, total value, and average unit price. Useful for best-seller analysis.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Product sales rows"),
@@ -3030,6 +3085,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Sales grouped by customer",
+        description: "Shows each customer's total spend, number of transactions, and outstanding balance for a period. Great for identifying your top customers and debtors.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Customer sales rows"),
@@ -3039,6 +3095,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Sales grouped by attendant",
+        description: "Shows each POS attendant's total sales and transaction count for a period. Useful for staff performance tracking.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Attendant sales rows"),
@@ -3048,6 +3105,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Sales grouped by payment method",
+        description: "Shows the breakdown of sales revenue by payment method (Cash, M-Pesa, Card, etc.) for a period. Helps reconcile cash tills.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Payment method rows"),
@@ -3057,6 +3115,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Profit summary",
+        description: "Returns total revenue, total cost of goods sold (buying price × qty), gross profit, and profit margin percentage for a period. Scoped to your shops — pass `shopId` to narrow to one shop.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Profit summary", { revenue: moneyStr, cost: moneyStr, profit: moneyStr, margin: strField("Profit margin %") }),
@@ -3066,6 +3125,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Monthly profit breakdown for a year",
+        description: "Returns one row per calendar month showing revenue, cost, and gross profit for the specified year. Pass `shopId` to scope to one shop.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, { name: "year", in: "path", required: true, schema: { type: "integer" }, description: "4-digit year, e.g. 2026" }],
         responses: dataResp("Monthly profit rows"),
@@ -3075,6 +3135,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Profit trend analysis",
+        description: "Returns a rolling monthly profit trend to help visualise whether margins are improving or declining. Pass `shopId` to scope to one shop.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery],
         responses: dataResp("Trend rows"),
@@ -3084,6 +3145,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Purchases summary",
+        description: "Returns total purchase spend, quantity received, and outstanding supplier debt for a period. Pass `shopId` to scope to one shop.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Purchases summary"),
@@ -3093,6 +3155,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Expenses summary",
+        description: "Returns total expenses by category for a period. Pass `shopId` to scope to one shop. Use `from`/`to` for a date range.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Expenses summary"),
@@ -3102,6 +3165,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Current stock levels summary",
+        description: "Returns current quantity on hand for all products in the specified shop(s). Pass `shopId` to scope to one shop. Shows products with low stock or zero stock.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery],
         responses: dataResp("Stock summary"),
@@ -3111,6 +3175,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Stock valuation report",
+        description: "Returns the total monetary value of current stock (quantity × buying price) per product. Pass `shopId` to scope to one shop.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery],
         responses: dataResp("Stock value summary"),
@@ -3120,6 +3185,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Stock movement (adjustments + transfers)",
+        description: "Shows all stock changes (adjustments, write-offs, and transfers) for a period. Useful for tracing why stock levels changed.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Stock movement rows"),
@@ -3129,6 +3195,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Stock count variance analysis",
+        description: "Compares the quantities recorded in stock-count sessions against the system's expected inventory to show variances (over/under).",
         ...auth(["Admin"]),
         parameters: [shopIdQuery],
         responses: dataResp("Count analysis rows"),
@@ -3138,6 +3205,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Top-selling products",
+        description: "Returns products ranked by quantity sold for a period. Pass `shopId` to scope to one shop and `from`/`to` for a date range.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Top products"),
@@ -3147,6 +3215,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "All products with sales figures",
+        description: "Returns every product alongside its total quantity sold and revenue for the period. Unlike `/reports/top-products` this includes products with zero sales.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Product sales rows"),
@@ -3156,6 +3225,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Monthly product sales breakdown",
+        description: "Returns a month-by-month breakdown of sales per product. Pass `shopId` to scope to one shop. Useful for building trend charts by SKU.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery],
         responses: dataResp("Monthly rows"),
@@ -3165,6 +3235,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Customers with outstanding balances",
+        description: "Returns all customers who have an unpaid credit balance. Pass `shopId` to scope to one shop. Use this to follow up on overdue payments.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery],
         responses: dataResp("Debtor list"),
@@ -3174,6 +3245,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Outstanding credit sales",
+        description: "Returns all credit sales that still have an unpaid balance, ordered by oldest first. Pass `shopId` to scope to one shop.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery],
         responses: dataResp("Due sales"),
@@ -3183,6 +3255,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Sales where a discount was applied",
+        description: "Returns all sales that had a non-zero discount applied, with the discount amount and adjusted revenue. Useful for auditing promotions.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery, fromParam, toParam],
         responses: dataResp("Discounted sales"),
@@ -3192,6 +3265,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Export out-of-stock products",
+        description: "Returns all products with a current stock quantity of zero or below. Pass `shopId` to scope to one shop. Use this to generate a re-order list.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery],
         responses: dataResp("Out-of-stock rows"),
@@ -3201,6 +3275,7 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
       get: {
         tags: ["Reports"],
         summary: "Full data backup snapshot",
+        description: "Returns a complete JSON snapshot of all data for a shop (products, customers, sales, purchases, expenses). Pass `shopId` to specify the shop. Used by the mobile app for offline backup.",
         ...auth(["Admin"]),
         parameters: [shopIdQuery],
         responses: dataResp("Backup snapshot"),
