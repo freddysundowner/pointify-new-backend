@@ -339,9 +339,13 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
   try {
     const existing = (req as any).product;
     const {
-      name, categoryId, barcode, serialNumber, buyingPrice, sellingPrice,
-      wholesalePrice, dealerPrice, measureUnit, manufacturer,
-      supplierId, description, alertQuantity, type,
+      name, categoryId, barcode, serialNumber,
+      buyingPrice, sellingPrice, wholesalePrice, dealerPrice,
+      minSellingPrice, maxDiscount,
+      measureUnit, manufacturer,
+      supplierId, description, type,
+      isTaxable, manageByPrice, expiryDate,
+      alertQuantity,
     } = req.body;
 
     const trimmedName = name !== undefined ? String(name).trim() : undefined;
@@ -355,23 +359,42 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       dealerPrice:    dealerPrice    !== undefined ? dealerPrice    : existing.dealerPrice,
     });
 
-    const [updated] = await db.update(products).set({
-      ...(trimmedName !== undefined && { name: trimmedName }),
-      ...(categoryId !== undefined && { category: categoryId ? Number(categoryId) : null }),
-      ...(barcode !== undefined && { barcode }),
-      ...(serialNumber !== undefined && { serialNumber }),
-      ...(buyingPrice !== undefined && { buyingPrice: String(buyingPrice) }),
-      ...(sellingPrice !== undefined && { sellingPrice: String(sellingPrice) }),
-      ...(wholesalePrice !== undefined && { wholesalePrice: String(wholesalePrice) }),
-      ...(dealerPrice !== undefined && { dealerPrice: String(dealerPrice) }),
-      ...(measureUnit !== undefined && { measureUnit }),
-      ...(manufacturer !== undefined && { manufacturer }),
-      ...(supplierId !== undefined && { supplier: supplierId ? Number(supplierId) : null }),
-      ...(description !== undefined && { description }),
-      ...(alertQuantity !== undefined && { alertQuantity: Number(alertQuantity) }),
-      ...(type && { type }),
-    }).where(eq(products.id, existing.id)).returning();
-    if (!updated) throw notFound("Product not found");
+    const productFields: Record<string, unknown> = {
+      ...(trimmedName !== undefined      && { name: trimmedName }),
+      ...(categoryId !== undefined       && { category: categoryId ? Number(categoryId) : null }),
+      ...(barcode !== undefined          && { barcode }),
+      ...(serialNumber !== undefined     && { serialNumber }),
+      ...(buyingPrice !== undefined      && { buyingPrice: String(buyingPrice) }),
+      ...(sellingPrice !== undefined     && { sellingPrice: String(sellingPrice) }),
+      ...(wholesalePrice !== undefined   && { wholesalePrice: String(wholesalePrice) }),
+      ...(dealerPrice !== undefined      && { dealerPrice: String(dealerPrice) }),
+      ...(minSellingPrice !== undefined  && { minSellingPrice: minSellingPrice != null ? String(minSellingPrice) : null }),
+      ...(maxDiscount !== undefined      && { maxDiscount: maxDiscount != null ? String(maxDiscount) : null }),
+      ...(measureUnit !== undefined      && { measureUnit }),
+      ...(manufacturer !== undefined     && { manufacturer }),
+      ...(supplierId !== undefined       && { supplier: supplierId ? Number(supplierId) : null }),
+      ...(description !== undefined      && { description }),
+      ...(type !== undefined             && { type }),
+      ...(isTaxable !== undefined        && { isTaxable: Boolean(isTaxable) }),
+      ...(manageByPrice !== undefined    && { manageByPrice: Boolean(manageByPrice) }),
+      ...(expiryDate !== undefined       && { expiryDate: expiryDate ? new Date(expiryDate) : null }),
+    };
+
+    let updated = existing;
+
+    if (Object.keys(productFields).length > 0) {
+      const [row] = await db.update(products).set(productFields).where(eq(products.id, existing.id)).returning();
+      if (!row) throw notFound("Product not found");
+      updated = row;
+    }
+
+    // alertQuantity lives on inventory.reorderLevel, not on the product row
+    if (alertQuantity !== undefined) {
+      await db.update(inventory)
+        .set({ reorderLevel: String(alertQuantity) })
+        .where(and(eq(inventory.product, existing.id), eq(inventory.shop, existing.shop)));
+    }
+
     return ok(res, updated);
   } catch (e) { next(e); }
 });
