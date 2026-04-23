@@ -1,7 +1,7 @@
 // Idempotent seed for super-admin-controlled global catalogs.
 // Runs once at server boot. Only inserts rows that don't already exist.
-import { paymentMethods, settings, smsTemplates } from "@workspace/db";
-import { like } from "drizzle-orm";
+import { paymentMethods, packages, settings, smsTemplates } from "@workspace/db";
+import { eq, like } from "drizzle-orm";
 import { db } from "./db.js";
 import { logger } from "./logger.js";
 import { DEFAULT_SMS_TEMPLATES } from "./smsTemplates.js";
@@ -54,6 +54,40 @@ export async function seedDefaultEmailTemplates(): Promise<void> {
     );
   } catch (err) {
     logger.error({ err }, "seed: email templates failed");
+  }
+}
+
+// Seed the default trial setting ({ days: 14 }) and a matching trial package.
+// The super-admin can override the days value via PUT /system/settings/trial.
+// Never overwrites an existing setting or package.
+export async function seedDefaultTrialConfig(): Promise<void> {
+  try {
+    // 1. Seed the trial setting (only if it doesn't exist yet)
+    const existingSetting = await db.query.settings.findFirst({ where: eq(settings.name, "trial") });
+    if (!existingSetting) {
+      await db.insert(settings).values({ name: "trial", setting: { days: 14 } });
+      logger.info("seed: default trial setting inserted (14 days)");
+    }
+
+    // 2. Seed the trial package (only if no trial package exists yet)
+    const existingPkg = await db.query.packages.findFirst({ where: eq(packages.type, "trial") });
+    if (!existingPkg) {
+      const trialDays = (existingSetting?.setting as { days?: number } | null)?.days ?? 14;
+      await db.insert(packages).values({
+        title: "Free Trial",
+        description: `${trialDays}-day free trial`,
+        durationValue: trialDays,
+        durationUnit: "days",
+        amount: "0",
+        amountUsd: "0",
+        type: "trial",
+        isActive: true,
+        sortOrder: 0,
+      });
+      logger.info({ trialDays }, "seed: default trial package inserted");
+    }
+  } catch (err) {
+    logger.error({ err }, "seed: trial config failed");
   }
 }
 

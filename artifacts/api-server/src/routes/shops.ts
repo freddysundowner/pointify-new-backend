@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
-import { shops } from "@workspace/db";
+import { packages, settings, shops, subscriptions, subscriptionShops } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent } from "../lib/response.js";
 import { notFound, badRequest, forbidden } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
+import { logger } from "../lib/logger.js";
 
 const router = Router();
 
@@ -63,6 +64,48 @@ router.post("/", requireAdmin, async (req, res, next) => {
       ...(allowNegativeSelling !== undefined && { allowNegativeSelling: Boolean(allowNegativeSelling) }),
       ...(isProduction !== undefined && { isProduction: Boolean(isProduction) }),
     }).returning();
+
+    // Auto-create a trial subscription for the new shop.
+    // Reads trial days from system settings (key "trial") — defaults to 14.
+    void (async () => {
+      try {
+        const trialSetting = await db.query.settings.findFirst({ where: eq(settings.name, "trial") });
+        const trialDays = (trialSetting?.setting as { days?: number } | null)?.days ?? 14;
+
+        const trialPkg = await db.query.packages.findFirst({ where: eq(packages.type, "trial") });
+        if (!trialPkg) {
+          logger.warn({ shopId: shop.id }, "shops: no trial package found — skipping trial subscription");
+          return;
+        }
+
+        const startDate = new Date();
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + trialDays);
+
+        const [sub] = await db.insert(subscriptions).values({
+          admin: req.admin!.id,
+          shop: shop.id,
+          package: trialPkg.id,
+          type: "trial",
+          amount: "0",
+          currency: "kes",
+          isActive: true,
+          isPaid: true,
+          startDate,
+          endDate,
+          invoiceNo: `TRIAL-${shop.id}-${Date.now()}`,
+        }).returning();
+
+        await db.insert(subscriptionShops).values({
+          subscription: sub.id,
+          shop: shop.id,
+        }).onConflictDoNothing();
+
+        logger.info({ shopId: shop.id, trialDays, endDate }, "shops: trial subscription created");
+      } catch (err) {
+        logger.warn({ err, shopId: shop.id }, "shops: failed to create trial subscription");
+      }
+    })();
 
     return created(res, shop);
   } catch (e) { next(e); }

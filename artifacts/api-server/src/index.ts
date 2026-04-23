@@ -5,6 +5,7 @@ import {
   seedDefaultEmailTemplates,
   seedDefaultPaymentMethods,
   seedDefaultSmsTemplates,
+  seedDefaultTrialConfig,
 } from "./lib/seedDefaults";
 
 const rawPort = process.env["PORT"];
@@ -31,5 +32,6 @@ app.listen(port, (err) => {
   void seedDefaultPaymentMethods();
   void seedDefaultSmsTemplates();
   void seedDefaultEmailTemplates();
+  void seedDefaultTrialConfig();
   startScheduler();
 });
