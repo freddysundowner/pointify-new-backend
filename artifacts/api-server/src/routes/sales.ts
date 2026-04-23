@@ -292,7 +292,7 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
     await assertShopOwnership(req, existing.shop);
     if (existing.status !== "voided") await restoreSaleInventory(id);
     const [updated] = await db.update(sales)
-      .set({ status: "voided" })
+      .set({ status: "voided", outstandingBalance: "0" })
       .where(eq(sales.id, id))
       .returning();
     if (!updated) throw notFound("Sale not found");
@@ -308,7 +308,7 @@ router.post("/:id/void", requireAdmin, async (req, res, next) => {
     await assertShopOwnership(req, existing.shop);
     if (existing.status !== "voided") await restoreSaleInventory(saleId);
     const [updated] = await db.update(sales)
-      .set({ status: "voided" })
+      .set({ status: "voided", outstandingBalance: "0" })
       .where(eq(sales.id, saleId))
       .returning();
     if (!updated) throw notFound("Sale not found");
@@ -324,7 +324,7 @@ router.post("/:id/refund", requireAdmin, async (req, res, next) => {
     await assertShopOwnership(req, sale.shop);
     if (sale.status !== "refunded" && sale.status !== "voided") await restoreSaleInventory(saleId);
     const [updated] = await db.update(sales)
-      .set({ status: "refunded" })
+      .set({ status: "refunded", outstandingBalance: "0" })
       .where(eq(sales.id, saleId))
       .returning();
     return ok(res, updated);

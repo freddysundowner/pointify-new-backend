@@ -190,6 +190,40 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
     const existing = await db.query.purchases.findFirst({ where: eq(purchases.id, id), columns: { shop: true } });
     if (!existing) throw notFound("Purchase not found");
     await assertShopOwnership(req, existing.shop);
+
+    // Reverse inventory for all items received in this purchase
+    const purchItems = await db.query.purchaseItems.findMany({ where: eq(purchaseItems.purchase, id) });
+    if (purchItems.length > 0) {
+      const enriched = await Promise.all(
+        purchItems.map(async (item) => {
+          const qty = parseFloat(item.quantity);
+          const inv = await db.query.inventory.findFirst({
+            where: and(eq(inventory.product, item.product), eq(inventory.shop, item.shop)),
+            columns: { quantity: true },
+          });
+          const qtyBefore = inv?.quantity ?? "0";
+          const qtyAfter = String(Math.max(0, parseFloat(qtyBefore) - qty));
+          await db.update(inventory)
+            .set({ quantity: qtyAfter })
+            .where(and(eq(inventory.product, item.product), eq(inventory.shop, item.shop)));
+          return { ...item, qtyBefore, qtyAfter };
+        })
+      );
+      await recordProductHistory(
+        enriched.map((item) => ({
+          product: item.product,
+          shop: item.shop,
+          eventType: "purchase_return" as const,
+          referenceId: item.id,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          quantityBefore: item.qtyBefore,
+          quantityAfter: item.qtyAfter,
+          note: "Purchase deleted",
+        }))
+      );
+    }
+
     const [deleted] = await db.delete(purchases).where(eq(purchases.id, id)).returning();
     if (!deleted) throw notFound("Purchase not found");
     return noContent(res);

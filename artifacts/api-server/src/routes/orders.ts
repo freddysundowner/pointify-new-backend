@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, and, sql } from "drizzle-orm";
-import { orders, orderItems, sales, saleItems, inventory } from "@workspace/db";
+import { eq, and, sql, inArray } from "drizzle-orm";
+import { orders, orderItems, sales, saleItems, inventory, products } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -131,6 +131,15 @@ router.post("/:id/fulfill", requireAdminOrAttendant, async (req, res, next) => {
         receiptNo,
       } as typeof sales.$inferInsert).returning();
 
+      const productIds = order.orderItems.map((i) => i.product);
+      const productRows = productIds.length
+        ? await tx.query.products.findMany({
+            where: inArray(products.id, productIds),
+            columns: { id: true, buyingPrice: true },
+          })
+        : [];
+      const costByProduct = new Map(productRows.map((p) => [p.id, p.buyingPrice ?? "0"]));
+
       const itemRows = order.orderItems.length
         ? await tx.insert(saleItems).values(
             order.orderItems.map((item) => ({
@@ -139,7 +148,7 @@ router.post("/:id/fulfill", requireAdminOrAttendant, async (req, res, next) => {
               product: item.product,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
-              costPrice: "0",
+              costPrice: costByProduct.get(item.product) ?? "0",
               saleType: "Order",
               attendant: req.attendant?.id ?? undefined,
             })),
@@ -190,9 +199,46 @@ router.post("/:id/fulfill", requireAdminOrAttendant, async (req, res, next) => {
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params["id"]);
-    const existing = await db.query.orders.findFirst({ where: eq(orders.id, id), columns: { shop: true } });
+    const existing = await db.query.orders.findFirst({ where: eq(orders.id, id), columns: { shop: true, status: true } });
     if (!existing) throw notFound("Order not found");
     await assertShopOwnership(req, existing.shop);
+
+    // Restore inventory if the order was already fulfilled
+    if (existing.status === "completed") {
+      const orderItemRows = await db.query.orderItems.findMany({ where: eq(orderItems.order, id) });
+      if (orderItemRows.length > 0) {
+        const historyEntries: any[] = [];
+        await Promise.all(
+          orderItemRows.map(async (item) => {
+            const qty = parseFloat(item.quantity);
+            const inv = await db.query.inventory.findFirst({
+              where: and(eq(inventory.product, item.product), eq(inventory.shop, existing.shop)),
+              columns: { quantity: true },
+            });
+            const qtyBefore = inv?.quantity ?? "0";
+            const qtyAfter = String(parseFloat(qtyBefore) + qty);
+            await db.insert(inventory)
+              .values({ product: item.product, shop: existing.shop, quantity: item.quantity })
+              .onConflictDoUpdate({
+                target: [inventory.product, inventory.shop],
+                set: { quantity: sql`${inventory.quantity} + ${qty}::numeric` },
+              });
+            historyEntries.push({
+              product: item.product,
+              shop: existing.shop,
+              eventType: "adjustment" as const,
+              referenceId: item.id,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              quantityBefore: qtyBefore,
+              quantityAfter: qtyAfter,
+            });
+          })
+        );
+        await recordProductHistory(historyEntries);
+      }
+    }
+
     await db.delete(orders).where(eq(orders.id, id));
     return noContent(res);
   } catch (e) { next(e); }

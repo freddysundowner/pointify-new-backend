@@ -40,8 +40,10 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     if (!phone) throw badRequest("phone required");
     await assertShopOwnership(req, Number(shopId));
 
-    const existing = await db.query.customers.findMany({ where: eq(customers.shop, Number(shopId)) });
-    const nextNo = existing.length + 1;
+    const [{ max }] = await db.select({ max: sql<number>`COALESCE(MAX(${customers.customerNo}), 0)` })
+      .from(customers)
+      .where(eq(customers.shop, Number(shopId)));
+    const nextNo = (Number(max ?? 0)) + 1;
 
     const [customer] = await db.insert(customers).values({
       name,
@@ -226,7 +228,9 @@ router.post("/:id/wallet", requireAdminOrAttendant, async (req, res, next) => {
     if (!customer) throw notFound("Customer not found");
     await assertShopOwnership(req, customer.shop);
 
-    const newBalance = (parseFloat(customer.wallet ?? "0") + parseFloat(String(amount))).toFixed(2);
+    const numAmount = parseFloat(String(amount));
+    if (Number.isNaN(numAmount) || numAmount <= 0) throw badRequest("amount must be positive");
+    const newBalance = (parseFloat(customer.wallet ?? "0") + numAmount).toFixed(2);
 
     await db.update(customers).set({ wallet: newBalance }).where(eq(customers.id, customerId));
     await db.insert(customerWalletTransactions).values({

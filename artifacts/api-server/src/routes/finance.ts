@@ -85,12 +85,15 @@ router.post("/cashflow-categories", requireAdmin, async (req, res, next) => {
 
 router.put("/cashflow-categories/:id", requireAdmin, async (req, res, next) => {
   try {
-    const { name } = req.body;
+    const { name, type } = req.body;
     const id = Number(req.params["id"]);
     const existing = await db.query.cashflowCategories.findFirst({ where: eq(cashflowCategories.id, id), columns: { shop: true } });
     if (!existing) throw notFound("Category not found");
     await assertShopOwnership(req, existing.shop);
-    const [updated] = await db.update(cashflowCategories).set({ name }).where(eq(cashflowCategories.id, id)).returning();
+    const [updated] = await db.update(cashflowCategories).set({
+      ...(name && { name }),
+      ...(type && { type }),
+    }).where(eq(cashflowCategories.id, id)).returning();
     if (!updated) throw notFound("Category not found");
     return ok(res, updated);
   } catch (e) { next(e); }

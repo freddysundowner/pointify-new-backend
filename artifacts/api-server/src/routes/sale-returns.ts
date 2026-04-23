@@ -122,6 +122,40 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
     const existing = await db.query.saleReturns.findFirst({ where: eq(saleReturns.id, id), columns: { shop: true } });
     if (!existing) throw notFound("Sale return not found");
     await assertShopOwnership(req, existing.shop);
+
+    // Re-deduct inventory that was credited when the return was created
+    const items = await db.query.saleReturnItems.findMany({ where: eq(saleReturnItems.saleReturn, id) });
+    if (items.length > 0) {
+      const enriched = await Promise.all(
+        items.map(async (item) => {
+          const qty = parseFloat(item.quantity);
+          const inv = await db.query.inventory.findFirst({
+            where: and(eq(inventory.product, item.product), eq(inventory.shop, existing.shop)),
+            columns: { quantity: true },
+          });
+          const qtyBefore = inv?.quantity ?? "0";
+          const qtyAfter = String(Math.max(0, parseFloat(qtyBefore) - qty));
+          await db.update(inventory)
+            .set({ quantity: qtyAfter })
+            .where(and(eq(inventory.product, item.product), eq(inventory.shop, existing.shop)));
+          return { ...item, qtyBefore, qtyAfter };
+        })
+      );
+      await recordProductHistory(
+        enriched.map((item) => ({
+          product: item.product,
+          shop: existing.shop,
+          eventType: "adjustment" as const,
+          referenceId: item.id,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          quantityBefore: item.qtyBefore,
+          quantityAfter: item.qtyAfter,
+          note: "Sale return deleted",
+        }))
+      );
+    }
+
     await db.delete(saleReturns).where(eq(saleReturns.id, id));
     return noContent(res);
   } catch (e) { next(e); }

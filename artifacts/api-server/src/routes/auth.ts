@@ -328,7 +328,10 @@ router.post("/customer/reset-password", async (req, res, next) => {
     if (!emailOrPhone || !otp || !password || !shopId) throw badRequest("All fields required");
 
     const customer = await db.query.customers.findFirst({
-      where: and(eq(customers.email, emailOrPhone), eq(customers.shop, Number(shopId))),
+      where: and(
+        eq(customers.shop, Number(shopId)),
+        or(eq(customers.email, emailOrPhone), eq(customers.phone, emailOrPhone)),
+      ),
     });
     if (!customer) throw notFound("Customer not found");
     if (customer.otp !== otp) throw badRequest("Invalid OTP");

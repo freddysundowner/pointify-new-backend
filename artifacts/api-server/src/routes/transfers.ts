@@ -136,9 +136,72 @@ router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
 router.delete("/:id", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const id = Number(req.params["id"]);
-    const existing = await db.query.productTransfers.findFirst({ where: eq(productTransfers.id, id), columns: { fromShop: true } });
+    const existing = await db.query.productTransfers.findFirst({ where: eq(productTransfers.id, id), columns: { fromShop: true, toShop: true } });
     if (!existing) throw notFound("Transfer not found");
     await assertShopOwnership(req, existing.fromShop);
+
+    // Reverse inventory movements: restore fromShop, deduct toShop
+    const items = await db.query.transferItems.findMany({ where: eq(transferItems.transfer, id) });
+    if (items.length > 0) {
+      const historyEntries: any[] = [];
+      await Promise.all(
+        items.map(async (item) => {
+          const qty = parseFloat(item.quantity);
+
+          // Restore fromShop inventory
+          const fromInv = await db.query.inventory.findFirst({
+            where: and(eq(inventory.product, item.product), eq(inventory.shop, existing.fromShop)),
+            columns: { quantity: true },
+          });
+          const fromBefore = fromInv?.quantity ?? "0";
+          const fromAfter = String(parseFloat(fromBefore) + qty);
+          await db.insert(inventory)
+            .values({ product: item.product, shop: existing.fromShop, quantity: item.quantity })
+            .onConflictDoUpdate({
+              target: [inventory.product, inventory.shop],
+              set: { quantity: sql`${inventory.quantity} + ${qty}::numeric` },
+            });
+
+          // Deduct toShop inventory
+          const toInv = await db.query.inventory.findFirst({
+            where: and(eq(inventory.product, item.product), eq(inventory.shop, existing.toShop)),
+            columns: { quantity: true },
+          });
+          const toBefore = toInv?.quantity ?? "0";
+          const toAfter = String(Math.max(0, parseFloat(toBefore) - qty));
+          await db.update(inventory)
+            .set({ quantity: toAfter })
+            .where(and(eq(inventory.product, item.product), eq(inventory.shop, existing.toShop)));
+
+          historyEntries.push(
+            {
+              product: item.product,
+              shop: existing.fromShop,
+              eventType: "transfer_in" as const,
+              referenceId: item.id,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              quantityBefore: fromBefore,
+              quantityAfter: fromAfter,
+              note: "Transfer deleted",
+            },
+            {
+              product: item.product,
+              shop: existing.toShop,
+              eventType: "transfer_out" as const,
+              referenceId: item.id,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              quantityBefore: toBefore,
+              quantityAfter: toAfter,
+              note: "Transfer deleted",
+            }
+          );
+        })
+      );
+      await recordProductHistory(historyEntries);
+    }
+
     await db.delete(productTransfers).where(eq(productTransfers.id, id));
     return noContent(res);
   } catch (e) { next(e); }
