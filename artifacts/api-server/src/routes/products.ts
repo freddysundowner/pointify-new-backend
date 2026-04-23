@@ -206,6 +206,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
       name, shopId, categoryId, barcode, serialNumber, buyingPrice, sellingPrice,
       wholesalePrice, dealerPrice, quantity, measureUnit, manufacturer,
       supplierId, description, alertQuantity, expiryDate, type,
+      bundleItems: bundleItemsPayload,
     } = req.body;
     if (!name || !shopId) throw badRequest("name and shopId required");
 
@@ -215,6 +216,19 @@ router.post("/", requireAdmin, async (req, res, next) => {
 
     if (await isDuplicateName(Number(shopId), String(name)))
       throw conflict(`A product named "${name}" already exists in this shop`);
+
+    // Validate bundle items before inserting anything
+    const bundlePayload: Array<{ componentProductId: number; quantity: number }> = [];
+    if (Array.isArray(bundleItemsPayload) && bundleItemsPayload.length > 0) {
+      for (const item of bundleItemsPayload) {
+        if (!item.componentProductId || item.quantity == null)
+          throw badRequest("Each bundle item requires componentProductId and quantity");
+        bundlePayload.push({
+          componentProductId: Number(item.componentProductId),
+          quantity: Number(item.quantity),
+        });
+      }
+    }
 
     const [product] = await db.insert(products).values({
       name,
@@ -230,7 +244,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
       manufacturer: manufacturer ?? "",
       supplier: supplierId ? Number(supplierId) : null,
       description,
-      productType: type ?? "product",
+      productType: bundlePayload.length > 0 ? "bundle" : (type ?? "product"),
       createdBy: req.attendant?.id ?? null,
     }).returning();
 
@@ -241,7 +255,19 @@ router.post("/", requireAdmin, async (req, res, next) => {
       quantity: "0",
     }).onConflictDoNothing();
 
-    return created(res, product);
+    // Insert bundle components if provided
+    let createdBundleItems: typeof bundleItems.$inferSelect[] = [];
+    if (bundlePayload.length > 0) {
+      createdBundleItems = await db.insert(bundleItems).values(
+        bundlePayload.map((item) => ({
+          product: product.id,
+          componentProduct: item.componentProductId,
+          quantity: String(item.quantity),
+        }))
+      ).returning();
+    }
+
+    return created(res, { ...product, bundleItems: createdBundleItems });
   } catch (e) { next(e); }
 });
 
