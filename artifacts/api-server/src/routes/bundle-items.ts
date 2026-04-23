@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { bundleItems, products } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
+import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 
@@ -40,6 +41,23 @@ router.post("/", requireAdmin, async (req, res, next) => {
     if (!productId || !componentProductId || quantity == null) {
       throw badRequest("productId, componentProductId and quantity required");
     }
+
+    // Verify caller owns the parent bundle product
+    const parent = await db.query.products.findFirst({
+      where: eq(products.id, Number(productId)),
+      columns: { shop: true },
+    });
+    if (!parent) throw notFound("Parent product not found");
+    await assertShopOwnership(req, parent.shop);
+
+    // Verify caller owns the component product
+    const component = await db.query.products.findFirst({
+      where: eq(products.id, Number(componentProductId)),
+      columns: { shop: true },
+    });
+    if (!component) throw notFound("Component product not found");
+    await assertShopOwnership(req, component.shop);
+
     const [row] = await db.insert(bundleItems).values({
       product: Number(productId),
       componentProduct: Number(componentProductId),
@@ -67,6 +85,30 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
     if (componentProductId != null) updates["componentProduct"] = Number(componentProductId);
     if (Object.keys(updates).length === 0) throw badRequest("nothing to update");
 
+    // Load existing bundle item and verify caller owns the parent product
+    const existing = await db.query.bundleItems.findFirst({
+      where: eq(bundleItems.id, Number(req.params["id"])),
+      columns: { product: true },
+    });
+    if (!existing) throw notFound("Bundle item not found");
+
+    const parent = await db.query.products.findFirst({
+      where: eq(products.id, existing.product),
+      columns: { shop: true },
+    });
+    if (!parent) throw notFound("Parent product not found");
+    await assertShopOwnership(req, parent.shop);
+
+    // If swapping the component, verify caller owns the new component product too
+    if (componentProductId != null) {
+      const component = await db.query.products.findFirst({
+        where: eq(products.id, Number(componentProductId)),
+        columns: { shop: true },
+      });
+      if (!component) throw notFound("Component product not found");
+      await assertShopOwnership(req, component.shop);
+    }
+
     const [updated] = await db.update(bundleItems)
       .set(updates as any)
       .where(eq(bundleItems.id, Number(req.params["id"])))
@@ -78,6 +120,20 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
+    // Load existing bundle item and verify caller owns the parent product
+    const existing = await db.query.bundleItems.findFirst({
+      where: eq(bundleItems.id, Number(req.params["id"])),
+      columns: { product: true },
+    });
+    if (!existing) throw notFound("Bundle item not found");
+
+    const parent = await db.query.products.findFirst({
+      where: eq(products.id, existing.product),
+      columns: { shop: true },
+    });
+    if (!parent) throw notFound("Parent product not found");
+    await assertShopOwnership(req, parent.shop);
+
     const [deleted] = await db.delete(bundleItems)
       .where(eq(bundleItems.id, Number(req.params["id"])))
       .returning();

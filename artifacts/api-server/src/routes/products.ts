@@ -228,6 +228,18 @@ router.post("/", requireAdmin, async (req, res, next) => {
           quantity: Number(item.quantity),
         });
       }
+
+      // Verify caller owns every component product
+      const componentIds = bundlePayload.map((i) => i.componentProductId);
+      const componentRows = await db.query.products.findMany({
+        where: inArray(products.id, componentIds),
+        columns: { id: true, shop: true },
+      });
+      if (componentRows.length !== componentIds.length)
+        throw notFound("One or more component products not found");
+      for (const comp of componentRows) {
+        await assertShopOwnership(req, comp.shop);
+      }
     }
 
     const [product] = await db.insert(products).values({
