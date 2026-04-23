@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { eq, and, ilike, or, inArray } from "drizzle-orm";
+import { eq, and, ilike, or, inArray, notInArray, sql, gte } from "drizzle-orm";
 import {
   inventory, batches, adjustments, badStocks,
   stockCounts, stockCountItems, stockRequests, stockRequestItems,
-  products, shops,
+  products, shops, sales, saleItems,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -22,6 +22,8 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const productId = req.query["productId"] ? Number(req.query["productId"]) : null;
+    // Filter by inventory status: active | low | out_of_stock
+    const status = req.query["status"] ? String(req.query["status"]) : null;
 
     // Derive shop constraint straight from the token — no guessing.
     let shopCondition;
@@ -40,11 +42,133 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     if (shopCondition) conditions.push(shopCondition);
     if (shopId) conditions.push(eq(inventory.shop, shopId));
     if (productId) conditions.push(eq(inventory.product, productId));
+    if (status) conditions.push(eq(inventory.status, status));
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     const rows = await db.query.inventory.findMany({ where, limit, offset, with: { product: true } });
     const total = await db.$count(inventory, where);
     return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+// ── Inventory movement categories ─────────────────────────────────────────────
+// Returns a single response with four product movement categories:
+//   out_of_stock — inventory.status = 'out_of_stock'
+//   low_stock    — inventory.status = 'low' (at or below reorder level)
+//   dormant      — has stock but zero sales in the last `days` days
+//   fast_moving  — top `topN` products by quantity sold in the last `days` days
+//   slow_moving  — products with some sales but below the period average
+
+router.get("/movements", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const days = req.query["days"] ? Math.max(1, Number(req.query["days"])) : 30;
+    const topN = req.query["topN"] ? Math.max(1, Number(req.query["topN"])) : 20;
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    // Build shop filter from token (same pattern as GET /)
+    const reqShopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    let shopCond;
+    if (req.attendant) {
+      shopCond = eq(inventory.shop, req.attendant.shopId);
+    } else if (req.admin && !req.admin.isSuperAdmin) {
+      const myShops = await db.query.shops.findMany({
+        where: eq(shops.admin, req.admin.id),
+        columns: { id: true },
+      });
+      const ids = myShops.map((s) => s.id);
+      shopCond = ids.length ? inArray(inventory.shop, ids) : eq(inventory.id, -1);
+    }
+
+    const baseConditions = [];
+    if (shopCond) baseConditions.push(shopCond);
+    if (reqShopId) baseConditions.push(eq(inventory.shop, reqShopId));
+    const baseWhere = baseConditions.length > 1 ? and(...baseConditions) : baseConditions[0];
+
+    // Out of stock
+    const outOfStock = await db.query.inventory.findMany({
+      where: and(baseWhere, eq(inventory.status, "out_of_stock")),
+      with: { product: true },
+    });
+
+    // Low stock
+    const lowStock = await db.query.inventory.findMany({
+      where: and(baseWhere, eq(inventory.status, "low")),
+      with: { product: true },
+    });
+
+    // Determine the shop filter for saleItems queries
+    const saleShopConditions: ReturnType<typeof eq>[] = [];
+    if (req.attendant) saleShopConditions.push(eq(saleItems.shop, req.attendant.shopId));
+    if (reqShopId) saleShopConditions.push(eq(saleItems.shop, reqShopId));
+    const saleShopWhere = saleShopConditions.length > 1 ? and(...saleShopConditions) : saleShopConditions[0];
+
+    // Fast moving — top N products by qty sold in the period
+    const fastMovingRaw = await db.select({
+      productId: saleItems.product,
+      shopId: saleItems.shop,
+      totalQtySold: sql<string>`SUM(${saleItems.quantity}::numeric)`,
+    })
+    .from(saleItems)
+    .innerJoin(sales, eq(saleItems.sale, sales.id))
+    .where(and(
+      saleShopWhere,
+      gte(sales.createdAt, since),
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+    ))
+    .groupBy(saleItems.product, saleItems.shop)
+    .orderBy(sql`SUM(${saleItems.quantity}::numeric) DESC`)
+    .limit(topN);
+
+    // Enrich fast-moving with product details
+    const fastProductIds = fastMovingRaw.map((r) => r.productId).filter((x): x is number => !!x);
+    const fastProducts = fastProductIds.length
+      ? await db.query.products.findMany({ where: inArray(products.id, fastProductIds), columns: { id: true, name: true, sellingPrice: true } })
+      : [];
+    const fastProductMap = new Map(fastProducts.map((p) => [p.id, p]));
+    const fastMoving = fastMovingRaw.map((r) => ({
+      ...r,
+      product: r.productId ? fastProductMap.get(r.productId) ?? null : null,
+    }));
+
+    // Dormant — has stock but NO sales in the period
+    const recentlySoldIds = fastMovingRaw.map((r) => r.productId).filter((x): x is number => !!x);
+    // Also fetch ALL products that sold (not just top N) for accurate dormant filter
+    const allRecentlySoldRaw = await db.selectDistinct({ productId: saleItems.product })
+      .from(saleItems)
+      .innerJoin(sales, eq(saleItems.sale, sales.id))
+      .where(and(
+        saleShopWhere,
+        gte(sales.createdAt, since),
+        sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+      ));
+    const allSoldProductIds = allRecentlySoldRaw.map((r) => r.productId).filter((x): x is number => !!x);
+
+    const dormant = await db.query.inventory.findMany({
+      where: and(
+        baseWhere,
+        sql`${inventory.quantity}::numeric > 0`,
+        allSoldProductIds.length ? notInArray(inventory.product, allSoldProductIds) : sql`1=1`,
+      ),
+      with: { product: true },
+      limit: 100,
+    });
+
+    // Slow moving — has some sales in the period but below the average qty sold
+    const avgQtySold = fastMovingRaw.length
+      ? fastMovingRaw.reduce((s, r) => s + parseFloat(r.totalQtySold), 0) / fastMovingRaw.length
+      : 0;
+    const slowMoving = fastMovingRaw
+      .filter((r) => parseFloat(r.totalQtySold) < avgQtySold)
+      .map((r) => ({ ...r, product: r.productId ? fastProductMap.get(r.productId) ?? null : null }));
+
+    return ok(res, {
+      period: { days, since },
+      outOfStock: { count: outOfStock.length, items: outOfStock },
+      lowStock: { count: lowStock.length, items: lowStock },
+      fastMoving: { count: fastMoving.length, items: fastMoving },
+      slowMoving: { count: slowMoving.length, items: slowMoving },
+      dormant: { count: dormant.length, items: dormant },
+    });
   } catch (e) { next(e); }
 });
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { sales, saleItems, salePayments, products, inventory, customers, paymentMethods, batches, saleItemBatches } from "@workspace/db";
+import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { sales, saleItems, salePayments, products, inventory, customers, paymentMethods, batches, saleItemBatches, shops, loyaltyTransactions } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -60,7 +60,13 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
 
     const conditions = [];
-    if (shopId) conditions.push(eq(sales.shop, shopId));
+    // Attendants can only see their own sales — admins see all.
+    if (req.attendant) {
+      conditions.push(eq(sales.attendant, req.attendant.id));
+      conditions.push(eq(sales.shop, req.attendant.shopId));
+    } else {
+      if (shopId) conditions.push(eq(sales.shop, shopId));
+    }
     if (customerId) conditions.push(eq(sales.customer, customerId));
     if (status) conditions.push(eq(sales.status, status));
     if (from) conditions.push(gte(sales.createdAt, from));
@@ -83,10 +89,11 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const {
       shopId, customerId, items, paymentMethod, amountPaid, discount, note, saleType,
-      dueDate,    // when the credit payment is expected (ISO string)
-      saleDate,   // backdate the sale to this date (ISO string)
-      payments,   // [{method, amount}] for split payment — overrides paymentMethod/amountPaid
-      held,       // true → create a held/tab sale (inventory NOT deducted yet)
+      dueDate,       // when the credit payment is expected (ISO string)
+      saleDate,      // backdate the sale to this date (ISO string)
+      payments,      // [{method, amount}] for split payment — overrides paymentMethod/amountPaid
+      held,          // true → create a held/tab sale (inventory NOT deducted yet)
+      redeemPoints,  // number of loyalty points to redeem as a discount on this sale
     } = req.body;
     if (!shopId || !items?.length) throw badRequest("shopId and items required");
     await assertShopOwnership(req, Number(shopId));
@@ -113,7 +120,28 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       totalAmount += (item.price ?? 0) * (item.quantity ?? 1);
     }
     const saleDiscount = discount ?? 0;
-    const totalWithDiscount = totalAmount - saleDiscount;
+    let totalWithDiscount = totalAmount - saleDiscount;
+
+    // ── Loyalty point redemption ────────────────────────────────────────────
+    let pointsRedeemed = 0;
+    let loyaltyDiscount = 0;
+    if (!held && redeemPoints && redeemPoints > 0 && customerId) {
+      const shop = await db.query.shops.findFirst({
+        where: eq(shops.id, Number(shopId)),
+        columns: { loyaltyEnabled: true, pointsValue: true },
+      });
+      if (shop?.loyaltyEnabled && parseFloat(String(shop.pointsValue ?? 0)) > 0) {
+        const cust = await db.query.customers.findFirst({
+          where: eq(customers.id, Number(customerId)),
+          columns: { loyaltyPoints: true },
+        });
+        const availablePoints = parseFloat(String(cust?.loyaltyPoints ?? 0));
+        if (redeemPoints > availablePoints) throw badRequest(`Insufficient loyalty points. Available: ${availablePoints}`);
+        pointsRedeemed = redeemPoints;
+        loyaltyDiscount = pointsRedeemed * parseFloat(String(shop.pointsValue));
+        totalWithDiscount = Math.max(0, totalWithDiscount - loyaltyDiscount);
+      }
+    }
 
     // Finalise "paid" amount
     let paid = 0;
@@ -202,6 +230,13 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
 
     // Held sales skip inventory deduction — items are reserved when checking out
     if (!held) {
+      // Fetch product types so service/virtual items skip inventory
+      const allProductIds = itemRows.map((r) => r.product).filter((x): x is number => !!x);
+      const productTypeRows = allProductIds.length
+        ? await db.query.products.findMany({ where: inArray(products.id, allProductIds), columns: { id: true, type: true } })
+        : [];
+      const productTypeMap = new Map(productTypeRows.map((p) => [p.id, p.type ?? "product"]));
+
       const invSnapshots = new Map<number, string>();
       await Promise.all(
         itemRows.map(async (itemRow, i) => {
@@ -209,6 +244,10 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
           const soldQty = Number(item.quantity ?? 1);
           const productId = Number(item.productId);
           const sid = Number(shopId);
+
+          // Service and virtual products have no physical stock — skip inventory
+          const pType = productTypeMap.get(productId) ?? "product";
+          if (pType === "service" || pType === "virtual") return;
 
           const existingInv = await db.query.inventory.findFirst({
             where: and(eq(inventory.product, productId), eq(inventory.shop, sid)),
@@ -269,22 +308,77 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       }
 
       await recordProductHistory(
-        itemRows.map((itemRow) => {
-          const qtyBefore = invSnapshots.get(itemRow.product) ?? "0";
-          const qtyAfter  = String(Math.max(0, parseFloat(qtyBefore) - parseFloat(itemRow.quantity)));
-          return {
-            product: itemRow.product,
-            shop: itemRow.shop,
-            eventType: "sale" as const,
-            referenceId: itemRow.id,
-            quantity: itemRow.quantity,
-            unitPrice: itemRow.unitPrice,
-            quantityBefore: qtyBefore,
-            quantityAfter: qtyAfter,
-            note: receiptNo,
-          };
-        })
+        itemRows
+          .filter((itemRow) => {
+            const pType = productTypeMap.get(itemRow.product) ?? "product";
+            return pType !== "service" && pType !== "virtual";
+          })
+          .map((itemRow) => {
+            const qtyBefore = invSnapshots.get(itemRow.product) ?? "0";
+            const qtyAfter  = String(Math.max(0, parseFloat(qtyBefore) - parseFloat(itemRow.quantity)));
+            return {
+              product: itemRow.product,
+              shop: itemRow.shop,
+              eventType: "sale" as const,
+              referenceId: itemRow.id,
+              quantity: itemRow.quantity,
+              unitPrice: itemRow.unitPrice,
+              quantityBefore: qtyBefore,
+              quantityAfter: qtyAfter,
+              note: receiptNo,
+            };
+          })
       );
+
+      // ── Loyalty points: redeem and earn ───────────────────────────────────
+      if (customerId) {
+        const shopSettings = await db.query.shops.findFirst({
+          where: eq(shops.id, Number(shopId)),
+          columns: { loyaltyEnabled: true, pointsPerAmount: true, pointsValue: true },
+        });
+        if (shopSettings?.loyaltyEnabled) {
+          const perAmount = parseFloat(String(shopSettings.pointsPerAmount ?? 0));
+          const custRow = await db.query.customers.findFirst({
+            where: eq(customers.id, Number(customerId)),
+            columns: { loyaltyPoints: true },
+          });
+          let currentPoints = parseFloat(String(custRow?.loyaltyPoints ?? 0));
+
+          // Deduct redeemed points
+          if (pointsRedeemed > 0) {
+            currentPoints = Math.max(0, currentPoints - pointsRedeemed);
+            await db.update(customers).set({ loyaltyPoints: String(currentPoints.toFixed(2)) }).where(eq(customers.id, Number(customerId)));
+            await db.insert(loyaltyTransactions).values({
+              customer: Number(customerId),
+              shop: Number(shopId),
+              type: "redeem",
+              points: String((-pointsRedeemed).toFixed(2)),
+              balanceAfter: String(currentPoints.toFixed(2)),
+              referenceId: sale.id,
+              note: `Redeemed for ${receiptNo}`,
+            });
+          }
+
+          // Earn points on this sale (only if perAmount > 0)
+          if (perAmount > 0) {
+            const earned = Math.floor(totalWithDiscount / perAmount);
+            if (earned > 0) {
+              currentPoints += earned;
+              await db.update(customers).set({ loyaltyPoints: String(currentPoints.toFixed(2)) }).where(eq(customers.id, Number(customerId)));
+              await db.insert(loyaltyTransactions).values({
+                customer: Number(customerId),
+                shop: Number(shopId),
+                type: "earn",
+                points: String(earned.toFixed(2)),
+                balanceAfter: String(currentPoints.toFixed(2)),
+                referenceId: sale.id,
+                note: `Earned for ${receiptNo}`,
+              });
+            }
+          }
+        }
+      }
+
       void notifySaleReceipt(sale.id);
       void notifySaleReceiptSms(sale.id);
     }

@@ -36,4 +36,5 @@ export * from "./purchases";
 export * from "./transfers";
 export * from "./finance";
 export * from "./communication";
+export * from "./loyalty";
 export * from "./relations";

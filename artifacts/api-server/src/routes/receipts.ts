@@ -55,6 +55,12 @@ router.get("/:token", async (req: Request, res: Response) => {
 
   const date = (sale.createdAt ?? new Date()).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" });
 
+  const currency = shop?.currency || "KES";
+  const showTax = (shop as any)?.receiptShowTax !== false;
+  const showDiscount = (shop as any)?.receiptShowDiscount !== false;
+  const logoUrl = (shop as any)?.receiptLogo as string | null | undefined;
+  const customFooter = (shop as any)?.receiptFooter as string | null | undefined;
+
   res.status(200).type("html").send(`<!doctype html>
 <html lang="en">
 <head>
@@ -65,6 +71,7 @@ router.get("/:token", async (req: Request, res: Response) => {
     *{box-sizing:border-box}
     body{margin:0;background:#f1f5f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111827;padding:24px 12px}
     .receipt{max-width:380px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.08);padding:24px;font-size:13px;line-height:1.5}
+    .logo{display:block;max-height:64px;max-width:180px;margin:0 auto 8px;object-fit:contain}
     h1{font-size:18px;margin:0 0 4px;text-align:center;letter-spacing:.5px}
     .muted{color:#6b7280;font-size:12px;text-align:center}
     .divider{border:none;border-top:1px dashed #cbd5e1;margin:14px 0}
@@ -81,6 +88,7 @@ router.get("/:token", async (req: Request, res: Response) => {
 </head>
 <body>
   <div class="receipt">
+    ${logoUrl ? `<img src="${esc(logoUrl)}" alt="Logo" class="logo" />` : ""}
     <h1>${esc(shop?.name ?? "Pointify POS")}</h1>
     ${shop?.address ? `<p class="muted">${esc(shop.address)}</p>` : ""}
     ${shop?.phone ? `<p class="muted">Tel: ${esc(shop.phone)}</p>` : ""}
@@ -94,18 +102,17 @@ router.get("/:token", async (req: Request, res: Response) => {
       <tbody>${itemsHtml || `<tr><td colspan="4" class="muted">No items</td></tr>`}</tbody>
     </table>
     <div class="totals">
-      <div class="row"><span>Subtotal</span><span>KES ${fmt(sale.totalAmount)}</span></div>
-      ${Number(sale.saleDiscount) > 0 ? `<div class="row"><span>Discount</span><span>-KES ${fmt(sale.saleDiscount)}</span></div>` : ""}
-      ${Number(sale.totalTax) > 0 ? `<div class="row"><span>Tax</span><span>KES ${fmt(sale.totalTax)}</span></div>` : ""}
-      <div class="row grand"><span>Total</span><span>KES ${fmt(sale.totalWithDiscount ?? sale.totalAmount)}</span></div>
+      <div class="row"><span>Subtotal</span><span>${currency} ${fmt(sale.totalAmount)}</span></div>
+      ${showDiscount && Number(sale.saleDiscount) > 0 ? `<div class="row"><span>Discount</span><span>-${currency} ${fmt(sale.saleDiscount)}</span></div>` : ""}
+      ${showTax && Number(sale.totalTax) > 0 ? `<div class="row"><span>Tax</span><span>${currency} ${fmt(sale.totalTax)}</span></div>` : ""}
+      <div class="row grand"><span>Total</span><span>${currency} ${fmt(sale.totalWithDiscount ?? sale.totalAmount)}</span></div>
       ${paymentsHtml ? `<hr class="divider" />${paymentsHtml}` : ""}
-      ${Number(sale.outstandingBalance) > 0 ? `<div class="row" style="color:#b91c1c"><span>Balance due</span><span>KES ${fmt(sale.outstandingBalance)}</span></div>` : ""}
+      ${Number(sale.outstandingBalance) > 0 ? `<div class="row" style="color:#b91c1c"><span>Balance due</span><span>${currency} ${fmt(sale.outstandingBalance)}</span></div>` : ""}
     </div>
     <hr class="divider" />
     <div class="footer">
-      Thank you for your purchase!<br/>
-      Powered by <a href="https://pointifypos.com">pointifypos.com</a><br/>
-      +254 791 334 234
+      ${customFooter ? `${esc(customFooter)}<br/>` : "Thank you for your purchase!<br/>"}
+      Powered by <a href="https://pointifypos.com">pointifypos.com</a>
     </div>
   </div>
 </body>

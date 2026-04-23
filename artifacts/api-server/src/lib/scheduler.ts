@@ -23,6 +23,7 @@ import {
   jobSmsShopDormant,
 } from "./scheduledNotifications.js";
 import { jobDailyReport, jobDailySummarySms } from "./dailyReport.js";
+import { jobBackup } from "./backup.js";
 
 let started = false;
 
@@ -67,5 +68,10 @@ export function startScheduler() {
     void jobDailySummarySms();
   });
 
-  logger.info("scheduler: registered 10 daily jobs (morning nudges + SMS jobs + 20:00 daily report + 20:05 daily SMS summary)");
+  // Data backup — 02:00 server time. Checks each shop's backupInterval.
+  cron.schedule("0 2 * * *", () => {
+    void jobBackup();
+  });
+
+  logger.info("scheduler: registered 11 daily jobs (morning nudges + SMS jobs + 20:00 daily report + 20:05 daily SMS summary + 02:00 backup)");
 }

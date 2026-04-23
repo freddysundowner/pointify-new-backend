@@ -13,6 +13,7 @@ import {
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, paginated } from "../lib/response.js";
+import { generateSnapshot } from "../lib/backup.js";
 import { badRequest, forbidden } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
@@ -984,7 +985,17 @@ router.get("/reports/out-of-stock/export", requireAdmin, async (req, res, next) 
 router.get("/reports/backup", requireAdmin, async (req, res, next) => {
   try {
     const sid = shopId(req);
-    return ok(res, { shopId: sid, generatedAt: new Date().toISOString(), note: "backup snapshot stub" });
+    const days = req.query["days"] ? Math.max(1, Number(req.query["days"])) : 30;
+    const format = String(req.query["format"] ?? "json").toLowerCase();
+    const snapshot = await generateSnapshot(sid);
+    if (format === "download") {
+      const date = new Date().toISOString().split("T")[0];
+      const filename = `backup-shop-${sid}-${date}.json`;
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Type", "application/json");
+      return res.status(200).send(JSON.stringify(snapshot, null, 2));
+    }
+    return ok(res, { ...snapshot as Record<string, unknown>, days });
   } catch (e) { next(e); }
 });
 

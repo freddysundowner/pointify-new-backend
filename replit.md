@@ -72,10 +72,11 @@ The schema is split into domain files. Every MongoDB model has been mapped to a 
 | `awards-transactions.ts` | `awards`, `award_shops`, `affiliate_transactions` |
 | `activities.ts` | `activities` |
 | `email-messages.ts` | `email_messages`, `emails_sent` |
+| `loyalty.ts` | `loyalty_transactions` |
 
 ## API Status (fully working)
 
-All 271 endpoints across 23 sections implemented and verified passing:
+All 275+ endpoints across 25 sections implemented and verified passing:
 
 | Section | Mutations fixed |
 |---|---|
@@ -97,6 +98,14 @@ All 271 endpoints across 23 sections implemented and verified passing:
 - Attendant `POST /attendants` now inserts hashed `password` (DB NOT NULL)
 - Stock-requests generates unique `invoiceNumber` (`SRQ{timestamp}{random}`)
 - Transfers require existing `toShopId` shop (FK constraint)
+- **Attendant sales isolation**: `GET /sales` auto-filters to the calling attendant's own sales
+- **Service/virtual product inventory skip**: sales with product type `service` or `virtual` no longer deduct inventory or record product history
+- **Loyalty programme**: `POST /sales` supports `redeemPoints` body field; points earned on every completed sale based on `shop.pointsPerAmount`/`shop.pointsValue`; `GET /customers/:id/loyalty` and `POST /customers/:id/loyalty/adjust` endpoints added; `loyalty_transactions` table tracks all earn/redeem events
+- **Inventory movements**: `GET /inventory/movements` returns out_of_stock, low_stock, fast_moving, slow_moving, dormant categories for a configurable period (`?days=` `?topN=`)
+- **Inventory status filter**: `GET /inventory?status=` filters by inventory status (active | low | out_of_stock)
+- **Backup snapshot**: `GET /shops/:shopId/reports/backup` returns a full JSON snapshot (products, customers, inventory, last-30-days sales/purchases/expenses); `?format=download` triggers file download; scheduled nightly backup job emails the snapshot to `shop.backupEmail`
+- **Receipt customisation**: `shop.receiptLogo` (img URL), `shop.receiptFooter` (custom text), `shop.receiptShowTax` (bool), `shop.receiptShowDiscount` (bool) now reflected in HTML receipt template
+- **Shop settings extended**: `PUT /shops/:shopId` and `POST /shops` now accept all new receipt/loyalty fields (`receiptLogo`, `receiptFooter`, `receiptShowTax`, `receiptShowDiscount`, `loyaltyEnabled`, `pointsPerAmount`, `pointsValue`)
 
 ### MongoDB → PostgreSQL design decisions
 

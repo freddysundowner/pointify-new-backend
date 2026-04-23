@@ -134,6 +134,10 @@ router.post("/", requireAdmin, async (req, res, next) => {
       showStockOnline, showPriceOnline,
       isWarehouse, allowBackup, trackBatches,
       allowOnlineSelling, allowNegativeSelling, isProduction,
+      // Receipt customisation
+      receiptLogo, receiptFooter, receiptShowTax, receiptShowDiscount,
+      // Loyalty programme
+      loyaltyEnabled, pointsPerAmount, pointsValue,
     } = req.body ?? {};
     if (!name) throw badRequest("name is required");
 
@@ -167,6 +171,15 @@ router.post("/", requireAdmin, async (req, res, next) => {
       ...(allowOnlineSelling !== undefined && { allowOnlineSelling: Boolean(allowOnlineSelling) }),
       ...(allowNegativeSelling !== undefined && { allowNegativeSelling: Boolean(allowNegativeSelling) }),
       ...(isProduction !== undefined && { isProduction: Boolean(isProduction) }),
+      // Receipt customisation
+      ...(receiptLogo !== undefined && { receiptLogo: blank(receiptLogo) ? null : String(receiptLogo) }),
+      ...(receiptFooter !== undefined && { receiptFooter: blank(receiptFooter) ? null : String(receiptFooter) }),
+      ...(receiptShowTax !== undefined && { receiptShowTax: Boolean(receiptShowTax) }),
+      ...(receiptShowDiscount !== undefined && { receiptShowDiscount: Boolean(receiptShowDiscount) }),
+      // Loyalty
+      ...(loyaltyEnabled !== undefined && { loyaltyEnabled: Boolean(loyaltyEnabled) }),
+      ...(pointsPerAmount !== undefined && { pointsPerAmount: blank(pointsPerAmount) ? "0" : String(pointsPerAmount) }),
+      ...(pointsValue !== undefined && { pointsValue: blank(pointsValue) ? "0" : String(pointsValue) }),
     }).returning();
 
     // Auto-create a trial subscription for the new shop.
@@ -253,7 +266,12 @@ router.put("/:shopId", requireAdmin, async (req, res, next) => {
       receiptEmail, warehouseEmail, backupEmail, backupInterval,
       showStockOnline, showPriceOnline, locationLat, locationLng,
       isWarehouse, allowBackup, trackBatches,
-      allowOnlineSelling, allowNegativeSelling, isProduction } = req.body ?? {};
+      allowOnlineSelling, allowNegativeSelling, isProduction,
+      // Receipt customisation
+      receiptLogo, receiptFooter, receiptShowTax, receiptShowDiscount,
+      // Loyalty
+      loyaltyEnabled, pointsPerAmount, pointsValue,
+    } = req.body ?? {};
 
     const blank = (v: unknown) => v === undefined || v === null || v === "";
     const numOrZero = (v: unknown) => (blank(v) ? 0 : Number(v));
@@ -282,6 +300,15 @@ router.put("/:shopId", requireAdmin, async (req, res, next) => {
       ...(allowOnlineSelling !== undefined && { allowOnlineSelling: Boolean(allowOnlineSelling) }),
       ...(allowNegativeSelling !== undefined && { allowNegativeSelling: Boolean(allowNegativeSelling) }),
       ...(isProduction !== undefined && { isProduction: Boolean(isProduction) }),
+      // Receipt customisation
+      ...(receiptLogo !== undefined && { receiptLogo: blank(receiptLogo) ? null : String(receiptLogo) }),
+      ...(receiptFooter !== undefined && { receiptFooter: blank(receiptFooter) ? null : String(receiptFooter) }),
+      ...(receiptShowTax !== undefined && { receiptShowTax: Boolean(receiptShowTax) }),
+      ...(receiptShowDiscount !== undefined && { receiptShowDiscount: Boolean(receiptShowDiscount) }),
+      // Loyalty
+      ...(loyaltyEnabled !== undefined && { loyaltyEnabled: Boolean(loyaltyEnabled) }),
+      ...(pointsPerAmount !== undefined && { pointsPerAmount: blank(pointsPerAmount) ? "0" : String(pointsPerAmount) }),
+      ...(pointsValue !== undefined && { pointsValue: blank(pointsValue) ? "0" : String(pointsValue) }),
     }).where(eq(shops.id, shopId)).returning();
 
     return ok(res, updated);

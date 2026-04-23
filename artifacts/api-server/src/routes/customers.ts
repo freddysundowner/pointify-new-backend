@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, ilike, and, sql } from "drizzle-orm";
-import { customers, customerWalletTransactions } from "@workspace/db";
+import { eq, ilike, and, sql, desc } from "drizzle-orm";
+import { customers, customerWalletTransactions, loyaltyTransactions, shops } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -300,6 +300,76 @@ router.post("/:id/wallet/payment", requireAdminOrAttendant, async (req, res, nex
   try {
     const result = await applyWalletChange(req, "payment", (n) => -n);
     return ok(res, { ...result, note: "Wallet applied to outstanding balance (stub)" });
+  } catch (e) { next(e); }
+});
+
+// ── Loyalty ─────────────────────────────────────────────────────────────────
+
+// GET /customers/:id/loyalty — balance + recent transaction history
+router.get("/:id/loyalty", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const cust = await db.query.customers.findFirst({
+      where: eq(customers.id, Number(req.params["id"])),
+      columns: { id: true, name: true, loyaltyPoints: true, shop: true },
+    });
+    if (!cust) throw notFound("Customer");
+    await assertShopOwnership(req, cust.shop);
+
+    const shopSettings = await db.query.shops.findFirst({
+      where: eq(shops.id, cust.shop),
+      columns: { loyaltyEnabled: true, pointsPerAmount: true, pointsValue: true },
+    });
+
+    const transactions = await db.query.loyaltyTransactions.findMany({
+      where: and(
+        eq(loyaltyTransactions.customer, cust.id),
+        eq(loyaltyTransactions.shop, cust.shop),
+      ),
+      orderBy: [desc(loyaltyTransactions.createdAt)],
+      limit: 50,
+    });
+
+    return ok(res, {
+      customerId: cust.id,
+      customerName: cust.name,
+      loyaltyPoints: parseFloat(String(cust.loyaltyPoints ?? 0)),
+      shopSettings,
+      transactions,
+    });
+  } catch (e) { next(e); }
+});
+
+// POST /customers/:id/loyalty/adjust — manually add or deduct points (admin only)
+router.post("/:id/loyalty/adjust", requireAdmin, async (req, res, next) => {
+  try {
+    const { points, note } = req.body as { points: number; note?: string };
+    if (!points || isNaN(Number(points))) throw badRequest("points (number) is required");
+
+    const cust = await db.query.customers.findFirst({
+      where: eq(customers.id, Number(req.params["id"])),
+      columns: { id: true, name: true, loyaltyPoints: true, shop: true },
+    });
+    if (!cust) throw notFound("Customer");
+    await assertShopOwnership(req, cust.shop);
+
+    const current = parseFloat(String(cust.loyaltyPoints ?? 0));
+    const delta = Number(points);
+    const newBalance = Math.max(0, current + delta);
+
+    await db.update(customers)
+      .set({ loyaltyPoints: String(newBalance.toFixed(2)) })
+      .where(eq(customers.id, cust.id));
+
+    const [tx] = await db.insert(loyaltyTransactions).values({
+      customer: cust.id,
+      shop: cust.shop,
+      type: delta >= 0 ? "earn" : "redeem",
+      points: String(delta.toFixed(2)),
+      balanceAfter: String(newBalance.toFixed(2)),
+      note: note ?? "Manual adjustment",
+    }).returning();
+
+    return ok(res, { loyaltyPoints: newBalance, transaction: tx });
   } catch (e) { next(e); }
 });
 

@@ -57,6 +57,19 @@ export const shops = pgTable(
     backupInterval: text("backup_interval"),
     backupDate: timestamp("backup_date"),
 
+    // Receipt customisation — controls what appears on the printed/digital receipt
+    receiptLogo: text("receipt_logo"),
+    receiptFooter: text("receipt_footer"),
+    receiptShowTax: boolean("receipt_show_tax").notNull().default(true),
+    receiptShowDiscount: boolean("receipt_show_discount").notNull().default(true),
+
+    // Loyalty points — earn points on purchase, redeem for discounts
+    loyaltyEnabled: boolean("loyalty_enabled").notNull().default(false),
+    // How much the customer must spend (in shop currency) to earn 1 loyalty point
+    pointsPerAmount: numeric("points_per_amount", { precision: 10, scale: 4 }).notNull().default("0"),
+    // Monetary value of 1 loyalty point (in shop currency) when redeemed
+    pointsValue: numeric("points_value", { precision: 10, scale: 4 }).notNull().default("0"),
+
     // Feature flags
     showStockOnline: boolean("show_stock_online").notNull().default(false),
     showPriceOnline: boolean("show_price_online").notNull().default(false),
