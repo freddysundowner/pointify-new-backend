@@ -3,7 +3,7 @@ import { eq, ilike, and, gte, lte, sql, inArray } from "drizzle-orm";
 import {
   products, productSerials, inventory, attributes, attributeVariants,
   bundleItems, saleItems, sales, purchaseItems, purchases,
-  adjustments, badStocks, transferItems, productTransfers,
+  adjustments, badStocks, transferItems, productTransfers, shops,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -15,17 +15,55 @@ import multer from "multer";
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
+/** Resolve which shop IDs the caller is allowed to see.
+ *  - attendant  → only their assigned shop
+ *  - admin      → all shops they own (or a specific one if shopId query param given)
+ *  - superAdmin → unrestricted (returns null = no shop filter)
+ */
+async function resolveShopFilter(req: any, requestedShopId: number | null): Promise<number[] | null> {
+  if (req.attendant) {
+    const sid = req.attendant.shopId as number;
+    if (requestedShopId && requestedShopId !== sid) return []; // cross-shop blocked → empty
+    return [sid];
+  }
+  if (req.admin) {
+    if (req.admin.isSuperAdmin) return null; // super admin: no restriction
+    if (requestedShopId) {
+      // verify admin owns this shop
+      const owned = await db.query.shops.findFirst({
+        where: and(eq(shops.id, requestedShopId), eq(shops.admin, req.admin.id)),
+        columns: { id: true },
+      });
+      return owned ? [requestedShopId] : []; // empty list → 0 results if they don't own it
+    }
+    // no specific shop → return all shops this admin owns
+    const ownedShops = await db.query.shops.findMany({
+      where: eq(shops.admin, req.admin.id),
+      columns: { id: true },
+    });
+    return ownedShops.map((s) => s.id);
+  }
+  return [];
+}
+
 router.get("/search", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const q = String(req.query["q"] ?? "").trim();
-    const shopId = Number(req.query["shopId"]);
-    if (!q || !shopId) throw badRequest("q and shopId required");
+    if (!q) throw badRequest("q is required");
+
+    const requestedShopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const allowedShops = await resolveShopFilter(req, requestedShopId);
+
+    const shopCondition = allowedShops === null
+      ? undefined
+      : allowedShops.length === 0
+        ? eq(products.id, -1) // no accessible shops → return nothing
+        : allowedShops.length === 1
+          ? eq(products.shop, allowedShops[0]!)
+          : inArray(products.shop, allowedShops);
 
     const rows = await db.query.products.findMany({
-      where: and(
-        eq(products.shop, shopId),
-        ilike(products.name, `%${q}%`),
-      ),
+      where: and(shopCondition, ilike(products.name, `%${q}%`)),
       limit: 20,
     });
     return ok(res, rows);
@@ -36,11 +74,21 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { page, limit, offset } = getPagination(req);
     const search = getSearch(req);
-    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const requestedShopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const categoryId = req.query["categoryId"] ? Number(req.query["categoryId"]) : null;
 
+    const allowedShops = await resolveShopFilter(req, requestedShopId);
+
+    const shopCondition = allowedShops === null
+      ? undefined
+      : allowedShops.length === 0
+        ? eq(products.id, -1)
+        : allowedShops.length === 1
+          ? eq(products.shop, allowedShops[0]!)
+          : inArray(products.shop, allowedShops);
+
     const conditions = [];
-    if (shopId) conditions.push(eq(products.shop, shopId));
+    if (shopCondition) conditions.push(shopCondition);
     if (categoryId) conditions.push(eq(products.category, categoryId));
     if (search) conditions.push(ilike(products.name, `%${search}%`));
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
