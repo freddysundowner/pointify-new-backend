@@ -1037,49 +1037,6 @@ You will **never** see another admin's data unless you are the super-admin.
         },
       },
     },
-    "/products/attributes": {
-      get: {
-        tags: ["Products"],
-        summary: "List product attributes (colour, size, etc.)",
-        ...auth(["Admin", "Attendant"]),
-        responses: dataResp("Attributes with variants"),
-      },
-      post: {
-        tags: ["Products"],
-        summary: "Create product attribute",
-        ...auth(["Admin"]),
-        ...body({
-          title:     strField("Display title, e.g. 'Colour'"),
-          name:      strField("Machine-readable key, e.g. 'color'"),
-          inputType: strField("select | radio | text | checkbox"),
-          type:      strField("Attribute type (optional)"),
-          status:    strField("active | inactive"),
-        }, ["title", "name"]),
-        responses: { ...createdResp("Attribute created"), ...errResp },
-      },
-    },
-    "/products/attributes/{id}": {
-      get: {
-        tags: ["Products"],
-        summary: "Get attribute with variants",
-        ...auth(["Admin", "Attendant"]),
-        parameters: [idParam()],
-        responses: { ...dataResp("Attribute"), 404: errResp[404] },
-      },
-    },
-    "/products/attributes/{id}/variants": {
-      post: {
-        tags: ["Products"],
-        summary: "Add variant to attribute",
-        ...auth(["Admin"]),
-        parameters: [idParam()],
-        ...body({
-          name:   strField("Variant value, e.g. 'Red'"),
-          status: strField("active | inactive"),
-        }, ["name"]),
-        responses: { ...createdResp("Variant added"), ...errResp },
-      },
-    },
     "/products/{id}": {
       get: {
         tags: ["Products"],

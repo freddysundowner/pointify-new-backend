@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq, ilike, and, gte, lte, sql, inArray, lower } from "drizzle-orm";
 import {
-  products, productSerials, inventory, attributes, attributeVariants,
+  products, productSerials, inventory,
   bundleItems, saleItems, sales, purchaseItems, purchases,
   adjustments, badStocks, transferItems, productTransfers, shops,
   batches,
@@ -219,48 +219,6 @@ router.post("/", requireAdmin, async (req, res, next) => {
     }).onConflictDoNothing();
 
     return created(res, product);
-  } catch (e) { next(e); }
-});
-
-// ── Attributes (must come before /:id to avoid conflict) ─────────────────────
-
-router.get("/attributes", requireAdminOrAttendant, async (_req, res, next) => {
-  try {
-    const rows = await db.select().from(attributes);
-    const variants = await db.select().from(attributeVariants);
-    const enriched = rows.map((attr) => ({
-      ...attr,
-      variants: variants.filter((v) => v.attributeId === attr.id),
-    }));
-    return ok(res, enriched);
-  } catch (e) { next(e); }
-});
-
-router.post("/attributes", requireAdmin, async (req, res, next) => {
-  try {
-    const { title, name, inputType, type, status } = req.body;
-    if (!title || !name) throw badRequest("title and name are required");
-    const [row] = await db.insert(attributes).values({ title, name, inputType, type, status }).returning();
-    return created(res, row);
-  } catch (e) { next(e); }
-});
-
-router.get("/attributes/:id", requireAdminOrAttendant, async (req, res, next) => {
-  try {
-    const attr = await db.select().from(attributes).where(eq(attributes.id, Number(req.params["id"])));
-    if (!attr.length) throw notFound("Attribute not found");
-    const variants = await db.select().from(attributeVariants).where(eq(attributeVariants.attributeId, Number(req.params["id"])));
-    return ok(res, { ...attr[0], variants });
-  } catch (e) { next(e); }
-});
-
-router.post("/attributes/:id/variants", requireAdmin, async (req, res, next) => {
-  try {
-    const attrId = Number(req.params["id"]);
-    const { name, status } = req.body;
-    if (!name) throw badRequest("name is required");
-    const [row] = await db.insert(attributeVariants).values({ attributeId: attrId, name, status }).returning();
-    return created(res, row);
   } catch (e) { next(e); }
 });
 
