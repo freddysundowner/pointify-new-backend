@@ -23,8 +23,8 @@ function toLabel(snakeCase: string): string {
 function parseFkDetail(detail: string): string {
   const m = detail.match(/Key \(([^)]+)\)=\(([^)]*)\) is not present in table "([^"]+)"/);
   if (m) {
-    const [, field, value] = m;
-    return `${toLabel(field)} "${value}" not found`;
+    const [, field] = m;
+    return `${toLabel(field)} not found`;
   }
   return "A required related record does not exist";
 }
@@ -34,7 +34,7 @@ function parseUniqueDetail(detail: string): string {
   const m = detail.match(/Key \(([^)]+)\)=\(([^)]*)\) already exists/);
   if (m) {
     const [, field, value] = m;
-    return `${toLabel(field)} "${value}" already exists`;
+    return `${toLabel(field)} "${value}" is already taken`;
   }
   return "A record with that value already exists";
 }
