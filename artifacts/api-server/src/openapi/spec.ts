@@ -334,11 +334,11 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
         summary: "Register a new admin account",
         description: "Creates an admin account and sends a 6-digit OTP to the provided email for verification.",
         ...body({
-          name:         { ...strField("Full name", "Jane Doe"), },
-          email:        { type: "string", format: "email", example: "jane@example.com" },
-          password:     { type: "string", format: "password", minLength: 6 },
-          phone:        { ...strField("Phone number (optional)", "+254712345678") },
-          referralCode: { ...strField("Affiliate referral code (optional)") },
+          name:         { type: "string", description: "Full name",                        example: "Jane Doe" },
+          email:        { type: "string", format: "email",                                 example: "jane@example.com" },
+          password:     { type: "string", format: "password", minLength: 6,                example: "MyStr0ngPass!" },
+          phone:        { type: "string", description: "Phone number (optional)",          example: "+254712345678" },
+          referralCode: { type: "string", description: "Affiliate referral code (optional)", example: "ABC123" },
         }, ["name", "email", "password"]),
         responses: {
           ...createdResp("Admin registered — OTP sent to email", {
@@ -383,8 +383,8 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
         summary: "Admin login",
         description: "Returns a JWT bearer token valid for 30 days.",
         ...body({
-          email:    { type: "string", format: "email" },
-          password: { type: "string", format: "password" },
+          email:    { type: "string", format: "email",    example: "jane@example.com" },
+          password: { type: "string", format: "password", example: "MyStr0ngPass!" },
         }, ["email", "password"]),
         responses: {
           ...dataResp("Login successful", {
@@ -919,24 +919,35 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
         tags: ["Products"],
         summary: "Create a product",
         ...auth(["Admin", "Attendant"]),
-        ...body({
-          name:           strField("Product name"),
-          shopId:         intId("Shop this product belongs to"),
-          categoryId:     { ...intId("Product category ID (optional)") },
-          barcode:        strField("Barcode / SKU (optional)"),
-          serialNumber:   strField("Serial number (optional)"),
-          buyingPrice:    { type: "number", description: "Unit buying/cost price" },
-          sellingPrice:   { type: "number", description: "Default retail selling price" },
-          wholesalePrice: { type: "number", description: "Wholesale selling price" },
-          dealerPrice:    { type: "number", description: "Dealer selling price" },
-          measureUnit:    strField("Unit of measure (e.g. pcs, kg)"),
-          manufacturer:   strField("Manufacturer or brand name"),
-          supplierId:     intId("Default supplier ID (optional)"),
-          description:    strField("Product description"),
-          alertQuantity:  { type: "number", description: "Low-stock alert threshold" },
-          expiryDate:     { type: "string", format: "date", description: "Product expiry date" },
-          type:           { type: "string", enum: ["product", "service", "bundle"], default: "product" },
-        }, ["name", "shopId"]),
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["name", "shopId"],
+                properties: {
+                  name:           { type: "string",  description: "Product name",                                       example: "Premium Milk 500ml" },
+                  shopId:         { type: "integer", description: "Shop this product belongs to",                        example: 1 },
+                  categoryId:     { type: "integer", description: "Product category ID (optional)",                      example: 3 },
+                  barcode:        { type: "string",  description: "Barcode / SKU (optional)",                            example: "6001068024061" },
+                  serialNumber:   { type: "string",  description: "Serial number (optional)",                            example: "SN-00123" },
+                  buyingPrice:    { type: "number",  description: "Unit buying/cost price",                              example: 45 },
+                  sellingPrice:   { type: "number",  description: "Default retail selling price",                        example: 60 },
+                  wholesalePrice: { type: "number",  description: "Wholesale selling price",                             example: 55 },
+                  dealerPrice:    { type: "number",  description: "Dealer selling price",                                example: 50 },
+                  measureUnit:    { type: "string",  description: "Unit of measure (e.g. pcs, kg, litres)",              example: "pcs" },
+                  manufacturer:   { type: "string",  description: "Manufacturer or brand name",                         example: "Brookside Dairy" },
+                  supplierId:     { type: "integer", description: "Default supplier ID (optional)",                      example: 2 },
+                  description:    { type: "string",  description: "Product description",                                 example: "Full-cream pasteurised milk, 500 ml tetra pack" },
+                  alertQuantity:  { type: "number",  description: "Low-stock alert threshold",                           example: 10 },
+                  expiryDate:     { type: "string",  format: "date", description: "Product expiry date",                 example: "2026-12-31" },
+                  type:           { type: "string",  enum: ["product", "service", "bundle"], description: "Product type", example: "product" },
+                },
+              },
+            },
+          },
+        },
         responses: {
           ...createdResp("Product created", { id: intId("Product ID"), name: { type: "string" } }),
           ...errResp,
@@ -1576,13 +1587,13 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
         summary: "Create customer",
         ...auth(["Admin", "Attendant"]),
         ...body({
-          name:        strField("Customer full name"),
-          shopId:      intId("Shop ID"),
-          phone:       strField("Phone number"),
-          email:       { type: "string", format: "email", description: "Email (optional)" },
-          address:     strField("Delivery/billing address (optional)"),
-          creditLimit: { type: "number", description: "Maximum credit allowed (optional)" },
-          type:        { type: "string", enum: ["retail", "wholesale", "dealer", "online"], default: "retail" },
+          name:        { type: "string",  description: "Customer full name",                          example: "John Kamau" },
+          shopId:      { type: "integer", description: "Shop ID",                                     example: 1 },
+          phone:       { type: "string",  description: "Phone number",                                example: "+254712345678" },
+          email:       { type: "string",  format: "email", description: "Email (optional)",           example: "john.kamau@gmail.com" },
+          address:     { type: "string",  description: "Delivery/billing address (optional)",         example: "Westlands, Nairobi" },
+          creditLimit: { type: "number",  description: "Maximum credit allowed (optional)",           example: 5000 },
+          type:        { type: "string",  enum: ["retail", "wholesale", "dealer", "online"],          example: "retail" },
         }, ["name", "shopId", "phone"]),
         responses: { ...createdResp("Customer created", { id: intId("Customer ID"), customerNo: intId("Sequential no.") }), ...errResp },
       },
@@ -1822,16 +1833,35 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
         summary: "Record a sale",
         description: "Creates the sale, its line items, and (if amountPaid > 0 and attendant token used) a payment record. Also triggers receipt email and SMS notifications.",
         ...auth(["Admin", "Attendant"]),
-        ...body({
-          shopId:        intId("Shop ID"),
-          customerId:    intId("Customer ID (optional — for credit/loyalty tracking)"),
-          items:         { type: "array", description: "At least one item required", items: saleItemInput },
-          paymentMethod: { type: "string", description: "Payment method name — must match an active entry in the payment methods catalog", example: "Cash" },
-          amountPaid:    { type: "number", description: "Amount tendered by customer (defaults to totalWithDiscount)" },
-          discount:      { type: "number", description: "Order-level discount (on top of per-line discounts)", default: 0 },
-          note:          strField("Sale note / memo (optional)"),
-          saleType:      { type: "string", enum: ["Retail", "Wholesale", "Dealer"], default: "Retail" },
-        }, ["shopId", "items"]),
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["shopId", "items"],
+                properties: {
+                  shopId:        { type: "integer", description: "Shop ID",                                                               example: 1 },
+                  customerId:    { type: "integer", description: "Customer ID (optional — for credit/loyalty tracking)",                  example: 5 },
+                  paymentMethod: { type: "string",  description: "Must match an active payment method name",                             example: "Cash" },
+                  amountPaid:    { type: "number",  description: "Amount tendered (defaults to order total)",                            example: 500 },
+                  discount:      { type: "number",  description: "Order-level discount amount",                                          example: 20 },
+                  note:          { type: "string",  description: "Sale note or memo",                                                    example: "Customer requested gift wrap" },
+                  saleType:      { type: "string",  enum: ["Retail", "Wholesale", "Dealer"],                                             example: "Retail" },
+                  items: {
+                    type: "array",
+                    description: "At least one line item required",
+                    items: saleItemInput,
+                    example: [
+                      { productId: 7, quantity: 3, unitPrice: 60 },
+                      { productId: 12, quantity: 1, unitPrice: 350, discount: 20 },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
         responses: {
           ...createdResp("Sale recorded", {
             id:                 intId("Sale ID"),
@@ -1975,14 +2005,33 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
         summary: "Create purchase / GRN",
         description: "Records stock received from a supplier. Automatically triggers a purchase order email to the supplier.",
         ...auth(["Admin"]),
-        ...body({
-          shopId:      intId("Shop receiving the goods"),
-          supplierId:  intId("Supplier ID (optional)"),
-          items:       { type: "array", items: purchaseItemInput },
-          amountPaid:  { type: "number", description: "Amount paid upfront (0 for full credit)", default: 0 },
-          note:        strField("Purchase note / reference (optional)"),
-          paymentType: { type: "string", description: "Payment method (cash | bank | mpesa | credit)", default: "cash" },
-        }, ["shopId", "items"]),
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["shopId", "items"],
+                properties: {
+                  shopId:      { type: "integer", description: "Shop receiving the goods",                     example: 1 },
+                  supplierId:  { type: "integer", description: "Supplier ID (optional)",                       example: 2 },
+                  amountPaid:  { type: "number",  description: "Amount paid upfront (0 = full credit)",        example: 0 },
+                  note:        { type: "string",  description: "Purchase note or reference",                   example: "Invoice #INV-2026-001" },
+                  paymentType: { type: "string",  description: "cash | bank | mpesa | credit",                 example: "cash" },
+                  items: {
+                    type: "array",
+                    description: "Products being received",
+                    items: purchaseItemInput,
+                    example: [
+                      { productId: 7,  quantity: 50, buyingPrice: 45 },
+                      { productId: 12, quantity: 20, buyingPrice: 280, batchCode: "BATCH-A1", expiryDate: "2027-06-30" },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
         responses: {
           ...createdResp("Purchase created", {
             id:                 intId("Purchase ID"),
@@ -2095,11 +2144,11 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
         summary: "Create supplier",
         ...auth(["Admin"]),
         ...body({
-          name:    strField("Supplier / company name"),
-          shopId:  intId("Shop ID"),
-          phone:   strField("Contact phone (optional)"),
-          email:   { type: "string", format: "email", description: "Contact email (optional)" },
-          address: strField("Address (optional)"),
+          name:    { type: "string",  description: "Supplier / company name",    example: "Unilever Kenya Ltd" },
+          shopId:  { type: "integer", description: "Shop ID",                    example: 1 },
+          phone:   { type: "string",  description: "Contact phone (optional)",   example: "+254700123456" },
+          email:   { type: "string",  format: "email",                           example: "orders@unilever.co.ke" },
+          address: { type: "string",  description: "Address (optional)",         example: "Industrial Area, Nairobi" },
         }, ["name", "shopId"]),
         responses: { ...createdResp("Supplier created"), ...errResp },
       },
