@@ -11,7 +11,7 @@ import {
   activities,
   expenses, cashflows, userPayments,
   inventory,
-  products, batches, productSerials, bundleItems as bundleItemsTable,
+  products, batches, productSerials, bundleItems as bundleItemsTable, productHistory,
   customers, customerWalletTransactions,
   suppliers, supplierWalletTransactions,
 } from "@workspace/db";
@@ -331,6 +331,17 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
         await tx.select({ id: products.id }).from(products).where(eq(products.shop, shopId))
       ).map((r) => r.id);
 
+      // productHistory must be removed before products due to non-cascade FK.
+      // Delete by shopId (events recorded in this shop) AND by product ownership
+      // (events recorded in other shops for this shop's products).
+      if (shopProductIds.length > 0) {
+        await tx.delete(productHistory).where(
+          or(eq(productHistory.shop, shopId), inArray(productHistory.product, shopProductIds))
+        );
+      } else {
+        await tx.delete(productHistory).where(eq(productHistory.shop, shopId));
+      }
+
       if (shopProductIds.length > 0) {
         // bundleItems has FKs to products on both parent and component columns
         await tx.delete(bundleItemsTable).where(
@@ -340,11 +351,22 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
           ),
         );
 
-        // productSerials, batches and inventory can live in OTHER shops while
-        // referencing this shop's products — filter by product id, not by shop
-        await tx.delete(productSerials).where(inArray(productSerials.product, shopProductIds));
-        await tx.delete(batches).where(inArray(batches.product, shopProductIds));
-        await tx.delete(inventory).where(inArray(inventory.product, shopProductIds));
+        // Delete by product ownership (cross-shop rows like transferred inventory)
+        // AND by shop (rows in this shop for other shops' products e.g. transfers in)
+        await tx.delete(productSerials).where(
+          or(inArray(productSerials.product, shopProductIds), eq(productSerials.shop, shopId))
+        );
+        await tx.delete(batches).where(
+          or(inArray(batches.product, shopProductIds), eq(batches.shop, shopId))
+        );
+        await tx.delete(inventory).where(
+          or(inArray(inventory.product, shopProductIds), eq(inventory.shop, shopId))
+        );
+      } else {
+        // No products owned by this shop, but still clean up any in-shop rows
+        await tx.delete(productSerials).where(eq(productSerials.shop, shopId));
+        await tx.delete(batches).where(eq(batches.shop, shopId));
+        await tx.delete(inventory).where(eq(inventory.shop, shopId));
       }
 
       await tx.delete(products).where(eq(products.shop, shopId));
