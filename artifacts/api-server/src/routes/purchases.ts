@@ -85,6 +85,14 @@ router.post("/", requireAdmin, async (req, res, next) => {
         const qty = String(item.quantity ?? 1);
         const buyPrice = String(item.buyingPrice ?? item.unitPrice ?? 0);
 
+        // Read existing inventory quantity BEFORE the upsert so we can record before/after
+        const existing = await db.query.inventory.findFirst({
+          where: and(eq(inventory.product, itemRow.product), eq(inventory.shop, sid)),
+          columns: { quantity: true },
+        });
+        const qtyBefore = existing ? String(existing.quantity) : "0";
+        const qtyAfter  = String(parseFloat(qtyBefore) + parseFloat(qty));
+
         // Create a batch for this stock lot
         const [batch] = await db.insert(batches).values({
           product: itemRow.product,
@@ -118,7 +126,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
             },
           });
 
-        return { ...itemRow, batchId: batch?.id ?? null };
+        return { ...itemRow, batchId: batch?.id ?? null, qtyBefore, qtyAfter };
       })
     );
 
@@ -133,13 +141,15 @@ router.post("/", requireAdmin, async (req, res, next) => {
     }
 
     await recordProductHistory(
-      itemRows.map((itemRow) => ({
+      enrichedItems.map((itemRow) => ({
         product: itemRow.product,
         shop: sid,
         eventType: "purchase" as const,
         referenceId: itemRow.id,
         quantity: itemRow.quantity,
         unitPrice: itemRow.unitPrice,
+        quantityBefore: itemRow.qtyBefore,
+        quantityAfter: itemRow.qtyAfter,
         note: purchase.purchaseNo,
       }))
     );
