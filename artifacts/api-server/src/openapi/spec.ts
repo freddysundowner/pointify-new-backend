@@ -959,8 +959,8 @@ Use the **Authorize** button (top-right) and enter \`Bearer <token>\` to authent
         description: "Returns up to 20 matches — optimised for POS autocomplete.",
         ...auth(["Admin", "Attendant"]),
         parameters: [
-          { name: "q",      in: "query", required: true,  description: "Search term", schema: { type: "string" } },
-          { name: "shopId", in: "query", required: true,  description: "Shop to search within", schema: { type: "integer" } },
+          { name: "q",      in: "query", required: true,  description: "Search term (partial name match)", schema: { type: "string", example: "bread" } },
+          { name: "shopId", in: "query", required: false, description: "Filter to a specific shop (omit to search across all your shops)", schema: { type: "integer" } },
         ],
         responses: listResp("Matched products"),
       },
