@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { sales, saleItems, salePayments, products, inventory, customers, paymentMethods } from "@workspace/db";
+import { sales, saleItems, salePayments, products, inventory, customers, paymentMethods, batches, saleItemBatches } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -125,6 +125,57 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         attendant: req.attendant?.id ?? undefined,
       }))
     ).returning();
+
+    // Deduct inventory and consume batches (FEFO) for each sold item
+    await Promise.all(
+      itemRows.map(async (itemRow, i) => {
+        const item = items[i];
+        const soldQty = Number(item.quantity ?? 1);
+        const productId = Number(item.productId);
+        const sid = Number(shopId);
+
+        // Deduct from inventory (floor at 0 to avoid negative stock)
+        await db.update(inventory)
+          .set({
+            quantity: sql`GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric)`,
+            status: sql`CASE
+              WHEN GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric) <= 0 THEN 'out_of_stock'
+              WHEN GREATEST(0, ${inventory.quantity} - ${soldQty}::numeric) <= ${inventory.reorderLevel} THEN 'low'
+              ELSE 'active'
+            END`,
+          })
+          .where(and(eq(inventory.product, productId), eq(inventory.shop, sid)));
+
+        // Consume batches FEFO (earliest expiry first, then oldest by created_at)
+        const availableBatches = await db.query.batches.findMany({
+          where: and(eq(batches.product, productId), eq(batches.shop, sid)),
+          orderBy: (b, { asc }) => [
+            sql`${b.expirationDate} IS NULL`,   // nulls last
+            asc(b.expirationDate),
+            asc(b.createdAt),
+          ],
+        });
+
+        let remaining = soldQty;
+        for (const batch of availableBatches) {
+          if (remaining <= 0) break;
+          const available = Number(batch.quantity);
+          if (available <= 0) continue;
+          const taken = Math.min(remaining, available);
+          remaining -= taken;
+
+          await db.update(batches)
+            .set({ quantity: sql`GREATEST(0, ${batches.quantity} - ${taken}::numeric)` })
+            .where(eq(batches.id, batch.id));
+
+          await db.insert(saleItemBatches).values({
+            saleItem: itemRow.id,
+            batch: batch.id,
+            quantityTaken: String(taken),
+          });
+        }
+      })
+    );
 
     if (paid > 0 && req.attendant) {
       await db.insert(salePayments).values({

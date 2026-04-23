@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, and, gte, lte } from "drizzle-orm";
-import { purchases, purchaseItems, purchasePayments } from "@workspace/db";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { purchases, purchaseItems, purchasePayments, batches, inventory } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -42,6 +42,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
     const { shopId, supplierId, items, amountPaid, note, paymentType } = req.body;
     if (!shopId || !items?.length) throw badRequest("shopId and items required");
 
+    const sid = Number(shopId);
     let totalAmount = 0;
     for (const item of items) totalAmount += (item.buyingPrice ?? 0) * (item.quantity ?? 1);
 
@@ -49,7 +50,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
     const outstanding = Math.max(0, totalAmount - paid);
 
     const [purchase] = await db.insert(purchases).values({
-      shop: Number(shopId),
+      shop: sid,
       supplier: supplierId ? Number(supplierId) : null,
       totalAmount: String(totalAmount),
       amountPaid: String(paid),
@@ -59,10 +60,11 @@ router.post("/", requireAdmin, async (req, res, next) => {
       createdBy: req.attendant?.id ?? undefined,
     } as typeof purchases.$inferInsert).returning();
 
+    // Insert purchase items (without batch link yet)
     const itemRows = await db.insert(purchaseItems).values(
       items.map((item: any) => ({
         purchase: purchase.id,
-        shop: Number(shopId),
+        shop: sid,
         product: Number(item.productId),
         receivedBy: req.attendant?.id ?? undefined,
         quantity: String(item.quantity ?? 1),
@@ -72,6 +74,50 @@ router.post("/", requireAdmin, async (req, res, next) => {
         batchCode: item.batchCode ?? null,
       }))
     ).returning();
+
+    // For each item: create a batch row and upsert inventory
+    const enrichedItems = await Promise.all(
+      itemRows.map(async (itemRow, i) => {
+        const item = items[i];
+        const qty = String(item.quantity ?? 1);
+        const buyPrice = String(item.buyingPrice ?? item.unitPrice ?? 0);
+
+        // Create a batch for this stock lot
+        const [batch] = await db.insert(batches).values({
+          product: itemRow.product,
+          shop: sid,
+          buyingPrice: buyPrice,
+          quantity: qty,
+          totalQuantity: qty,
+          expirationDate: item.expiryDate ? new Date(item.expiryDate) : null,
+          batchCode: item.batchCode ?? null,
+        }).onConflictDoNothing().returning();
+
+        // Link batch back to the purchase item (if batch was created)
+        if (batch) {
+          await db.update(purchaseItems)
+            .set({ batch: batch.id })
+            .where(eq(purchaseItems.id, itemRow.id));
+        }
+
+        // Upsert inventory: add received quantity (create row with qty if new)
+        await db.insert(inventory)
+          .values({ product: itemRow.product, shop: sid, quantity: qty })
+          .onConflictDoUpdate({
+            target: [inventory.product, inventory.shop],
+            set: {
+              quantity: sql`${inventory.quantity} + ${qty}::numeric`,
+              status: sql`CASE
+                WHEN ${inventory.quantity} + ${qty}::numeric <= 0 THEN 'out_of_stock'
+                WHEN ${inventory.quantity} + ${qty}::numeric <= ${inventory.reorderLevel} THEN 'low'
+                ELSE 'active'
+              END`,
+            },
+          });
+
+        return { ...itemRow, batchId: batch?.id ?? null };
+      })
+    );
 
     if (paid > 0 && req.attendant) {
       await db.insert(purchasePayments).values({
@@ -84,7 +130,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
     }
 
     void notifyPurchaseOrderToSupplier(purchase.id);
-    return created(res, { ...purchase, items: itemRows });
+    return created(res, { ...purchase, items: enrichedItems });
   } catch (e) { next(e); }
 });
 

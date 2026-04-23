@@ -4,6 +4,7 @@ import {
   products, productSerials, inventory, attributes, attributeVariants,
   bundleItems, saleItems, sales, purchaseItems, purchases,
   adjustments, badStocks, transferItems, productTransfers, shops,
+  batches,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -209,6 +210,13 @@ router.post("/", requireAdmin, async (req, res, next) => {
       productType: type ?? "product",
       createdBy: req.attendant?.id ?? null,
     }).returning();
+
+    // Always seed a zero-quantity inventory row so stock queries never miss a product
+    await db.insert(inventory).values({
+      product: product.id,
+      shop: Number(shopId),
+      quantity: "0",
+    }).onConflictDoNothing();
 
     return created(res, product);
   } catch (e) { next(e); }
@@ -661,6 +669,13 @@ router.post("/bulk-import", requireAdmin, async (req, res, next) => {
           productType: p.type ?? "product",
         }))
       ).returning();
+
+      // Seed a zero-quantity inventory row for every newly inserted product
+      if (inserted.length > 0) {
+        await db.insert(inventory).values(
+          inserted.map((p) => ({ product: p.id, shop: sid, quantity: "0" }))
+        ).onConflictDoNothing();
+      }
     }
 
     return ok(res, {
