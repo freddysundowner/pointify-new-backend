@@ -2,7 +2,6 @@ import express, { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
-import swaggerUi from "swagger-ui-express";
 import router from "./routes/index.js";
 import { errorHandler } from "./middlewares/error.js";
 import { logger } from "./lib/logger.js";
@@ -43,27 +42,50 @@ app.use((req, res, next) => {
 
 app.get("/api/openapi.json", (_req, res) => res.json(openApiSpec));
 
-app.use(
-  "/api/docs",
-  swaggerUi.serve,
-  swaggerUi.setup(openApiSpec as any, {
-    customSiteTitle: "Pointify POS API",
-    swaggerOptions: {
-      docExpansion: "none",
-      defaultModelsExpandDepth: -1,
-      persistAuthorization: true,
-      displayRequestDuration: true,
-      filter: true,
-      tagsSorter: "alpha",
-      operationsSorter: "alpha",
-    },
-    customCss: `
-      .swagger-ui .topbar { background-color: #6b21a8; }
-      .swagger-ui .topbar .download-url-wrapper { display: none; }
-      .swagger-ui .info h2.title { color: #6b21a8; }
-    `,
-  }),
-);
+app.get(["/api/docs", "/api/docs/"], (_req, res) => {
+  res.setHeader("Content-Type", "text/html");
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pointify POS API</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui.css" />
+  <style>
+    body { margin: 0; }
+    .swagger-ui .topbar { background-color: #6b21a8; }
+    .swagger-ui .topbar .download-url-wrapper { display: none; }
+    #loading { display:flex; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; font-size:1.1rem; color:#6b21a8; }
+  </style>
+</head>
+<body>
+  <div id="loading">Loading API docs&hellip;</div>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui-standalone-preset.js"></script>
+  <script>
+    window.addEventListener('load', function () {
+      document.getElementById('loading').style.display = 'none';
+      SwaggerUIBundle({
+        url: '/api/openapi.json',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        plugins: [SwaggerUIBundle.plugins.DownloadUrl],
+        layout: 'StandaloneLayout',
+        persistAuthorization: true,
+        displayRequestDuration: true,
+        filter: true,
+        docExpansion: 'none',
+        defaultModelsExpandDepth: -1,
+        tagsSorter: 'alpha',
+        operationsSorter: 'alpha',
+      });
+    });
+  </script>
+</body>
+</html>`);
+});
 
 app.use("/api", router);
 
