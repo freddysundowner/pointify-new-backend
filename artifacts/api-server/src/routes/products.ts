@@ -345,7 +345,7 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       measureUnit, manufacturer,
       supplierId, description, type,
       isTaxable, manageByPrice, expiryDate,
-      alertQuantity,
+      alertQuantity, reorderLevel,
     } = req.body;
 
     const trimmedName = name !== undefined ? String(name).trim() : undefined;
@@ -388,10 +388,11 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       updated = row;
     }
 
-    // alertQuantity lives on inventory.reorderLevel, not on the product row
-    if (alertQuantity !== undefined) {
+    // alertQuantity / reorderLevel both map to inventory.reorderLevel
+    const newReorderLevel = alertQuantity !== undefined ? alertQuantity : reorderLevel;
+    if (newReorderLevel !== undefined) {
       await db.update(inventory)
-        .set({ reorderLevel: String(alertQuantity) })
+        .set({ reorderLevel: String(newReorderLevel) })
         .where(and(eq(inventory.product, existing.id), eq(inventory.shop, existing.shop)));
     }
 
