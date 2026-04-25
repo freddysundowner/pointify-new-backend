@@ -52,7 +52,6 @@ const productSchema = z.object({
   buyingPrice: z.number().min(0, "Buying price must be positive").optional(),
   quantity: z.number().min(0, "Quantity must be positive").optional(),
   isBundle: z.boolean().default(false),
-  manageInventory: z.boolean().default(false),
   manageByPrice: z.boolean().default(false),
   productType: z.enum(["product", "service", "virtual"]).default("product"),
   barcode: z.string().optional().or(z.literal("")),
@@ -223,7 +222,6 @@ export default function ProductForm() {
       buyingPrice: 0,
       quantity: 0,
       isBundle: false,
-      manageInventory: false,
       manageByPrice: false,
       productType: "product",
       maxDiscount: 0,
@@ -278,7 +276,6 @@ export default function ProductForm() {
           Number(productData.buyingPrice) || Number(productData.costPrice) || 0,
         quantity: Number(productData.quantity) || 0,
         isBundle: Boolean(productData.bundle || productData.isBundle || productData.type === "bundle"),
-        manageInventory: false,
         manageByPrice: Boolean(productData.manageByPrice),
         productType: (
           productData.type === "service" ? "service"
@@ -345,7 +342,6 @@ export default function ProductForm() {
         buyingPrice: Number(productData.buyingPrice) || Number(productData.costPrice) || 0,
         quantity: Number(productData.quantity) || 0,
         isBundle: Boolean(productData.bundle || productData.isBundle || productData.type === "bundle"),
-        manageInventory: false,
         manageByPrice: Boolean(productData.manageByPrice),
         productType: (
           productData.type === "service" ? "service"
@@ -1216,7 +1212,6 @@ export default function ProductForm() {
 
                       {/* Other settings */}
                       {[
-                        { name: "manageInventory" as const, label: "Track Inventory", desc: "Monitor stock quantities" },
                         { name: "manageByPrice" as const, label: "Sell by Price", desc: "Use price-based selling" },
                       ].map(({ name, label, desc }) => (
                         <FormField
