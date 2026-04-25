@@ -109,7 +109,7 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
           ? eq(products.shop, allowedShops[0]!)
           : inArray(products.shop, allowedShops);
 
-    const conditions: any[] = [eq(products.isDeleted, false)];
+    const conditions: any[] = [];
     if (shopCondition) conditions.push(shopCondition);
     if (categoryId) conditions.push(eq(products.category, categoryId));
     if (search) conditions.push(ilike(products.name, `%${search}%`));
@@ -472,7 +472,7 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
     const { id } = (req as any).product;
-    await db.update(products).set({ isDeleted: true }).where(eq(products.id, id));
+    await db.delete(products).where(eq(products.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });
