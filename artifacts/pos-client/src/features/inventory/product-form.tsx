@@ -550,6 +550,14 @@ export default function ProductForm() {
   const productType = form.watch("productType");
   const isBundle = form.watch("isBundle");
 
+  // Auto-derive isBundle from selected products
+  useEffect(() => {
+    const hasBundle = Object.keys(selectedBundleProducts).length > 0;
+    if (hasBundle !== form.getValues("isBundle")) {
+      form.setValue("isBundle", hasBundle);
+    }
+  }, [selectedBundleProducts]);
+
   const typeOptions: { value: "product" | "service" | "virtual"; label: string }[] = [
     { value: "product", label: "Product" },
     { value: "service", label: "Service" },
@@ -1101,113 +1109,6 @@ export default function ProductForm() {
                   </div>
                 )}
 
-                {/* Bundle Products */}
-                {productType === "product" && isBundle && (
-                  <Card className="shadow-sm border-gray-100">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base font-semibold text-gray-800">Bundle Products</CardTitle>
-                      <p className="text-sm text-gray-400">Select products to include in this bundle</p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setIsBundleDialogOpen(true)}
-                          className="w-full h-10 border-dashed"
-                        >
-                          <Package className="h-4 w-4 mr-2 text-gray-400" />
-                          {Object.keys(selectedBundleProducts).length > 0
-                            ? `Manage Bundle Items (${Object.keys(selectedBundleProducts).length} selected)`
-                            : "Select Products to Bundle"}
-                        </Button>
-
-                        {Object.keys(selectedBundleProducts).length > 0 && (
-                          <div className="space-y-2">
-                            {Object.entries(selectedBundleProducts).map(([productId, data]) => {
-                              const productData = typeof data === "object" && "productName" in data
-                                ? data
-                                : { quantity: typeof data === "object" ? data.quantity : data, productName: undefined };
-                              const prod = products?.find((p) => p._id === productId);
-                              return (
-                                <div key={productId} className="flex items-center justify-between px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-100">
-                                  <p className="text-sm font-medium text-gray-700 flex-1">
-                                    {prod?.name || productData.productName || `Product ${productId}`}
-                                  </p>
-                                  <div className="flex items-center gap-2">
-                                    <Input
-                                      type="number"
-                                      min="1"
-                                      value={productData.quantity}
-                                      onChange={(e) => {
-                                        const newQty = parseInt(e.target.value) || 1;
-                                        setSelectedBundleProducts((prev) => ({
-                                          ...prev,
-                                          [productId]: {
-                                            ...(typeof prev[productId] === "object" ? prev[productId] : { productId, inventoryId: "", quantity: 1 }),
-                                            quantity: newQty,
-                                          },
-                                        }));
-                                      }}
-                                      className="w-16 h-8 text-xs text-center"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const n = { ...selectedBundleProducts };
-                                        delete n[productId];
-                                        setSelectedBundleProducts(n);
-                                      }}
-                                      className="text-gray-300 hover:text-red-500 transition-colors"
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-
-                      <BundleProductsSelector
-                        selectedBundleProducts={selectedBundleProducts}
-                        onToggleProduct={(productId: string, productData?: any) => {
-                          if (selectedBundleProducts[productId]) {
-                            const n = { ...selectedBundleProducts };
-                            delete n[productId];
-                            setSelectedBundleProducts(n);
-                          } else {
-                            setSelectedBundleProducts((prev) => ({
-                              ...prev,
-                              [productId]: { quantity: 1, productId, inventoryId: productData?.inventoryId || productData?._id || "", productName: productData?.name, sellingPrice: productData?.sellingPrice },
-                            }));
-                          }
-                        }}
-                        onUpdateQuantity={(productId: string, quantity: number) => {
-                          setSelectedBundleProducts((prev) => ({
-                            ...prev,
-                            [productId]: {
-                              ...(typeof prev[productId] === "object" ? prev[productId] : { productId, inventoryId: "", quantity: 1 }),
-                              quantity,
-                            },
-                          }));
-                        }}
-                        onRemoveProduct={(productId: string) => {
-                          const n = { ...selectedBundleProducts };
-                          delete n[productId];
-                          setSelectedBundleProducts(n);
-                        }}
-                        shopId={shopId}
-                        adminId={adminId}
-                        existingProducts={products || []}
-                        excludeProductId={productId || ""}
-                        isOpen={isBundleDialogOpen}
-                        onClose={() => setIsBundleDialogOpen(false)}
-                      />
-                    </CardContent>
-                  </Card>
-                )}
               </div>
 
               {/* ── RIGHT COLUMN ── */}
@@ -1243,8 +1144,78 @@ export default function ProductForm() {
                       <CardTitle className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Product Settings</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-1">
+                      {/* Bundle Product — opens dialog directly */}
+                      <button
+                        type="button"
+                        onClick={() => setIsBundleDialogOpen(true)}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors w-full text-left"
+                      >
+                        <Package className={`h-4 w-4 flex-shrink-0 ${isBundle ? "text-green-600" : "text-gray-400"}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-700">Bundle Product</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {isBundle
+                              ? `${Object.keys(selectedBundleProducts).length} product${Object.keys(selectedBundleProducts).length !== 1 ? "s" : ""} selected — tap to edit`
+                              : "Contains multiple products"}
+                          </p>
+                        </div>
+                        {isBundle && (
+                          <span className="text-xs font-semibold text-green-600 bg-green-50 rounded-full px-2 py-0.5">
+                            {Object.keys(selectedBundleProducts).length}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Inline bundle items list */}
+                      {isBundle && Object.keys(selectedBundleProducts).length > 0 && (
+                        <div className="mx-3 mb-1 space-y-1.5">
+                          {Object.entries(selectedBundleProducts).map(([productId, data]) => {
+                            const productData = typeof data === "object" && "productName" in data
+                              ? data
+                              : { quantity: typeof data === "object" ? data.quantity : data, productName: undefined };
+                            const prod = products?.find((p) => p._id === productId);
+                            return (
+                              <div key={productId} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-100">
+                                <p className="text-xs font-medium text-gray-700 flex-1 truncate">
+                                  {prod?.name || productData.productName || `Product ${productId}`}
+                                </p>
+                                <div className="flex items-center gap-1.5 ml-2">
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={productData.quantity}
+                                    onChange={(e) => {
+                                      const newQty = parseInt(e.target.value) || 1;
+                                      setSelectedBundleProducts((prev) => ({
+                                        ...prev,
+                                        [productId]: {
+                                          ...(typeof prev[productId] === "object" ? prev[productId] : { productId, inventoryId: "", quantity: 1 }),
+                                          quantity: newQty,
+                                        },
+                                      }));
+                                    }}
+                                    className="w-14 h-7 text-xs text-center"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const n = { ...selectedBundleProducts };
+                                      delete n[productId];
+                                      setSelectedBundleProducts(n);
+                                    }}
+                                    className="text-gray-300 hover:text-red-500 transition-colors"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Other settings */}
                       {[
-                        { name: "isBundle" as const, label: "Bundle Product", desc: "Contains multiple products" },
                         { name: "manageInventory" as const, label: "Track Inventory", desc: "Monitor stock quantities" },
                         { name: "manageByPrice" as const, label: "Sell by Price", desc: "Use price-based selling" },
                       ].map(({ name, label, desc }) => (
@@ -1266,6 +1237,43 @@ export default function ProductForm() {
                         />
                       ))}
                     </CardContent>
+
+                    {/* Bundle selector dialog lives here */}
+                    <BundleProductsSelector
+                      selectedBundleProducts={selectedBundleProducts}
+                      onToggleProduct={(productId: string, productData?: any) => {
+                        if (selectedBundleProducts[productId]) {
+                          const n = { ...selectedBundleProducts };
+                          delete n[productId];
+                          setSelectedBundleProducts(n);
+                        } else {
+                          setSelectedBundleProducts((prev) => ({
+                            ...prev,
+                            [productId]: { quantity: 1, productId, inventoryId: productData?.inventoryId || productData?._id || "", productName: productData?.name, sellingPrice: productData?.sellingPrice },
+                          }));
+                        }
+                      }}
+                      onUpdateQuantity={(productId: string, quantity: number) => {
+                        setSelectedBundleProducts((prev) => ({
+                          ...prev,
+                          [productId]: {
+                            ...(typeof prev[productId] === "object" ? prev[productId] : { productId, inventoryId: "", quantity: 1 }),
+                            quantity,
+                          },
+                        }));
+                      }}
+                      onRemoveProduct={(productId: string) => {
+                        const n = { ...selectedBundleProducts };
+                        delete n[productId];
+                        setSelectedBundleProducts(n);
+                      }}
+                      shopId={shopId}
+                      adminId={adminId}
+                      existingProducts={products || []}
+                      excludeProductId={productId || ""}
+                      isOpen={isBundleDialogOpen}
+                      onClose={() => setIsBundleDialogOpen(false)}
+                    />
                   </Card>
                 )}
 
