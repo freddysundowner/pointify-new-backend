@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Package, X, Search, Plus, Minus, Loader2 } from "lucide-react";
 import { apiCall } from "@/lib/api-config";
 import { ENDPOINTS } from "@/lib/api-endpoints";
+import { useCurrency } from "@/utils";
 
 interface BundleProductsSelectorProps {
   selectedBundleProducts: { [key: string]: number | { 
@@ -39,6 +40,7 @@ export default function BundleProductsSelector({
   isOpen,
   onClose
 }: BundleProductsSelectorProps) {
+  const currency = useCurrency();
   const [bundleSearchQuery, setBundleSearchQuery] = useState("");
   const [quantityDialogOpen, setQuantityDialogOpen] = useState(false);
   const [selectedProductForQuantity, setSelectedProductForQuantity] = useState<any>(null);
@@ -180,7 +182,7 @@ export default function BundleProductsSelector({
                 <p className="font-medium">{product.name}</p>
                 <p className="text-sm text-gray-500">
                   {product.sku && `SKU: ${product.sku} • `}
-                  Price: ${product.sellingPrice || product.price || 0}
+                  Price: {currency} {product.sellingPrice || product.price || 0}
                   {product.category && ` • ${product.category}`}
                 </p>
                 <p className="text-xs text-gray-400">
