@@ -21,7 +21,7 @@ const loadStoredShopData = (): any | null => {
     if (!raw) return null;
     const data = JSON.parse(raw);
     const storedId = localStorage.getItem('selectedShopId');
-    if (storedId && (data._id === storedId || data.id === storedId)) return data;
+    if (storedId && (String(data._id) === storedId || String(data.id) === storedId)) return data;
     return null;
   } catch {
     return null;

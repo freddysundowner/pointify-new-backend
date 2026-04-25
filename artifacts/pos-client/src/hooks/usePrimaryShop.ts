@@ -37,25 +37,27 @@ export const usePrimaryShop = (): PrimaryShopData => {
   if (admin) {
     const adminId = admin._id || admin.id || '';
 
-    // If Redux has full shop data that matches the selected shop ID, use it.
-    // This is set by the dashboard on load and on shop switch — it's always current.
-    if (reduxSelectedShopId && reduxSelectedShopData &&
-        (reduxSelectedShopData._id === reduxSelectedShopId || reduxSelectedShopData.id === reduxSelectedShopId)) {
+    // If Redux has a selected shop ID, use it. selectedShopData is supplemental metadata
+    // and may load asynchronously — don't gate on it.
+    if (reduxSelectedShopId) {
+      const shopDataMatches = reduxSelectedShopData &&
+        (String(reduxSelectedShopData._id) === reduxSelectedShopId ||
+         String(reduxSelectedShopData.id) === reduxSelectedShopId);
       return {
         shopId: reduxSelectedShopId,
         adminId,
-        shopData: reduxSelectedShopData,
+        shopData: shopDataMatches ? reduxSelectedShopData : null,
         userType: 'admin',
         attendantId: admin.attendantId || '',
-        allowNegativeStock: reduxSelectedShopData?.allownegativeselling,
+        allowNegativeStock: shopDataMatches ? reduxSelectedShopData?.allownegativeselling : undefined,
       };
     }
 
-    // Fallback to API primaryShop
+    // Fallback to primaryShop on the admin object (set by some auth flows)
     const getShopId = (primaryShop: any) => {
       if (!primaryShop) return '';
       if (typeof primaryShop === 'string') return primaryShop;
-      return primaryShop._id || primaryShop.id || '';
+      return String(primaryShop._id || primaryShop.id || '');
     };
 
     const shopId = getShopId(admin.primaryShop);
