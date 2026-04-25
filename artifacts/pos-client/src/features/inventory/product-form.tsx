@@ -292,7 +292,12 @@ export default function ProductForm() {
         serialnumber: productData.serialNumber || productData.serialnumber || "",
         wholesalePrice: Number(productData.wholesalePrice) || 0,
         dealerPrice: Number(productData.dealerPrice) || 0,
-        productCategoryId: productData.productCategoryId?._id || productData.productCategoryId || productData.category?.id?.toString() || "",
+        productCategoryId:
+          productData.productCategoryId?._id ||
+          productData.productCategoryId ||
+          productData.category?.id?.toString() ||
+          (typeof productData.category === "number" ? String(productData.category) : "") ||
+          "",
         supplier: productData.supplierId?._id || productData.supplierId || (productData.supplier && typeof productData.supplier === "object" ? productData.supplier?.id?.toString() : String(productData.supplier || "")),
         expiryDate: productData.expiryDate
           ? productData.expiryDate.split("T")[0]
@@ -354,7 +359,12 @@ export default function ProductForm() {
         serialnumber: productData.serialNumber || productData.serialnumber || "",
         wholesalePrice: Number(productData.wholesalePrice) || 0,
         dealerPrice: Number(productData.dealerPrice) || 0,
-        productCategoryId: productData.productCategoryId?._id || productData.productCategoryId || productData.category?.id?.toString() || "",
+        productCategoryId:
+          productData.productCategoryId?._id ||
+          productData.productCategoryId ||
+          productData.category?.id?.toString() ||
+          (typeof productData.category === "number" ? String(productData.category) : "") ||
+          "",
         supplier: productData.supplierId?._id || productData.supplierId || (productData.supplier && typeof productData.supplier === "object" ? productData.supplier?.id?.toString() : String(productData.supplier || "")),
         expiryDate: productData.expiryDate
           ? productData.expiryDate.split("T")[0]

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { useAuth } from '@/features/auth/useAuth';
 import { useAttendantAuth } from '@/contexts/AttendantAuthContext';
 import { apiCall } from '@/lib/api-config';
@@ -40,6 +40,7 @@ export const ProductsProvider = ({ children }: ProductsProviderProps) => {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const isFetchingMore = useRef(false);
 
   const getPrimaryShopId = () => {
     if (!admin?.primaryShop) return null;
@@ -110,8 +111,13 @@ export const ProductsProvider = ({ children }: ProductsProviderProps) => {
   }, [isAuthenticated, isAttendantAuthenticated, token, attendantToken, admin, attendant, selectedShopId]);
 
   const fetchMoreProducts = useCallback(async () => {
-    if (!hasMore || isLoading) return;
-    await fetchProducts(page + 1, true);
+    if (!hasMore || isLoading || isFetchingMore.current) return;
+    isFetchingMore.current = true;
+    try {
+      await fetchProducts(page + 1, true);
+    } finally {
+      isFetchingMore.current = false;
+    }
   }, [hasMore, isLoading, page, fetchProducts]);
 
   const refreshProducts = async () => {

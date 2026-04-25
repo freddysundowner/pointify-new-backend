@@ -50,6 +50,7 @@ interface ProductGridProps {
   canSellToDealer?: boolean;
   canDiscount?: boolean;
   canEditPrice?: boolean;
+  orderId?: string | number;
 }
 
 
