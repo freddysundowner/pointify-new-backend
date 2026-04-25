@@ -549,7 +549,7 @@ export default function ProductForm() {
 
   return (
     <DashboardLayout title={isEditMode ? "Edit Product" : "Add New Product"}>
-      <div className="max-w-7xl mx-auto py-6 px-2">
+      <div className="-mx-6 px-2 py-4">
         <div className="flex items-center space-x-4 mb-6">
           <Button
             variant="ghost"
