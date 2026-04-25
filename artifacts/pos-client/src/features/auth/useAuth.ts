@@ -75,7 +75,6 @@ export const useAuthProvider = (): AuthContextType => {
       const adminData = await response.json();
 
       dispatch(setCurrency(adminData?.primaryShop?.currency || 'KES'));
-      await checkAndTriggerAutoSync();
       console.log("Fetched admin data:", adminData);
       if (!adminData?._id) {
         dispatch(setCurrency(adminData?.primaryShop?.currency || 'KES'));
@@ -191,9 +190,6 @@ export const useAuthProvider = (): AuthContextType => {
         queryClient.invalidateQueries({ queryKey: ["shops"] });
         queryClient.invalidateQueries({ queryKey: ["admin"] });
         
-        // Check if automatic sync is needed after login
-        // await checkAndTriggerAutoSync();
-        
       } else {
         throw new Error("Invalid response from server");
       }
@@ -203,41 +199,6 @@ export const useAuthProvider = (): AuthContextType => {
       }
       // Don't logout on login failure - just throw error to stay on login page
       throw error;
-    }
-  };
-
-  const checkAndTriggerAutoSync = async () => {
-    try {
-        
-        // Get current admin data
-        const currentAdmin = admin || JSON.parse(localStorage.getItem("adminData") || '{}');
-        const adminId = currentAdmin?._id || currentAdmin?.id;
-        const primaryShopId = currentAdmin?.primaryShop;
-        
-        if (adminId) {
-          try {
-            // Trigger automatic sync in background
-            const syncResponse = await apiCall(`/api/sync/${currentAdmin._id}`, {
-              method: 'GET',
-              body: JSON.stringify({ 
-                adminId, 
-                shopId: primaryShopId 
-              })
-            });
-            
-            const syncResult = await syncResponse.json();
-            console.log('Automatic sync completed:', syncResult);
-            
-            // Invalidate all queries to refresh with synced data
-            queryClient.invalidateQueries();
-          } catch (syncError) {
-            console.warn('Automatic sync failed, user can manually sync later:', syncError);
-            // Don't block login if sync fails
-          }
-        }
-    } catch (error) {
-      console.warn('Could not check sync status:', error);
-      // Don't block login if sync check fails
     }
   };
 

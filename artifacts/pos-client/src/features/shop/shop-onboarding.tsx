@@ -13,7 +13,6 @@ import { apiCall } from "@/lib/api-config";
 import AddressInput from "@/components/ui/address-input";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-import { InitialSync } from "@/components/initial-sync";
 
 interface ShopCategory {
   _id: string;
@@ -151,14 +150,6 @@ export default function ShopOnboarding() {
     }
   };
 
-  const handleSyncComplete = () => {
-    setStep(3);
-    // Redirect to dashboard after sync completion
-    setTimeout(() => {
-      setLocation('/dashboard');
-    }, 2000);
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white">
       <div className="container mx-auto px-4 py-8">
@@ -187,16 +178,7 @@ export default function ShopOnboarding() {
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                 step >= 2 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500'
               }`}>
-                {step > 2 ? <CheckCircle className="w-4 h-4" /> : '2'}
-              </div>
-              <span className="text-sm font-medium">Sync Data</span>
-            </div>
-            <ArrowRight className="w-4 h-4 text-gray-400" />
-            <div className={`flex items-center space-x-2 ${step >= 3 ? 'text-purple-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step >= 3 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
-                {step >= 3 ? <CheckCircle className="w-4 h-4" /> : '3'}
+                {step >= 2 ? <CheckCircle className="w-4 h-4" /> : '2'}
               </div>
               <span className="text-sm font-medium">Complete</span>
             </div>
@@ -294,26 +276,6 @@ export default function ShopOnboarding() {
                 </form>
               </CardContent>
             </Card>
-          ) : step === 2 ? (
-            <div className="space-y-6">
-              <Card className="text-center">
-                <CardContent className="pt-8">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle className="w-8 h-8 text-green-600" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Shop Created Successfully!</h2>
-                  <p className="text-gray-600 mb-6">
-                    Now let's sync your existing data from your mobile app to your desktop.
-                  </p>
-                </CardContent>
-              </Card>
-              
-              <InitialSync 
-                adminId={admin?._id} 
-                shopId={createdShop?._id}
-                onComplete={handleSyncComplete}
-              />
-            </div>
           ) : (
             <Card className="text-center">
               <CardContent className="pt-8">
