@@ -425,23 +425,20 @@ export default function StockProducts() {
         attendantId = (admin as any)?._id || (admin as any)?.id;
       }
 
+      const qtyBefore = selectedProduct.quantity || 0;
+      const delta = Number(adjustQuantity);
+      const qtyAfter = adjustType === 'increase' ? qtyBefore + delta : Math.max(0, qtyBefore - delta);
+
       const payload = {
-        type: adjustType  == 'increase' ? 'add' : 'remove',
-        attendant: attendantId,
-        quantity: Number(adjustQuantity),
-        useWarehouse: true, 
-        shop: getShopId(),
-        product: selectedProduct._id,
-        before: selectedProduct.quantity || 0,
+        shopId: getShopId(),
+        productId: selectedProduct._id,
+        type: adjustType === 'increase' ? 'add' : 'remove',
+        quantityBefore: qtyBefore,
+        quantityAfter: qtyAfter,
       };
 
-      const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
-      const response = await fetch(ENDPOINTS.products.adjust(selectedProduct._id), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+      const response = await apiCall(ENDPOINTS.products.adjust(selectedProduct._id), {
+        method: 'POST',
         body: JSON.stringify(payload),
       });
 

@@ -136,7 +136,7 @@ export default function CreatePurchase() {
         return {
           productId: product?._id || product?.id || null,
           quantity: item.quantity,
-          unitPrice: item.unitCost,
+          buyingPrice: item.unitCost,
           sellingPrice: (item as any).sellingPrice || product?.sellingPrice || item.unitCost * 1.5,
           discount: 0,
         };
@@ -145,7 +145,7 @@ export default function CreatePurchase() {
       const payload = {
         shopId: shopId,
         supplierId: selectedSupplier?._id || null,
-        paymentMethod: "cash",
+        paymentType: "cash",
         amountPaid: calculateTotal(),
         items: purchaseItems,
       };

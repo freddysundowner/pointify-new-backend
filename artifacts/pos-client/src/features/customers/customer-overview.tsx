@@ -481,48 +481,18 @@ export default function CustomerOverview() {
       const currentWallet = customerData.wallet || 0;
       const newWalletBalance = paymentData.amount; // Set wallet to the payment amount directly
 
-      // Get attendantId based on user type
-      let attendantId = null;
-      const attendantData = localStorage.getItem("attendantData");
-      
-      if (attendantData) {
-        // If attendant is logged in, use their _id
-        const parsedAttendantData = JSON.parse(attendantData);
-        attendantId = parsedAttendantData._id;
-      } else if (admin) {
-        // If admin is logged in, get attendantId from localStorage or sales data
-        const storedAttendantId = localStorage.getItem("attendantId");
-        attendantId = storedAttendantId || 
-                     salesData?.data?.[0]?.attendantId || 
-                     salesData?.data?.[0]?.items?.[0]?.attendantId ||
-                     admin._id;
-      }
-      
       const updateData = {
-        wallet: newWalletBalance,
-        shopId: selectedShopId,
-        attendantId: attendantId
+        amount: paymentData.amount,
       };
-
-      console.log('=== DEBT PAYMENT DATA ===');
-      console.log('Customer ID:', customerId);
-      console.log('Current wallet:', currentWallet);
-      console.log('Payment amount entered:', paymentData.amount);
-      console.log('Setting wallet to payment amount:', newWalletBalance);
-      console.log('Selected Shop ID:', selectedShopId);
-      console.log('User type:', attendantData ? 'ATTENDANT' : 'ADMIN');
-      console.log('Attendant ID:', attendantId);
-      console.log('Update data:', updateData);
-      console.log('==========================');
 
       // Create a timeout promise to prevent hanging
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout - please try again')), 30000); // 30 second timeout
+        setTimeout(() => reject(new Error('Request timeout - please try again')), 30000);
       });
 
       // Race between the API request and timeout
       const response = await Promise.race([
-        apiRequest('PUT', ENDPOINTS.customers.update(customerId), updateData),
+        apiRequest('POST', ENDPOINTS.customers.walletPayment(customerId), updateData),
         timeoutPromise
       ]) as Response;
 
@@ -667,40 +637,8 @@ export default function CustomerOverview() {
         throw new Error('Customer data not available');
       }
 
-      const currentWallet = customerData.wallet || 0;
-      const newWalletBalance = currentWallet + depositData.amount; // Add to current balance
-
-      // Get attendantId based on user type
-      let attendantId = null;
-      const attendantData = localStorage.getItem("attendantData");
-      
-      if (attendantData) {
-        // If attendant is logged in, use their _id
-        const parsedAttendantData = JSON.parse(attendantData);
-        attendantId = parsedAttendantData._id;
-      } else if (admin) {
-        // If admin is logged in, get attendantId from localStorage or sales data
-        const storedAttendantId = localStorage.getItem("attendantId");
-        attendantId = storedAttendantId || 
-                     salesData?.data?.[0]?.attendantId || 
-                     salesData?.data?.[0]?.items?.[0]?.attendantId ||
-                     admin._id;
-      }
-      
-      const updateData = {
-        wallet: newWalletBalance,
-        shopId: selectedShopId,
-        attendantId: attendantId
-      };
-
-      const token = localStorage.getItem("authToken") || localStorage.getItem("attendantToken");
-      const response = await fetch(ENDPOINTS.customers.update(customerId), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(updateData),
+      const response = await apiRequest('POST', ENDPOINTS.customers.updateBalance(customerId), {
+        amount: depositData.amount,
       });
 
       if (!response.ok) {

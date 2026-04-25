@@ -199,13 +199,7 @@ export default function SuppliersPage() {
   // Pay supplier debt mutation
   const payDebtMutation = useMutation({
     mutationFn: async ({ supplierId, amount }: { supplierId: string; amount: number }) => {
-      const attendantId = isAttendantRoute ? attendant?._id : (typeof admin?.attendantId === 'object' ? admin?.attendantId?._id : admin?.attendantId) || admin?._id;
-      const payload = {
-        amount,
-        attendantId,
-        shopId
-      };
-      const response = await apiRequest('PUT', ENDPOINTS.suppliers.update(supplierId), payload);
+      const response = await apiRequest('POST', ENDPOINTS.suppliers.walletPayment(supplierId), { amount });
       return await response.json();
     },
     onSuccess: () => {

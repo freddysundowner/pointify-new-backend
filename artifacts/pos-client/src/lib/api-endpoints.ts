@@ -68,6 +68,7 @@ export const ENDPOINTS = {
     update:               (id: string) => `/api/customers/${id}`,
     delete:               (id: string) => `/api/customers/${id}`,
     updateBalance:        (id: string) => `/api/customers/${id}/wallet`,
+    walletPayment:        (id: string) => `/api/customers/${id}/wallet/payment`,
     getDebtors:           "/api/reports/dues",
     getPayments:          (id: string) => `/api/customers/${id}/wallet-transactions`,
     getOverdue:           "/api/reports/dues/overdue",
@@ -150,6 +151,7 @@ export const ENDPOINTS = {
     create:               "/api/suppliers",
     update:               (id: string) => `/api/suppliers/${id}`,
     delete:               (id: string) => `/api/suppliers/${id}`,
+    walletPayment:        (id: string) => `/api/suppliers/${id}/wallet/payment`,
   },
 
   // ─── Attendants ───────────────────────────────────────────────────────────

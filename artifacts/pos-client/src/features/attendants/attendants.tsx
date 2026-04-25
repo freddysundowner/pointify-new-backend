@@ -846,10 +846,8 @@ export default function Attendants() {
                   
                   const submitData = {
                     username: selectedAttendant.username,
-                    uniqueDigits: selectedAttendant.uniqueDigits,
                     shopId: typeof selectedAttendant.shopId === 'string' ? selectedAttendant.shopId : selectedAttendant.shopId._id,
-                    adminId: effectiveAdmin?._id || effectiveAdmin?.id,
-                    permissions: editingPermissions
+                    permissions: editingPermissions,
                   };
 
                   console.log('Saving permissions:', submitData);
