@@ -1,12 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Store, CheckCircle } from "lucide-react";
+import { Store, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
@@ -20,67 +16,60 @@ interface ShopCategory {
   name: string;
 }
 
+const CURRENCIES = [
+  { value: "GHS", label: "GHS — Ghanaian Cedi" },
+  { value: "KES", label: "KES — Kenyan Shilling" },
+  { value: "NGN", label: "NGN — Nigerian Naira" },
+  { value: "USD", label: "USD — US Dollar" },
+  { value: "GBP", label: "GBP — British Pound" },
+  { value: "EUR", label: "EUR — Euro" },
+  { value: "ZAR", label: "ZAR — South African Rand" },
+  { value: "UGX", label: "UGX — Ugandan Shilling" },
+  { value: "TZS", label: "TZS — Tanzanian Shilling" },
+];
+
 export default function ShopOnboarding() {
   const [, setLocation] = useLocation();
-  const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [createdShop, setCreatedShop] = useState(null);
   const { admin, updateAdmin } = useAuth();
   const { toast } = useToast();
-  
+
   const [formData, setFormData] = useState({
     name: "",
     category: "",
     address: "",
-    currency: "KES",
+    currency: "GHS",
     allowOnlineSelling: false,
   });
   const [placeDetails, setPlaceDetails] = useState<{
     address: string;
     placeId?: string;
     coordinates?: { lat: number; lng: number };
-    name?: string;
-    formatted_address?: string;
   } | null>(null);
 
-  // Fetch shop categories from API
-  const { data: categories = [], isLoading: categoriesLoading } = useQuery({
+  const { data: categories = [] } = useQuery<ShopCategory[]>({
     queryKey: [ENDPOINTS.shop.getCategories],
   });
 
-  const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const set = (field: string, value: string | boolean) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
 
-  const handleAddressChange = (address: string, placeDetails?: any) => {
-    console.log('Address changed:', address, placeDetails);
-    setFormData(prev => ({
-      ...prev,
-      address
-    }));
-    if (placeDetails && placeDetails.coordinates) {
-      console.log('Place details with coordinates:', placeDetails);
-      setPlaceDetails(placeDetails);
-    }
+  const handleAddressChange = (address: string, details?: any) => {
+    set("address", address);
+    if (details?.coordinates) setPlaceDetails(details);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!formData.name || !formData.address) {
       toast({
-        title: "Missing Fields",
-        description: "Please fill in all required fields.",
+        title: "Missing fields",
+        description: "Please enter a shop name and address.",
         variant: "destructive",
       });
       return;
     }
-
     setIsLoading(true);
-
     try {
       const shopData = {
         name: formData.name,
@@ -94,55 +83,32 @@ export default function ShopOnboarding() {
         }),
       };
 
-      console.log('Submitting shop data:', shopData);
-
       const response = await apiCall(ENDPOINTS.shop.create, {
         method: "POST",
         body: JSON.stringify(shopData),
       });
-      
       const newShop = await response.json();
-      console.log('Shop creation response:', newShop);
 
-      // Update admin with new primary shop
-      if (newShop && newShop._id && admin) {
+      if (newShop?._id && admin) {
         const updatedAdmin = { ...admin, primaryShop: newShop._id };
         updateAdmin(updatedAdmin);
-        
-        // Update primary shop on server
         try {
-          const updateResponse = await apiCall(ENDPOINTS.auth.adminProfile, {
+          await apiCall(ENDPOINTS.auth.adminProfile, {
             method: "PUT",
             body: JSON.stringify({ shop: newShop._id }),
           });
-          
-          if (updateResponse.ok) {
-            console.log('Admin updated with primary shop');
-          }
-        } catch (updateError) {
-          console.error('Failed to update admin primaryShop:', updateError);
-          // Don't fail the whole process if admin update fails
-        }
+        } catch {}
       }
 
-      // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["shops"] });
       queryClient.invalidateQueries({ queryKey: ["admin"] });
 
-      toast({
-        title: "Shop Created",
-        description: "Your primary shop has been created successfully!",
-        variant: "default",
-      });
-
-      // Navigate to dashboard after successful creation
-      setLocation('/dashboard');
-
+      toast({ title: "Shop created!", description: "Taking you to your dashboard." });
+      setLocation("/dashboard");
     } catch (error) {
-      console.error("Error creating shop:", error);
       toast({
-        title: "Error",
-        description: "Failed to create shop. Please try again.",
+        title: "Could not create shop",
+        description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -151,149 +117,138 @@ export default function ShopOnboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Store className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Pointify</h1>
-          <p className="text-gray-600">Let's set up your first shop to get started</p>
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 py-10">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 mb-2">
+        <div className="w-9 h-9 bg-purple-600 rounded-lg flex items-center justify-center">
+          <div className="w-3.5 h-3.5 bg-white rounded-full" />
         </div>
-
-        {/* Progress Steps */}
-        <div className="flex justify-center mb-8">
-          <div className="flex items-center space-x-4">
-            <div className={`flex items-center space-x-2 ${step >= 1 ? 'text-purple-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step >= 1 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
-                {step > 1 ? <CheckCircle className="w-4 h-4" /> : '1'}
-              </div>
-              <span className="text-sm font-medium">Create Shop</span>
-            </div>
-            <ArrowRight className="w-4 h-4 text-gray-400" />
-            <div className={`flex items-center space-x-2 ${step >= 2 ? 'text-purple-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step >= 2 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
-                {step >= 2 ? <CheckCircle className="w-4 h-4" /> : '2'}
-              </div>
-              <span className="text-sm font-medium">Complete</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="max-w-2xl mx-auto">
-          {step === 1 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Set Up Your Primary Shop</CardTitle>
-                <CardDescription>
-                  This will be your main shop and primary business location. You can add more shops later.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* Shop Name */}
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Shop Name *</Label>
-                    <Input
-                      id="name"
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange('name', e.target.value)}
-                      placeholder="Enter your shop name"
-                      required
-                    />
-                  </div>
-
-                  {/* Category */}
-                  {categories?.length > 0 ? <div className="space-y-2">
-                    <Label htmlFor="category">Category *</Label>
-                    <Select value={formData.category} onValueChange={(value) => handleInputChange('category', value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories?.map((category: ShopCategory) => (
-                          <SelectItem key={category._id} value={category._id}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div> : <> </>}
-
-                  {/* Address */}
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address *</Label>
-                    <AddressInput
-                      id="address"
-                      value={formData.address}
-                      onChange={handleAddressChange}
-                      placeholder="Enter your shop address"
-                      required
-                    />
-                  </div>
-
-                  {/* Currency */}
-                  <div className="space-y-2">
-                    <Label htmlFor="currency">Currency</Label>
-                    <Select value={formData.currency} onValueChange={(value) => handleInputChange('currency', value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="KES">KES - Kenyan Shilling</SelectItem>
-                        <SelectItem value="USD">USD - US Dollar</SelectItem>
-                        <SelectItem value="EUR">EUR - Euro</SelectItem>
-                        <SelectItem value="GBP">GBP - British Pound</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Allow Online Selling */}
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="allowOnlineSelling"
-                      checked={formData.allowOnlineSelling}
-                      onCheckedChange={(checked) => handleInputChange('allowOnlineSelling', checked)}
-                    />
-                    <Label htmlFor="allowOnlineSelling">Allow online selling</Label>
-                  </div>
-
-                  {/* Submit Button */}
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-purple-600 hover:bg-purple-700" 
-                    disabled={isLoading}
-                  >
-                    {isLoading ? 'Creating Shop...' : 'Create Primary Shop'}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="text-center">
-              <CardContent className="pt-8">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle className="w-8 h-8 text-green-600" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Setup Complete!</h2>
-                <p className="text-gray-600 mb-6">
-                  Your shop is ready and your data has been synced. You'll be redirected to your dashboard in a moment.
-                </p>
-                <Button onClick={() => setLocation('/dashboard')} className="bg-purple-600 hover:bg-purple-700">
-                  Go to Dashboard
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        <span className="text-xl font-bold text-gray-900 tracking-tight">Pointify</span>
       </div>
+
+      {/* Step indicator */}
+      <div className="flex items-center gap-2 text-xs text-gray-400 mb-8">
+        <span className="text-purple-600 font-medium">Account created</span>
+        <ChevronRight className="w-3.5 h-3.5" />
+        <span className="font-medium text-gray-700">Set up your shop</span>
+      </div>
+
+      {/* Card */}
+      <div className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+        {/* Header */}
+        <div className="flex items-start gap-3 mb-6">
+          <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+            <Store className="w-5 h-5 text-purple-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">
+              {admin?.username ? `Welcome, ${admin.username.split(" ")[0]}!` : "One last step!"}
+            </h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Tell us about your shop and we'll get everything ready for you.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Shop name */}
+          <div>
+            <label htmlFor="shopName" className="block text-sm font-medium text-gray-700 mb-1.5">
+              Shop name <span className="text-red-400">*</span>
+            </label>
+            <input
+              id="shopName"
+              type="text"
+              placeholder="e.g. Mensah General Store"
+              value={formData.name}
+              onChange={(e) => set("name", e.target.value)}
+              required
+              autoFocus
+              className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+            />
+          </div>
+
+          {/* Category + Currency side by side */}
+          <div className="grid grid-cols-2 gap-3">
+            {(categories as ShopCategory[]).length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Category
+                </label>
+                <Select value={formData.category} onValueChange={(v) => set("category", v)}>
+                  <SelectTrigger className="h-10 text-sm border-gray-300 focus:ring-purple-500">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(categories as ShopCategory[]).map((cat) => (
+                      <SelectItem key={cat._id} value={cat._id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className={(categories as ShopCategory[]).length > 0 ? "" : "col-span-2"}>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Currency
+              </label>
+              <Select value={formData.currency} onValueChange={(v) => set("currency", v)}>
+                <SelectTrigger className="h-10 text-sm border-gray-300 focus:ring-purple-500">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CURRENCIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Address */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Shop address <span className="text-red-400">*</span>
+            </label>
+            <AddressInput
+              value={formData.address}
+              onChange={handleAddressChange}
+              placeholder="Start typing your address…"
+              required
+            />
+          </div>
+
+          {/* Online selling toggle */}
+          <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl border border-gray-200">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Enable online selling</p>
+              <p className="text-xs text-gray-500 mt-0.5">Let customers place orders online</p>
+            </div>
+            <Switch
+              checked={formData.allowOnlineSelling}
+              onCheckedChange={(v) => set("allowOnlineSelling", v)}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full h-10 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition"
+          >
+            {isLoading ? "Creating your shop…" : "Create shop & go to dashboard"}
+          </button>
+        </form>
+
+        <p className="mt-4 text-center text-xs text-gray-400">
+          You can add more shops and edit these details later from settings.
+        </p>
+      </div>
+
+      <p className="text-xs text-gray-400 mt-8">© 2025 Pointify. All rights reserved.</p>
     </div>
   );
 }
