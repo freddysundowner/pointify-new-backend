@@ -70,15 +70,25 @@ export default function BusinessDashboard() {
       ? admin.primaryShop 
       : (admin?.primaryShop as any)?._id || (admin?.primaryShop as any)?.id);
 
-  // Fetch attendants for the admin
-  const { data: attendants = [] } = useQuery({
-    queryKey: [ENDPOINTS.attendants.getAll, admin?._id],
+  // Reset attendant filter when shop changes
+  useEffect(() => {
+    setSelectedAttendantId("all");
+  }, [effectiveShopId]);
+
+  // Fetch attendants for the selected shop
+  const { data: attendantsData } = useQuery({
+    queryKey: [ENDPOINTS.attendants.getAll, effectiveShopId],
     queryFn: async () => {
-      const response = await apiCall(ENDPOINTS.attendants.getAll, { method: "GET" });
-      return response.json();
+      const params = new URLSearchParams();
+      if (effectiveShopId) params.set("shopId", String(effectiveShopId));
+      const url = `${ENDPOINTS.attendants.getAll}?${params.toString()}`;
+      const response = await apiCall(url, { method: "GET" });
+      const json = await response.json();
+      return json?.data ?? json ?? [];
     },
-    enabled: !!admin?._id,
+    enabled: !!effectiveShopId,
   });
+  const attendants: any[] = Array.isArray(attendantsData) ? attendantsData : [];
 
   // Fetch products for stock alerts
   const { data: productsData } = useQuery({
@@ -559,7 +569,7 @@ export default function BusinessDashboard() {
                         <div className="text-left">
                           <div className="font-medium text-sm">
                             {selectedAttendantId !== "all" ? 
-                              attendants.find((a: any) => a._id === selectedAttendantId)?.username || "Select Attendant" : 
+                              attendants.find((a: any) => String(a.id ?? a._id) === selectedAttendantId)?.username || "Select Attendant" : 
                               "All Attendants"
                             }
                           </div>
@@ -580,7 +590,7 @@ export default function BusinessDashboard() {
                         </div>
                       </SelectItem>
                       {attendants?.map((attendant: any) => (
-                        <SelectItem key={attendant._id} value={attendant._id}>
+                        <SelectItem key={attendant.id ?? attendant._id} value={String(attendant.id ?? attendant._id)}>
                           <div className="flex items-center gap-2">
                             <UserCheck className="h-4 w-4 text-purple-500" />
                             <div>
