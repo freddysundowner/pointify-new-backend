@@ -204,3 +204,29 @@ table, tr, td, th {
 .total-display {
   @apply text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent;
 }
+/* Google Places autocomplete dropdown */
+.pac-container {
+  z-index: 99999 !important;
+  border-radius: 10px !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.1) !important;
+  font-family: inherit !important;
+  margin-top: 4px !important;
+}
+.pac-item {
+  padding: 10px 16px !important;
+  border-bottom: 1px solid #f3f4f6 !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  line-height: 1.5 !important;
+}
+.pac-item:hover, .pac-item-selected {
+  background-color: #f5f3ff !important;
+}
+.pac-matched {
+  font-weight: 600 !important;
+  color: #7c3aed !important;
+}
+.pac-item-query {
+  font-size: 14px !important;
+}
