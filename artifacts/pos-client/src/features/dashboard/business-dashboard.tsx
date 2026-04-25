@@ -335,7 +335,7 @@ export default function BusinessDashboard() {
     sales: parseFloat(netProfitData?.revenue ?? "0") || 0,
     profit: parseFloat(netProfitData?.profit ?? "0") || 0,
     expenses: parseFloat(netProfitData?.expenses ?? "0") || 0,
-    transactions: salesData?.meta?.total ?? recentSales.length,
+    transactions: salesData?.meta?.total ?? 0,
   };
 
 
