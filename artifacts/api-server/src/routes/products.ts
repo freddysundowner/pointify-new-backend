@@ -179,8 +179,9 @@ async function isDuplicateName(shopId: number, name: string, excludeId?: number)
 }
 
 /** Validate that the four price tiers are internally consistent.
- *  All provided prices must be ≥ 0 and follow:
- *  sellingPrice ≥ wholesalePrice ≥ dealerPrice ≥ buyingPrice
+ *  sellingPrice and buyingPrice are required when provided and must be ≥ 0.
+ *  wholesalePrice and dealerPrice are optional — when absent or 0 they are skipped.
+ *  When present: sellingPrice ≥ wholesalePrice ≥ dealerPrice ≥ buyingPrice
  */
 function validatePrices(prices: {
   buyingPrice?: number | string | null;
@@ -191,25 +192,29 @@ function validatePrices(prices: {
   const parse = (v: number | string | null | undefined): number | null => {
     if (v == null || v === "") return null;
     const n = Number(v);
-    if (isNaN(n)) return null; // treat non-numeric as absent
+    if (isNaN(n)) return null;
     return n;
+  };
+
+  // Optional prices: treat 0 as "not provided"
+  const parseOptional = (v: number | string | null | undefined): number | null => {
+    const n = parse(v);
+    return n === null || n === 0 ? null : n;
   };
 
   const buying    = parse(prices.buyingPrice);
   const selling   = parse(prices.sellingPrice);
-  const wholesale = parse(prices.wholesalePrice);
-  const dealer    = parse(prices.dealerPrice);
+  const wholesale = parseOptional(prices.wholesalePrice);
+  const dealer    = parseOptional(prices.dealerPrice);
 
-  const fields: [string, number | null][] = [
-    ["buyingPrice", buying],
-    ["sellingPrice", selling],
-    ["wholesalePrice", wholesale],
-    ["dealerPrice", dealer],
-  ];
-  for (const [field, val] of fields) {
-    if (val !== null && val < 0)
-      throw badRequest(`${field} must be a positive number`);
-  }
+  if (buying !== null && buying < 0)
+    throw badRequest("buyingPrice must be a positive number");
+  if (selling !== null && selling < 0)
+    throw badRequest("sellingPrice must be a positive number");
+  if (wholesale !== null && wholesale < 0)
+    throw badRequest("wholesalePrice must be a positive number");
+  if (dealer !== null && dealer < 0)
+    throw badRequest("dealerPrice must be a positive number");
 
   if (selling !== null && wholesale !== null && wholesale > selling)
     throw badRequest("wholesalePrice must be less than or equal to sellingPrice");
