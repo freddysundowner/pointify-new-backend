@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { Eye, EyeOff, Lock, ArrowRight, Check, CheckCircle } from "lucide-react";
+import { Eye, EyeOff, Check, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { API_ENDPOINTS, apiCall } from "@/lib/api-config";
 
@@ -31,9 +31,9 @@ export default function ResetPassword() {
   }, []);
 
   const checks = [
-    { label: "8+ characters", ok: password.length >= 8 },
-    { label: "Uppercase letter", ok: /[A-Z]/.test(password) },
-    { label: "A number", ok: /[0-9]/.test(password) },
+    { label: "At least 8 characters", ok: password.length >= 8 },
+    { label: "One uppercase letter", ok: /[A-Z]/.test(password) },
+    { label: "One number", ok: /[0-9]/.test(password) },
     { label: "Passwords match", ok: password === confirmPassword && password.length > 0 },
   ];
 
@@ -64,161 +64,131 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left accent panel */}
-      <div className="hidden lg:flex lg:w-5/12 bg-purple-600 flex-col justify-center p-16 relative overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-24 -right-24 w-96 h-96 bg-purple-500 rounded-full opacity-40" />
-          <div className="absolute bottom-8 -left-16 w-64 h-64 bg-purple-700 rounded-full opacity-30" />
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 mb-8">
+        <div className="w-9 h-9 bg-purple-600 rounded-lg flex items-center justify-center">
+          <div className="w-3.5 h-3.5 bg-white rounded-full" />
         </div>
-        <div className="relative z-10">
-          <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center mb-8">
-            <Lock className="w-7 h-7 text-white" />
-          </div>
-          <h2 className="text-3xl font-bold text-white mb-3">Create a new password</h2>
-          <p className="text-purple-200 text-base leading-relaxed">
-            Choose a strong password that you haven't used before. Keep it safe and don't share it with anyone.
-          </p>
-        </div>
-        <div className="absolute bottom-10 left-16 flex items-center gap-2 z-10">
-          <div className="w-7 h-7 bg-white rounded-lg flex items-center justify-center">
-            <div className="w-3 h-3 bg-purple-600 rounded-full" />
-          </div>
-          <span className="text-white font-semibold">Pointify</span>
-        </div>
+        <span className="text-xl font-bold text-gray-900 tracking-tight">Pointify</span>
       </div>
 
-      {/* Right form panel */}
-      <div className="flex-1 flex flex-col justify-center items-center px-6 py-12 bg-white">
-        <div className="w-full max-w-sm">
-          {!isDone ? (
-            <>
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">Set new password</h1>
-              <p className="text-gray-500 text-sm mb-8">
-                Create a strong password for your Pointify account.
-              </p>
+      {/* Card */}
+      <div className="w-full max-w-sm bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+        {!isDone ? (
+          <>
+            <h1 className="text-xl font-semibold text-gray-900 mb-1">Set a new password</h1>
+            <p className="text-sm text-gray-500 mb-6">
+              Create a strong password for your Pointify account.
+            </p>
 
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 block mb-2">
-                    New Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Create a password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      autoFocus
-                      className="w-full h-12 px-4 pr-12 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-none text-gray-800 placeholder-gray-300 transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  New password
+                </label>
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoFocus
+                    className="w-full h-10 px-3 pr-10 rounded-lg border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
+              </div>
 
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 block mb-2">
-                    Confirm Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Same password again"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                      className="w-full h-12 px-4 pr-12 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-none text-gray-800 placeholder-gray-300 transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Confirm password
+                </label>
+                <div className="relative">
+                  <input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    className="w-full h-10 px-3 pr-10 rounded-lg border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
+              </div>
 
-                {/* Requirements */}
-                <div className="grid grid-cols-2 gap-2">
-                  {checks.map((c) => (
-                    <div
-                      key={c.label}
-                      className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg transition-all ${
-                        c.ok
-                          ? "bg-green-50 text-green-700"
-                          : "bg-gray-50 text-gray-400"
+              {/* Requirements */}
+              <ul className="space-y-1.5 pt-1">
+                {checks.map((c) => (
+                  <li key={c.label} className="flex items-center gap-2 text-xs">
+                    <span
+                      className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                        c.ok ? "bg-green-500" : "bg-gray-200"
                       }`}
                     >
-                      {c.ok ? (
-                        <Check className="w-3 h-3 shrink-0" />
-                      ) : (
-                        <div className="w-3 h-3 rounded-full border border-gray-300 shrink-0" />
-                      )}
-                      {c.label}
-                    </div>
-                  ))}
-                </div>
+                      {c.ok && <Check className="w-2.5 h-2.5 text-white" />}
+                    </span>
+                    <span className={c.ok ? "text-green-700" : "text-gray-400"}>{c.label}</span>
+                  </li>
+                ))}
+              </ul>
 
-                <button
-                  type="submit"
-                  disabled={isLoading || !isValid}
-                  className="w-full h-12 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-all mt-2"
-                >
-                  {isLoading ? (
-                    "Updating…"
-                  ) : (
-                    <>
-                      Update Password
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </form>
+              <button
+                type="submit"
+                disabled={isLoading || !isValid}
+                className="w-full h-10 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition mt-1"
+              >
+                {isLoading ? "Updating…" : "Update password"}
+              </button>
+            </form>
 
-              <p className="mt-8 text-center text-sm text-gray-500">
-                Remember your password?{" "}
-                <button
-                  onClick={() => setLocation("/business-login")}
-                  className="text-purple-600 font-semibold hover:underline"
-                >
-                  Sign in
-                </button>
-              </p>
-            </>
-          ) : (
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <CheckCircle className="w-8 h-8 text-green-600" />
-              </div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Password updated!</h1>
-              <p className="text-gray-500 text-sm mb-8">
-                Your password has been changed successfully. You can now sign in with your new password.
-              </p>
+            <p className="mt-5 text-center text-sm text-gray-500">
+              Remember your password?{" "}
               <button
                 onClick={() => setLocation("/business-login")}
-                className="w-full h-12 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-all"
+                className="text-purple-600 font-semibold hover:underline"
               >
-                Go to Login
-                <ArrowRight className="w-4 h-4" />
+                Sign in
               </button>
+            </p>
+          </>
+        ) : (
+          <div className="text-center">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
-          )}
-        </div>
-
-        <p className="text-xs text-gray-300 mt-12">© 2025 Pointify. All rights reserved.</p>
+            <h1 className="text-xl font-semibold text-gray-900 mb-1">Password updated</h1>
+            <p className="text-sm text-gray-500 mb-6">
+              Your password has been changed. You can now sign in with your new credentials.
+            </p>
+            <button
+              onClick={() => setLocation("/business-login")}
+              className="w-full h-10 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition"
+            >
+              Go to sign in
+            </button>
+          </div>
+        )}
       </div>
+
+      <p className="text-xs text-gray-400 mt-8">© 2025 Pointify. All rights reserved.</p>
     </div>
   );
 }
