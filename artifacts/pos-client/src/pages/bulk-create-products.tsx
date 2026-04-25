@@ -200,19 +200,15 @@ export default function BulkCreateProducts() {
 
       const product = {
         name: template.name,
-        category: template.category,
+        categoryId: template.category,
         buyingPrice: template.buyingPrice,
         sellingPrice: template.sellingPrice,
         quantity: template.quantity,
-        sku: `SKU${String(i + 1).padStart(3, '0')}`,
+        barcode: `SKU${String(i + 1).padStart(3, '0')}`,
         description: `Quality ${template.name} - ${template.category}`,
-        lowStockThreshold: Math.floor(template.quantity * 0.2),
+        alertQuantity: Math.floor(template.quantity * 0.2),
         reorderLevel: Math.floor(template.quantity * 0.15),
-        unit: 'pcs',
-        virtual: false,
-        trackInventory: true,
-        adminid: adminData._id,
-        attendantId: attendantId,
+        measureUnit: 'pcs',
         shopId: shopId
       };
 
