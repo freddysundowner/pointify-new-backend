@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Store, ChevronRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
@@ -17,8 +17,8 @@ interface ShopCategory {
 }
 
 const CURRENCIES = [
-  { value: "GHS", label: "GHS — Ghanaian Cedi" },
   { value: "KES", label: "KES — Kenyan Shilling" },
+  { value: "GHS", label: "GHS — Ghanaian Cedi" },
   { value: "NGN", label: "NGN — Nigerian Naira" },
   { value: "USD", label: "USD — US Dollar" },
   { value: "GBP", label: "GBP — British Pound" },
@@ -28,8 +28,11 @@ const CURRENCIES = [
   { value: "TZS", label: "TZS — Tanzanian Shilling" },
 ];
 
+const TOTAL_STEPS = 3;
+
 export default function ShopOnboarding() {
   const [, setLocation] = useLocation();
+  const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const { admin, updateAdmin } = useAuth();
   const { toast } = useToast();
@@ -38,12 +41,10 @@ export default function ShopOnboarding() {
     name: "",
     category: "",
     address: "",
-    currency: "GHS",
+    currency: "KES",
     allowOnlineSelling: false,
   });
   const [placeDetails, setPlaceDetails] = useState<{
-    address: string;
-    placeId?: string;
     coordinates?: { lat: number; lng: number };
   } | null>(null);
 
@@ -59,14 +60,15 @@ export default function ShopOnboarding() {
     if (details?.coordinates) setPlaceDetails(details);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const canAdvance = () => {
+    if (step === 1) return formData.name.trim().length >= 2;
+    if (step === 2) return formData.address.trim().length > 0;
+    return true;
+  };
+
+  const handleSubmit = async () => {
     if (!formData.name || !formData.address) {
-      toast({
-        title: "Missing fields",
-        description: "Please enter a shop name and address.",
-        variant: "destructive",
-      });
+      toast({ title: "Missing fields", description: "Please enter a shop name and address.", variant: "destructive" });
       return;
     }
     setIsLoading(true);
@@ -88,14 +90,14 @@ export default function ShopOnboarding() {
         body: JSON.stringify(shopData),
       });
       const newShop = await response.json();
+      const shopId = newShop?._id ?? newShop?.data?._id ?? newShop?.data?.id ?? newShop?.id;
 
-      if (newShop?._id && admin) {
-        const updatedAdmin = { ...admin, primaryShop: newShop._id };
-        updateAdmin(updatedAdmin);
+      if (shopId && admin) {
+        updateAdmin({ ...admin, primaryShop: shopId });
         try {
           await apiCall(ENDPOINTS.auth.adminProfile, {
             method: "PUT",
-            body: JSON.stringify({ shop: newShop._id }),
+            body: JSON.stringify({ shop: shopId }),
           });
         } catch {}
       }
@@ -116,139 +118,180 @@ export default function ShopOnboarding() {
     }
   };
 
+  const firstName = admin?.username?.split(" ")[0] ?? admin?.email?.split("@")[0] ?? "";
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 py-10">
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 mb-2">
-        <div className="w-9 h-9 bg-purple-600 rounded-lg flex items-center justify-center">
-          <div className="w-3.5 h-3.5 bg-white rounded-full" />
-        </div>
-        <span className="text-xl font-bold text-gray-900 tracking-tight">Pointify</span>
-      </div>
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <button
+          onClick={() => step > 1 && setStep((s) => s - 1)}
+          className={`flex items-center gap-1.5 text-sm transition-colors ${
+            step > 1 ? "text-gray-500 hover:text-gray-800" : "text-transparent pointer-events-none"
+          }`}
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </button>
 
-      {/* Step indicator */}
-      <div className="flex items-center gap-2 text-xs text-gray-400 mb-8">
-        <span className="text-purple-600 font-medium">Account created</span>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <span className="font-medium text-gray-700">Set up your shop</span>
-      </div>
-
-      {/* Card */}
-      <div className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
-        {/* Header */}
-        <div className="flex items-start gap-3 mb-6">
-          <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
-            <Store className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              {admin?.username ? `Welcome, ${admin.username.split(" ")[0]}!` : "One last step!"}
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Tell us about your shop and we'll get everything ready for you.
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Shop name */}
-          <div>
-            <label htmlFor="shopName" className="block text-sm font-medium text-gray-700 mb-1.5">
-              Shop name <span className="text-red-400">*</span>
-            </label>
-            <input
-              id="shopName"
-              type="text"
-              placeholder="e.g. Mensah General Store"
-              value={formData.name}
-              onChange={(e) => set("name", e.target.value)}
-              required
-              autoFocus
-              className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+        {/* Progress dots */}
+        <div className="flex items-center gap-1.5">
+          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+            <div
+              key={i}
+              className={`rounded-full transition-all duration-300 ${
+                i + 1 <= step ? "w-6 h-2 bg-purple-600" : "w-2 h-2 bg-gray-200"
+              }`}
             />
+          ))}
+        </div>
+
+        <span className="text-sm text-gray-400">{step} / {TOTAL_STEPS}</span>
+      </div>
+
+      {/* Step content */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
+        <div className="w-full max-w-md">
+
+          {/* Logo mark */}
+          <div className="flex items-center gap-2 mb-8">
+            <div className="w-7 h-7 bg-purple-600 rounded-lg flex items-center justify-center">
+              <div className="w-2.5 h-2.5 bg-white rounded-full" />
+            </div>
+            <span className="text-sm font-semibold text-gray-500">Pointify</span>
           </div>
 
-          {/* Category + Currency side by side */}
-          <div className="grid grid-cols-2 gap-3">
-            {(categories as ShopCategory[]).length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Category
-                </label>
-                <Select value={formData.category} onValueChange={(v) => set("category", v)}>
-                  <SelectTrigger className="h-10 text-sm border-gray-300 focus:ring-purple-500">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(categories as ShopCategory[]).map((cat) => (
-                      <SelectItem key={cat._id} value={cat._id}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {/* ── STEP 1: Shop name ── */}
+          {step === 1 && (
+            <>
+              <p className="text-xs font-semibold uppercase tracking-widest text-purple-500 mb-3">Step 1 of {TOTAL_STEPS}</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                What's your shop called{firstName ? `, ${firstName}` : ""}?
+              </h1>
+              <p className="text-gray-500 mb-8">This is the name your customers will see.</p>
+
+              <input
+                autoFocus
+                type="text"
+                placeholder="e.g. Mensah General Store"
+                value={formData.name}
+                onChange={(e) => set("name", e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && canAdvance() && setStep(2)}
+                className="w-full text-xl border-0 border-b-2 border-gray-200 focus:border-purple-500 outline-none pb-3 placeholder-gray-300 bg-transparent transition-colors"
+              />
+            </>
+          )}
+
+          {/* ── STEP 2: Location ── */}
+          {step === 2 && (
+            <>
+              <p className="text-xs font-semibold uppercase tracking-widest text-purple-500 mb-3">Step 2 of {TOTAL_STEPS}</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Where is your shop located?</h1>
+              <p className="text-gray-500 mb-8">Enter the physical address of <strong>{formData.name || "your shop"}</strong>.</p>
+
+              <div className="w-full">
+                <AddressInput
+                  value={formData.address}
+                  onChange={handleAddressChange}
+                  placeholder="Start typing your address…"
+                />
               </div>
+            </>
+          )}
+
+          {/* ── STEP 3: Details ── */}
+          {step === 3 && (
+            <>
+              <p className="text-xs font-semibold uppercase tracking-widest text-purple-500 mb-3">Step 3 of {TOTAL_STEPS}</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Almost done!</h1>
+              <p className="text-gray-500 mb-8">Just a few last details to set up your shop.</p>
+
+              <div className="space-y-6">
+                {/* Category */}
+                {(categories as ShopCategory[]).length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                      Type of shop
+                    </label>
+                    <Select value={formData.category} onValueChange={(v) => set("category", v)}>
+                      <SelectTrigger className="h-12 text-base border-0 border-b-2 border-gray-200 rounded-none focus:ring-0 shadow-none px-0">
+                        <SelectValue placeholder="Select category…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(categories as ShopCategory[]).map((cat) => (
+                          <SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Currency */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                    Currency
+                  </label>
+                  <Select value={formData.currency} onValueChange={(v) => set("currency", v)}>
+                    <SelectTrigger className="h-12 text-base border-0 border-b-2 border-gray-200 rounded-none focus:ring-0 shadow-none px-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Online selling */}
+                <div className="flex items-center justify-between py-4 border-b-2 border-gray-200">
+                  <div>
+                    <p className="text-base font-medium text-gray-800">Enable online selling</p>
+                    <p className="text-sm text-gray-400 mt-0.5">Let customers place orders online</p>
+                  </div>
+                  <Switch
+                    checked={formData.allowOnlineSelling}
+                    onCheckedChange={(v) => set("allowOnlineSelling", v)}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* CTA */}
+          <div className="mt-10">
+            {step < TOTAL_STEPS ? (
+              <button
+                onClick={() => canAdvance() && setStep((s) => s + 1)}
+                disabled={!canAdvance()}
+                className="flex items-center gap-2 px-8 py-4 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-2xl transition-all text-lg"
+              >
+                Continue
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-8 py-4 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-semibold rounded-2xl transition-all text-lg"
+              >
+                {isLoading ? "Creating your shop…" : "Create shop"}
+                {!isLoading && <ArrowRight className="w-5 h-5" />}
+              </button>
             )}
-
-            <div className={(categories as ShopCategory[]).length > 0 ? "" : "col-span-2"}>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Currency
-              </label>
-              <Select value={formData.currency} onValueChange={(v) => set("currency", v)}>
-                <SelectTrigger className="h-10 text-sm border-gray-300 focus:ring-purple-500">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
-          {/* Address */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Shop address <span className="text-red-400">*</span>
-            </label>
-            <AddressInput
-              value={formData.address}
-              onChange={handleAddressChange}
-              placeholder="Start typing your address…"
-              required
-            />
-          </div>
-
-          {/* Online selling toggle */}
-          <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl border border-gray-200">
-            <div>
-              <p className="text-sm font-medium text-gray-800">Enable online selling</p>
-              <p className="text-xs text-gray-500 mt-0.5">Let customers place orders online</p>
-            </div>
-            <Switch
-              checked={formData.allowOnlineSelling}
-              onCheckedChange={(v) => set("allowOnlineSelling", v)}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full h-10 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition"
-          >
-            {isLoading ? "Creating your shop…" : "Create shop & go to dashboard"}
-          </button>
-        </form>
-
-        <p className="mt-4 text-center text-xs text-gray-400">
-          You can add more shops and edit these details later from settings.
-        </p>
+          {step === 3 && (
+            <p className="mt-5 text-xs text-gray-400">
+              You can always add more shops and update these details later.
+            </p>
+          )}
+        </div>
       </div>
 
-      <p className="text-xs text-gray-400 mt-8">© 2025 Pointify. All rights reserved.</p>
+      <div className="text-center pb-6">
+        <p className="text-xs text-gray-300">© 2025 Pointify. All rights reserved.</p>
+      </div>
     </div>
   );
 }
