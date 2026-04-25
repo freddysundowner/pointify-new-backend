@@ -56,7 +56,10 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
   const addToCart = (product: Product, passedOrderId?: string) => {
     const quantity = product.quantity || 0;
     setOrderId(passedOrderId || null);
-    if (product.productType === "product" && quantity <= 0 && shopData?.allownegativeselling == false) {
+
+    // manageByPrice products have no fixed quantity — skip stock check entirely
+    const isByPrice = (product as any).manageByPrice;
+    if (!isByPrice && product.productType === "product" && quantity <= 0 && shopData?.allownegativeselling == false) {
       toast({
         title: "Out of Stock",
         description: `${product.name} is out of stock.`,
@@ -67,7 +70,18 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
 
     setCartItems(prev => {
       const existingItem = prev.find(item => item.id === product._id || item.id === product.id);
+
       if (existingItem) {
+        if (isByPrice) {
+          // Replace price with the newly entered amount; keep qty at 1
+          const newPrice = (product as any).sellingPrice || (product as any).price || 0;
+          return prev.map(item =>
+            (item.id === product._id || item.id === product.id)
+              ? { ...item, price: newPrice, total: newPrice, quantity: 1 }
+              : item
+          );
+        }
+
         if (!product.virtual && existingItem.quantity + 1 > quantity) {
           toast({
             title: "Insufficient Stock",
@@ -88,7 +102,9 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
         );
       }
 
-      const price = getPriceForSaleType(product, saleType);
+      const price = isByPrice
+        ? ((product as any).sellingPrice || (product as any).price || 0)
+        : getPriceForSaleType(product, saleType);
       return [
         ...prev,
         {
@@ -101,7 +117,7 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
           originalPrice: price,
           maxDiscount: product.maxDiscount || 0,
           serialnumber: product?.serialnumber,
-          orderId:passedOrderId || orderId
+          orderId: passedOrderId || orderId
         }
       ];
     });

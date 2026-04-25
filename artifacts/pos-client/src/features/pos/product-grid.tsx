@@ -16,6 +16,7 @@ import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { useAuth } from "@/features/auth/useAuth";
 import { useSelector } from "react-redux";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
+import { useCurrency } from "@/utils";
 import type { RootState } from "@/store";
 import type { Product, CartItem, Customer, Transaction } from "@shared/schema";
 
@@ -126,6 +127,29 @@ export default function ProductGrid({
   const [customItemQuantity, setCustomItemQuantity] = useState("1");
   const [showCustomItemOptions, setShowCustomItemOptions] = useState(false);
   const [isCreatingCustomItem, setIsCreatingCustomItem] = useState(false);
+
+  const currency = useCurrency();
+
+  // Sell-by-price amount entry
+  const [priceEntryProduct, setPriceEntryProduct] = useState<any>(null);
+  const [priceEntryAmount, setPriceEntryAmount] = useState("");
+
+  const handleAddToCart = (product: any) => {
+    if (product.manageByPrice) {
+      setPriceEntryAmount("");
+      setPriceEntryProduct(product);
+    } else {
+      onAddToCart(product);
+    }
+  };
+
+  const confirmPriceEntry = () => {
+    const amount = parseFloat(priceEntryAmount);
+    if (!priceEntryProduct || isNaN(amount) || amount <= 0) return;
+    onAddToCart({ ...priceEntryProduct, sellingPrice: amount, price: amount });
+    setPriceEntryProduct(null);
+    setPriceEntryAmount("");
+  };
 
   // Local search function
   const searchLocally = (query: string) => {
@@ -1073,7 +1097,7 @@ export default function ProductGrid({
                         <div
                           key={product.id}
                           onClick={isOutOfStock ? undefined : () => {
-                            onAddToCart(product);
+                            handleAddToCart(product);
                             onSearchChange(''); // Clear search after adding
                           }}
                           className={`flex items-center justify-between p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 ${isOutOfStock ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -1458,7 +1482,7 @@ export default function ProductGrid({
                             }`}
                             onClick={() => {
                               if (!isOutOfStock) {
-                                onAddToCart(product);
+                                handleAddToCart(product);
                                 onSearchChange(""); // Clear search after adding
                               }
                             }}
@@ -1555,7 +1579,7 @@ export default function ProductGrid({
                             ? "bg-amber-100 hover:bg-amber-200" 
                             : "bg-white hover:bg-gray-50"
                         }`}
-                        onClick={() => onAddToCart(product)}
+                        onClick={() => handleAddToCart(product)}
                       >
                         <div className="w-12 h-12 bg-gray-200 rounded mx-auto mb-2"></div>
                         <p className="text-xs font-medium text-gray-800 truncate">{productName}</p>
@@ -2526,6 +2550,49 @@ export default function ProductGrid({
         </DialogContent>
       </Dialog>
 
+      {/* Sell-by-Price Amount Entry Dialog */}
+      <Dialog open={!!priceEntryProduct} onOpenChange={(open) => { if (!open) { setPriceEntryProduct(null); setPriceEntryAmount(""); } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Enter Amount</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {priceEntryProduct && (
+              <p className="text-sm text-gray-500">
+                How much worth of <span className="font-semibold text-gray-800">{priceEntryProduct.name}</span> does the customer want?
+              </p>
+            )}
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">
+                {currency}
+              </span>
+              <Input
+                type="number"
+                min="1"
+                step="any"
+                autoFocus
+                placeholder="0.00"
+                value={priceEntryAmount}
+                onChange={(e) => setPriceEntryAmount(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && confirmPriceEntry()}
+                className="pl-14 text-lg font-semibold h-12"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setPriceEntryProduct(null); setPriceEntryAmount(""); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmPriceEntry}
+              disabled={!priceEntryAmount || parseFloat(priceEntryAmount) <= 0}
+            >
+              Add to Cart
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Custom Item Dialog */}
       <Dialog open={showCustomItemDialog} onOpenChange={(open) => { setShowCustomItemDialog(open); if (!open) { setCustomItemName(""); setCustomItemPrice(""); setCustomItemType("service"); setCustomItemBuyingPrice(""); setCustomItemQuantity("1"); setShowCustomItemOptions(false); } }}>
         <DialogContent className="sm:max-w-md">
@@ -2561,7 +2628,7 @@ export default function ProductGrid({
                           onMouseDown={(e) => {
                             e.preventDefault();
                             if (outOfStock) return;
-                            onAddToCart(p);
+                            handleAddToCart(p);
                             setShowCustomItemDialog(false);
                             setCustomItemName("");
                             setCustomItemPrice("");
