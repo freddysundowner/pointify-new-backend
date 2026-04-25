@@ -75,9 +75,12 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
         if (isByPrice) {
           // Replace price with the newly entered amount; keep qty at 1
           const newPrice = (product as any).sellingPrice || (product as any).price || 0;
+          const bpExist = parseFloat(String((product as any).buyingPrice || 0)) || 0;
+          const refSpExist = parseFloat(String((product as any)._refSellingPrice || 0)) || 0;
+          const derivedCost = (bpExist > 0 && refSpExist > 0) ? newPrice * (bpExist / refSpExist) : 0;
           return prev.map(item =>
             (item.id === product._id || item.id === product.id)
-              ? { ...item, price: newPrice, total: newPrice, quantity: 1 }
+              ? { ...item, price: newPrice, total: newPrice, quantity: 1, costPrice: derivedCost }
               : item
           );
         }
@@ -105,6 +108,20 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
       const price = isByPrice
         ? ((product as any).sellingPrice || (product as any).price || 0)
         : getPriceForSaleType(product, saleType);
+
+      // For sell-by-price products, derive the cost of this transaction so
+      // profit reports are meaningful.
+      // costPrice = saleAmount × (buyingPrice / refSellingPrice)
+      // e.g. "fill for 400" at 160/L buying 140/L → cost = 400 × (140/160) = 350 → profit = 50
+      let costPrice = 0;
+      if (isByPrice) {
+        const buyingPrice = parseFloat(String((product as any).buyingPrice || 0)) || 0;
+        const refSellingPrice = parseFloat(String((product as any)._refSellingPrice || 0)) || 0;
+        if (buyingPrice > 0 && refSellingPrice > 0) {
+          costPrice = price * (buyingPrice / refSellingPrice);
+        }
+      }
+
       return [
         ...prev,
         {
@@ -117,7 +134,8 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
           originalPrice: price,
           maxDiscount: product.maxDiscount || 0,
           serialnumber: product?.serialnumber,
-          orderId: passedOrderId || orderId
+          orderId: passedOrderId || orderId,
+          ...(isByPrice ? { costPrice } : {}),
         }
       ];
     });

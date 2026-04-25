@@ -146,7 +146,16 @@ export default function ProductGrid({
   const confirmPriceEntry = () => {
     const amount = parseFloat(priceEntryAmount);
     if (!priceEntryProduct || isNaN(amount) || amount <= 0) return;
-    onAddToCart({ ...priceEntryProduct, sellingPrice: amount, price: amount });
+    // Preserve the product's reference selling price (cost-per-unit basis) so
+    // the cart can derive costPrice = amount × (buyingPrice / refSellingPrice)
+    const refSellingPrice =
+      parseFloat(String(priceEntryProduct.sellingPrice || priceEntryProduct.price || 0)) || 0;
+    onAddToCart({
+      ...priceEntryProduct,
+      sellingPrice: amount,
+      price: amount,
+      _refSellingPrice: refSellingPrice,
+    });
     setPriceEntryProduct(null);
     setPriceEntryAmount("");
   };
