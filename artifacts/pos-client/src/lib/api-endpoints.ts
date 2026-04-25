@@ -195,9 +195,8 @@ export const ENDPOINTS = {
 
   subscriptions: {
     getById:              (id: string) => `/api/subscriptions/${id}`,
-    // NOTE: subscription.tsx currently calls an external staging URL
-    // https://staging.pointifypos.com/api/subscriptions — needs to be moved to local API
     getAll:               "/api/subscriptions",
+    create:               "/api/subscriptions",
   },
 
   // ─── Payments ─────────────────────────────────────────────────────────────

@@ -267,11 +267,12 @@ export default function SubscriptionPage() {
 
       console.log('Creating subscription:', subscriptionPayload);
 
-      // Call the online subscription API instead of local
-      const response = await fetch('https://staging.pointifypos.com/api/subscriptions', {
+      const authToken = localStorage.getItem('authToken');
+      const response = await fetch('/api/subscriptions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(authToken && { 'Authorization': `Bearer ${authToken}` }),
         },
         body: JSON.stringify(subscriptionPayload),
       });
