@@ -430,23 +430,12 @@ export default function StockProducts() {
       setSelectedProduct(null);
       setAdjustQuantity("");
       
-      // Invalidate and refetch all product-related queries
+      // Invalidate product list and stock analysis summary
       queryClient.invalidateQueries({ 
         predicate: (query) => {
           const key = String(query.queryKey[0] || '');
-          return key.includes('/api/product') || 
-                 key.includes('/api/analysis/stockanalysis') ||
-                 key.includes('products') ||
-                 key.includes('stock');
-        }
-      });
-      
-      // Force immediate refetch for current products data
-      queryClient.refetchQueries({
-        predicate: (query) => {
-          const key = String(query.queryKey[0] || '');
-          return key.includes('/api/product') || 
-                 key.includes('/api/analysis/stockanalysis');
+          return key.includes('/api/products') || 
+                 key.includes('/api/reports/inventory');
         }
       });
       

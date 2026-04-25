@@ -48,7 +48,19 @@ async function loadProduct(req: any, _res: Response, next: NextFunction): Promis
     if (!product) throw notFound("Product not found");
     await assertShopOwnership(req, product.shop);
     const [withItems] = await attachBundleItems([product]);
-    req.product = withItems;
+
+    // Enrich with inventory data (quantity + reorderLevel) so the edit form
+    // can pre-fill those fields without a separate round-trip.
+    const inv = await db.query.inventory.findFirst({
+      where: and(eq(inventory.product, id), eq(inventory.shop, product.shop)),
+      columns: { quantity: true, reorderLevel: true, status: true },
+    });
+    req.product = {
+      ...withItems,
+      quantity: inv ? Number(inv.quantity) : 0,
+      reorderLevel: inv ? Number(inv.reorderLevel) : 0,
+      stockStatus: inv?.status ?? "active",
+    };
     next();
   } catch (e) {
     next(e);
@@ -460,7 +472,7 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
     const { id } = (req as any).product;
-    await db.delete(products).where(eq(products.id, id));
+    await db.update(products).set({ isDeleted: true }).where(eq(products.id, id));
     return noContent(res);
   } catch (e) { next(e); }
 });

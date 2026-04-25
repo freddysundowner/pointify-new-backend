@@ -258,24 +258,24 @@ export default function ProductForm() {
 
       const formData = {
         name: productData.name || "",
-        unitOfMeasure: productData.measure || productData.unitOfMeasure || "",
+        unitOfMeasure: productData.measureUnit || productData.measure || productData.unitOfMeasure || "",
         sellingPrice: Number(productData.sellingPrice) || 0,
         buyingPrice:
           Number(productData.buyingPrice) || Number(productData.costPrice) || 0,
         quantity:
-          Number(productData.quantity),
-        isBundle: Boolean(productData.bundle || productData.isBundle),
+          Number(productData.quantity) || 0,
+        isBundle: Boolean(productData.bundle || productData.isBundle || productData.type === "bundle"),
         manageInventory: false,
         manageByPrice: Boolean(productData.manageByPrice),
-        productType: (productData.virtual ? "service" : "product") as
+        productType: (productData.type === "service" || productData.type === "virtual" || productData.virtual ? "service" : "product") as
           | "product"
           | "service",
         manufacturer: productData.manufacturer || "",
-        serialnumber: productData.serialnumber || "",
+        serialnumber: productData.serialNumber || productData.serialnumber || "",
         wholesalePrice: Number(productData.wholesalePrice) || 0,
         dealerPrice: Number(productData.dealerPrice) || 0,
-        productCategoryId: productData.productCategoryId?._id || productData.productCategoryId || productData.category || "",
-        supplier: productData.supplierId?._id || productData.supplierId || productData.supplier || "",
+        productCategoryId: productData.productCategoryId?._id || productData.productCategoryId || productData.category?.id?.toString() || "",
+        supplier: productData.supplierId?._id || productData.supplierId || (productData.supplier && typeof productData.supplier === "object" ? productData.supplier?.id?.toString() : String(productData.supplier || "")),
         expiryDate: productData.expiryDate
           ? productData.expiryDate.split("T")[0]
           : "",
@@ -317,24 +317,24 @@ export default function ProductForm() {
       const productData = (product as any).data || product;
       const formData = {
         name: productData.name || "",
-        unitOfMeasure: productData.measure || productData.unitOfMeasure || "",
+        unitOfMeasure: productData.measureUnit || productData.measure || productData.unitOfMeasure || "",
         sellingPrice: Number(productData.sellingPrice) || 0,
         buyingPrice:
           Number(productData.buyingPrice) || Number(productData.costPrice) || 0,
         quantity:
-          Number(productData.quantity),
-        isBundle: Boolean(productData.bundle || productData.isBundle),
+          Number(productData.quantity) || 0,
+        isBundle: Boolean(productData.bundle || productData.isBundle || productData.type === "bundle"),
         manageInventory: false,
         manageByPrice: Boolean(productData.manageByPrice),
-        productType: (productData.virtual ? "service" : "product") as
+        productType: (productData.type === "service" || productData.type === "virtual" || productData.virtual ? "service" : "product") as
           | "product"
           | "service",
         manufacturer: productData.manufacturer || "",
-        serialnumber: productData.serialnumber || "",
+        serialnumber: productData.serialNumber || productData.serialnumber || "",
         wholesalePrice: Number(productData.wholesalePrice) || 0,
         dealerPrice: Number(productData.dealerPrice) || 0,
-        productCategoryId: productData.productCategoryId?._id || productData.productCategoryId || productData.category || "",
-        supplier: productData.supplierId?._id || productData.supplierId || productData.supplier || "",
+        productCategoryId: productData.productCategoryId?._id || productData.productCategoryId || productData.category?.id?.toString() || "",
+        supplier: productData.supplierId?._id || productData.supplierId || (productData.supplier && typeof productData.supplier === "object" ? productData.supplier?.id?.toString() : String(productData.supplier || "")),
         expiryDate: productData.expiryDate
           ? productData.expiryDate.split("T")[0]
           : "",
