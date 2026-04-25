@@ -27,11 +27,24 @@ export async function apiRequest(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
+  if (data !== undefined) {
+    console.log(`[API] ${method} ${url}`, { payload: data });
+  } else {
+    console.log(`[API] ${method} ${url}`);
+  }
+
   const res = await fetch(url, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
+  });
+
+  const resClone = res.clone();
+  resClone.json().then(body => {
+    console.log(`[API] ${method} ${url} → ${res.status}`, body);
+  }).catch(() => {
+    console.log(`[API] ${method} ${url} → ${res.status} (non-JSON body)`);
   });
 
   await throwIfResNotOk(res);

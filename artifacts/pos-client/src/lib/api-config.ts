@@ -99,8 +99,18 @@ export const apiCall = async (endpoint: string, options: RequestInit = {}) => {
   const attendantToken = localStorage.getItem('attendantToken');
   const token = adminToken || attendantToken;
   
-  console.log('API Call:', endpoint, 'with token:', !!token, 'admin:', !!adminToken, 'attendant:', !!attendantToken);
-  
+  const method = (options.method || 'GET').toUpperCase();
+  let parsedPayload: unknown;
+  try {
+    parsedPayload = options.body ? JSON.parse(options.body as string) : undefined;
+  } catch { parsedPayload = options.body; }
+
+  if (parsedPayload !== undefined) {
+    console.log(`[API] ${method} ${endpoint}`, { payload: parsedPayload });
+  } else {
+    console.log(`[API] ${method} ${endpoint}`);
+  }
+
   const defaultHeaders = {
     "Content-Type": "application/json",
     "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -133,6 +143,7 @@ export const apiCall = async (endpoint: string, options: RequestInit = {}) => {
       
       try {
         const errorData = await response.json();
+        console.log(`[API] ${method} ${endpoint} → ${response.status}`, errorData);
         if (errorData.error) {
           errorMessage = errorData.error;
         } else if (errorData.message) {
@@ -141,6 +152,7 @@ export const apiCall = async (endpoint: string, options: RequestInit = {}) => {
       } catch (parseError) {
         // If we can't parse the response, use the default error message
         console.warn("Could not parse error response:", parseError);
+        console.log(`[API] ${method} ${endpoint} → ${response.status} (non-JSON body)`);
       }
       
       if (response.status === 401) {
@@ -194,6 +206,13 @@ export const apiCall = async (endpoint: string, options: RequestInit = {}) => {
       throw new Error(errorMessage);
     }
     
+    const resClone = response.clone();
+    resClone.json().then(body => {
+      console.log(`[API] ${method} ${endpoint} → ${response.status}`, body);
+    }).catch(() => {
+      console.log(`[API] ${method} ${endpoint} → ${response.status} (non-JSON body)`);
+    });
+
     return response;
   } catch (error) {
     if (error instanceof Error) {
