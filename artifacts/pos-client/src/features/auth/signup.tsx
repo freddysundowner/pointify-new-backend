@@ -2,24 +2,27 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Eye, EyeOff, Building2, CheckCircle, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { API_ENDPOINTS, apiCall } from "@/lib/api-config";
 import { useAuth } from "./useAuth";
 
+const STEPS = [
+  { id: 1, question: "What's your name?", hint: "We'll use this to personalise your account." },
+  { id: 2, question: "What's your email?", hint: "This will be your login and contact email." },
+  { id: 3, question: "Your phone number?", hint: "For account security and important updates." },
+  { id: 4, question: "Create a password", hint: "At least 8 characters. Make it strong!" },
+  { id: 5, question: "Almost done!", hint: "Review your details and create your account." },
+];
+
 export default function Signup() {
   const [, setLocation] = useLocation();
+  const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [step, setStep] = useState<"register" | "verify">("register");
-  const [registeredEmail, setRegisteredEmail] = useState("");
-  const [otp, setOtp] = useState("");
-  const [isVerifying, setIsVerifying] = useState(false);
   const [formData, setFormData] = useState({
     ownerName: "",
     email: "",
@@ -31,48 +34,41 @@ export default function Signup() {
   const { toast } = useToast();
   const { login } = useAuth();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const update = (field: string, value: string) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
+
+  const canAdvance = () => {
+    if (step === 1) return formData.ownerName.trim().length >= 2;
+    if (step === 2) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
+    if (step === 3) return formData.phone.trim().length >= 7;
+    if (step === 4)
+      return (
+        formData.password.length >= 8 &&
+        formData.password === formData.confirmPassword
+      );
+    return acceptTerms;
   };
 
-  const validateForm = () => {
-    if (formData.password !== formData.confirmPassword) {
-      toast({
-        title: "Password Mismatch",
-        description: "Passwords do not match. Please try again.",
-        variant: "destructive",
-      });
-      return false;
-    }
+  const next = () => {
+    if (step < 5 && canAdvance()) setStep((s) => s + 1);
+  };
 
-    if (formData.password.length < 8) {
-      toast({
-        title: "Weak Password",
-        description: "Password must be at least 8 characters long.",
-        variant: "destructive",
-      });
-      return false;
-    }
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") next();
+  };
 
+  const handleSubmit = async () => {
     if (!acceptTerms) {
       toast({
         title: "Terms Required",
         description: "Please accept the terms and conditions to continue.",
         variant: "destructive",
       });
-      return false;
+      return;
     }
-
-    return true;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
     setIsLoading(true);
     try {
-      const response = await apiCall(API_ENDPOINTS.auth.register, {
+      await apiCall(API_ENDPOINTS.auth.register, {
         method: "POST",
         body: JSON.stringify({
           name: formData.ownerName,
@@ -90,7 +86,10 @@ export default function Signup() {
     } catch (error) {
       toast({
         title: "Registration Failed",
-        description: error instanceof Error ? error.message : "Something went wrong. Please try again.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Something went wrong. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -98,292 +97,240 @@ export default function Signup() {
     }
   };
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otp.trim()) return;
-    setIsVerifying(true);
-    try {
-      await apiCall(API_ENDPOINTS.auth.verifyEmail || "/api/auth/admin/verify-email", {
-        method: "POST",
-        body: JSON.stringify({ email: registeredEmail, otp: otp.trim() }),
-      });
-      toast({ title: "Email Verified!", description: "Signing you in..." });
-      await login(registeredEmail, formData.password);
-    } catch (error) {
-      toast({
-        title: "Verification Failed",
-        description: error instanceof Error ? error.message : "Invalid or expired code.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  const handleResendOtp = async () => {
-    try {
-      await apiCall("/api/auth/admin/resend-otp", {
-        method: "POST",
-        body: JSON.stringify({ email: registeredEmail }),
-      });
-      toast({ title: "Code Resent", description: "Check your email for the new verification code." });
-    } catch {
-      toast({ title: "Failed to resend", description: "Please try again.", variant: "destructive" });
-    }
-  };
-
-  if (step === "verify") {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white flex items-center justify-center px-4 py-8">
-        <div className="w-full max-w-md">
-          <Card className="shadow-lg border-0">
-            <CardHeader className="text-center space-y-4">
-              <div className="mx-auto w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center">
-                <ShieldCheck className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <CardTitle className="text-2xl font-bold text-gray-900">Verify Your Email</CardTitle>
-                <CardDescription className="text-gray-600 mt-2">
-                  Enter the verification code sent to <strong>{registeredEmail}</strong>
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleVerify} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="otp">Verification Code</Label>
-                  <Input
-                    id="otp"
-                    type="text"
-                    placeholder="Enter 6-digit code"
-                    value={otp}
-                    onChange={e => setOtp(e.target.value)}
-                    maxLength={6}
-                    className="h-12 text-center text-lg tracking-widest"
-                    required
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full h-12 bg-purple-600 hover:bg-purple-700 text-white font-medium"
-                  disabled={isVerifying}
-                >
-                  {isVerifying ? "Verifying..." : "Verify & Sign In"}
-                </Button>
-                <div className="text-center space-y-2">
-                  <p className="text-sm text-gray-500">Didn't receive the code?</p>
-                  <Button type="button" variant="link" onClick={handleResendOtp} className="text-purple-600 p-0 h-auto">
-                    Resend Code
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
+  const current = STEPS[step - 1];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-2xl">
-        {/* Back Button */}
-        <Button
-          variant="ghost"
-          onClick={() => setLocation("/business-login")}
-          className="mb-6 text-gray-600 hover:text-purple-600"
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <button
+          onClick={() =>
+            step === 1 ? setLocation("/business-login") : setStep((s) => s - 1)
+          }
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to login
-        </Button>
+          <ArrowLeft className="w-4 h-4" />
+          {step === 1 ? "Back to login" : "Back"}
+        </button>
 
-        {/* Signup Card */}
-        <Card className="shadow-lg border-0">
-          <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center">
-              <Building2 className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <CardTitle className="text-2xl font-bold text-gray-900">Create Account</CardTitle>
-              <CardDescription className="text-gray-600 mt-2">
-                Start using Pointify POS system
-              </CardDescription>
-            </div>
-          </CardHeader>
+        <div className="flex items-center gap-1.5">
+          {STEPS.map((s) => (
+            <div
+              key={s.id}
+              className={`rounded-full transition-all duration-300 ${
+                s.id < step
+                  ? "w-6 h-2 bg-purple-600"
+                  : s.id === step
+                  ? "w-6 h-2 bg-purple-600"
+                  : "w-2 h-2 bg-gray-200"
+              }`}
+            />
+          ))}
+        </div>
 
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="ownerName">Full Name</Label>
-                  <Input
-                    id="ownerName"
-                    name="ownerName"
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={formData.ownerName}
-                    onChange={handleInputChange}
-                    required
-                    className="h-12"
+        <span className="text-sm text-gray-400">
+          {step} / {STEPS.length}
+        </span>
+      </div>
+
+      {/* Question area */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-24">
+        <div className="w-full max-w-md">
+          {/* Step label */}
+          <p className="text-xs font-semibold uppercase tracking-widest text-purple-500 mb-3">
+            Step {step} of {STEPS.length}
+          </p>
+
+          {/* Question */}
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{current.question}</h1>
+          <p className="text-gray-500 mb-8">{current.hint}</p>
+
+          {/* Step inputs */}
+          {step === 1 && (
+            <input
+              autoFocus
+              type="text"
+              placeholder="e.g. Sarah Mensah"
+              value={formData.ownerName}
+              onChange={(e) => update("ownerName", e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full text-xl border-0 border-b-2 border-gray-200 focus:border-purple-500 outline-none pb-3 placeholder-gray-300 transition-colors"
+            />
+          )}
+
+          {step === 2 && (
+            <input
+              autoFocus
+              type="email"
+              placeholder="sarah@mybusiness.com"
+              value={formData.email}
+              onChange={(e) => update("email", e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full text-xl border-0 border-b-2 border-gray-200 focus:border-purple-500 outline-none pb-3 placeholder-gray-300 transition-colors"
+            />
+          )}
+
+          {step === 3 && (
+            <input
+              autoFocus
+              type="tel"
+              placeholder="+233 24 000 0000"
+              value={formData.phone}
+              onChange={(e) => update("phone", e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full text-xl border-0 border-b-2 border-gray-200 focus:border-purple-500 outline-none pb-3 placeholder-gray-300 transition-colors"
+            />
+          )}
+
+          {step === 4 && (
+            <div className="space-y-6">
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Password</label>
+                <div className="relative mt-2">
+                  <input
+                    autoFocus
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Min. 8 characters"
+                    value={formData.password}
+                    onChange={(e) => update("password", e.target.value)}
+                    className="w-full text-xl border-0 border-b-2 border-gray-200 focus:border-purple-500 outline-none pb-3 placeholder-gray-300 pr-10 transition-colors"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-0 top-1 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                    className="h-12"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    placeholder="Enter your phone number"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    required
-                    className="h-12"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Create a password"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      required
-                      className="h-12 pr-12"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-0 top-0 h-12 px-3 hover:bg-transparent"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4 text-gray-500" />
-                      ) : (
-                        <Eye className="w-4 h-4 text-gray-500" />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-500">Must be at least 8 characters long</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Confirm your password"
-                      value={formData.confirmPassword}
-                      onChange={handleInputChange}
-                      required
-                      className="h-12 pr-12"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-0 top-0 h-12 px-3 hover:bg-transparent"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="w-4 h-4 text-gray-500" />
-                      ) : (
-                        <Eye className="w-4 h-4 text-gray-500" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="affliate">Referral Code (Optional)</Label>
-                <Input
-                  id="affliate"
-                  name="affliate"
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Confirm Password</label>
+                <div className="relative mt-2">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Same password again"
+                    value={formData.confirmPassword}
+                    onChange={(e) => update("confirmPassword", e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="w-full text-xl border-0 border-b-2 border-gray-200 focus:border-purple-500 outline-none pb-3 placeholder-gray-300 pr-10 transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-0 top-1 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+              {/* Inline requirements */}
+              <div className="flex flex-wrap gap-3 pt-1">
+                {[
+                  { label: "8+ chars", ok: formData.password.length >= 8 },
+                  { label: "Passwords match", ok: formData.password === formData.confirmPassword && formData.password.length > 0 },
+                ].map((r) => (
+                  <span
+                    key={r.label}
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
+                      r.ok ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-400"
+                    }`}
+                  >
+                    {r.ok && <Check className="w-3 h-3" />}
+                    {r.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {step === 5 && (
+            <div className="space-y-6">
+              {/* Summary */}
+              <div className="rounded-2xl bg-purple-50 p-5 space-y-3">
+                {[
+                  { label: "Name", value: formData.ownerName },
+                  { label: "Email", value: formData.email },
+                  { label: "Phone", value: formData.phone },
+                ].map((row) => (
+                  <div key={row.label} className="flex justify-between text-sm">
+                    <span className="text-gray-500">{row.label}</span>
+                    <span className="font-medium text-gray-800">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Referral */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Referral Code <span className="normal-case font-normal">(optional)</span>
+                </label>
+                <input
                   type="text"
-                  placeholder="Enter referral code if you have one"
+                  placeholder="Enter a referral code"
                   value={formData.affliate}
-                  onChange={handleInputChange}
-                  className="h-12"
+                  onChange={(e) => update("affliate", e.target.value)}
+                  className="w-full mt-2 text-base border-0 border-b-2 border-gray-200 focus:border-purple-500 outline-none pb-3 placeholder-gray-300 transition-colors"
                 />
-                <p className="text-xs text-gray-500">Optional: Enter a referral code from an existing member</p>
               </div>
 
-              <div className="flex items-start space-x-2 pt-4">
+              {/* Terms */}
+              <div className="flex items-start gap-3">
                 <Checkbox
                   id="terms"
                   checked={acceptTerms}
-                  onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
+                  onCheckedChange={(v) => setAcceptTerms(v as boolean)}
+                  className="mt-0.5"
                 />
-                <div className="grid gap-1.5 leading-none">
-                  <Label
-                    htmlFor="terms"
-                    className="text-sm font-normal leading-relaxed peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    I agree to the{" "}
-                    <Button variant="link" className="p-0 h-auto text-purple-600 hover:text-purple-700">
-                      Terms of Service
-                    </Button>{" "}
-                    and{" "}
-                    <Button variant="link" className="p-0 h-auto text-purple-600 hover:text-purple-700">
-                      Privacy Policy
-                    </Button>
-                  </Label>
-                </div>
+                <label htmlFor="terms" className="text-sm text-gray-600 leading-relaxed cursor-pointer">
+                  I agree to the{" "}
+                  <span className="text-purple-600 font-medium hover:underline cursor-pointer">Terms of Service</span>{" "}
+                  and{" "}
+                  <span className="text-purple-600 font-medium hover:underline cursor-pointer">Privacy Policy</span>
+                </label>
               </div>
-
-              <Button
-                type="submit"
-                className="w-full h-12 bg-purple-600 hover:bg-purple-700 text-white font-medium"
-                disabled={isLoading}
-              >
-                {isLoading ? "Creating Account..." : "Create Account"}
-              </Button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Already have an account?{" "}
-                <Button
-                  variant="link"
-                  onClick={() => setLocation("/business-login")}
-                  className="text-purple-600 hover:text-purple-700 p-0 h-auto font-medium"
-                >
-                  Sign in here
-                </Button>
-              </p>
             </div>
-          </CardContent>
-        </Card>
+          )}
 
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-xs text-gray-400">
-            © 2025 Pointify. All rights reserved.
-          </p>
+          {/* CTA */}
+          <div className="mt-10">
+            {step < 5 ? (
+              <button
+                onClick={next}
+                disabled={!canAdvance()}
+                className="flex items-center gap-2 px-8 py-4 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-2xl transition-all text-lg"
+              >
+                Continue
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={isLoading || !acceptTerms}
+                className="w-full py-4 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-2xl transition-all text-lg"
+              >
+                {isLoading ? "Creating your account…" : "Create My Account"}
+              </button>
+            )}
+          </div>
+
+          {step === 1 && (
+            <p className="mt-6 text-sm text-gray-500">
+              Already have an account?{" "}
+              <button
+                onClick={() => setLocation("/business-login")}
+                className="text-purple-600 font-medium hover:underline"
+              >
+                Sign in here
+              </button>
+            </p>
+          )}
         </div>
+      </div>
+
+      {/* Branding footer */}
+      <div className="text-center pb-6">
+        <p className="text-xs text-gray-300">© 2025 Pointify. All rights reserved.</p>
       </div>
     </div>
   );

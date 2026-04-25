@@ -1,10 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Mail, CheckCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mail, CheckCircle, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { API_ENDPOINTS, apiCall } from "@/lib/api-config";
 
@@ -15,28 +11,19 @@ export default function ForgotPassword() {
   const [isEmailSent, setIsEmailSent] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const sendReset = async (addr: string) => {
     setIsLoading(true);
-
     try {
-      const data = await apiCall(API_ENDPOINTS.auth.requestPasswordReset, {
+      await apiCall(API_ENDPOINTS.auth.requestPasswordReset, {
         method: "POST",
-        body: JSON.stringify({
-          email: email,
-        }),
+        body: JSON.stringify({ email: addr }),
       });
-
       setIsEmailSent(true);
-      toast({
-        title: "Reset Email Sent",
-        description: "Check your email for password reset instructions.",
-        action: <CheckCircle className="w-4 h-4" />,
-      });
     } catch (error) {
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send reset email. Please try again.",
+        title: "Could not send reset email",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -44,137 +31,143 @@ export default function ForgotPassword() {
     }
   };
 
-  const handleResendEmail = async () => {
-    setIsLoading(true);
-    try {
-      const data = await apiCall(API_ENDPOINTS.auth.requestPasswordReset, {
-        method: "POST",
-        body: JSON.stringify({
-          email: email,
-        }),
-      });
-
-      toast({
-        title: "Email Resent",
-        description: "Password reset email has been sent again.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to resend email. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendReset(email);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        {/* Back Button */}
-        <Button
-          variant="ghost"
-          onClick={() => setLocation("/business-login")}
-          className="mb-6 text-gray-600 hover:text-purple-600"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to login
-        </Button>
+    <div className="min-h-screen flex">
+      {/* Left accent panel */}
+      <div className="hidden lg:flex lg:w-5/12 bg-purple-600 flex-col justify-center p-16 relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-purple-500 rounded-full opacity-40" />
+          <div className="absolute bottom-8 -left-16 w-64 h-64 bg-purple-700 rounded-full opacity-30" />
+        </div>
+        <div className="relative z-10">
+          <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center mb-8">
+            <Mail className="w-7 h-7 text-white" />
+          </div>
+          <h2 className="text-3xl font-bold text-white mb-3">Reset your password</h2>
+          <p className="text-purple-200 text-base leading-relaxed">
+            No worries — it happens. Just enter your email and we'll send you a link to get back in.
+          </p>
+        </div>
+        {/* Logo */}
+        <div className="absolute bottom-10 left-16 flex items-center gap-2 z-10">
+          <div className="w-7 h-7 bg-white rounded-lg flex items-center justify-center">
+            <div className="w-3 h-3 bg-purple-600 rounded-full" />
+          </div>
+          <span className="text-white font-semibold">Pointify</span>
+        </div>
+      </div>
 
-        {/* Reset Password Card */}
-        <Card className="shadow-lg border-0">
-          <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center">
-              <Mail className="w-8 h-8 text-purple-600" />
-            </div>
-            <div>
-              <CardTitle className="text-2xl font-bold text-gray-900">
-                {isEmailSent ? "Check Your Email" : "Reset Password"}
-              </CardTitle>
-              <CardDescription className="text-gray-600 mt-2">
-                {isEmailSent 
-                  ? "We've sent password reset instructions to your email address"
-                  : "Enter your email address and we'll send you instructions to reset your password"
-                }
-              </CardDescription>
-            </div>
-          </CardHeader>
+      {/* Right form panel */}
+      <div className="flex-1 flex flex-col justify-center items-center px-6 py-12 bg-white">
+        <div className="w-full max-w-sm">
+          <button
+            onClick={() => setLocation("/business-login")}
+            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mb-10 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to login
+          </button>
 
-          <CardContent>
-            {!isEmailSent ? (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    name="email"
+          {!isEmailSent ? (
+            <>
+              <h1 className="text-2xl font-bold text-gray-900 mb-1">Forgot your password?</h1>
+              <p className="text-gray-500 text-sm mb-8">
+                Enter your email and we'll send reset instructions.
+              </p>
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 block mb-2">
+                    Email Address
+                  </label>
+                  <input
                     type="email"
-                    placeholder="Enter your email address"
+                    placeholder="you@business.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="h-12"
+                    autoFocus
+                    className="w-full h-12 px-4 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-none text-gray-800 placeholder-gray-300 transition-all"
                   />
                 </div>
 
-                <Button
+                <button
                   type="submit"
-                  className="w-full h-12 bg-purple-600 hover:bg-purple-700 text-white font-medium"
                   disabled={isLoading}
+                  className="w-full h-12 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-all"
                 >
-                  {isLoading ? "Sending..." : "Send Reset Instructions"}
-                </Button>
+                  {isLoading ? (
+                    "Sending…"
+                  ) : (
+                    <>
+                      Send Reset Link
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
               </form>
-            ) : (
-              <div className="space-y-6">
-                <div className="text-center p-6 bg-green-50 rounded-lg border border-green-200">
-                  <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-3" />
-                  <h3 className="font-semibold text-green-800 mb-2">Email Sent Successfully!</h3>
-                  <p className="text-sm text-green-700">
-                    We've sent password reset instructions to <strong>{email}</strong>
-                  </p>
-                </div>
 
-                <div className="space-y-3">
-                  <p className="text-sm text-gray-600 text-center">
-                    Didn't receive the email? Check your spam folder or try again.
-                  </p>
-                  
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleResendEmail}
-                    className="w-full h-12"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Resending..." : "Resend Email"}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
+              <p className="mt-8 text-center text-sm text-gray-500">
                 Remember your password?{" "}
-                <Button
-                  variant="link"
+                <button
                   onClick={() => setLocation("/business-login")}
-                  className="text-purple-600 hover:text-purple-700 p-0 h-auto font-medium"
+                  className="text-purple-600 font-semibold hover:underline"
                 >
-                  Sign in here
-                </Button>
+                  Sign in
+                </button>
               </p>
-            </div>
-          </CardContent>
-        </Card>
+            </>
+          ) : (
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Check your inbox</h1>
+              <p className="text-gray-500 text-sm mb-2">
+                We sent reset instructions to
+              </p>
+              <p className="font-semibold text-gray-800 mb-8">{email}</p>
 
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-xs text-gray-400">
-            © 2025 Pointify. All rights reserved.
-          </p>
+              <div className="bg-gray-50 rounded-2xl p-5 text-left space-y-3 mb-8">
+                {[
+                  "Check your inbox (and spam folder)",
+                  "Click the reset link in the email",
+                  "Create a new password",
+                ].map((step, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      {i + 1}
+                    </span>
+                    <span className="text-sm text-gray-600">{step}</span>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={() => sendReset(email)}
+                disabled={isLoading}
+                className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 mx-auto transition-colors disabled:opacity-50"
+              >
+                <RotateCcw className="w-4 h-4" />
+                {isLoading ? "Resending…" : "Resend email"}
+              </button>
+
+              <button
+                onClick={() => setLocation("/business-login")}
+                className="mt-6 w-full h-12 border border-gray-200 hover:border-purple-300 text-gray-700 font-medium rounded-xl transition-all text-sm"
+              >
+                Back to Login
+              </button>
+            </div>
+          )}
         </div>
+
+        <p className="text-xs text-gray-300 mt-12">© 2025 Pointify. All rights reserved.</p>
       </div>
     </div>
   );
