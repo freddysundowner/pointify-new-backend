@@ -421,6 +421,7 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       supplierId, description, type,
       isTaxable, manageByPrice, expiryDate,
       alertQuantity, reorderLevel,
+      bundleItems: bundleItemsPayload,
     } = req.body;
 
     const trimmedName = name !== undefined ? String(name).trim() : undefined;
@@ -469,6 +470,53 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       await db.update(inventory)
         .set({ reorderLevel: String(newReorderLevel) })
         .where(and(eq(inventory.product, existing.id), eq(inventory.shop, existing.shop)));
+    }
+
+    // Bundle items replacement — if caller sends the array, wipe & re-insert
+    if (Array.isArray(bundleItemsPayload)) {
+      // Validate each item
+      const bundlePayload: Array<{ componentProductId: number; quantity: number }> = [];
+      for (const item of bundleItemsPayload) {
+        if (!item.componentProductId || item.quantity == null)
+          throw badRequest("Each bundle item requires componentProductId and quantity");
+        bundlePayload.push({
+          componentProductId: Number(item.componentProductId),
+          quantity: Number(item.quantity),
+        });
+      }
+
+      // Verify caller owns every component product
+      if (bundlePayload.length > 0) {
+        const componentIds = bundlePayload.map((i) => i.componentProductId);
+        const componentRows = await db.query.products.findMany({
+          where: inArray(products.id, componentIds),
+          columns: { id: true, shop: true },
+        });
+        if (componentRows.length !== componentIds.length)
+          throw notFound("One or more component products not found");
+        for (const comp of componentRows) {
+          await assertShopOwnership(req, comp.shop);
+        }
+      }
+
+      // Replace: delete all existing bundle items, then insert the new set
+      await db.delete(bundleItems).where(eq(bundleItems.product, existing.id));
+
+      if (bundlePayload.length > 0) {
+        await db.insert(bundleItems).values(
+          bundlePayload.map((item) => ({
+            product: existing.id,
+            componentProduct: item.componentProductId,
+            quantity: String(item.quantity),
+          }))
+        );
+        // Ensure product type reflects bundle
+        const [bundleRow] = await db.update(products)
+          .set({ type: "bundle" })
+          .where(eq(products.id, existing.id))
+          .returning();
+        if (bundleRow) updated = bundleRow;
+      }
     }
 
     return ok(res, updated);
