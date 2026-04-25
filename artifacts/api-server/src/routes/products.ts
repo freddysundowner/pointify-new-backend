@@ -97,7 +97,7 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
           ? eq(products.shop, allowedShops[0]!)
           : inArray(products.shop, allowedShops);
 
-    const conditions: any[] = [];
+    const conditions: any[] = [eq(products.isDeleted, false)];
     if (shopCondition) conditions.push(shopCondition);
     if (categoryId) conditions.push(eq(products.category, categoryId));
     if (search) conditions.push(ilike(products.name, `%${search}%`));
@@ -127,6 +127,7 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
       limit,
       offset,
       orderBy: (p, { asc }) => [asc(p.name)],
+      with: { category: true },
     });
     const total = await db.$count(products, where);
 

@@ -344,8 +344,8 @@ export default function StockProducts() {
   };
 
   const getQuantityStatus = (product: any) => {
-    // Services (virtual products) don't have stock status
-    if (product.virtual) {
+    // Services and virtual products don't have stock status
+    if (product.type === "virtual" || product.type === "service") {
       return { label: "Service", variant: "outline" as const };
     }
 
@@ -703,7 +703,7 @@ export default function StockProducts() {
                         const stockStatus = getQuantityStatus(product);
                         const quantity = (product as any).quantity || 0;
                         const reorderLevel = (product as any).reorderLevel || 0;
-                        const isVirtual = (product as any).virtual;
+                        const isVirtual = (product as any).type === "virtual" || (product as any).type === "service";
                         const isLowStock =
                           !isVirtual &&
                           quantity > 0 &&
@@ -730,9 +730,7 @@ export default function StockProducts() {
                               <div>
                                 <p className="font-medium">{product.name}</p>
                                 <p className="text-sm text-gray-500">
-                                  {(product as any).productCategoryId?.name ||
-                                    product.category ||
-                                    "No Category"}
+                                  {(product as any).category?.name || "No Category"}
                                 </p>
                               </div>
                             </td>
