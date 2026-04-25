@@ -3,7 +3,19 @@
 ## Overview
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
-This is a **Pointify POS** backend — a full-featured Point of Sale system originally built on MongoDB, now rewritten to PostgreSQL.
+This is **Pointify POS** — a full-featured Point of Sale system with a React frontend and an Express/PostgreSQL backend.
+
+## Project Structure
+
+- `artifacts/pos-client` — React + Vite POS frontend (port 5000, served as webview)
+- `artifacts/api-server` — Express 5 REST API backend (port 3001)
+- `artifacts/mockup-sandbox` — Vite UI prototyping sandbox (port 8081)
+- `lib/db` — Drizzle ORM schema + PostgreSQL connection
+- `lib/api-spec` — OpenAPI spec (source of truth)
+- `lib/api-zod` — Auto-generated Zod schemas from OpenAPI spec
+- `lib/api-client-react` — Auto-generated TanStack Query hooks
+
+The frontend proxies all `/api` requests to the API server at `localhost:3001` via Vite's dev-proxy.
 
 ## Stack
 

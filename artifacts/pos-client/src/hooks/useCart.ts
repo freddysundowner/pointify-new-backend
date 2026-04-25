@@ -1,0 +1,215 @@
+import { useState, useEffect } from "react";
+import type { CartItem, Product, Transaction } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
+import { useCartContext } from "@/contexts/CartContext";
+import { usePrimaryShop } from "./usePrimaryShop";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store";
+
+type SaleType = "Retail" | "Wholesale" | "Dealer";
+
+export const useCart = (products: Product[], taxRate: number, saleType: SaleType) => {
+  const { toast } = useToast();
+  const { attendant } = useAttendantAuth();
+  const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
+  const primaryShopData = usePrimaryShop();
+  const { shopData } = useSelector((state: RootState) => state.attendant);
+
+  const { cartItems, setCartItems, orderId, setOrderId } = useCartContext();
+  const [showReceipt, setShowReceipt] = useState(false);
+  const hasAttendantPermission = (permission: string) => {
+    if (!attendant) return false;
+    return attendant.permissions.some(perm => perm.value?.includes(permission));
+  };
+
+  const getPriceForSaleType = (product: Product, saleType: SaleType) => {
+    const sellingPrice = product.sellingPrice || product.price || 0;
+    const wholesalePrice = product.wholesalePrice || 0;
+    const dealerPrice = product.dealerPrice || 0;
+
+    switch (saleType) {
+      case "Wholesale":
+        return wholesalePrice > 0 ? wholesalePrice : sellingPrice;
+      case "Dealer":
+        return dealerPrice > 0 ? dealerPrice : sellingPrice;
+      default:
+        return sellingPrice;
+    }
+  };
+
+  const updateCartPricesForSaleType = (newSaleType: SaleType) => {
+    setCartItems(prev =>
+      prev.map(item => {
+        const product = products.find((p: any) => (p._id || p.id) === item.id);
+        if (!product) return item;
+        const newPrice = getPriceForSaleType(product, newSaleType);
+        return {
+          ...item,
+          price: newPrice,
+          total: item.quantity * newPrice
+        };
+      })
+    );
+  };
+
+  const addToCart = (product: Product, passedOrderId?: string) => {
+    const quantity = product.quantity || 0;
+    setOrderId(passedOrderId || null);
+    if (product.productType === "product" && quantity <= 0 && shopData?.allownegativeselling == false) {
+      toast({
+        title: "Out of Stock",
+        description: `${product.name} is out of stock.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCartItems(prev => {
+      const existingItem = prev.find(item => item.id === product._id || item.id === product.id);
+      if (existingItem) {
+        if (!product.virtual && existingItem.quantity + 1 > quantity) {
+          toast({
+            title: "Insufficient Stock",
+            description: `Only ${quantity} ${product.name} available.`,
+            variant: "destructive",
+          });
+          return prev;
+        }
+
+        return prev.map(item =>
+          item.id === product.id
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                total: (item.price - (item.discount || 0)) * (item.quantity + 1)
+              }
+            : item
+        );
+      }
+
+      const price = getPriceForSaleType(product, saleType);
+      return [
+        ...prev,
+        {
+          id: product._id,
+          name: product.name,
+          price,
+          quantity: 1,
+          discount: 0,
+          total: price,
+          originalPrice: price,
+          maxDiscount: product.maxDiscount || 0,
+          serialnumber: product?.serialnumber,
+          orderId:passedOrderId || orderId
+        }
+      ];
+    });
+  };
+
+  const applyDiscount = (id: string | number, discountAmount: number) => {
+    if (!hasAttendantPermission('discount')) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to apply discounts",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCartItems(prev =>
+      prev.map(item => {
+        if (item.id !== id) return item;
+        const validDiscount = Math.min(discountAmount, item.maxDiscount || 0);
+        return {
+          ...item,
+          discount: validDiscount,
+          total: (item.price - validDiscount) * item.quantity
+        };
+      })
+    );
+  };
+
+  const updateQuantity = (id: string | number, quantity: number, productData?: Product) => {
+    if (quantity <= 0) {
+      setCartItems(prev => prev.filter(item => item.id !== id));
+      return;
+    }
+
+    if (productData && !productData.virtual && quantity > (productData.quantity || 0)) {
+      toast({
+        title: "Stock Limit",
+        description: `Only ${productData.quantity} in stock.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setCartItems(prev =>
+      prev.map(item =>
+        item.id === id
+          ? { ...item, quantity, total: (item.price - (item.discount || 0)) * quantity }
+          : item
+      )
+    );
+  };
+
+  const updatePrice = (id: string | number, newPrice: number) => {
+    if (!hasAttendantPermission('edit_price')) {
+      toast({
+        title: "Access Denied",
+        description: "You can't edit prices",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (newPrice <= 0) {
+      toast({
+        title: "Invalid Price",
+        description: "Price must be greater than 0",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setCartItems(prev =>
+      prev.map(item =>
+        item.id === id
+          ? { ...item, price: newPrice, total: item.quantity * newPrice }
+          : item
+      )
+    );
+  };
+
+  const clearCart = () => setCartItems([]);
+
+  const getTotals = () => {
+    const subtotal = cartItems.reduce((acc, item) => acc + item.total, 0);
+    const discount = cartItems.reduce((acc, item) => acc + (item.discount || 0) * item.quantity, 0);
+    const tax = subtotal * (taxRate / 100);
+    const total = subtotal + tax;
+    return { subtotal, discount, tax, total };
+  };
+
+  const completeCheckout = (transaction: Transaction) => {
+    setLastTransaction(transaction);
+      clearCart();
+      setShowReceipt(true)
+  };
+
+  return {
+    cartItems,
+    addToCart,
+    applyDiscount,
+    updateQuantity,
+    updatePrice,
+    clearCart,
+    getTotals,
+    updateCartPricesForSaleType,
+    completeCheckout,
+    lastTransaction,
+    setLastTransaction,orderId,
+    showReceipt, setShowReceipt,setOrderId
+  };
+};

@@ -28,13 +28,13 @@ args = "Start API server"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=8080 BASE_PATH=/ pnpm --filter @workspace/mockup-sandbox run dev"
-waitForPort = 8080
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter pointify-client run dev"
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Start API server"
@@ -59,6 +59,10 @@ timeoutMs = 20000
 [[ports]]
 localPort = 3001
 externalPort = 3001
+
+[[ports]]
+localPort = 5000
+externalPort = 80
 
 [[ports]]
 localPort = 8080
