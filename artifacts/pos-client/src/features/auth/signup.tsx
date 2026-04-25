@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Eye, EyeOff, Building2, CheckCircle } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Building2, CheckCircle, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { API_ENDPOINTS, apiCall } from "@/lib/api-config";
 import { useAuth } from "./useAuth";
@@ -16,6 +16,10 @@ export default function Signup() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [step, setStep] = useState<"register" | "verify">("register");
+  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
   const [formData, setFormData] = useState({
     ownerName: "",
     email: "",
@@ -65,35 +69,28 @@ export default function Signup() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
-
     setIsLoading(true);
-
     try {
-      const data = await apiCall(API_ENDPOINTS.auth.register, {
+      const response = await apiCall(API_ENDPOINTS.auth.register, {
         method: "POST",
         body: JSON.stringify({
-          username: formData.ownerName,
+          name: formData.ownerName,
           email: formData.email,
           password: formData.password,
           phone: formData.phone,
-          firstName: formData.ownerName.split(' ')[0],
-          lastName: formData.ownerName.split(' ').slice(1).join(' '),
           ...(formData.affliate && { affliate: formData.affliate }),
         }),
       });
-
-      // Automatically log in the user after successful registration
-      await login(formData.email, formData.password);
-
+      const data = await response.json();
+      setRegisteredEmail(formData.email);
+      setStep("verify");
       toast({
-        title: "Account Created Successfully!",
-        description: "Welcome to Pointify! Setting up your shop...",
-        action: <CheckCircle className="w-4 h-4" />,
-      }); 
-      
-      // setLocation("/");
+        title: "Account Created!",
+        description: data.otp
+          ? `Your verification code is: ${data.otp}`
+          : "A verification code has been sent to your email.",
+      });
     } catch (error) {
       toast({
         title: "Registration Failed",
@@ -104,6 +101,92 @@ export default function Signup() {
       setIsLoading(false);
     }
   };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp.trim()) return;
+    setIsVerifying(true);
+    try {
+      await apiCall(API_ENDPOINTS.auth.verifyEmail || "/api/auth/admin/verify-email", {
+        method: "POST",
+        body: JSON.stringify({ email: registeredEmail, otp: otp.trim() }),
+      });
+      toast({ title: "Email Verified!", description: "Signing you in..." });
+      await login(registeredEmail, formData.password);
+    } catch (error) {
+      toast({
+        title: "Verification Failed",
+        description: error instanceof Error ? error.message : "Invalid or expired code.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    try {
+      await apiCall("/api/auth/admin/resend-otp", {
+        method: "POST",
+        body: JSON.stringify({ email: registeredEmail }),
+      });
+      toast({ title: "Code Resent", description: "Check your email for the new verification code." });
+    } catch {
+      toast({ title: "Failed to resend", description: "Please try again.", variant: "destructive" });
+    }
+  };
+
+  if (step === "verify") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md">
+          <Card className="shadow-lg border-0">
+            <CardHeader className="text-center space-y-4">
+              <div className="mx-auto w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center">
+                <ShieldCheck className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-2xl font-bold text-gray-900">Verify Your Email</CardTitle>
+                <CardDescription className="text-gray-600 mt-2">
+                  Enter the verification code sent to <strong>{registeredEmail}</strong>
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleVerify} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="otp">Verification Code</Label>
+                  <Input
+                    id="otp"
+                    type="text"
+                    placeholder="Enter 6-digit code"
+                    value={otp}
+                    onChange={e => setOtp(e.target.value)}
+                    maxLength={6}
+                    className="h-12 text-center text-lg tracking-widest"
+                    required
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full h-12 bg-purple-600 hover:bg-purple-700 text-white font-medium"
+                  disabled={isVerifying}
+                >
+                  {isVerifying ? "Verifying..." : "Verify & Sign In"}
+                </Button>
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-gray-500">Didn't receive the code?</p>
+                  <Button type="button" variant="link" onClick={handleResendOtp} className="text-purple-600 p-0 h-auto">
+                    Resend Code
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white flex items-center justify-center px-4 py-8">
