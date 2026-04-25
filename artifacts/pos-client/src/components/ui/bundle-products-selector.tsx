@@ -113,6 +113,10 @@ export default function BundleProductsSelector({
     }
   }, [isOpen]);
 
+  // Resolve product ID — API returns integer `id`; legacy data may use string `_id`
+  const pid = (product: any): string =>
+    String(product._id || product.id || "");
+
   const handleAddProduct = (product: any) => {
     setSelectedProductForQuantity(product);
     setQuantityInput("1");
@@ -121,8 +125,8 @@ export default function BundleProductsSelector({
 
   const handleConfirmQuantity = () => {
     if (selectedProductForQuantity && quantityInput && parseInt(quantityInput) > 0) {
-      onToggleProduct(selectedProductForQuantity._id, selectedProductForQuantity);
-      onUpdateQuantity(selectedProductForQuantity._id, parseInt(quantityInput));
+      onToggleProduct(pid(selectedProductForQuantity), selectedProductForQuantity);
+      onUpdateQuantity(pid(selectedProductForQuantity), parseInt(quantityInput));
     }
     setQuantityDialogOpen(false);
     setSelectedProductForQuantity(null);
@@ -132,11 +136,11 @@ export default function BundleProductsSelector({
   // Always use API results when available, fallback to cached products only when necessary
   const filteredProducts = (apiProducts.length > 0 || isLoadingProducts || bundleSearchQuery.trim())
     ? apiProducts.filter((product: any) => {
-        if (excludeProductId && product._id === excludeProductId) return false;
+        if (excludeProductId && pid(product) === excludeProductId) return false;
         return true;
       })
     : existingProducts.filter((product: any) => {
-        if (excludeProductId && product._id === excludeProductId) return false;
+        if (excludeProductId && pid(product) === excludeProductId) return false;
         return true;
       });
 
@@ -177,7 +181,7 @@ export default function BundleProductsSelector({
           </div>
         ) : (
           filteredProducts.map((product: any) => (
-            <div key={product._id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+            <div key={pid(product)} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
               <div className="flex-1">
                 <p className="font-medium">{product.name}</p>
                 <p className="text-sm text-gray-500">
@@ -187,15 +191,14 @@ export default function BundleProductsSelector({
                 </p>
                 <p className="text-xs text-gray-400">
                   Stock: {product.quantity || product.stock || 0} units
-
                 </p>
               </div>
-              {selectedBundleProducts[product._id] ? (
+              {selectedBundleProducts[pid(product)] ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => onRemoveProduct(product._id)}
+                  onClick={() => onRemoveProduct(pid(product))}
                   className="text-red-600 hover:text-red-700"
                 >
                   Remove

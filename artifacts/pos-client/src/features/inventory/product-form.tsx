@@ -1173,7 +1173,7 @@ export default function ProductForm() {
                             const productData = typeof data === "object" && "productName" in data
                               ? data
                               : { quantity: typeof data === "object" ? data.quantity : data, productName: undefined };
-                            const prod = products?.find((p) => p._id === productId);
+                            const prod = products?.find((p) => String(p._id || p.id) === productId);
                             return (
                               <div key={productId} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-100">
                                 <p className="text-xs font-medium text-gray-700 flex-1 truncate">
