@@ -62,7 +62,7 @@ export default function StockCountHistoryPage() {
 
   // Fetch stock count history with proper authentication context
   const { data: historyData, isLoading, error } = useQuery({
-    queryKey: [ENDPOINTS.stockCounts.getByShop(shopId || ''), shopId, adminId, attendantId, fromDate, toDate, currentPage, itemsPerPage],
+    queryKey: [ENDPOINTS.stockCounts.getAll, shopId, adminId, attendantId, fromDate, toDate, currentPage, itemsPerPage],
     queryFn: async () => {
       // Build query parameters
       const params = new URLSearchParams({
@@ -75,7 +75,7 @@ export default function StockCountHistoryPage() {
         params.append('attendantId', attendant._id);
       }
       
-      const response = await apiRequest("GET", `${ENDPOINTS.stockCounts.getByShop(shopId || '')}?${params.toString()}`);
+      const response = await apiRequest("GET", `${ENDPOINTS.stockCounts.getAll}?${params.toString()}`);
       return await response.json();
     },
     enabled: !!shopId && !!adminId,

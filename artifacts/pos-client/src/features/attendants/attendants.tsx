@@ -164,7 +164,7 @@ export default function Attendants() {
       const adminId = effectiveAdmin?._id || effectiveAdmin?.id;
       console.log('Fetching all attendants for adminId:', adminId);
       const token = localStorage.getItem('authToken');
-      return fetch(ENDPOINTS.attendants.getAll(adminId), {
+      return fetch(ENDPOINTS.attendants.getAll, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

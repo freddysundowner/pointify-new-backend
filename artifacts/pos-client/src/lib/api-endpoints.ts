@@ -20,14 +20,12 @@ export const ENDPOINTS = {
 
     attendantLogin:       "/api/auth/attendant/login",
     attendantLogout:      "/api/auth/attendant/logout",
-    attendantVerify:      "/api/auth/attendant/verify",
+    attendantVerify:      "/api/auth/me",
 
     me:                   "/api/auth/me",
 
-    getAdmin:             (id: string) => `/api/auth/admin/${id}`,
-    updateAdmin:          (id: string) => `/api/admin/${id}`,
     adminProfile:         "/api/admin/profile",
-    adminPermissions:     "/api/admin/permissions",
+    adminPermissions:     "/api/attendants/permissions",
   },
 
   // ─── Shop ─────────────────────────────────────────────────────────────────
@@ -36,7 +34,6 @@ export const ENDPOINTS = {
     getAll:               "/api/shops",
     getById:              (id: string) => `/api/shops/${id}`,
     getData:              (id: string) => `/api/shops/${id}`,
-    getByAdmin:           (adminId: string) => `/api/shop/admin/${adminId}`,
     getCategories:        "/api/shop-categories",
     create:               "/api/shops",
   },
@@ -53,7 +50,7 @@ export const ENDPOINTS = {
     getCategories:        "/api/product-categories",
     createCategory:       "/api/product-categories",
     getByShop:            (shopId: string) => `/api/products?shopId=${shopId}`,
-    adjust:               (id: string) => `/api/inventory/adjustments`,
+    adjust:               (_id: string) => `/api/inventory/adjustments`,
     adjustHistory:        (id: string) => `/api/products/${id}/history`,
     summary:              (id: string) => `/api/products/${id}/summary`,
     salesHistory:         (id: string) => `/api/products/${id}/sales-history`,
@@ -70,40 +67,40 @@ export const ENDPOINTS = {
     create:               "/api/customers",
     update:               (id: string) => `/api/customers/${id}`,
     delete:               (id: string) => `/api/customers/${id}`,
-    updateBalance:        (id: string) => `/api/customers/${id}/balance`,
-    getDebtors:           "/api/customers/debtors",
-    getPayments:          "/api/customers/payments",
-    getOverdue:           (shopId: string) => `/api/customers/overdue/${shopId}`,
-    getAnalysis:          (shopId: string) => `/api/customers/analysis/${shopId}`,
+    updateBalance:        (id: string) => `/api/customers/${id}/wallet`,
+    getDebtors:           "/api/reports/dues",
+    getPayments:          (id: string) => `/api/customers/${id}/wallet-transactions`,
+    getOverdue:           "/api/reports/dues/overdue",
+    getAnalysis:          "/api/reports/sales/by-customer",
   },
 
   // ─── Sales ────────────────────────────────────────────────────────────────
 
   sales: {
     create:               "/api/sales",
-    getAll:               "/api/sales/filter",
-    getReceipt:           (id: string) => `/api/sales/single/receipt/${id}`,
+    getAll:               "/api/sales",
+    getById:              (id: string) => `/api/sales/${id}`,
+    getReceipt:           (id: string) => `/api/sales/${id}`,
     update:               (id: string) => `/api/sales/${id}`,
-    complete:             (id: string) => `/api/sales/${id}`,
+    complete:             (id: string) => `/api/sales/${id}/checkout`,
     delete:               (id: string) => `/api/sales/${id}`,
-    void:                 (id: string) => `/api/sales/void/sale/${id}`,
-    getOnlineOrders:      (shopId: string) => `/api/sales/shop/onlineorders/${shopId}`,
+    void:                 (id: string) => `/api/sales/${id}/void`,
+    getOnlineOrders:      (shopId: string) => `/api/orders?shopId=${shopId}`,
 
     // Online / orders
-    onlineOrderCreate:    "/api/sales/orders/sale/online",
-    onlineOrderGetAll:    "/api/sales/orders/sale/online",
-    onlineOrderDelete:    (id: string) => `/api/sales/orders/sale/online/${id}`,
+    onlineOrderCreate:    "/api/orders",
+    onlineOrderGetAll:    "/api/orders",
+    onlineOrderDelete:    (id: string) => `/api/orders/${id}`,
 
-    // Reports & analytics
-    getByFilter:          "/api/sales/product/filter",
-    getProductReports:    "/api/sales/products/reports",
-    getMostSelling:       "/api/sales/summary/month/analysis/product",
-    getSummaryByDates:    "/api/sales/summary/bydates",
-    getShopSales:         "/api/sales/shops/sales",
-    getMonthlyAnalysis:   "/api/sales/product/month/analysis",
-    getDiscountReports:   "/api/sales/discount/reports",
-    getStatements:        "/api/sales/reports/statements",
-    sendReportEmail:      "/api/sales/send/report/email",
+    // Reports & analytics (via /api/reports)
+    getByFilter:          "/api/reports/sales/by-product/detail",
+    getProductReports:    "/api/reports/sales/by-product",
+    getMostSelling:       "/api/reports/sales/by-product",
+    getSummaryByDates:    "/api/reports/sales/daily",
+    getShopSales:         "/api/reports/cross-shop",
+    getMonthlyAnalysis:   "/api/reports/monthly-product-sales",
+    getDiscountReports:   "/api/reports/discounted-sales",
+    getStatements:        "/api/reports/dues/detail",
     emailReceipt:         "/api/sales/email-receipt",
     reportFilter:         "/api/reports/sales",
   },
@@ -134,7 +131,7 @@ export const ENDPOINTS = {
     create:               "/api/purchases",
     update:               (id: string) => `/api/purchases/${id}`,
     delete:               (id: string) => `/api/purchases/${id}`,
-    addPayment:           (id: string) => `/api/purchases/${id}/payment`,
+    addPayment:           (id: string) => `/api/purchases/${id}/payments`,
     reportFilter:         "/api/reports/purchases",
   },
 
@@ -158,8 +155,9 @@ export const ENDPOINTS = {
   // ─── Attendants ───────────────────────────────────────────────────────────
 
   attendants: {
-    getAll:               (adminId: string) => `/api/attendants/all/${adminId}`,
-    getByShop:            "/api/attendants/shop/filter",
+    getAll:               "/api/attendants",
+    getByShop:            "/api/attendants",
+    getPermissions:       "/api/attendants/permissions",
     create:               "/api/attendants",
     update:               (id: string) => `/api/attendants/${id}`,
     delete:               (id: string) => `/api/attendants/${id}`,
@@ -168,12 +166,12 @@ export const ENDPOINTS = {
   // ─── Cashflow ─────────────────────────────────────────────────────────────
 
   cashflow: {
-    getAll:               "/api/cashflow",
-    create:               "/api/cashflow",
-    categories:           "/api/cashflow-categories",
-    createCategory:       "/api/cashflow-categories",
-    updateCategory:       (id: string) => `/api/cashflow-categories/${id}`,
-    deleteCategory:       (id: string) => `/api/cashflow-categories/${id}`,
+    getAll:               "/api/finance/cashflows",
+    create:               "/api/finance/cashflows",
+    categories:           "/api/finance/cashflow-categories",
+    createCategory:       "/api/finance/cashflow-categories",
+    updateCategory:       (id: string) => `/api/finance/cashflow-categories/${id}`,
+    deleteCategory:       (id: string) => `/api/finance/cashflow-categories/${id}`,
   },
 
   // ─── Reports & Analytics ──────────────────────────────────────────────────
@@ -236,8 +234,8 @@ export const ENDPOINTS = {
   // ─── SMS ──────────────────────────────────────────────────────────────────
 
   sms: {
-    getLogs:              (adminId: string) => `/api/sms/sms-logs?adminId=${adminId}`,
-    topup:                "/api/sms/topup",
+    getLogs:              "/api/sms/transactions",
+    topup:                "/api/sms/top-up",
     balance:              "/api/sms/balance",
     transactions:         "/api/sms/transactions",
   },
@@ -265,7 +263,7 @@ export const ENDPOINTS = {
     getAll:               "/api/inventory/bad-stocks",
     create:               "/api/inventory/bad-stocks",
     delete:               (id: string) => `/api/inventory/bad-stocks/${id}`,
-    summaryAnalysis:      "/api/badstock/summary/analysis",
+    summaryAnalysis:      "/api/reports/stock-value",
   },
 
   // ─── Stock Counts ─────────────────────────────────────────────────────────
@@ -274,33 +272,32 @@ export const ENDPOINTS = {
     create:               "/api/inventory/stock-counts",
     getAll:               "/api/inventory/stock-counts",
     getById:              (id: string) => `/api/inventory/stock-counts/${id}`,
-    getByShop:            (shopId: string) => `/api/counts/shop/${shopId}`,
     countAnalysis:        "/api/reports/stock-count-analysis",
   },
 
   // ─── Expenses ─────────────────────────────────────────────────────────────
 
   expenses: {
-    getAll:               "/api/expenses",
-    create:               "/api/expenses",
-    delete:               (id: string) => `/api/expenses/${id}`,
-    summaryAnalysis:      "/api/expenses/stats/summary/analysis",
+    getAll:               "/api/finance/expenses",
+    create:               "/api/finance/expenses",
+    delete:               (id: string) => `/api/finance/expenses/${id}`,
+    summaryAnalysis:      "/api/reports/expenses",
   },
 
   // ─── Expense Categories ───────────────────────────────────────────────────
 
   expenseCategories: {
-    getAll:               "/api/expense-categories",
-    create:               "/api/expense-categories",
-    update:               (id: string) => `/api/expense-categories/${id}`,
-    delete:               (id: string) => `/api/expense-categories/${id}`,
+    getAll:               "/api/finance/expense-categories",
+    create:               "/api/finance/expense-categories",
+    update:               (id: string) => `/api/finance/expense-categories/${id}`,
+    delete:               (id: string) => `/api/finance/expense-categories/${id}`,
   },
 
   // ─── Stock Transfers ──────────────────────────────────────────────────────
 
   transfers: {
-    shopTransfer:         "/api/transfer/shop/transfer",
-    filter:               "/api/transfer/filter",
+    shopTransfer:         "/api/transfers",
+    filter:               "/api/transfers",
   },
 
 };

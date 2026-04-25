@@ -42,7 +42,7 @@ export default function EditProfilePage() {
   const updateProfileMutation = useMutation({
     mutationFn: async (profileData: any) => {
       const token = localStorage.getItem('token');
-      const response = await fetch(ENDPOINTS.auth.getAdmin(admin?._id || ''), {
+      const response = await fetch(ENDPOINTS.auth.adminProfile, {
         method: 'PUT',
         body: JSON.stringify(profileData),
         headers: {
@@ -58,7 +58,7 @@ export default function EditProfilePage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.auth.getAdmin('')] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.auth.adminProfile] });
       toast({
         title: "Profile Updated",
         description: "Your profile has been successfully updated.",
@@ -128,7 +128,7 @@ export default function EditProfilePage() {
         password: passwordChangeData.newPassword
       };
       
-      const response = await fetch(ENDPOINTS.auth.getAdmin(admin?._id || ''), {
+      const response = await fetch(ENDPOINTS.auth.adminProfile, {
         method: 'PUT',
         body: JSON.stringify(fullUpdateData),
         headers: {

@@ -260,7 +260,7 @@ export default function CashFlow() {
   const { data: shopsData } = useQuery({
     queryKey: ["shops", admin?._id],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.shop.getByAdmin(admin?._id), {
+      const response = await fetch(ENDPOINTS.shop.getAll, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }

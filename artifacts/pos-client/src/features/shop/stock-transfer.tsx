@@ -102,7 +102,7 @@ export default function StockTransfer() {
     queryKey: ["shops", adminId],
     queryFn: async () => {
       if (!adminId) return [];
-      const response = await apiCall(ENDPOINTS.shop.getByAdmin(adminId), {
+      const response = await apiCall(ENDPOINTS.shop.getAll, {
         method: "GET",
       });
       return response;

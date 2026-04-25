@@ -68,7 +68,7 @@ export const useAuthProvider = (): AuthContextType => {
         Authorization: `Bearer ${authToken}`,
       };
 
-      const response = await apiCall(API_ENDPOINTS.auth.getAdmin(adminId), {
+      const response = await apiCall(API_ENDPOINTS.auth.adminProfile, {
         headers,
       });
       

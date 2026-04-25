@@ -114,7 +114,7 @@ export default function Customers() {
         adminid: currentAdminId
       });
       
-      const response = await apiRequest('GET', `${ENDPOINTS.customers.getAnalysis(shopId)}?${params.toString()}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.customers.getAnalysis}?shopId=${shopId}&${params.toString()}`);
       const data = await response.json();
       console.log('Customer Analysis Data:', data);
       return data;

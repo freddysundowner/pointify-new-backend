@@ -440,12 +440,12 @@ export default function CustomerOverview() {
 
   // Fetch customer payment history
   const { data: customerPayments = [], isLoading: isLoadingPayments } = useQuery({
-    queryKey: [ENDPOINTS.customers.getPayments, customerId, statementFilter],
+    queryKey: [ENDPOINTS.customers.getPayments(customerId), statementFilter],
     queryFn: async () => {
       if (!customerId) return [];
       
       const token = localStorage.getItem('token') || localStorage.getItem('attendantToken');
-      const url = `${ENDPOINTS.customers.getPayments}/${customerId}?type=${statementFilter}`;
+      const url = `${ENDPOINTS.customers.getPayments(customerId)}?type=${statementFilter}`;
       
       const response = await fetch(url, {
         headers: {
@@ -535,7 +535,7 @@ export default function CustomerOverview() {
     onSuccess: () => {
       // Invalidate all customer-related queries with the specific keys used in this component
       queryClient.invalidateQueries({ queryKey: [ENDPOINTS.sales.getAll, customerId, effectiveShopId, salesFilter] });
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.customers.getPayments, customerId, statementFilter] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.customers.getPayments(customerId), statementFilter] });
       queryClient.invalidateQueries({ queryKey: [ENDPOINTS.customers.getAll] });
       
       // Invalidate customers list page queries with proper shopId and userType

@@ -112,10 +112,7 @@ export default function ShopSetup() {
       // Invalidate all shop-related queries to refresh everywhere
       queryClient.invalidateQueries({ queryKey: ["shops"] });
       queryClient.invalidateQueries({ queryKey: ["shops", admin?._id] });
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getByAdmin(admin?._id || '')] });
-      queryClient.invalidateQueries({ predicate: (query) => 
-        query.queryKey.toString().includes('/api/shop/admin/') 
-      });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getAll] });
       
       // Show success message
       toast({

@@ -112,7 +112,7 @@ export default function ShopOnboarding() {
         
         // Update primary shop on server
         try {
-          const updateResponse = await apiCall(ENDPOINTS.auth.updateAdmin(admin?._id || ''), {
+          const updateResponse = await apiCall(ENDPOINTS.auth.adminProfile, {
             method: "PATCH",
             body: JSON.stringify({ primaryShop: newShop._id }),
           });

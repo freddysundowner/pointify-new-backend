@@ -160,7 +160,7 @@ export default function SmsSettingsPage() {
     queryFn: async () => {
       if (!adminId) return [];
       const token = localStorage.getItem("token");
-      const res = await fetch(ENDPOINTS.sms.getLogs(adminId), {
+      const res = await fetch(ENDPOINTS.sms.getLogs, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch SMS logs");

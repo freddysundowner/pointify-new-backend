@@ -72,10 +72,9 @@ export default function BusinessDashboard() {
 
   // Fetch attendants for the admin
   const { data: attendants = [] } = useQuery({
-    queryKey: [ENDPOINTS.attendants.getAll(admin?._id || ''), admin?._id],
+    queryKey: [ENDPOINTS.attendants.getAll, admin?._id],
     queryFn: async () => {
-      const adminId = admin?._id || admin?.id;
-      const response = await apiCall(ENDPOINTS.attendants.getAll(adminId), { method: "GET" });
+      const response = await apiCall(ENDPOINTS.attendants.getAll, { method: "GET" });
       return response.json();
     },
     enabled: !!admin?._id,
@@ -161,7 +160,7 @@ export default function BusinessDashboard() {
     queryKey: ["shops", admin?._id],
     queryFn: async () => {
       if (!admin?._id) return [];
-      const response = await apiCall(ENDPOINTS.shop.getByAdmin(admin._id), { method: "GET" });
+      const response = await apiCall(ENDPOINTS.shop.getAll, { method: "GET" });
       const data = await response.json();
       return data;
     },
@@ -199,7 +198,7 @@ export default function BusinessDashboard() {
         adminid: admin._id
       });
       
-      const response = await apiCall(`${ENDPOINTS.customers.getOverdue(effectiveShopId)}?${params.toString()}`, { method: "GET" });
+      const response = await apiCall(`${ENDPOINTS.customers.getOverdue}?shopId=${effectiveShopId}&${params.toString()}`, { method: "GET" });
       const data = await response.json();
       return data;
     },
@@ -296,7 +295,7 @@ export default function BusinessDashboard() {
 
     try {
       // Update primary shop on the server so it persists across sessions
-      await apiCall(ENDPOINTS.auth.updateAdmin(admin?._id || ''), {
+      await apiCall(ENDPOINTS.auth.adminProfile, {
         method: "PUT",
         body: JSON.stringify({ primaryShop: shopId }),
       });

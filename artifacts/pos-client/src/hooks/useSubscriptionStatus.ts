@@ -21,7 +21,7 @@ export const useSubscriptionStatus = (): SubscriptionStatus => {
     queryKey: ["shops", admin?._id],
     queryFn: async () => {
       if (!admin?._id) return [];
-      const response = await apiCall(ENDPOINTS.shop.getByAdmin(admin._id), {
+      const response = await apiCall(ENDPOINTS.shop.getAll, {
         method: "GET",
       });
       return response.json();
