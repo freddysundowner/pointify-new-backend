@@ -10,6 +10,7 @@ import { Search } from 'lucide-react';
 import { Trash2, Plus, Package, ArrowRight, Eye, Download, ArrowLeft } from 'lucide-react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { apiCall } from '@/lib/api-config';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useToast } from '@/hooks/use-toast';
 import { useProducts } from '@/contexts/ProductsContext';
 import { usePrimaryShop } from '@/hooks/usePrimaryShop';
@@ -101,7 +102,7 @@ export default function StockTransfer() {
     queryKey: ["shops", adminId],
     queryFn: async () => {
       if (!adminId) return [];
-      const response = await apiCall(`/api/shop/admin/${adminId}`, {
+      const response = await apiCall(ENDPOINTS.shop.getByAdmin(adminId), {
         method: "GET",
       });
       return response;
@@ -119,7 +120,7 @@ export default function StockTransfer() {
       
       try {
         const token = userType === 'attendant' ? localStorage.getItem('attendantToken') : localStorage.getItem('authToken');
-        const response = await fetch(`/api/product/shop/${formData.fromShopId}?attendantId=${attendantId || adminId}`, {
+        const response = await fetch(`${ENDPOINTS.products.getByShop(formData.fromShopId)}?attendantId=${attendantId || adminId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -191,7 +192,7 @@ export default function StockTransfer() {
         params.append('shops', shopId);
       });
       
-      const url = `/api/transfer/filter?${params.toString()}`;
+      const url = `${ENDPOINTS.transfers.filter}?${params.toString()}`;
       
       const token = userType === 'attendant' ? localStorage.getItem('attendantToken') : localStorage.getItem('authToken');
       const response = await fetch(url, {
@@ -290,7 +291,7 @@ export default function StockTransfer() {
   // Create transfer mutation
   const transferMutation = useMutation({
     mutationFn: async (transferData: any) => {
-      const response = await fetch('/api/transfer/shop/transfer', {
+      const response = await fetch(ENDPOINTS.transfers.shopTransfer, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,

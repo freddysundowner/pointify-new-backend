@@ -12,6 +12,7 @@ import { useAuth } from "@/features/auth/useAuth";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useNavigationRoute } from "@/lib/navigation-utils";
 import { useLocation } from "wouter";
 import { useCurrency } from "@/utils";
@@ -72,7 +73,7 @@ export default function PurchaseReturns() {
 
   // Fetch purchase returns
   const { data: returnsData, isLoading, refetch } = useQuery<PurchaseReturnsResponse>({
-    queryKey: ['/api/purchasereturns', shopId, searchTerm, supplierFilter, startDate, endDate, currentPage, itemsPerPage],
+    queryKey: [ENDPOINTS.purchaseReturns.getAll, shopId, searchTerm, supplierFilter, startDate, endDate, currentPage, itemsPerPage],
     queryFn: async (): Promise<PurchaseReturnsResponse> => {
       if (!shopId) return { returns: [], total: 0 };
 
@@ -88,7 +89,7 @@ export default function PurchaseReturns() {
       });
 
       console.log('Fetching fresh purchase returns data from API');
-      const responseObj = await apiCall(`/api/purchasereturns?${params}`);
+      const responseObj = await apiCall(`${ENDPOINTS.purchaseReturns.getAll}?${params}`);
       const response = await responseObj.json();
       
       // Handle the nested structure: {data: [], meta: {total, page, limit, pages}}
@@ -120,10 +121,10 @@ export default function PurchaseReturns() {
 
   // Fetch suppliers for filter dropdown  
   const { data: suppliersResponse } = useQuery({
-    queryKey: ['/api/suppliers', shopId],
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
       if (!shopId) return [];
-      const response = await fetch(`/api/suppliers?shopId=${shopId}`, {
+      const response = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`, {
         headers: {
           'Authorization': `Bearer ${admin ? localStorage.getItem('authToken') : localStorage.getItem('attendantToken')}`
         }

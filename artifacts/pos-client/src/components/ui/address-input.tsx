@@ -38,19 +38,10 @@ export default function AddressInput({
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const hasSelectedPlace = useRef(false);
   const isSelectingPlace = useRef(false);
-  const [apiKey, setApiKey] = useState<string | null>('AIzaSyAhhiH3PrL9td9IGJWfpK3CXnU3gtsIYHY');
+  const [apiKey] = useState<string | null>(
+    import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyAhhiH3PrL9td9IGJWfpK3CXnU3gtsIYHY'
+  );
 
-  useEffect(() => {
-    fetch('/api/config')
-      .then(res => res.json())
-      .then(config => {
-        console.log('Fetched config:', config);
-        setApiKey(config.googleMapsApiKey);
-      })
-      .catch(err => {
-        console.error('Failed to fetch config:', err);
-      });
-  }, []);
   // Load Google Maps API
   useEffect(() => {
     if (window.google?.maps?.places) {

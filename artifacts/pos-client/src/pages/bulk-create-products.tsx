@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Package, Plus, CheckCircle, XCircle } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useToast } from "@/hooks/use-toast";
 
 const productTemplates = [
@@ -163,7 +164,7 @@ export default function BulkCreateProducts() {
 
   const createProductMutation = useMutation({
     mutationFn: async (product: any) => {
-      const response = await apiRequest("POST", "/api/product", product);
+      const response = await apiRequest("POST", ENDPOINTS.products.create, product);
       return response;
     },
   });
@@ -233,7 +234,7 @@ export default function BulkCreateProducts() {
     }
 
     // Refresh product data
-    queryClient.invalidateQueries({ queryKey: ["/api/product"] });
+    queryClient.invalidateQueries({ queryKey: [ENDPOINTS.products.getAll] });
     
     setIsCreating(false);
     toast({

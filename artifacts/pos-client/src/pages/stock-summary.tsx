@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { TrendingUp, Package, AlertTriangle, DollarSign, BarChart3, ArrowLeft, Download, MousePointer } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { usePermissions } from "@/hooks/usePermissions";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useLocation } from "wouter";
@@ -24,14 +25,14 @@ export default function StockSummary() {
 
   // Fetch stock analysis data
   const { data: stockData, isLoading, error } = useQuery({
-    queryKey: ["/api/analysis/stockanalysis", shopId],
+    queryKey: [ENDPOINTS.analytics.stockAnalysis, shopId],
     queryFn: async () => {
       // Get the appropriate token for admin or attendant
       const adminToken = localStorage.getItem("authToken");
       const attendantToken = localStorage.getItem("attendantToken");
       const token = attendantToken || adminToken;
       
-      const response = await fetch(`/api/analysis/stockanalysis?shopid=${shopId}`, {
+      const response = await fetch(`${ENDPOINTS.analytics.stockAnalysis}?shopid=${shopId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -125,7 +126,7 @@ export default function StockSummary() {
       const token = attendantToken || adminToken;
       
       // Call the API that returns Excel file directly
-      const downloadUrl = `/api/analysis/pdf/download/?shopid=${shopId}`;
+      const downloadUrl = `${ENDPOINTS.analytics.stockPdfDownload}?shopid=${shopId}`;
       
       const response = await fetch(downloadUrl, {
         method: "GET",

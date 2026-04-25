@@ -14,6 +14,7 @@ import { useRoute, useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { queryClient } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import type { Sale, SaleItem } from "@shared/schema";
 
 
@@ -197,7 +198,7 @@ export default function ReturnSale() {
       const attendantToken = localStorage.getItem('attendantToken');
       const token = authToken || attendantToken;
       
-      const response = await fetch('/api/salereturns', {
+      const response = await fetch(ENDPOINTS.saleReturns.create, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -212,8 +213,8 @@ export default function ReturnSale() {
         console.log('Return processed successfully:', result);
         
         // Invalidate sales data to force refresh
-        queryClient.invalidateQueries({ queryKey: ['/api/sales/filter'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/analysis/report/sales'] });
+        queryClient.invalidateQueries({ queryKey: [ENDPOINTS.sales.getAll] });
+        queryClient.invalidateQueries({ queryKey: [ENDPOINTS.analytics.salesReport] });
         
         setAlertConfig({
           title: "Return Successful",

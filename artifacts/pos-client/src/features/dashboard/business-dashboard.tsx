@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/features/auth/useAuth";
 import { useShop } from "@/features/shop/useShop";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
@@ -71,10 +72,10 @@ export default function BusinessDashboard() {
 
   // Fetch attendants for the admin
   const { data: attendants = [] } = useQuery({
-    queryKey: ['/api/attendants/all', admin?._id],
+    queryKey: [ENDPOINTS.attendants.getAll(admin?._id || ''), admin?._id],
     queryFn: async () => {
       const adminId = admin?._id || admin?.id;
-      const response = await apiCall(`/api/attendants/all/${adminId}`, { method: "GET" });
+      const response = await apiCall(ENDPOINTS.attendants.getAll(adminId), { method: "GET" });
       return response.json();
     },
     enabled: !!admin?._id,
@@ -82,7 +83,7 @@ export default function BusinessDashboard() {
 
   // Fetch products for stock alerts
   const { data: productsData } = useQuery({
-    queryKey: [`/api/product`, effectiveShopId],
+    queryKey: [ENDPOINTS.products.getAll, effectiveShopId],
     queryFn: async ({ queryKey }) => {
       const params = new URLSearchParams({
         page: "1",
@@ -101,7 +102,7 @@ export default function BusinessDashboard() {
         adminid: admin?._id || "",
       });
 
-      const url = `/api/product?${params.toString()}`;
+      const url = `${ENDPOINTS.products.getAll}?${params.toString()}`;
       const response = await apiCall(url, { method: "GET" });
       return response.json();
     },
@@ -113,7 +114,7 @@ export default function BusinessDashboard() {
 
   // Fetch net profit data for dashboard cards
   const { data: netProfitData, refetch: refetchNetProfit } = useQuery({
-    queryKey: [`/api/analysis/netprofit`, effectiveShopId, today],
+    queryKey: [ENDPOINTS.analytics.netProfit, effectiveShopId, today],
     queryFn: async () => {
       const params = new URLSearchParams({
         fromDate: today,
@@ -122,7 +123,7 @@ export default function BusinessDashboard() {
         attendant: ""
       });
 
-      const url = `/api/analysis/netprofit/?${params.toString()}`;
+      const url = `${ENDPOINTS.analytics.netProfit}/?${params.toString()}`;
       const response = await apiCall(url, { method: "GET" });
       return response.json();
     },
@@ -131,7 +132,7 @@ export default function BusinessDashboard() {
 
   // Fetch recent sales data for homepage - limited to 20 records
   const { data: salesData, isLoading: isSalesLoading, refetch: refetchSalesData } = useQuery({
-    queryKey: [`/api/sales/filter`, effectiveShopId, today, selectedAttendantId],
+    queryKey: [ENDPOINTS.sales.getAll, effectiveShopId, today, selectedAttendantId],
     queryFn: async () => {
       const shopId = effectiveShopId || "";
       const params = new URLSearchParams({
@@ -146,7 +147,7 @@ export default function BusinessDashboard() {
         params.append("attendantId", selectedAttendantId);
       }
 
-      const url = `/api/sales/filter?${params.toString()}`;
+      const url = `${ENDPOINTS.sales.getAll}?${params.toString()}`;
       const response = await apiCall(url, { method: "GET" });
       return response.json();
     },
@@ -160,7 +161,7 @@ export default function BusinessDashboard() {
     queryKey: ["shops", admin?._id],
     queryFn: async () => {
       if (!admin?._id) return [];
-      const response = await apiCall(`/api/shop/admin/${admin._id}`, { method: "GET" });
+      const response = await apiCall(ENDPOINTS.shop.getByAdmin(admin._id), { method: "GET" });
       const data = await response.json();
       return data;
     },
@@ -198,7 +199,7 @@ export default function BusinessDashboard() {
         adminid: admin._id
       });
       
-      const response = await apiCall(`/api/customers/overdue/${effectiveShopId}?${params.toString()}`, { method: "GET" });
+      const response = await apiCall(`${ENDPOINTS.customers.getOverdue(effectiveShopId)}?${params.toString()}`, { method: "GET" });
       const data = await response.json();
       return data;
     },
@@ -295,7 +296,7 @@ export default function BusinessDashboard() {
 
     try {
       // Update primary shop on the server so it persists across sessions
-      await apiCall(`/api/admin/${admin?._id}`, {
+      await apiCall(ENDPOINTS.auth.updateAdmin(admin?._id || ''), {
         method: "PUT",
         body: JSON.stringify({ primaryShop: shopId }),
       });

@@ -18,6 +18,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useCurrency } from '@/utils';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 
 interface Product {
   _id?: string;
@@ -71,7 +72,7 @@ export default function PurchaseOrderPage() {
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery<Supplier[]>({
-    queryKey: ['/api/suppliers'],
+    queryKey: [ENDPOINTS.suppliers.getAll],
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -87,7 +88,7 @@ export default function PurchaseOrderPage() {
   // Create purchase mutation
   const createPurchaseMutation = useMutation({
     mutationFn: async (purchaseData: any) => {
-      const response = await fetch('/api/purchases', {
+      const response = await fetch(ENDPOINTS.purchases.create, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,9 +109,9 @@ export default function PurchaseOrderPage() {
       });
       
       // Invalidate and refetch queries
-      queryClient.invalidateQueries({ queryKey: ['/api/purchases'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/product'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.purchases.getAll] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.products.getAll] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
       refreshProducts();
       

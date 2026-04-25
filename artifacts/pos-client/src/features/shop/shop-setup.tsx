@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import AddressInput from "@/components/ui/address-input";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation, Link } from "wouter";
@@ -45,7 +46,7 @@ export default function ShopSetup() {
 
   // Fetch shop categories from API
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
-    queryKey: ['/api/shop/category'],
+    queryKey: [ENDPOINTS.shop.getCategories],
   });
 
   const handleInputChange = (field: string, value: string | boolean) => {
@@ -98,7 +99,7 @@ export default function ShopSetup() {
 
       console.log('Submitting shop data:', shopData);
 
-      const response = await apiCall("/api/shop", {
+      const response = await apiCall(ENDPOINTS.shop.create, {
         method: "POST",
         body: JSON.stringify(shopData),
       });
@@ -111,7 +112,7 @@ export default function ShopSetup() {
       // Invalidate all shop-related queries to refresh everywhere
       queryClient.invalidateQueries({ queryKey: ["shops"] });
       queryClient.invalidateQueries({ queryKey: ["shops", admin?._id] });
-      queryClient.invalidateQueries({ queryKey: [`/api/shop/admin/${admin?._id}`] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getByAdmin(admin?._id || '')] });
       queryClient.invalidateQueries({ predicate: (query) => 
         query.queryKey.toString().includes('/api/shop/admin/') 
       });

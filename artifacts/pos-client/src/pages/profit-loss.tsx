@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useLocation } from "wouter";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 interface ProfitLossData {
   creditTotals: number;
@@ -79,13 +80,13 @@ export default function ProfitLossPage() {
 
   // Fetch attendants for the shop (only for admin users)
   const { data: attendants = [] } = useQuery<Attendant[]>({
-    queryKey: ["/api/attendants/shop/filter", effectiveShopId, effectiveAdminId],
+    queryKey: [ENDPOINTS.attendants.getByShop, effectiveShopId, effectiveAdminId],
     queryFn: async () => {
       const params = new URLSearchParams({
         shopId: effectiveShopId || "",
         adminId: effectiveAdminId || "",
       });
-      const response = await fetch(`/api/attendants/shop/filter?${params}`);
+      const response = await fetch(`${ENDPOINTS.attendants.getByShop}?${params}`);
       if (!response.ok) {
         throw new Error("Failed to fetch attendants");
       }
@@ -106,7 +107,7 @@ export default function ProfitLossPage() {
       params.append("attendant", selectedAttendant);
     }
 
-    return `/api/analysis/netprofit?${params}`;
+    return `${ENDPOINTS.analytics.netProfit}?${params}`;
   };
 
   // Fetch profit/loss data

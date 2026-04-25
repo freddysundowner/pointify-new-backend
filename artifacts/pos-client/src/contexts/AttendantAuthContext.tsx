@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useLocation } from 'wouter';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { setAttendant, updateAttendant, clearAttendant, setLoading, setRefreshing } from '@/store/slices/attendantSlice';
@@ -100,7 +101,7 @@ export const AttendantAuthProvider = ({ children }: AttendantAuthProviderProps) 
     
     dispatch(setRefreshing(true));
     try {
-      const response = await fetch('/api/auth/attendant/verify', {
+      const response = await fetch(ENDPOINTS.auth.attendantVerify, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

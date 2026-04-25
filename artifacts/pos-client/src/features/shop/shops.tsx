@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { MapPin, Store, Plus, Search, Edit, Eye } from "lucide-react";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Link } from "wouter";
 
@@ -53,7 +54,7 @@ export default function Shops() {
     queryKey: ["shops", admin?._id],
     queryFn: async () => {
       if (!admin?._id) return [];
-      const response = await apiCall(`/api/shop/admin/${admin._id}`, {
+      const response = await apiCall(ENDPOINTS.shop.getByAdmin(admin._id), {
         method: "GET",
       });
       const data = await response.json();

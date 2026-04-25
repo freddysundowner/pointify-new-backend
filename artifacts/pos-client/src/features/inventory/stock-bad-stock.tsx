@@ -14,6 +14,7 @@ import { useProducts } from "@/contexts/ProductsContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useNavigationRoute } from "@/lib/navigation-utils";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
@@ -70,7 +71,7 @@ export default function StockBadStock() {
           ...(startDate && { startDate }),
           ...(endDate && { endDate })
         });
-        const response = await apiRequest("GET", `/api/badstock?${params.toString()}`);
+        const response = await apiRequest("GET", `${ENDPOINTS.badStock.getAll}?${params.toString()}`);
         const data = await response.json();
         return Array.isArray(data) ? 
           { data, count: data.length, totalPages: 1 } : 
@@ -99,7 +100,7 @@ export default function StockBadStock() {
           ...(startDate && { startDate }),
           ...(endDate && { endDate })
         });
-        const response = await apiRequest("GET", `/api/badstock/summary/analysis?${params.toString()}`);
+        const response = await apiRequest("GET", `${ENDPOINTS.badStock.summaryAnalysis}?${params.toString()}`);
         return await response.json();
       } catch (error) {
         console.error("Failed to fetch bad stock summary:", error);
@@ -116,7 +117,7 @@ export default function StockBadStock() {
 
   const createBadStockMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/badstock", data);
+      const response = await apiRequest("POST", ENDPOINTS.badStock.create, data);
       return response.json();
     },
     onSuccess: () => {
@@ -134,7 +135,7 @@ export default function StockBadStock() {
 
   const deleteBadStockMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest("DELETE", `/api/badstock/${id}`);
+      const response = await apiRequest("DELETE", ENDPOINTS.badStock.delete(id));
       return response.json();
     },
     onSuccess: () => {

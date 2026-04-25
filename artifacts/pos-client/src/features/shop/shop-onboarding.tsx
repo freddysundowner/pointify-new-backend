@@ -10,6 +10,7 @@ import { ArrowRight, Store, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import AddressInput from "@/components/ui/address-input";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
@@ -44,7 +45,7 @@ export default function ShopOnboarding() {
 
   // Fetch shop categories from API
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
-    queryKey: ['/api/shop/category'],
+    queryKey: [ENDPOINTS.shop.getCategories],
   });
 
   const handleInputChange = (field: string, value: string | boolean) => {
@@ -96,7 +97,7 @@ export default function ShopOnboarding() {
 
       console.log('Submitting shop data:', shopData);
 
-      const response = await apiCall("/api/shop", {
+      const response = await apiCall(ENDPOINTS.shop.create, {
         method: "POST",
         body: JSON.stringify(shopData),
       });
@@ -111,7 +112,7 @@ export default function ShopOnboarding() {
         
         // Update primary shop on server
         try {
-          const updateResponse = await apiCall(`/api/admin/${admin?._id}`, {
+          const updateResponse = await apiCall(ENDPOINTS.auth.updateAdmin(admin?._id || ''), {
             method: "PATCH",
             body: JSON.stringify({ primaryShop: newShop._id }),
           });

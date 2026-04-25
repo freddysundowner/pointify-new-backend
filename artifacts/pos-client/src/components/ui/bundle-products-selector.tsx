@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Package, X, Search, Plus, Minus, Loader2 } from "lucide-react";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 interface BundleProductsSelectorProps {
   selectedBundleProducts: { [key: string]: number | { 
@@ -66,7 +67,7 @@ export default function BundleProductsSelector({
       }
 
       console.log('Searching products directly from API with query:', query || '(all products)');
-      const response = await apiCall(`/api/product?${params.toString()}`);
+      const response = await apiCall(`${ENDPOINTS.products.getAll}?${params.toString()}`);
       
       if (response.ok) {
         const data = await response.json();

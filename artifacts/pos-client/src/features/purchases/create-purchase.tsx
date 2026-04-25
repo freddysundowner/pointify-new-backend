@@ -17,6 +17,7 @@ import type { PurchaseItem } from "@shared/schema";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
 import { usePrimaryShop } from "../../hooks/usePrimaryShop";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 export default function CreatePurchase() {
   const [location, setLocation] = useLocation();
@@ -26,9 +27,9 @@ export default function CreatePurchase() {
 
   // Suppliers API integration
   const { data: suppliersResponse, isLoading: suppliersLoading } = useQuery({
-    queryKey: ['/api/suppliers', shopId],
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
-      const response = await fetch(`/api/suppliers?shopId=${shopId}`);
+      const response = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
       if (!response.ok) throw new Error('Failed to fetch suppliers');
       return response.json();
     },
@@ -156,7 +157,7 @@ export default function CreatePurchase() {
         useWarehouse: true
       };
       
-      const response = await fetch('/api/purchases', {
+      const response = await fetch(ENDPOINTS.purchases.create, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

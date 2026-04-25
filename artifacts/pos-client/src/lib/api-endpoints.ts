@@ -73,6 +73,8 @@ export const ENDPOINTS = {
     getAll:               "/api/customers",
     getById:              (id: string) => `/api/customers/${id}`,
     create:               "/api/customers",
+    update:               (id: string) => `/api/customers/${id}`,
+    delete:               (id: string) => `/api/customers/${id}`,
     updateBalance:        (id: string) => `/api/customers/${id}/balance`,
     getDebtors:           "/api/customers/debtors",
     getPayments:          "/api/customers/payments",
@@ -117,6 +119,7 @@ export const ENDPOINTS = {
   saleReturns: {
     getAll:               "/api/salereturns",
     getFiltered:          "/api/salereturns/filter",
+    create:               "/api/salereturns",
     delete:               (id: string) => `/api/salereturns/${id}`,
   },
 
@@ -136,6 +139,7 @@ export const ENDPOINTS = {
     getById:              (id: string) => `/api/purchases/${id}`,
     create:               "/api/purchases",
     update:               (id: string) => `/api/purchases/${id}`,
+    delete:               (id: string) => `/api/purchases/${id}`,
     addPayment:           (id: string) => `/api/purchases/${id}/payment`,
     reportFilter:         "/api/analysis/report/purchases",
   },
@@ -156,6 +160,8 @@ export const ENDPOINTS = {
     // supplier-selector.tsx still uses the singular form
     getAllSingular:        "/api/supplier",
     create:               "/api/suppliers",
+    update:               (id: string) => `/api/suppliers/${id}`,
+    delete:               (id: string) => `/api/suppliers/${id}`,
   },
 
   // ─── Attendants ───────────────────────────────────────────────────────────
@@ -163,13 +169,20 @@ export const ENDPOINTS = {
   attendants: {
     getAll:               (adminId: string) => `/api/attendants/all/${adminId}`,
     getByShop:            "/api/attendants/shop/filter",
+    create:               "/api/attendants",
+    update:               (id: string) => `/api/attendants/${id}`,
+    delete:               (id: string) => `/api/attendants/${id}`,
   },
 
   // ─── Cashflow ─────────────────────────────────────────────────────────────
 
   cashflow: {
     getAll:               "/api/cashflow",
+    create:               "/api/cashflow",
     categories:           "/api/cashflow-categories",
+    createCategory:       "/api/cashflow-categories",
+    updateCategory:       (id: string) => `/api/cashflow-categories/${id}`,
+    deleteCategory:       (id: string) => `/api/cashflow-categories/${id}`,
   },
 
   // ─── Analytics ────────────────────────────────────────────────────────────
@@ -227,6 +240,7 @@ export const ENDPOINTS = {
   stockCounts: {
     create:               "/api/counts",
     getByShop:            (shopId: string) => `/api/counts/shop/${shopId}`,
+    countAnalysis:        "/analysis/stock/count/analysis",
   },
 
   // ─── Expenses ─────────────────────────────────────────────────────────────
@@ -251,6 +265,7 @@ export const ENDPOINTS = {
 
   transfers: {
     shopTransfer:         "/api/transfer/shop/transfer",
+    filter:               "/api/transfer/filter",
   },
 
   // ─── Printer (TODO: implement on local API or remove) ────────────────────

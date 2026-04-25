@@ -7,6 +7,7 @@ import { useRoute, useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { toast } from "@/hooks/use-toast";
 
 export default function ReceiptView() {
@@ -46,7 +47,7 @@ export default function ReceiptView() {
 
     const fetchSaleData = async () => {
       try {
-        const response = await fetch(`/api/sales/single/receipt/${saleId}`, {
+        const response = await fetch(ENDPOINTS.sales.getReceipt(saleId), {
           method: "GET",
           headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
           credentials: "include",
@@ -245,7 +246,7 @@ ${saleData.outstandingBalance > 0 && saleData.status.toUpperCase() !== "COMPLETE
 
   const handlePrint = async () => {
     try {
-      const response = await apiCall("/api/printer/salereceipt", {
+      const response = await apiCall(ENDPOINTS.printer.saleReceipt, {
         method: "POST",
         body: JSON.stringify(getPrintData()),
       });
@@ -331,7 +332,7 @@ ${saleData.outstandingBalance > 0 && saleData.status.toUpperCase() !== "COMPLETE
         console.warn("PDF generation failed, sending HTML only:", pdfErr);
       }
 
-      const response = await apiCall("/api/sales/email-receipt", {
+      const response = await apiCall(ENDPOINTS.sales.emailReceipt, {
         method: "POST",
         body: JSON.stringify({
           toEmail: emailInput.trim(),

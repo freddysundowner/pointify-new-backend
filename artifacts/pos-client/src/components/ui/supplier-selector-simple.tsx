@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 interface SupplierSelectorProps {
   value: string;
@@ -16,14 +17,14 @@ export default function SupplierSelector({
 }: SupplierSelectorProps) {
   // Fetch suppliers from API
   const { data: suppliers, isLoading } = useQuery({
-    queryKey: ["/api/suppliers", shopId, adminId],
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId, adminId],
     queryFn: async () => {
       const params = new URLSearchParams({
         shopId: shopId || "",
         adminId: adminId || "",
       });
       
-      const response = await fetch(`/api/suppliers?${params.toString()}`, {
+      const response = await fetch(`${ENDPOINTS.suppliers.getAll}?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("authToken")}`,
         },

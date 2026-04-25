@@ -20,6 +20,7 @@ import type { RootState } from '@/store/store';
 import { useAuth } from "@/features/auth/useAuth";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { format } from "date-fns";
 import { useNavigationRoute } from "@/lib/navigation-utils";
 import { ArrowLeft } from "lucide-react";
@@ -112,7 +113,7 @@ export default function Expenses() {
       
       console.log('Fetching expenses with filters:', params.toString());
       
-      const response = await apiRequest('GET', `/api/expenses?${params.toString()}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.expenses.getAll}?${params.toString()}`);
       const data = await response.json();
       return Array.isArray(data) ? data : data?.expenses || data?.data || [];
     },
@@ -132,7 +133,7 @@ export default function Expenses() {
         shop: effectiveShopId
       });
       
-      const response = await apiRequest('GET', `/api/expense-categories?${params.toString()}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.expenseCategories.getAll}?${params.toString()}`);
       const data = await response.json();
       return Array.isArray(data) ? data : data?.categories || data?.data || [];
     },
@@ -164,7 +165,7 @@ export default function Expenses() {
         params.append('endDate', customEndDate);
       }
       
-      const response = await apiRequest('GET', `/api/expenses/stats/summary/analysis?${params.toString()}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.expenses.summaryAnalysis}?${params.toString()}`);
       const data = await response.json();
       return data;
     },
@@ -187,7 +188,7 @@ export default function Expenses() {
         autoSave: data.autoSave
       };
       
-      const response = await apiRequest('POST', '/api/expenses', expenseData);
+      const response = await apiRequest('POST', ENDPOINTS.expenses.create, expenseData);
       return response.json();
     },
     onSuccess: () => {
@@ -226,7 +227,7 @@ export default function Expenses() {
   // Delete expense mutation
   const deleteExpenseMutation = useMutation({
     mutationFn: async (expenseId: string) => {
-      const response = await apiRequest('DELETE', `/api/expenses/${expenseId}`);
+      const response = await apiRequest('DELETE', ENDPOINTS.expenses.delete(expenseId));
       return response.json();
     },
     onSuccess: () => {

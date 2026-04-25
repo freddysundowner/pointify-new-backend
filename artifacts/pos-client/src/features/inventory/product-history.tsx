@@ -15,6 +15,7 @@ import {
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useLocation,useParams } from "wouter";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { navigate } from "wouter/use-browser-location";
 import { useAuth } from "@/features/auth/useAuth";
 import { useCurrency } from "@/utils";
@@ -43,15 +44,15 @@ export default function ProductHistory() {
 
   // Fetch product details
   const { data: product, isLoading: productLoading } = useQuery({
-    queryKey: ["/api/product", productId],
+    queryKey: [ENDPOINTS.products.getById(productId || '')],
     enabled: !!productId,
   });
 
   // Fetch product summary
   const { data: summary, isLoading: summaryLoading } = useQuery({
-    queryKey: ["/api/product-summary", productId, selectedMonth, selectedYear],
+    queryKey: [ENDPOINTS.products.summary, productId, selectedMonth, selectedYear],
     queryFn: async () => {
-      const response = await apiCall(`/api/product-summary?productId=${productId}&month=${selectedMonth}&year=${selectedYear}`);
+      const response = await apiCall(`${ENDPOINTS.products.summary}?productId=${productId}&month=${selectedMonth}&year=${selectedYear}`);
       return await response.json();
     },
     enabled: !!productId,
@@ -63,9 +64,9 @@ export default function ProductHistory() {
 
   // Fetch sales history - only when Sales tab is active
   const { data: salesData, isLoading: salesLoading } = useQuery({
-    queryKey: ["/api/sales-history", productId, selectedMonth, selectedYear, salesPage],
+    queryKey: [ENDPOINTS.products.salesHistory, productId, selectedMonth, selectedYear, salesPage],
     queryFn: async () => {
-      const response = await apiCall(`/api/sales-history?productId=${productId}&month=${selectedMonth}&year=${selectedYear}&page=${salesPage}`);
+      const response = await apiCall(`${ENDPOINTS.products.salesHistory}?productId=${productId}&month=${selectedMonth}&year=${selectedYear}&page=${salesPage}`);
       return await response.json();
     },
     enabled: !!productId && activeTab === "sales",
@@ -77,9 +78,9 @@ export default function ProductHistory() {
 
   // Fetch purchases history - only when Stock In tab is active
   const { data: purchasesData, isLoading: purchasesLoading } = useQuery({
-    queryKey: ["/api/purchases-history", productId, selectedMonth, selectedYear, purchasesPage],
+    queryKey: [ENDPOINTS.products.purchasesHistory, productId, selectedMonth, selectedYear, purchasesPage],
     queryFn: async () => {
-      const response = await apiCall(`/api/purchases-history?productId=${productId}&month=${selectedMonth}&year=${selectedYear}&page=${purchasesPage}`);
+      const response = await apiCall(`${ENDPOINTS.products.purchasesHistory}?productId=${productId}&month=${selectedMonth}&year=${selectedYear}&page=${purchasesPage}`);
       return await response.json();
     },
     enabled: !!productId && activeTab === "stock-in",
@@ -91,9 +92,9 @@ export default function ProductHistory() {
 
   // Fetch bad stock movements - only when Bad Stock tab is active
   const { data: badStockData, isLoading: badStockLoading } = useQuery({
-    queryKey: ["/api/bad-stock-movements", productId, selectedMonth, selectedYear, badStockPage],
+    queryKey: [ENDPOINTS.products.badStockMovements, productId, selectedMonth, selectedYear, badStockPage],
     queryFn: async () => {
-      const response = await apiCall(`/api/bad-stock-movements?productId=${productId}&month=${selectedMonth}&year=${selectedYear}&page=${badStockPage}`);
+      const response = await apiCall(`${ENDPOINTS.products.badStockMovements}?productId=${productId}&month=${selectedMonth}&year=${selectedYear}&page=${badStockPage}`);
       return await response.json();
     },
     enabled: !!productId && activeTab === "bad-stock",

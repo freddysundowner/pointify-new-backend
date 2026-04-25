@@ -16,6 +16,7 @@ import { useAuth } from "@/features/auth/useAuth";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 function ReturnsList() {
   const { hasPermission, user } = usePermissions();
@@ -104,7 +105,7 @@ function ReturnsList() {
 
   // Fetch returns data from API using default query function
   const { data: returnsResponse, isLoading, error, refetch } = useQuery({
-    queryKey: [`/api/salereturns/filter?${buildQueryParams()}`],
+    queryKey: [`${ENDPOINTS.saleReturns.getFiltered}?${buildQueryParams()}`],
     enabled: !!shopId
   });
 
@@ -112,7 +113,7 @@ function ReturnsList() {
 
   // Fetch attendants from API
   const { data: attendantsResponse } = useQuery({
-    queryKey: [`/api/attendants/shop/filter?shopId=${shopId}`],
+    queryKey: [`${ENDPOINTS.attendants.getByShop}?shopId=${shopId}`],
     enabled: !!shopId
   });
 
@@ -211,7 +212,7 @@ function ReturnsList() {
     
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/salereturns/${returnToDelete.id}`, {
+      const response = await fetch(ENDPOINTS.saleReturns.delete(returnToDelete.id), {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

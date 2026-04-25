@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/dialog';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { apiRequest } from '@/lib/queryClient';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useToast } from '@/hooks/use-toast';
 
 interface Purchase {
@@ -92,7 +93,7 @@ export default function SupplierHistoryPage() {
 
   // Fetch purchase analytics for summary cards
   const { data: analyticsData } = useQuery({
-    queryKey: ['/api/analysis/report/purchases', supplierId, dateFrom, dateTo, shopId, statusFilter],
+    queryKey: [ENDPOINTS.purchases.reportFilter, supplierId, dateFrom, dateTo, shopId, statusFilter],
     queryFn: async () => {
       if (!supplierId || !shopId) return null;
       
@@ -113,7 +114,7 @@ export default function SupplierHistoryPage() {
       
       console.log('Analytics API call:', `/api/analysis/report/purchases?${params.toString()}`);
       
-      const response = await apiRequest('GET', `/api/analysis/report/purchases?${params.toString()}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.purchases.reportFilter}?${params.toString()}`);
       return await response.json();
     },
     enabled: !!supplierId && !!shopId
@@ -121,7 +122,7 @@ export default function SupplierHistoryPage() {
 
   // Fetch supplier purchase history
   const { data: purchasesData, isLoading, refetch } = useQuery({
-    queryKey: ['/api/purchases', 'supplier-history', supplierId, currentPage, itemsPerPage, searchTerm, statusFilter, dateFrom, dateTo],
+    queryKey: [ENDPOINTS.purchases.getAll, 'supplier-history', supplierId, currentPage, itemsPerPage, searchTerm, statusFilter, dateFrom, dateTo],
     queryFn: async () => {
       if (!supplierId || !shopId) return { data: [], count: 0, totalPages: 0 };
       
@@ -144,7 +145,7 @@ export default function SupplierHistoryPage() {
       if (dateFrom) params.append('start', dateFrom);
       if (dateTo) params.append('end', dateTo);
       
-      const response = await apiRequest('GET', `/api/purchases?${params.toString()}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.purchases.getAll}?${params.toString()}`);
       const data = await response.json();
       
       // Handle different response formats

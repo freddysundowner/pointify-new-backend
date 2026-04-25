@@ -11,6 +11,7 @@ import { useRoute } from "wouter";
 import { useState, useEffect } from "react";
 import type { Sale, SaleItem } from "@shared/schema";
 import { useCurrency } from "@/utils";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 export default function EditSale() {
   // Try both admin and attendant routes
@@ -42,7 +43,7 @@ export default function EditSale() {
       }
       
       try {
-        const response = await fetch(`/api/sales/single/receipt/${params.id}`, {
+        const response = await fetch(ENDPOINTS.sales.getReceipt(params.id), {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',

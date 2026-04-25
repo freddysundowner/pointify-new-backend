@@ -11,6 +11,7 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useQuery } from "@tanstack/react-query";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useCart } from "@/hooks/useCart";
 import { useProducts } from "@/contexts/ProductsContext";
 import { navigate } from "wouter/use-browser-location";
@@ -55,9 +56,9 @@ export default function OrdersPage() {
   const [saleType, setSaleType] = useState<"Retail" | "Wholesale" | "Dealer">("Retail");
 
   const { data: allorders, isLoading: summaryLoading,refetch } = useQuery({
-    queryKey: ["/api/product-summary", primaryShopData?.shopId,],
+    queryKey: [ENDPOINTS.products.summary, primaryShopData?.shopId],
     queryFn: async () => {
-      const response = await apiCall(`/api/sales/shop/onlineorders/${primaryShopData?.shopId}?status=${statusFilter}`, {
+      const response = await apiCall(`${ENDPOINTS.sales.getOnlineOrders(primaryShopData?.shopId || '')}?status=${statusFilter}`, {
         method: "GET",
       });
       return await response.json();

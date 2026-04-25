@@ -11,6 +11,7 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/utils";
 
@@ -45,7 +46,7 @@ export default function PurchasePaymentPage() {
 
   const paymentMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await fetch(`/api/purchases/${id}/payment`, {
+      const response = await fetch(ENDPOINTS.purchases.addPayment(id), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

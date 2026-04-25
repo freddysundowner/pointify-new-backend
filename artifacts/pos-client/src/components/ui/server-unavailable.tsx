@@ -28,7 +28,7 @@ export default function ServerUnavailable({
           <Settings className="h-4 w-4" />
           <AlertTitle>Server Status</AlertTitle>
           <AlertDescription>
-            The staging API server at staging.pointifypos.com is not responding. 
+            The API server is not responding.
             Please check with your system administrator or try again later.
           </AlertDescription>
         </Alert>

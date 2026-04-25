@@ -66,6 +66,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { useNavigationRoute } from "@/lib/navigation-utils";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import type { Sale } from "@shared/schema";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
@@ -219,7 +220,7 @@ function SalesList() {
     error,
     refetch,
   } = useQuery({
-    queryKey: [`/api/sales/filter?${queryParams}`],
+    queryKey: [`${ENDPOINTS.sales.getAll}?${queryParams}`],
     enabled: queryEnabled,
   });
 
@@ -252,7 +253,7 @@ function SalesList() {
 
   // Fetch sales report analysis data
   const { data: salesReportData, isLoading: isReportLoading, refetch: refetchReport } = useQuery({
-    queryKey: [`/api/analysis/report/sales?${buildReportParams()}`],
+    queryKey: [`${ENDPOINTS.analytics.salesReport}?${buildReportParams()}`],
     staleTime: 0,
     refetchOnMount: "always",
     // enabled: !!shopId
@@ -303,7 +304,7 @@ function SalesList() {
   // Fetch attendants from API - only for admin users
   const { data: attendantsResponse } = useQuery({
     queryKey: [
-      `/api/attendants/shop/filter?shopId=${shopId}&adminId=${adminId}`,
+      `${ENDPOINTS.attendants.getByShop}?shopId=${shopId}&adminId=${adminId}`,
     ],
     enabled: userType === "admin" && !!shopId && !!adminId,
   });
@@ -381,7 +382,7 @@ function SalesList() {
     setIsDeleting(true);
     try {
       // Call delete sale API
-      const response = await fetch(`/api/sales/${saleToDelete.id}`, {
+      const response = await fetch(ENDPOINTS.sales.delete(saleToDelete.id), {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("authToken")}`,
@@ -430,7 +431,7 @@ function SalesList() {
     if (!saleToComplete) return;
     setIsCompleting(true);
     try {
-      const response = await fetch(`/api/sales/${saleToComplete.id}`, {
+      const response = await fetch(ENDPOINTS.sales.complete(saleToComplete.id), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

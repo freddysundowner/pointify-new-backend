@@ -11,6 +11,7 @@ import { useAuth } from "@/features/auth/useAuth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 const DEFAULT_TEMPLATE =
   "Hi {name}, thank you for your purchase at {shop}. Amount: {amount}. Receipt #{receipt}. View: {receipt_url}";
@@ -58,7 +59,7 @@ export default function SmsSettingsPage() {
     queryFn: async () => {
       if (!shopId) return null;
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/shop/${shopId}`, {
+      const res = await fetch(ENDPOINTS.shop.getById(shopId), {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch shop");
@@ -88,7 +89,7 @@ export default function SmsSettingsPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/shop/${shopId}`, {
+      const res = await fetch(ENDPOINTS.shop.getById(shopId), {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -114,7 +115,7 @@ export default function SmsSettingsPage() {
     mutationFn: async ({ phone, amount }: { phone: string; amount: number }) => {
       const token = localStorage.getItem("token");
       const userId = shopData?.adminId?._id || admin?._id;
-      const res = await fetch("/api/sms/topup", {
+      const res = await fetch(ENDPOINTS.sms.topup, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ phone, amount, userid: userId }),
@@ -159,7 +160,7 @@ export default function SmsSettingsPage() {
     queryFn: async () => {
       if (!adminId) return [];
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/sms/sms-logs?adminId=${adminId}`, {
+      const res = await fetch(ENDPOINTS.sms.getLogs(adminId), {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch SMS logs");

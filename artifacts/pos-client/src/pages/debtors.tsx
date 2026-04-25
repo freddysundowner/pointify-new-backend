@@ -11,6 +11,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
 import { useLocation, Link } from "wouter";
 import { useNavigationRoute } from "@/lib/navigation-utils";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 interface Debtor {
   _id: string;
@@ -54,14 +55,14 @@ export default function DebtorsPage() {
 
   // Fetch debtors data
   const { data: debtorsData, isLoading, error, refetch } = useQuery({
-    queryKey: ['/api/customers/debtors', shopId, currentPage, pageSize],
+    queryKey: [ENDPOINTS.customers.getDebtors, shopId, currentPage, pageSize],
     queryFn: async (): Promise<DebtorsResponse> => {
       if (!shopId || !admin?._id) {
         throw new Error('Shop ID or Admin ID not available');
       }
 
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/customers/debtors?shopId=${shopId}&adminid=${admin._id}&page=${currentPage}&limit=${pageSize}`, {
+      const response = await fetch(`${ENDPOINTS.customers.getDebtors}?shopId=${shopId}&adminid=${admin._id}&page=${currentPage}&limit=${pageSize}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',

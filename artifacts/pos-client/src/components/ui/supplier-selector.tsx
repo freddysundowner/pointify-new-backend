@@ -8,6 +8,7 @@ import { Checkbox } from "./checkbox";
 import { useAuth } from "../../features/auth/useAuth";
 import { useToast } from "../../hooks/use-toast";
 import { apiRequest } from "../../lib/queryClient";
+import { ENDPOINTS } from "../../lib/api-endpoints";
 
 interface SupplierSelectorProps {
   selectedSuppliers: string[];
@@ -43,7 +44,7 @@ export default function SupplierSelector({
 
   // Fetch suppliers from API
   const { data: suppliersResponse, isLoading, error } = useQuery({
-    queryKey: ['/api/supplier', shopId],
+    queryKey: [ENDPOINTS.suppliers.getAllSingular, shopId],
     enabled: !!shopId && isOpen,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
@@ -55,7 +56,7 @@ export default function SupplierSelector({
   // Create supplier mutation
   const createSupplierMutation = useMutation({
     mutationFn: async (supplierData: { name: string; shopId: string; phoneNumber: string }) => {
-      const response = await fetch(`/api/supplier`, {
+      const response = await fetch(ENDPOINTS.suppliers.getAllSingular, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -75,7 +76,7 @@ export default function SupplierSelector({
         description: "Supplier created successfully"
       });
       // Refresh suppliers list
-      queryClient.invalidateQueries({ queryKey: ['/api/supplier', shopId] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAllSingular, shopId] });
       // Reset form
       setNewSupplier({ name: "", phoneNumber: "" });
       setShowAddForm(false);

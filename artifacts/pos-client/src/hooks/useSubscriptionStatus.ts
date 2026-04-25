@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
 import { useQuery } from '@tanstack/react-query';
 import { apiCall } from '@/lib/api-config';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useAuth } from '@/features/auth/useAuth';
 
 interface SubscriptionStatus {
@@ -20,7 +21,7 @@ export const useSubscriptionStatus = (): SubscriptionStatus => {
     queryKey: ["shops", admin?._id],
     queryFn: async () => {
       if (!admin?._id) return [];
-      const response = await apiCall(`/api/shop/admin/${admin._id}`, {
+      const response = await apiCall(ENDPOINTS.shop.getByAdmin(admin._id), {
         method: "GET",
       });
       return response.json();

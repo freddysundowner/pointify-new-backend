@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useProducts } from "@/contexts/ProductsContext";
@@ -149,7 +150,7 @@ export default function ProductGrid({
         type: "all"
       });
 
-      const response = await apiCall(`/api/product?${params.toString()}`, {
+      const response = await apiCall(`${ENDPOINTS.products.getAll}?${params.toString()}`, {
         method: 'GET'
       });
 
@@ -277,7 +278,7 @@ export default function ProductGrid({
         adminid: adminId || "",
         shopId: shopId || ""
       });
-      const response = await apiCall(`/api/customers?${params.toString()}`, {
+      const response = await apiCall(`${ENDPOINTS.customers.getAll}?${params.toString()}`, {
         method: "GET",
       });
       const data = await response.json();
@@ -296,7 +297,7 @@ export default function ProductGrid({
         adminid: adminId || "",
         shopId: shopId || ""
       });
-      const response = await apiCall(`/api/product/category?${params.toString()}`, {
+      const response = await apiCall(`${ENDPOINTS.products.getCategories}?${params.toString()}`, {
         method: "GET",
       });
       return response.json();
@@ -321,7 +322,7 @@ export default function ProductGrid({
 
   const createTransactionMutation = useMutation({
     mutationFn: async (transactionData: any): Promise<any> => {
-      const response = await apiCall('/api/sales', {
+      const response = await apiCall(ENDPOINTS.sales.create, {
         method: "POST",
         body: JSON.stringify(transactionData),
       });
@@ -544,7 +545,7 @@ export default function ProductGrid({
       const buyingPrice = customItemType === "product" ? parseFloat(customItemBuyingPrice || "0") : 0;
       const quantity = customItemType === "product" ? parseInt(customItemQuantity || "1") : 0;
 
-      const response = await apiCall("/api/product", {
+      const response = await apiCall(ENDPOINTS.products.create, {
         method: "POST",
         body: JSON.stringify({
           name: customItemName.trim(),
@@ -768,7 +769,7 @@ export default function ProductGrid({
 
   const createCustomerMutation = useMutation({
     mutationFn: async (data: typeof newCustomerForm) => {
-      const response = await apiCall('/api/customers', {
+      const response = await apiCall(ENDPOINTS.customers.create, {
         method: 'POST',
         body: JSON.stringify({
           name: data.name.trim(),

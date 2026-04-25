@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import {
   Select,
   SelectContent,
@@ -116,10 +117,10 @@ export default function PurchasesList() {
 
   // Fetch suppliers data for filter dropdown
   const { data: suppliersData = [] } = useQuery({
-    queryKey: ["/api/suppliers", shopId],
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
       if (!shopId) return [];
-      const response = await fetch(`/api/suppliers?shopId=${shopId}`);
+      const response = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
       if (!response.ok) throw new Error("Failed to fetch suppliers");
       return response.json();
     },
@@ -129,11 +130,11 @@ export default function PurchasesList() {
   // Fetch attendants data for filter dropdown (only for admins)
   const showAttendantFilter = true; // Show attendant filter for all users for now
   const { data: attendantsData = [] } = useQuery({
-    queryKey: ["/api/attendants/shop/filter", shopId],
+    queryKey: [ENDPOINTS.attendants.getByShop, shopId],
     queryFn: async () => {
       if (!shopId || !showAttendantFilter) return [];
       const response = await fetch(
-        `/api/attendants/shop/filter?shopId=${shopId}`,
+        `${ENDPOINTS.attendants.getByShop}?shopId=${shopId}`,
       );
       if (!response.ok) throw new Error("Failed to fetch attendants");
       return response.json();
@@ -191,7 +192,7 @@ export default function PurchasesList() {
     refetch,
   } = useQuery({
     queryKey: [
-      "/api/purchases",
+      ENDPOINTS.purchases.getAll,
       shopId,
       attendantId,
       startDate,
@@ -205,7 +206,7 @@ export default function PurchasesList() {
       // Add timestamp to force cache busting
       const timestamp = Date.now();
       const response = await fetch(
-        `/api/purchases?${queryParams}&_t=${timestamp}`,
+        `${ENDPOINTS.purchases.getAll}?${queryParams}&_t=${timestamp}`,
         {
           headers: {
             "Cache-Control": "no-cache",
@@ -229,7 +230,7 @@ export default function PurchasesList() {
   // Get purchases analytics for summary cards
   const { data: analyticsData } = useQuery({
     queryKey: [
-      `/api/analysis/report/purchases`,
+      ENDPOINTS.purchases.reportFilter,
       shopId,
       startDate,
       endDate,
@@ -272,7 +273,7 @@ export default function PurchasesList() {
       // Add timestamp to force cache busting
       const timestamp = Date.now();
       const response = await fetch(
-        `/api/analysis/report/purchases?${params}&_t=${timestamp}`,
+        `${ENDPOINTS.purchases.reportFilter}?${params}&_t=${timestamp}`,
         {
           headers: {
             "Cache-Control": "no-cache",
@@ -292,7 +293,7 @@ export default function PurchasesList() {
   // Delete purchase mutation
   const deletePurchaseMutation = useMutation({
     mutationFn: async (purchaseId: string) => {
-      const response = await fetch(`/api/purchases/${purchaseId}`, {
+      const response = await fetch(ENDPOINTS.purchases.delete(purchaseId), {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete purchase");
@@ -303,7 +304,7 @@ export default function PurchasesList() {
         title: "Success",
         description: "Purchase deleted successfully",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.purchases.getAll] });
     },
     onError: (error: any) => {
       toast({
@@ -1282,7 +1283,7 @@ export default function PurchasesList() {
           onSuccess={() => {
             refetch();
             queryClient.invalidateQueries({
-              queryKey: ["/api/analysis/report/purchases"],
+              queryKey: [ENDPOINTS.purchases.reportFilter],
             });
           }}
         />

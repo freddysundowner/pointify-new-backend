@@ -5,6 +5,7 @@ import type { Transaction, CartItem } from "@shared/schema";
 import { jsPDF } from 'jspdf';
 import { useToast } from "@/hooks/use-toast";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useEffect, useState } from "react";
 
 interface ReceiptModalProps {
@@ -89,7 +90,7 @@ export default function ReceiptModal({
     receiptData = getPrintData();
   }
   try {
-    const response = await apiCall('/api/printer/salereceipt', {
+    const response = await apiCall(ENDPOINTS.printer.saleReceipt, {
       method: 'POST',
       body: JSON.stringify(receiptData)
     });

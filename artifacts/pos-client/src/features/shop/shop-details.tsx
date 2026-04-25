@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, ChevronRight, ChevronDown, Trash2, Download, Settings, Shield, FileText, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Link } from "wouter";
@@ -98,7 +99,7 @@ export default function ShopDetails() {
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      const response = await apiCall("/api/shop/category", {
+      const response = await apiCall(ENDPOINTS.shop.getCategories, {
         method: "GET",
       });
       const data = await response.json();
@@ -119,7 +120,7 @@ export default function ShopDetails() {
     queryKey: ["shop", id],
     queryFn: async () => {
       if (!id) return null;
-      const response = await apiCall(`/api/shop/${id}`, {
+      const response = await apiCall(ENDPOINTS.shop.getById(id), {
         method: "GET",
       });
       const shop = await response.json();
@@ -168,7 +169,7 @@ export default function ShopDetails() {
   // Update shop mutation
   const updateShopMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiCall(`/api/shop/${id}`, {
+      const response = await apiCall(ENDPOINTS.shop.getById(id), {
         method: "PUT",
         body: JSON.stringify(data),
       });
@@ -233,7 +234,7 @@ export default function ShopDetails() {
       inputPlaceholder: "Type DELETE to confirm",
       onConfirm: () => {
         // Call the delete shop data API
-        apiCall(`/api/shop/data/${id}`, {
+        apiCall(ENDPOINTS.shop.getData(id), {
           method: 'DELETE',
         }).then(() => {
           toast({
@@ -303,7 +304,7 @@ export default function ShopDetails() {
           });
           // Invalidate cache and redirect to homepage
           setTimeout(() => {
-            queryClient.invalidateQueries({ queryKey: ['/api/shop'] });
+            queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getAll] });
             setLocation('/');
           }, 1000);
         }).catch((error) => {

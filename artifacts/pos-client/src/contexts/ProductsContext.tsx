@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { useAuth } from '@/features/auth/useAuth';
 import { useAttendantAuth } from '@/contexts/AttendantAuthContext';
 import { apiCall } from '@/lib/api-config';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 import type { Product } from '@shared/schema';
 import { useSelector } from 'react-redux';
 import type { RootState } from '@/store';
@@ -88,7 +89,7 @@ export const ProductsProvider = ({ children }: ProductsProviderProps) => {
       if (attendant) queryParams.append('attendantId', attendant._id);
       else if (admin) queryParams.append('adminid', admin._id || admin.id);
 
-      const response = await apiCall(`/api/product?${queryParams.toString()}`, {
+      const response = await apiCall(`${ENDPOINTS.products.getAll}?${queryParams.toString()}`, {
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',

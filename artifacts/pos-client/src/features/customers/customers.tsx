@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/features/auth/useAuth';
 import { useSelector } from "react-redux";
@@ -79,7 +80,7 @@ export default function Customers() {
         adminid: currentAdminId
       });
       
-      const response = await apiRequest('GET', `/api/customers?${params.toString()}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.customers.getAll}?${params.toString()}`);
       const data = await response.json();
       return data;
     },
@@ -113,7 +114,7 @@ export default function Customers() {
         adminid: currentAdminId
       });
       
-      const response = await apiRequest('GET', `/api/customers/analysis/${shopId}?${params.toString()}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.customers.getAnalysis(shopId)}?${params.toString()}`);
       const data = await response.json();
       console.log('Customer Analysis Data:', data);
       return data;
@@ -158,7 +159,7 @@ export default function Customers() {
       });
       console.log('Frontend: Sending customer data:', customerData);
       
-      const response = await apiRequest('POST', '/api/customers', customerData);
+      const response = await apiRequest('POST', ENDPOINTS.customers.create, customerData);
       return response.json();
     },
     onSuccess: () => {
@@ -183,7 +184,7 @@ export default function Customers() {
   // Update customer mutation
   const updateCustomerMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest('PUT', `/api/customers/${data._id}`, {
+      const response = await apiRequest('PUT', ENDPOINTS.customers.update(data._id), {
         body: JSON.stringify(data)
       });
       return response.json();
@@ -209,7 +210,7 @@ export default function Customers() {
   // Delete customer mutation
   const deleteCustomerMutation = useMutation({
     mutationFn: async (customerId: string) => {
-      const response = await apiRequest('DELETE', `/api/customers/${customerId}`);
+      const response = await apiRequest('DELETE', ENDPOINTS.customers.delete(customerId));
       return response.json();
     },
     onSuccess: () => {

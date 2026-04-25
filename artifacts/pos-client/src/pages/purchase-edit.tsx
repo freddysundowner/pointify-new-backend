@@ -11,6 +11,7 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useToast } from "@/hooks/use-toast";
 import { useProducts } from "@/contexts/ProductsContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -44,10 +45,10 @@ export default function PurchaseEditPage() {
 
   // Load suppliers with shopId parameter
   const { data: suppliers = [] } = useQuery({
-    queryKey: ["/api/suppliers", shopId],
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
       if (!shopId) return [];
-      const response = await fetch(`/api/suppliers?shopId=${shopId}`);
+      const response = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
       if (!response.ok) throw new Error('Failed to fetch suppliers');
       return response.json();
     },
@@ -75,7 +76,7 @@ export default function PurchaseEditPage() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await fetch(`/api/purchases/${id}`, {
+      const response = await fetch(ENDPOINTS.purchases.update(id), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -92,8 +93,8 @@ export default function PurchaseEditPage() {
         title: "Purchase Updated",
         description: "Purchase order has been updated successfully.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/analysis/report/purchases"] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.purchases.getAll] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.purchases.reportFilter] });
       setLocation(purchasesRoute);
     },
     onError: (error: any) => {

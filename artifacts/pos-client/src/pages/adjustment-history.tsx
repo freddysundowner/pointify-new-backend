@@ -10,6 +10,7 @@ import { ArrowLeft, Calendar, Filter, RefreshCw, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 export default function AdjustmentHistoryPage() {
   const [location, setLocation] = useLocation();
@@ -66,7 +67,7 @@ export default function AdjustmentHistoryPage() {
   // Fetch product details
   const fetchProduct = async () => {
     try {
-      const response = await fetch(`/api/product/${productId}`, {
+      const response = await fetch(ENDPOINTS.products.getById(productId), {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken') || localStorage.getItem('attendantToken')}`,
           'Content-Type': 'application/json'
@@ -108,7 +109,7 @@ export default function AdjustmentHistoryPage() {
         ...(filterType !== "all" && { type: filterType })
       });
       
-      const response = await fetch(`/api/product/adjust/history/${productId}?${queryParams.toString()}`, {
+      const response = await fetch(`${ENDPOINTS.products.adjustHistory(productId)}?${queryParams.toString()}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken') || localStorage.getItem('attendantToken')}`,
           'Content-Type': 'application/json'

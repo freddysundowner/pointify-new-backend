@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
-import { API_ENDPOINTS, apiCall } from "@/lib/api-config";
+import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/useAuth";
 import type { CartItem, Transaction } from "@shared/schema";
@@ -48,7 +49,7 @@ export default function CheckoutModal({
         adminid: adminid || ''
       });
       
-      const response = await apiRequest('GET', `/api/customers?${params.toString()}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.customers.getAll}?${params.toString()}`);
       const data = await response.json();
       return Array.isArray(data) ? data : data?.customers || data?.data || [];
     },
@@ -57,7 +58,7 @@ export default function CheckoutModal({
 
   const createTransactionMutation = useMutation({
     mutationFn: async (transactionData: any) => {
-      return await apiCall(API_ENDPOINTS.sales.create, {
+      return await apiCall(ENDPOINTS.sales.create, {
         method: "POST",
         body: JSON.stringify(transactionData),
       });

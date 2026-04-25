@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Calendar, Search, Download, FileText, Eye, ChevronDown, ChevronUp, ArrowLeft, AlertTriangle, RotateCcw, BarChart3 } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { useAuth } from "@/features/auth/useAuth";
@@ -61,7 +62,7 @@ export default function StockCountHistoryPage() {
 
   // Fetch stock count history with proper authentication context
   const { data: historyData, isLoading, error } = useQuery({
-    queryKey: ["/api/counts/shop", shopId, adminId, attendantId, fromDate, toDate, currentPage, itemsPerPage],
+    queryKey: [ENDPOINTS.stockCounts.getByShop(shopId || ''), shopId, adminId, attendantId, fromDate, toDate, currentPage, itemsPerPage],
     queryFn: async () => {
       // Build query parameters
       const params = new URLSearchParams({
@@ -74,7 +75,7 @@ export default function StockCountHistoryPage() {
         params.append('attendantId', attendant._id);
       }
       
-      const response = await apiRequest("GET", `/api/counts/shop/${shopId}?${params.toString()}`);
+      const response = await apiRequest("GET", `${ENDPOINTS.stockCounts.getByShop(shopId || '')}?${params.toString()}`);
       return await response.json();
     },
     enabled: !!shopId && !!adminId,
@@ -96,7 +97,7 @@ export default function StockCountHistoryPage() {
         shopId: shopId
       });
       
-      const response = await apiRequest("GET", `/analysis/stock/count/analysis?${params.toString()}`);
+      const response = await apiRequest("GET", `${ENDPOINTS.stockCounts.countAnalysis}?${params.toString()}`);
       const data = await response.json();
       setAnalysisData(data);
     } catch (error) {

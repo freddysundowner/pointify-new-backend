@@ -18,6 +18,7 @@ import { useAuth } from "@/features/auth/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
@@ -101,11 +102,11 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
 
   // Fetch suppliers
   const { data: suppliers = [], isLoading: suppliersLoading } = useQuery({
-    queryKey: ["/api/suppliers", getShopId()],
+    queryKey: [ENDPOINTS.suppliers.getAll, getShopId()],
     queryFn: async () => {
       const shopId = getShopId();
       if (!shopId) return [];
-      const response = await fetch(`/api/suppliers?shopId=${shopId}`);
+      const response = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
       if (!response.ok) throw new Error("Failed to fetch suppliers");
       return response.json();
     },
@@ -167,7 +168,7 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
   // Create purchase order mutation
   const createPurchaseMutation = useMutation({
     mutationFn: async (purchaseData: any) => {
-      const response = await fetch("/api/purchases", {
+      const response = await fetch(ENDPOINTS.purchases.create, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(purchaseData)
@@ -180,9 +181,9 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
         title: "Success",
         description: "Purchase order created successfully"
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/product"] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.purchases.getAll] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.products.getAll] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       // Also refresh products context to update POS immediately
       refreshProducts();

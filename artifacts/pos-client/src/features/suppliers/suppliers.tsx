@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import AlertModal from '@/components/ui/alert-modal';
 import { useForm } from 'react-hook-form';
@@ -95,10 +96,10 @@ export default function SuppliersPage() {
 
   // Fetch suppliers
   const { data: suppliers = [], isLoading, error } = useQuery({
-    queryKey: ['/api/suppliers', shopId],
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
       if (!shopId) return [];
-      const response = await apiRequest('GET', `/api/suppliers?shopId=${shopId}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
       const data = await response.json();
       return data || [];
     },
@@ -116,7 +117,7 @@ export default function SuppliersPage() {
         attendantId: isAttendantRoute ? attendant?._id : admin?.attendantId,
         adminId: isAttendantRoute ? attendant?.adminId : admin?._id
       };
-      const response = await apiRequest('POST', '/api/suppliers', payload);
+      const response = await apiRequest('POST', ENDPOINTS.suppliers.create, payload);
       return await response.json();
     },
     onSuccess: () => {
@@ -124,7 +125,7 @@ export default function SuppliersPage() {
         title: "Success",
         description: "Supplier created successfully"
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
       setIsCreateDialogOpen(false);
       createForm.reset();
     },
@@ -141,7 +142,7 @@ export default function SuppliersPage() {
   const updateMutation = useMutation({
     mutationFn: async (data: SupplierFormData) => {
       if (!selectedSupplier) throw new Error('No supplier selected');
-      const response = await apiRequest('PUT', `/api/suppliers/${selectedSupplier._id}`, data);
+      const response = await apiRequest('PUT', ENDPOINTS.suppliers.update(selectedSupplier._id), data);
       return await response.json();
     },
     onSuccess: () => {
@@ -149,7 +150,7 @@ export default function SuppliersPage() {
         title: "Success",
         description: "Supplier updated successfully"
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
       setIsEditDialogOpen(false);
       setSelectedSupplier(null);
       editForm.reset();
@@ -166,7 +167,7 @@ export default function SuppliersPage() {
   // Delete supplier mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest('DELETE', `/api/suppliers/${id}`);
+      const response = await apiRequest('DELETE', ENDPOINTS.suppliers.delete(id));
       return await response.json();
     },
     onSuccess: () => {
@@ -174,7 +175,7 @@ export default function SuppliersPage() {
         title: "Success",
         description: "Supplier deleted successfully"
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
       setIsDeleteModalOpen(false);
       setSelectedSupplier(null);
     },
@@ -196,7 +197,7 @@ export default function SuppliersPage() {
         attendantId,
         shopId
       };
-      const response = await apiRequest('PUT', `/api/suppliers/${supplierId}`, payload);
+      const response = await apiRequest('PUT', ENDPOINTS.suppliers.update(supplierId), payload);
       return await response.json();
     },
     onSuccess: () => {
@@ -205,7 +206,7 @@ export default function SuppliersPage() {
         description: "Supplier debt payment has been recorded successfully"
       });
       // Refresh suppliers data
-      queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
       // Refresh analytics data
       queryClient.invalidateQueries({ 
         predicate: (query) => {

@@ -16,6 +16,7 @@ import { RootState } from '@/store/store';
 import { useAuth } from "@/features/auth/useAuth";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 interface ExpenseCategory {
   _id: string;
@@ -51,7 +52,7 @@ export default function ExpenseCategories() {
         shop: effectiveShopId
       });
       
-      const response = await apiRequest('GET', `/api/expense-categories?${params.toString()}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.expenseCategories.getAll}?${params.toString()}`);
       const data = await response.json();
       return Array.isArray(data) ? data : data?.categories || data?.data || [];
     },
@@ -66,7 +67,7 @@ export default function ExpenseCategories() {
         shopId: effectiveShopId
       };
       
-      const response = await apiRequest('POST', '/api/expense-categories', categoryData);
+      const response = await apiRequest('POST', ENDPOINTS.expenseCategories.create, categoryData);
       return response.json();
     },
     onSuccess: () => {
@@ -95,7 +96,7 @@ export default function ExpenseCategories() {
         shopId: data.shopId
       };
       
-      const response = await apiRequest('PUT', `/api/expense-categories/${data._id}`, categoryData);
+      const response = await apiRequest('PUT', ENDPOINTS.expenseCategories.update(data._id), categoryData);
       return response.json();
     },
     onSuccess: () => {
@@ -118,7 +119,7 @@ export default function ExpenseCategories() {
   // Delete category mutation
   const deleteCategoryMutation = useMutation({
     mutationFn: async (categoryId: string) => {
-      const response = await apiRequest('DELETE', `/api/expense-categories/${categoryId}`);
+      const response = await apiRequest('DELETE', ENDPOINTS.expenseCategories.delete(categoryId));
       return response.json();
     },
     onSuccess: () => {

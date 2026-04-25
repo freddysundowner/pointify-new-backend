@@ -16,6 +16,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
 import { apiRequest } from '@/lib/queryClient';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useAuth } from '@/features/auth/useAuth';
 import { useAttendantAuth } from '@/contexts/AttendantAuthContext';
 
@@ -72,9 +73,9 @@ export default function CashflowCategories() {
 
   // Fetch cashflow categories for management
   const { data: categories = [], isLoading, error } = useQuery({
-    queryKey: ['/api/cashflow-categories', effectiveShopId],
+    queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId],
     queryFn: async () => {
-      const response = await fetch(`/api/cashflow-categories?shop=${effectiveShopId}`, {
+      const response = await fetch(`${ENDPOINTS.cashflow.categories}?shop=${effectiveShopId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -95,10 +96,10 @@ export default function CashflowCategories() {
   // Create category mutation
   const createCategoryMutation = useMutation({
     mutationFn: async (data: { name: string; shopId: string; type: 'cashin' | 'cashout' }) => {
-      return await apiRequest('POST', '/api/cashflow-categories', data);
+      return await apiRequest('POST', ENDPOINTS.cashflow.createCategory, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cashflow-categories', effectiveShopId] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId] });
       toast({
         title: "Success",
         description: "Category created successfully",
@@ -118,10 +119,10 @@ export default function CashflowCategories() {
   // Update category mutation
   const updateCategoryMutation = useMutation({
     mutationFn: async (data: { id: string; name: string; type: 'cashin' | 'cashout' }) => {
-      return await apiRequest('PUT', `/api/cashflow-categories/${data.id}`, { name: data.name, type: data.type });
+      return await apiRequest('PUT', ENDPOINTS.cashflow.updateCategory(data.id), { name: data.name, type: data.type });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cashflow-categories', effectiveShopId] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId] });
       toast({
         title: "Success",
         description: "Category updated successfully",
@@ -140,10 +141,10 @@ export default function CashflowCategories() {
   // Delete category mutation
   const deleteCategoryMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest('DELETE', `/api/cashflow-categories/${id}`);
+      return await apiRequest('DELETE', ENDPOINTS.cashflow.deleteCategory(id));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/cashflow-categories', effectiveShopId] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId] });
       toast({
         title: "Success",
         description: "Category deleted successfully",

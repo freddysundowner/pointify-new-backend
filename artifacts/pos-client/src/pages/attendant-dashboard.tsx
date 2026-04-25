@@ -87,7 +87,7 @@ function AttendantDashboardContent() {
       if (attendant?.shopId) {
         try {
           const shopId = typeof attendant.shopId === 'object' ? attendant.shopId._id : attendant.shopId;
-          const response = await fetch(`/api/shop/${shopId}`);
+          const response = await fetch(ENDPOINTS.shop.getById(shopId));
           if (response.ok) {
             const shopData = await response.json();
             setShopName(shopData.name || 'Unknown Shop');

@@ -42,6 +42,7 @@ import { useNavigationRoute } from "@/lib/navigation-utils";
 import BundleProductsSelector from "@/components/ui/bundle-products-selector";
 import SupplierSelector from "@/components/ui/supplier-selector-simple";
 import { useProducts } from "@/contexts/ProductsContext";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
@@ -93,14 +94,14 @@ export default function ProductForm() {
 
   // Fetch categories for the dropdown
   const { data: categories, isLoading: categoriesLoading } = useQuery({
-    queryKey: ["/api/product/category", shopId, adminId],
+    queryKey: [ENDPOINTS.products.getCategories, shopId, adminId],
     queryFn: async () => {
       const params = new URLSearchParams({
         shopId: shopId || "",
         adminId: adminId || "",
       });
       
-      const response = await fetch(`/api/product/category?${params.toString()}`, {
+      const response = await fetch(`${ENDPOINTS.products.getCategories}?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("authToken")}`,
         },
@@ -216,7 +217,7 @@ export default function ProductForm() {
 
   // Fetch product data for edit mode
   const { data: product, isLoading: isLoadingProduct } = useQuery({
-    queryKey: [`/api/product/${productId}`],
+    queryKey: [ENDPOINTS.products.getById(productId || '')],
     enabled: !!productId && isEditMode,
     staleTime: 0,
     gcTime: 0,
@@ -369,8 +370,8 @@ export default function ProductForm() {
   const mutation = useMutation({
     mutationFn: async (formData: ProductFormData) => {
       const endpoint = isEditMode
-        ? `/api/product/${productId}`
-        : "/api/product";
+        ? ENDPOINTS.products.update(productId || '')
+        : ENDPOINTS.products.create;
       const method = isEditMode ? "PUT" : "POST";
 
       const payload = {
@@ -432,10 +433,10 @@ export default function ProductForm() {
         title: "Success",
         description: `Product ${isEditMode ? "updated" : "created"} successfully!`,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/product"] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.products.getAll] });
       if (isEditMode) {
         queryClient.invalidateQueries({
-          queryKey: [`/api/product/${productId}`],
+          queryKey: [ENDPOINTS.products.getById(productId || '')],
         });
       }
         refreshProducts();
@@ -454,7 +455,7 @@ export default function ProductForm() {
 
   const createCategoryMutation = useMutation({
     mutationFn: async (categoryName: string) => {
-      const response = await fetch("/api/product/category", {
+      const response = await fetch(ENDPOINTS.products.createCategory, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -482,7 +483,7 @@ export default function ProductForm() {
       setNewCategoryName("");
       // Refresh categories list
       queryClient.invalidateQueries({
-        queryKey: ["/api/product/category", shopId, adminId],
+        queryKey: [ENDPOINTS.products.getCategories, shopId, adminId],
       });
     },
     onError: (error: Error) => {

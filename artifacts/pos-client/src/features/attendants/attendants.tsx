@@ -16,6 +16,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
 import { apiRequest } from '@/lib/queryClient';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useAuth } from '@/features/auth/useAuth';
 
 interface Permission {
@@ -83,10 +84,10 @@ export default function Attendants() {
 
   // Fetch admin permissions when editing permissions
   const { data: adminPermissions = [], isLoading: isLoadingPermissions } = useQuery({
-    queryKey: ['/api/admin/permissions'],
+    queryKey: [ENDPOINTS.auth.adminPermissions],
     queryFn: () => {
       const token = localStorage.getItem('authToken');
-      return fetch(`/api/admin/permissions`, {
+      return fetch(ENDPOINTS.auth.adminPermissions, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -158,12 +159,12 @@ export default function Attendants() {
   });
 
   const { data: attendants = [], isLoading, error } = useQuery({
-    queryKey: ['/api/attendants/all', effectiveAdmin?._id || effectiveAdmin?.id],
+    queryKey: [ENDPOINTS.attendants.create, effectiveAdmin?._id || effectiveAdmin?.id],
     queryFn: () => {
       const adminId = effectiveAdmin?._id || effectiveAdmin?.id;
       console.log('Fetching all attendants for adminId:', adminId);
       const token = localStorage.getItem('authToken');
-      return fetch(`/api/attendants/all/${adminId}`, {
+      return fetch(ENDPOINTS.attendants.getAll(adminId), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -194,9 +195,9 @@ export default function Attendants() {
 
   // Create attendant mutation
   const createAttendantMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('POST', '/api/attendants', data),
+    mutationFn: (data: any) => apiRequest('POST', ENDPOINTS.attendants.create, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/attendants/all'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.attendants.create] });
       setIsDialogOpen(false);
       resetForm();
       toast({
@@ -215,9 +216,9 @@ export default function Attendants() {
 
   // Update attendant mutation
   const updateAttendantMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => apiRequest('PUT', `/api/attendants/${id}`, data),
+    mutationFn: ({ id, data }: { id: string; data: any }) => apiRequest('PUT', ENDPOINTS.attendants.update(id), data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/attendants/all'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.attendants.create] });
       setIsDialogOpen(false);
       setIsPermissionsDialogOpen(false);
       setIsEditingPermissions(false);
@@ -238,9 +239,9 @@ export default function Attendants() {
 
   // Delete attendant mutation
   const deleteAttendantMutation = useMutation({
-    mutationFn: (id: string) => apiRequest('DELETE', `/api/attendants/${id}`),
+    mutationFn: (id: string) => apiRequest('DELETE', ENDPOINTS.attendants.delete(id)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/attendants/all'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.attendants.create] });
       setIsDeleteDialogOpen(false);
       setSelectedAttendant(null);
       toast({

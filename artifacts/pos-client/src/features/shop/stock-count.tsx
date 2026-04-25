@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useLocation } from "wouter";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
@@ -49,7 +50,7 @@ export default function StockCount() {
   const backRoute = attendant ? '/attendant/dashboard' : '/stock';
 
   const { data: productsResponse, isLoading, error } = useQuery({
-    queryKey: ["/api/product", "stock-count", adminId, shopId, currentPage, itemsPerPage, searchQuery, selectedStatus, selectedDate],
+    queryKey: [ENDPOINTS.products.getAll, "stock-count", adminId, shopId, currentPage, itemsPerPage, searchQuery, selectedStatus, selectedDate],
     enabled: !!adminId && !!shopId && (selectedStatus !== 'counteddate' || (selectedStatus === 'counteddate' && selectedDate !== '')),
     queryFn: async () => {
       if (!adminId || !shopId) return { data: [], count: 0, totalPages: 0 };
@@ -77,7 +78,7 @@ export default function StockCount() {
           ? localStorage.getItem('attendantToken')
           : localStorage.getItem('authToken');
 
-        const response = await fetch(`/api/product?${params.toString()}`, {
+        const response = await fetch(`${ENDPOINTS.products.getAll}?${params.toString()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -128,7 +129,7 @@ export default function StockCount() {
   // Stock count submission mutation
   const stockCountMutation = useMutation({
     mutationFn: async (payload: any) => {
-      const response = await apiRequest("POST", "/api/counts", payload);
+      const response = await apiRequest("POST", ENDPOINTS.stockCounts.create, payload);
       return await response.json();
     },
     onSuccess: () => {
@@ -137,7 +138,7 @@ export default function StockCount() {
         description: "Stock count submitted successfully",
       });
       setCountData({});
-      queryClient.invalidateQueries({ queryKey: ["/api/product"] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.products.getAll] });
     },
     onError: (error) => {
       console.error('Stock count submission error:', error);

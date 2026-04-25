@@ -19,6 +19,7 @@ import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useProducts } from "@/contexts/ProductsContext";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 interface ReturnItem {
   productId: string;
@@ -161,7 +162,7 @@ export default function ReturnPurchase() {
         ? localStorage.getItem('attendantToken') 
         : localStorage.getItem('authToken');
 
-      const response = await fetch('/api/purchasereturns', {
+      const response = await fetch(ENDPOINTS.purchaseReturns.create, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

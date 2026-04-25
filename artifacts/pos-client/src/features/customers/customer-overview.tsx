@@ -19,6 +19,7 @@ import { RootState } from '@/store/store';
 import { useAuth } from '@/features/auth/useAuth';
 import { apiCall } from '@/lib/api-config';
 import { apiRequest } from '@/lib/queryClient';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useNavigationRoute } from '@/lib/navigation-utils';
 
 interface CustomerTransaction {
@@ -371,7 +372,7 @@ export default function CustomerOverview() {
   });
   
   const { data: salesData, isLoading: salesLoading } = useQuery({
-    queryKey: ['/api/sales/filter', customerId, effectiveShopId, salesFilter],
+    queryKey: [ENDPOINTS.sales.getAll, customerId, effectiveShopId, salesFilter],
     enabled: !!customerId, // Only need customer ID
     queryFn: async () => {
       console.log('Sales query function called with:', { customerId, effectiveShopId, salesFilter });
@@ -399,7 +400,7 @@ export default function CustomerOverview() {
         params.append('paymentTag', '');
       }
       
-      const url = `/api/sales/filter?${params.toString()}`;
+      const url = `${ENDPOINTS.sales.getAll}?${params.toString()}`;
       console.log('=== CUSTOMER OVERVIEW SALES API CALL ===');
       console.log('Customer sales API call:', url);
       console.log('Customer ID:', customerId);
@@ -439,12 +440,12 @@ export default function CustomerOverview() {
 
   // Fetch customer payment history
   const { data: customerPayments = [], isLoading: isLoadingPayments } = useQuery({
-    queryKey: ['/api/customers/payments', customerId, statementFilter],
+    queryKey: [ENDPOINTS.customers.getPayments, customerId, statementFilter],
     queryFn: async () => {
       if (!customerId) return [];
       
       const token = localStorage.getItem('token') || localStorage.getItem('attendantToken');
-      const url = `/api/customers/payments/${customerId}?type=${statementFilter}`;
+      const url = `${ENDPOINTS.customers.getPayments}/${customerId}?type=${statementFilter}`;
       
       const response = await fetch(url, {
         headers: {
@@ -521,7 +522,7 @@ export default function CustomerOverview() {
 
       // Race between the API request and timeout
       const response = await Promise.race([
-        apiRequest('PUT', `/api/customers/${customerId}`, updateData),
+        apiRequest('PUT', ENDPOINTS.customers.update(customerId), updateData),
         timeoutPromise
       ]) as Response;
 
@@ -533,9 +534,9 @@ export default function CustomerOverview() {
     },
     onSuccess: () => {
       // Invalidate all customer-related queries with the specific keys used in this component
-      queryClient.invalidateQueries({ queryKey: ['/api/sales/filter', customerId, effectiveShopId, salesFilter] });
-      queryClient.invalidateQueries({ queryKey: ['/api/customers/payments', customerId, statementFilter] });
-      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.sales.getAll, customerId, effectiveShopId, salesFilter] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.customers.getPayments, customerId, statementFilter] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.customers.getAll] });
       
       // Invalidate customers list page queries with proper shopId and userType
       const userType = localStorage.getItem("attendantData") ? 'attendant' : 'admin';
@@ -693,7 +694,7 @@ export default function CustomerOverview() {
       };
 
       const token = localStorage.getItem("token") || localStorage.getItem("attendantToken");
-      const response = await fetch(`/api/customers/${customerId}`, {
+      const response = await fetch(ENDPOINTS.customers.update(customerId), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -717,7 +718,7 @@ export default function CustomerOverview() {
       setDepositAmount("");
       setIsDepositDialogOpen(false);
       // Refresh the customer data without page reload
-      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.customers.getAll] });
     },
     onError: (error: any) => {
       toast({

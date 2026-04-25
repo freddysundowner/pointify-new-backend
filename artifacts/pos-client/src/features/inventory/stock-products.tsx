@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { Link, useLocation } from "wouter";
 import { useShop } from "@/features/shop/useShop";
 import { useAuth } from "@/features/auth/useAuth";
@@ -157,7 +158,7 @@ export default function StockProducts() {
     error,
   } = useQuery({
     queryKey: [
-      `/api/product`,
+      ENDPOINTS.products.getAll,
       effectiveShopId,
       page,
       itemsPerPage,
@@ -194,7 +195,7 @@ export default function StockProducts() {
         ...(isAttendant ? {} : { adminid: admin?._id || "" }),
       });
 
-      const url = `/api/product?${params.toString()}`;
+      const url = `${ENDPOINTS.products.getAll}?${params.toString()}`;
       console.log("Making API call to:", url);
 
       const response = await apiCall(url, {
@@ -225,10 +226,10 @@ export default function StockProducts() {
 
   // Fetch stock analysis data
   const { data: stockAnalysis, error: stockAnalysisError } = useQuery({
-    queryKey: [`/api/analysis/stockanalysis/`, effectiveShopId, true],
+    queryKey: [ENDPOINTS.analytics.stockAnalysis, effectiveShopId, true],
     queryFn: async ({ queryKey }) => {
       const warehouse = true;
-      const url = `/api/analysis/stockanalysis/?shopid=${effectiveShopId}&warehouse=${warehouse}&totalstock=true`;
+      const url = `${ENDPOINTS.analytics.stockAnalysis}/?shopid=${effectiveShopId}&warehouse=${warehouse}&totalstock=true`;
       
       console.log("=== STOCK ANALYSIS QUERY TRIGGERED ===");
       console.log("Query URL:", url);
@@ -329,7 +330,7 @@ export default function StockProducts() {
   const downloadStockData = async (type: 'outofstock' | 'lowstock') => {
     try {
       const token = localStorage.getItem("authToken");
-      const url = `/api/analysis/pdf/download/file?shopid=${effectiveShopId}`;
+      const url = `${ENDPOINTS.analytics.stockPdfFile}?shopid=${effectiveShopId}`;
       
       console.log("Downloading stock data for:", type);
       console.log("Download URL:", url);
@@ -435,7 +436,7 @@ export default function StockProducts() {
       };
 
       const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
-      const response = await fetch(`/api/product/adjust/${selectedProduct._id}`, {
+      const response = await fetch(ENDPOINTS.products.adjust(selectedProduct._id), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

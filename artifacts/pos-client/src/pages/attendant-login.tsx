@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Eye, EyeOff, User, Lock, Store, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useAttendantAuth } from '@/contexts/AttendantAuthContext';
 
 interface AttendantLoginForm {
@@ -27,7 +28,7 @@ function AttendantLoginContent() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: AttendantLoginForm) => {
-      const response = await fetch('/api/auth/attendant/login', {
+      const response = await fetch(ENDPOINTS.auth.attendantLogin, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

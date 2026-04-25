@@ -3,6 +3,7 @@ import { Search, Plus, TrendingUp, TrendingDown, DollarSign, Calendar, ArrowUpRi
 import { Link, useLocation } from 'wouter';
 import { useNavigationRoute } from '@/lib/navigation-utils';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
 import { useAuth } from '@/features/auth/useAuth';
@@ -259,7 +260,7 @@ export default function CashFlow() {
   const { data: shopsData } = useQuery({
     queryKey: ["shops", admin?._id],
     queryFn: async () => {
-      const response = await fetch(`/api/shop/admin/${admin?._id}`, {
+      const response = await fetch(ENDPOINTS.shop.getByAdmin(admin?._id), {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -292,7 +293,7 @@ export default function CashFlow() {
 
   // Fetch cashflow summary data with dynamic date filtering and attendant filtering
   const { data: cashflowSummary, isLoading: isLoadingTransactions } = useQuery({
-    queryKey: ['/api/cashflow', effectiveShopId, startDate, endDate, attendant?._id],
+    queryKey: [ENDPOINTS.cashflow.getAll, effectiveShopId, startDate, endDate, attendant?._id],
     queryFn: async () => {
       const params = new URLSearchParams({
         shop: effectiveShopId!,
@@ -305,7 +306,7 @@ export default function CashFlow() {
         params.append('attendantId', attendant._id);
       }
       
-      const response = await fetch(`/api/cashflow?${params.toString()}`, {
+      const response = await fetch(`${ENDPOINTS.cashflow.getAll}?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -327,7 +328,7 @@ export default function CashFlow() {
   // Create cashflow transaction mutation
   const createTransactionMutation = useMutation({
     mutationFn: async (payload: { name: string; amount: number; category: string; attendantId: string; shopId: string }) => {
-      const response = await fetch('/api/cashflow', {
+      const response = await fetch(ENDPOINTS.cashflow.create, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -343,8 +344,8 @@ export default function CashFlow() {
     },
     onSuccess: () => {
       // Invalidate both categories and transactions caches
-      queryClient.invalidateQueries({ queryKey: ['/api/cashflow-categories', effectiveShopId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cashflow'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.cashflow.getAll] });
       toast({
         title: "Success",
         description: "Transaction created successfully",
@@ -363,9 +364,9 @@ export default function CashFlow() {
 
   // Fetch cashflow categories for dropdowns
   const { data: cashflowCategories = [] } = useQuery({
-    queryKey: ['/api/cashflow-categories', effectiveShopId],
+    queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId],
     queryFn: async () => {
-      const response = await fetch(`/api/cashflow-categories?shop=${effectiveShopId}`, {
+      const response = await fetch(`${ENDPOINTS.cashflow.categories}?shop=${effectiveShopId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -584,7 +585,7 @@ export default function CashFlow() {
 
       console.log('Submitting cashflow transaction:', payload);
 
-      const response = await fetch('/api/cashflow', {
+      const response = await fetch(ENDPOINTS.cashflow.create, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -601,8 +602,8 @@ export default function CashFlow() {
       console.log('Cashflow transaction created:', result);
 
       // Invalidate both categories and transactions caches to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/cashflow-categories', effectiveShopId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/cashflow'] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.cashflow.getAll] });
 
       // Reset form
       setFormData({

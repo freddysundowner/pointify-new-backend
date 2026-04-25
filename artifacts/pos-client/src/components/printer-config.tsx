@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,7 +41,7 @@ export function PrinterConfigDialog() {
 
   useEffect(() => {
     if (isOpen && config.type === 'SYSTEM') {
-      fetch('/api/printers')
+      fetch(ENDPOINTS.printer.list)
         .then(res => res.json())
         .then(data => setAvailablePrinters(data.printers || []))
         .catch(err => console.error('Failed to load printers', err));
@@ -49,7 +50,7 @@ export function PrinterConfigDialog() {
 
   const loadPrinterStatus = async () => {
     try {
-      const response = await fetch('/api/printer/status');
+      const response = await fetch(ENDPOINTS.printer.status);
       if (!response.ok) throw new Error(`HTTP error ${response.status}`);
       const data = await response.json();
       setStatus(data);
@@ -63,7 +64,7 @@ export function PrinterConfigDialog() {
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/printer/initialize', {
+      const response = await fetch(ENDPOINTS.printer.initialize, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -99,7 +100,7 @@ export function PrinterConfigDialog() {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/printer/test', { method: 'POST' });
+      const response = await fetch(ENDPOINTS.printer.test, { method: 'POST' });
       const data = await response.json();
       if (data.success) {
         toast({ title: "Test Successful", description: "Test print completed successfully" });

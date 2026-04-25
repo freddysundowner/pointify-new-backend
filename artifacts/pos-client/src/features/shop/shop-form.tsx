@@ -8,6 +8,7 @@ import { Store, MapPin, Phone, Mail, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import GooglePlacesInput from "@/components/ui/google-places-input";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
@@ -50,7 +51,7 @@ export default function ShopForm({
 
   // Fetch shop categories from API
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
-    queryKey: ['/api/shop/category'],
+    queryKey: [ENDPOINTS.shop.getCategories],
   });
 
   const handleInputChange = (field: string, value: string | boolean) => {
