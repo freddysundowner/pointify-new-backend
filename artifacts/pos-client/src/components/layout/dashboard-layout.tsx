@@ -405,7 +405,7 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
                 <User className="w-4 h-4 text-white" />
               </div>
               <div className="hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">{admin?.email?.split('@')[0] || 'Admin User'}</p>
+                <p className="text-sm font-medium text-gray-900">{admin?.username || admin?.email?.split('@')[0] || 'Admin User'}</p>
                 <p className="text-xs text-gray-500">{admin?.email || 'admin@pointify.com'}</p>
               </div>
             </div>
