@@ -12,8 +12,8 @@ import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useAttendantAuth } from '@/contexts/AttendantAuthContext';
 
 interface AttendantLoginForm {
-  uniqueDigits: string;
-  password: string;
+  pin: string;
+  shopId: string;
 }
 
 function AttendantLoginContent() {
@@ -22,8 +22,8 @@ function AttendantLoginContent() {
   const { login } = useAttendantAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState<AttendantLoginForm>({
-    uniqueDigits: '',
-    password: ''
+    pin: '',
+    shopId: ''
   });
 
   const loginMutation = useMutation({
@@ -33,7 +33,7 @@ function AttendantLoginContent() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({ pin: data.pin, shopId: data.shopId })
       });
       
       if (!response.ok) {
@@ -69,7 +69,7 @@ function AttendantLoginContent() {
     onError: (error: any) => {
       toast({
         title: "Login Failed",
-        description: error.message || "Invalid PIN or password. Please check your credentials.",
+        description: error.message || "Invalid PIN or Shop ID. Please check your credentials.",
         variant: "destructive"
       });
     }
@@ -78,10 +78,10 @@ function AttendantLoginContent() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.uniqueDigits || !formData.password) {
+    if (!formData.pin || !formData.shopId) {
       toast({
         title: "Missing Information",
-        description: "Please enter both your PIN and password.",
+        description: "Please enter both your PIN and Shop ID.",
         variant: "destructive"
       });
       return;
@@ -123,7 +123,7 @@ function AttendantLoginContent() {
               <span className="text-purple-600">P</span>ointify Staff
             </CardTitle>
             <CardDescription className="text-purple-600">
-              Enter your PIN and password to access the system
+              Enter your PIN and Shop ID to access the system
             </CardDescription>
           </CardHeader>
           
@@ -131,38 +131,38 @@ function AttendantLoginContent() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* PIN Input */}
               <div className="space-y-2">
-                <Label htmlFor="uniqueDigits" className="text-sm font-medium text-purple-700">
+                <Label htmlFor="pin" className="text-sm font-medium text-purple-700">
                   Staff PIN
                 </Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-400 h-4 w-4" />
                   <Input
-                    id="uniqueDigits"
+                    id="pin"
                     type="text"
-                    placeholder="Enter your 5-digit PIN"
-                    value={formData.uniqueDigits}
-                    onChange={handleInputChange('uniqueDigits')}
+                    placeholder="Enter your PIN"
+                    value={formData.pin}
+                    onChange={handleInputChange('pin')}
                     className="pl-10 h-12 border-purple-200 focus:border-purple-500 focus:ring-purple-500"
-                    autoComplete="username"
+                    autoComplete="off"
                   />
                 </div>
               </div>
 
-              {/* Password Input */}
+              {/* Shop ID Input */}
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium text-purple-700">
-                  Password
+                <Label htmlFor="shopId" className="text-sm font-medium text-purple-700">
+                  Shop ID
                 </Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-400 h-4 w-4" />
                   <Input
-                    id="password"
+                    id="shopId"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    value={formData.password}
-                    onChange={handleInputChange('password')}
+                    placeholder="Enter your Shop ID"
+                    value={formData.shopId}
+                    onChange={handleInputChange('shopId')}
                     className="pl-10 pr-10 h-12 border-purple-200 focus:border-purple-500 focus:ring-purple-500"
-                    autoComplete="current-password"
+                    autoComplete="off"
                   />
                   <button
                     type="button"
@@ -190,7 +190,7 @@ function AttendantLoginContent() {
                 Need help? Contact your administrator
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                PIN: Your 5-digit staff identification number
+                PIN: Your staff PIN · Shop ID: Your numeric shop identifier
               </p>
             </div>
 

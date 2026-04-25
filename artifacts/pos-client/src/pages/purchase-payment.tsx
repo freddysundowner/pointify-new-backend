@@ -116,20 +116,11 @@ export default function PurchasePaymentPage() {
       return;
     }
 
-    // Get attendant ID from localStorage (admin data)
-    const adminData = localStorage.getItem('adminData');
-    const admin = adminData ? JSON.parse(adminData) : null;
-    const attendantId = admin?.attendantId;
-
-    console.log('Admin data:', adminData);
-    console.log('Extracted attendantId:', attendantId);
-
     const paymentPayload = {
       amount: paymentData.amount,
-      attendantId: attendantId
+      method: paymentData.paymentMethod,
     };
 
-    console.log('Payment payload:', paymentPayload);
     paymentMutation.mutate(paymentPayload);
   };
 

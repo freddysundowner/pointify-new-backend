@@ -213,29 +213,17 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
       return;
     }
 
-    // Get attendantId - if we're an attendant, use attendant._id, otherwise use admin's attendantId
-    const attendantId = attendant?._id || 
-                       (typeof admin?.attendantId === 'string' ? admin.attendantId : admin?.attendantId?._id) || 
-                       admin?._id;
-    
     const purchaseData = {
-      purchase: {
-        shopId: getShopId(),
-        supplierId: selectedSupplier?._id || null,
-        attendantId: attendantId,
-        paymentType: paymentMethod
-      },
-      purchaseItems: orderItems.map(item => ({
-        product: item.id,
+      shopId: getShopId(),
+      supplierId: selectedSupplier?._id || null,
+      paymentType: paymentMethod,
+      amountPaid: paymentMethod === "cash" ? subtotal : 0,
+      note: notes || undefined,
+      items: orderItems.map(item => ({
+        productId: item.id,
         quantity: parseFloat(item.quantity.toString()),
-        unitPrice: parseFloat(item.unitCost.toString()),
-        sellingPrice: parseFloat(item.sellingPrice.toString()),
-        lineDiscount: 0,
-        attendantId: attendantId
+        buyingPrice: parseFloat(item.unitCost.toString()),
       })),
-      amountpaid: paymentMethod === "cash" ? subtotal : 0,
-      trackBatches: Boolean(trackBatches),
-      useWarehouse: true
     };
 
     createPurchaseMutation.mutate(purchaseData);
