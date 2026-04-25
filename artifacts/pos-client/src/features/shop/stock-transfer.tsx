@@ -10,6 +10,7 @@ import { Search } from 'lucide-react';
 import { Trash2, Plus, Package, ArrowRight, Eye, Download, ArrowLeft } from 'lucide-react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { apiCall } from '@/lib/api-config';
+import { apiRequest } from '@/lib/queryClient';
 import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useToast } from '@/hooks/use-toast';
 import { useProducts } from '@/contexts/ProductsContext';
@@ -292,20 +293,11 @@ export default function StockTransfer() {
   // Create transfer mutation
   const transferMutation = useMutation({
     mutationFn: async (transferData: any) => {
-      const response = await fetch(ENDPOINTS.transfers.shopTransfer, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(transferData)
-      });
-      
+      const response = await apiRequest('POST', ENDPOINTS.transfers.shopTransfer, transferData);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Transfer failed: ${response.status} - ${errorText}`);
       }
-      
       return response.json();
     },
     onSuccess: () => {
@@ -339,12 +331,10 @@ export default function StockTransfer() {
     }
 
     const transferData = {
-      attendantId: attendantId || adminId,
       fromShopId: formData.fromShopId,
       toShopId: formData.toShopId,
-      useWarehouse: true,
-      products: selectedProducts.map(p => ({
-        product: p.product,
+      items: selectedProducts.map(p => ({
+        productId: p.product,
         quantity: p.quantity
       }))
     };

@@ -86,11 +86,10 @@ export default function ShopSetup() {
       // Prepare shop data with proper coordinate format
       const shopData = {
         name: formData.name,
-        shopCategoryId: formData.category,
+        categoryId: formData.category || undefined,
         address: formData.address,
         currency: formData.currency,
         allowOnlineSelling: formData.allowOnlineSelling,
-        adminId: admin?._id,
         ...(placeDetails?.coordinates && {
           latitude: placeDetails.coordinates.lat,
           longitude: placeDetails.coordinates.lng,

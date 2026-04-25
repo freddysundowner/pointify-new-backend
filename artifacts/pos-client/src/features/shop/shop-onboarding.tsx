@@ -84,11 +84,10 @@ export default function ShopOnboarding() {
     try {
       const shopData = {
         name: formData.name,
-        shopCategoryId: formData.category || null,
+        categoryId: formData.category || undefined,
         address: formData.address,
         currency: formData.currency,
         allowOnlineSelling: formData.allowOnlineSelling,
-        adminId: admin?._id,
         ...(placeDetails?.coordinates && {
           latitude: placeDetails.coordinates.lat,
           longitude: placeDetails.coordinates.lng,
@@ -113,8 +112,8 @@ export default function ShopOnboarding() {
         // Update primary shop on server
         try {
           const updateResponse = await apiCall(ENDPOINTS.auth.adminProfile, {
-            method: "PATCH",
-            body: JSON.stringify({ primaryShop: newShop._id }),
+            method: "PUT",
+            body: JSON.stringify({ shop: newShop._id }),
           });
           
           if (updateResponse.ok) {

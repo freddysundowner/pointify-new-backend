@@ -431,18 +431,9 @@ function SalesList() {
     if (!saleToComplete) return;
     setIsCompleting(true);
     try {
-      const response = await fetch(ENDPOINTS.sales.complete(saleToComplete.id), {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          status: "cashed",
-          paymentTag: completePaymentMethod,
-          amountPaid: parseFloat(completeAmountPaid) || saleToComplete.totalAmount,
-        }),
+      const response = await apiRequest("POST", ENDPOINTS.sales.complete(saleToComplete.id), {
+        paymentMethod: completePaymentMethod,
+        amountPaid: parseFloat(completeAmountPaid) || saleToComplete.totalAmount,
       });
       if (response.ok) {
         refetch();

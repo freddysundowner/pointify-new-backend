@@ -177,17 +177,15 @@ export default function ReturnSale() {
 
     // Format items for API
     const formattedItems = itemsToReturn.map((item: any) => ({
-      product: item.product?._id || item._id,
+      productId: item.product?._id || item._id,
       quantity: parseFloat(item.returnQuantity.toString())
     }));
 
     const returnPayload = {
-      saleid: originalSale._id, // Use _id instead of id
-      attendantId: attendantId, // Ensure it's a string ID
+      saleId: originalSale._id,
       shopId: shopId,
       items: formattedItems,
       reason: returnNotes || "Return processed",
-      deleteReceipt: false
     };
 
     try {

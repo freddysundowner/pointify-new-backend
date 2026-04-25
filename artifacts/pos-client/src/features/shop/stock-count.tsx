@@ -200,10 +200,8 @@ export default function StockCount() {
     }
 
     const payload = {
-      attendantId: attendantId,
-      useWarehouse: true,
       shopId: shopId,
-      products: productCounts.map(([productId, physicalCount]) => ({
+      items: productCounts.map(([productId, physicalCount]) => ({
         productId,
         physicalCount
       }))
