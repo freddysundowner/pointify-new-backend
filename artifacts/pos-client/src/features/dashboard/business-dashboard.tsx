@@ -156,25 +156,28 @@ export default function BusinessDashboard() {
 
 
   // Fetch shops for the admin
+  const adminId = admin?.id ?? (admin as any)?._id;
   const { data: shopsData } = useQuery({
-    queryKey: ["shops", admin?._id],
+    queryKey: ["shops", adminId],
     queryFn: async () => {
-      if (!admin?._id) return [];
+      if (!adminId) return [];
       const response = await apiCall(ENDPOINTS.shop.getAll, { method: "GET" });
-      const data = await response.json();
-      return data;
+      const json = await response.json();
+      // API wraps response in { success, data }
+      return Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
     },
-    enabled: !!admin?._id,
+    enabled: !!adminId,
   });
 
   // Update Redux state when shops data changes
   useEffect(() => {
     if (shopsData && Array.isArray(shopsData)) {
       const shops = shopsData.map((shop: any) => ({
-        id: shop._id,
+        id: shop.id ?? shop._id,
         name: shop.name,
-        type: shop.shopCategoryId?.name || 'General',
-        location: shop.address
+        type: shop.category?.name || 'General',
+        location: shop.address,
+        subscriptionInfo: shop.subscriptionInfo,
       }));
       dispatch(setAvailableShops(shops));
     }
@@ -215,7 +218,7 @@ export default function BusinessDashboard() {
 
   // Initialize selected shop from admin data - reset shop selection for new users
   useEffect(() => {
-    if (availableShops.length > 0 && admin?._id) {
+    if (availableShops.length > 0 && adminId) {
       // localStorage selection always wins over the API's primaryShop so
       // manual shop switches persist across page refreshes
       const storedShopId = localStorage.getItem('selectedShopId');
@@ -253,13 +256,13 @@ export default function BusinessDashboard() {
       // Always ensure Redux + localStorage have the full shop object for the resolved shop
       // so usePrimaryShop can derive shopCategoryId (e.g. for laundry features) reactively
       if (resolvedShopId && Array.isArray(shopsData)) {
-        const fullShop = (shopsData as any[]).find((s: any) => s._id === resolvedShopId);
+        const fullShop = (shopsData as any[]).find((s: any) => (s.id ?? s._id) === resolvedShopId);
         if (fullShop) {
           dispatch(setSelectedShopData(fullShop));
         }
       }
     }
-  }, [availableShops, selectedShopId, admin?._id, admin?.primaryShop, shopsData, dispatch]);
+  }, [availableShops, selectedShopId, adminId, admin?.primaryShop, shopsData, dispatch]);
 
   // Handle shop switching with smooth data refresh
   const handleShopSwitch = async (shopId: string) => {
