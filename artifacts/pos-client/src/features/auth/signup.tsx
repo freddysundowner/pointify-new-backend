@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { API_ENDPOINTS, apiCall } from "@/lib/api-config";
 import { useAuth } from "./useAuth";
@@ -9,6 +9,7 @@ export default function Signup() {
   const [, setLocation] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showReferral, setShowReferral] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     ownerName: "",
@@ -16,6 +17,7 @@ export default function Signup() {
     phone: "",
     password: "",
     confirmPassword: "",
+    affliate: "",
   });
   const { toast } = useToast();
   const { login } = useAuth();
@@ -44,6 +46,7 @@ export default function Signup() {
           email: formData.email,
           phone: formData.phone,
           password: formData.password,
+          ...(formData.affliate.trim() && { affliate: formData.affliate.trim() }),
         }),
       });
       await login(formData.email, formData.password);
@@ -181,6 +184,30 @@ export default function Signup() {
             </div>
             {formData.confirmPassword && formData.password !== formData.confirmPassword && (
               <p className="text-xs text-red-500 mt-1">Passwords don't match</p>
+            )}
+          </div>
+
+          {/* Referral code toggle */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowReferral(!showReferral)}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-purple-600 transition-colors"
+            >
+              {showReferral ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {showReferral ? "Hide referral code" : "Have a referral code?"}
+            </button>
+            {showReferral && (
+              <div className="mt-2">
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Enter referral code"
+                  value={formData.affliate}
+                  onChange={(e) => update("affliate", e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                />
+              </div>
             )}
           </div>
 
