@@ -50,9 +50,9 @@ export default function ProductHistory() {
 
   // Fetch product summary
   const { data: summary, isLoading: summaryLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.summary, productId, selectedMonth, selectedYear],
+    queryKey: [ENDPOINTS.products.summary(productId || ''), productId, selectedMonth, selectedYear],
     queryFn: async () => {
-      const response = await apiCall(`${ENDPOINTS.products.summary}?productId=${productId}&month=${selectedMonth}&year=${selectedYear}`);
+      const response = await apiCall(`${ENDPOINTS.products.summary(productId || '')}?month=${selectedMonth}&year=${selectedYear}`);
       return await response.json();
     },
     enabled: !!productId,
@@ -64,9 +64,9 @@ export default function ProductHistory() {
 
   // Fetch sales history - only when Sales tab is active
   const { data: salesData, isLoading: salesLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.salesHistory, productId, selectedMonth, selectedYear, salesPage],
+    queryKey: [ENDPOINTS.products.salesHistory(productId || ''), productId, selectedMonth, selectedYear, salesPage],
     queryFn: async () => {
-      const response = await apiCall(`${ENDPOINTS.products.salesHistory}?productId=${productId}&month=${selectedMonth}&year=${selectedYear}&page=${salesPage}`);
+      const response = await apiCall(`${ENDPOINTS.products.salesHistory(productId || '')}?month=${selectedMonth}&year=${selectedYear}&page=${salesPage}`);
       return await response.json();
     },
     enabled: !!productId && activeTab === "sales",
@@ -78,9 +78,9 @@ export default function ProductHistory() {
 
   // Fetch purchases history - only when Stock In tab is active
   const { data: purchasesData, isLoading: purchasesLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.purchasesHistory, productId, selectedMonth, selectedYear, purchasesPage],
+    queryKey: [ENDPOINTS.products.purchasesHistory(productId || ''), productId, selectedMonth, selectedYear, purchasesPage],
     queryFn: async () => {
-      const response = await apiCall(`${ENDPOINTS.products.purchasesHistory}?productId=${productId}&month=${selectedMonth}&year=${selectedYear}&page=${purchasesPage}`);
+      const response = await apiCall(`${ENDPOINTS.products.purchasesHistory(productId || '')}?month=${selectedMonth}&year=${selectedYear}&page=${purchasesPage}`);
       return await response.json();
     },
     enabled: !!productId && activeTab === "stock-in",

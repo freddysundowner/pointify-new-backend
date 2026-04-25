@@ -56,7 +56,7 @@ export default function OrdersPage() {
   const [saleType, setSaleType] = useState<"Retail" | "Wholesale" | "Dealer">("Retail");
 
   const { data: allorders, isLoading: summaryLoading,refetch } = useQuery({
-    queryKey: [ENDPOINTS.products.summary, primaryShopData?.shopId],
+    queryKey: [ENDPOINTS.sales.getOnlineOrders(primaryShopData?.shopId || ''), primaryShopData?.shopId],
     queryFn: async () => {
       const response = await apiCall(`${ENDPOINTS.sales.getOnlineOrders(primaryShopData?.shopId || '')}?status=${statusFilter}`, {
         method: "GET",

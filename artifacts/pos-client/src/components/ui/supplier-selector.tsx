@@ -44,7 +44,7 @@ export default function SupplierSelector({
 
   // Fetch suppliers from API
   const { data: suppliersResponse, isLoading, error } = useQuery({
-    queryKey: [ENDPOINTS.suppliers.getAllSingular, shopId],
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     enabled: !!shopId && isOpen,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
@@ -56,7 +56,7 @@ export default function SupplierSelector({
   // Create supplier mutation
   const createSupplierMutation = useMutation({
     mutationFn: async (supplierData: { name: string; shopId: string; phoneNumber: string }) => {
-      const response = await fetch(ENDPOINTS.suppliers.getAllSingular, {
+      const response = await fetch(ENDPOINTS.suppliers.create, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -76,7 +76,7 @@ export default function SupplierSelector({
         description: "Supplier created successfully"
       });
       // Refresh suppliers list
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAllSingular, shopId] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll, shopId] });
       // Reset form
       setNewSupplier({ name: "", phoneNumber: "" });
       setShowAddForm(false);

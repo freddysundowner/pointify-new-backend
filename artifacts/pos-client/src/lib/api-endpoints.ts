@@ -3,9 +3,6 @@
  *
  * All API paths used across the application are defined here.
  * This is the single source of truth for every endpoint call.
- *
- * NOTE: Some paths are still using old external-server paths (marked TODO).
- * These will be updated to match the local API server routes in the next cleanup step.
  */
 
 export const ENDPOINTS = {
@@ -13,58 +10,56 @@ export const ENDPOINTS = {
   // ─── Auth ────────────────────────────────────────────────────────────────
 
   auth: {
-    // TODO: update to /api/auth/admin/login
-    adminLogin:           "/api/business/login",
-    // TODO: update to /api/auth/admin/register
-    adminRegister:        "/api/business/register",
-    // TODO: update to /api/auth/admin/logout
-    adminLogout:          "/api/business/logout",
-    // TODO: update to /api/auth/admin/forgot-password
-    adminForgotPassword:  "/api/admin/request/password",
-    // TODO: update to /api/auth/admin/reset-password
-    adminResetPassword:   "/api/admin/reset/password",
+    adminLogin:           "/api/auth/admin/login",
+    adminRegister:        "/api/auth/admin/register",
+    adminLogout:          "/api/auth/admin/logout",
+    adminForgotPassword:  "/api/auth/admin/forgot-password",
+    adminResetPassword:   "/api/auth/admin/reset-password",
+    adminVerifyEmail:     "/api/auth/admin/verify-email",
+    adminResendOtp:       "/api/auth/admin/resend-otp",
 
     attendantLogin:       "/api/auth/attendant/login",
+    attendantLogout:      "/api/auth/attendant/logout",
     attendantVerify:      "/api/auth/attendant/verify",
+
+    me:                   "/api/auth/me",
 
     getAdmin:             (id: string) => `/api/auth/admin/${id}`,
     updateAdmin:          (id: string) => `/api/admin/${id}`,
+    adminProfile:         "/api/admin/profile",
     adminPermissions:     "/api/admin/permissions",
   },
 
   // ─── Shop ─────────────────────────────────────────────────────────────────
 
   shop: {
-    getAll:               "/api/shop",
-    getById:              (id: string) => `/api/shop/${id}`,
-    getData:              (id: string) => `/api/shop/data/${id}`,
+    getAll:               "/api/shops",
+    getById:              (id: string) => `/api/shops/${id}`,
+    getData:              (id: string) => `/api/shops/${id}`,
     getByAdmin:           (adminId: string) => `/api/shop/admin/${adminId}`,
-    getCategories:        "/api/shop/category",
-    create:               "/api/shop",
+    getCategories:        "/api/shop-categories",
+    create:               "/api/shops",
   },
 
   // ─── Products ─────────────────────────────────────────────────────────────
 
   products: {
-    // TODO: update to /api/products (plural)
-    getAll:               "/api/product",
-    // TODO: update to /api/products/:id
-    getById:              (id: string | number) => `/api/product/${id}`,
-    // TODO: update to /api/products
-    create:               "/api/product",
-    // TODO: update to /api/products/:id
-    update:               (id: string) => `/api/product/${id}`,
-    // TODO: update to /api/product-categories
-    getCategories:        "/api/product/category",
-    // TODO: update to /api/product-categories
-    createCategory:       "/api/product/category",
-    getByShop:            (shopId: string) => `/api/product/shop/${shopId}`,
-    adjust:               (id: string) => `/api/product/adjust/${id}`,
-    adjustHistory:        (id: string) => `/api/product/adjust/history/${id}`,
-    summary:              "/api/product-summary",
-    badStockMovements:    "/api/bad-stock-movements",
-    salesHistory:         "/api/sales-history",
-    purchasesHistory:     "/api/purchases-history",
+    getAll:               "/api/products",
+    getById:              (id: string | number) => `/api/products/${id}`,
+    create:               "/api/products",
+    update:               (id: string) => `/api/products/${id}`,
+    delete:               (id: string) => `/api/products/${id}`,
+    search:               "/api/products/search",
+    getCategories:        "/api/product-categories",
+    createCategory:       "/api/product-categories",
+    getByShop:            (shopId: string) => `/api/products?shopId=${shopId}`,
+    adjust:               (id: string) => `/api/inventory/adjustments`,
+    adjustHistory:        (id: string) => `/api/products/${id}/history`,
+    summary:              (id: string) => `/api/products/${id}/summary`,
+    salesHistory:         (id: string) => `/api/products/${id}/sales-history`,
+    purchasesHistory:     (id: string) => `/api/products/${id}/purchases-history`,
+    stockHistory:         (id: string) => `/api/products/${id}/stock-history`,
+    badStockMovements:    "/api/inventory/bad-stocks",
   },
 
   // ─── Customers ────────────────────────────────────────────────────────────
@@ -100,7 +95,6 @@ export const ENDPOINTS = {
     onlineOrderDelete:    (id: string) => `/api/sales/orders/sale/online/${id}`,
 
     // Reports & analytics
-    // TODO: check if this path exists on local API
     getByFilter:          "/api/sales/product/filter",
     getProductReports:    "/api/sales/products/reports",
     getMostSelling:       "/api/sales/summary/month/analysis/product",
@@ -111,16 +105,16 @@ export const ENDPOINTS = {
     getStatements:        "/api/sales/reports/statements",
     sendReportEmail:      "/api/sales/send/report/email",
     emailReceipt:         "/api/sales/email-receipt",
-    reportFilter:         "/api/analysis/report/sales",
+    reportFilter:         "/api/reports/sales",
   },
 
   // ─── Sale Returns ─────────────────────────────────────────────────────────
 
   saleReturns: {
-    getAll:               "/api/salereturns",
-    getFiltered:          "/api/salereturns/filter",
-    create:               "/api/salereturns",
-    delete:               (id: string) => `/api/salereturns/${id}`,
+    getAll:               "/api/sale-returns",
+    getFiltered:          "/api/sale-returns",
+    create:               "/api/sale-returns",
+    delete:               (id: string) => `/api/sale-returns/${id}`,
   },
 
   // ─── Transactions ─────────────────────────────────────────────────────────
@@ -141,24 +135,21 @@ export const ENDPOINTS = {
     update:               (id: string) => `/api/purchases/${id}`,
     delete:               (id: string) => `/api/purchases/${id}`,
     addPayment:           (id: string) => `/api/purchases/${id}/payment`,
-    reportFilter:         "/api/analysis/report/purchases",
+    reportFilter:         "/api/reports/purchases",
   },
 
   // ─── Purchase Returns ─────────────────────────────────────────────────────
 
   purchaseReturns: {
-    getAll:               "/api/purchasereturns",
-    create:               "/api/purchasereturns",
-    getFiltered:          "/api/purchasereturns",
+    getAll:               "/api/purchase-returns",
+    create:               "/api/purchase-returns",
+    getFiltered:          "/api/purchase-returns",
   },
 
   // ─── Suppliers ────────────────────────────────────────────────────────────
 
   suppliers: {
-    // TODO: normalize — some files use /api/supplier (singular), others /api/suppliers (plural)
     getAll:               "/api/suppliers",
-    // supplier-selector.tsx still uses the singular form
-    getAllSingular:        "/api/supplier",
     create:               "/api/suppliers",
     update:               (id: string) => `/api/suppliers/${id}`,
     delete:               (id: string) => `/api/suppliers/${id}`,
@@ -185,19 +176,42 @@ export const ENDPOINTS = {
     deleteCategory:       (id: string) => `/api/cashflow-categories/${id}`,
   },
 
-  // ─── Analytics ────────────────────────────────────────────────────────────
+  // ─── Reports & Analytics ──────────────────────────────────────────────────
 
   analytics: {
-    // TODO: check if /api/analysis/* paths exist on local API or need renaming
-    stockAnalysis:        "/api/analysis/stockanalysis",
-    netProfit:            "/api/analysis/netprofit",
-    salesReport:          "/api/analysis/report/sales",
-    purchasesReport:      "/api/analysis/report/purchases",
-    stockPdfDownload:     "/api/analysis/pdf/download",
-    stockPdfFile:         "/api/analysis/pdf/download/file",
-    salesAnalysis:        "/api/analysis/sales",
-    customerAnalysis:     "/api/analysis/customers",
-    profitAnalysis:       "/api/analysis/profit",
+    stockValue:           "/api/reports/stock-value",
+    stockAnalysis:        "/api/reports/inventory",
+    netProfit:            "/api/reports/profit-loss",
+    profitLoss:           "/api/reports/profit-loss",
+    profitLossDetail:     "/api/reports/profit-loss/detail",
+    profitYearly:         (year: number) => `/api/reports/profit/yearly/${year}`,
+    salesReport:          "/api/reports/sales",
+    salesByProduct:       "/api/reports/sales/by-product",
+    salesByCustomer:      "/api/reports/sales/by-customer",
+    salesByPaymentMethod: "/api/reports/sales/by-payment-method",
+    salesByAttendant:     "/api/reports/sales/by-attendant",
+    salesDaily:           "/api/reports/sales/daily",
+    salesMonthly:         "/api/reports/sales/monthly",
+    purchasesReport:      "/api/reports/purchases",
+    purchasesUnpaid:      "/api/reports/purchases/unpaid",
+    purchasesBySupplier:  "/api/reports/purchases/by-supplier",
+    purchasesDetail:      "/api/reports/purchases/detail",
+    expensesReport:       "/api/reports/expenses",
+    expensesByCategory:   "/api/reports/expenses/by-category",
+    inventoryReport:      "/api/reports/inventory",
+    stockCountAnalysis:   "/api/reports/stock-count-analysis",
+    creditReport:         "/api/reports/credit",
+    duesReport:           "/api/reports/dues",
+    duesOverdue:          "/api/reports/dues/overdue",
+    duesDetail:           "/api/reports/dues/detail",
+    income:               "/api/reports/income",
+    accounts:             "/api/reports/accounts",
+    businessSummary:      "/api/reports/business-summary",
+    crossShop:            "/api/reports/cross-shop",
+    outOfStockExport:     "/api/reports/out-of-stock/export",
+    backup:               "/api/reports/backup",
+    stockPdfDownload:     "/api/reports/stock-value",
+    stockPdfFile:         "/api/reports/stock-value",
   },
 
   // ─── Subscriptions & Packages ─────────────────────────────────────────────
@@ -224,23 +238,44 @@ export const ENDPOINTS = {
   sms: {
     getLogs:              (adminId: string) => `/api/sms/sms-logs?adminId=${adminId}`,
     topup:                "/api/sms/topup",
+    balance:              "/api/sms/balance",
+    transactions:         "/api/sms/transactions",
+  },
+
+  // ─── Inventory ────────────────────────────────────────────────────────────
+
+  inventory: {
+    getAll:               "/api/inventory",
+    getItem:              (id: string) => `/api/inventory/item/${id}`,
+    movements:            "/api/inventory/movements",
+    batches:              "/api/inventory/batches",
+    adjustments:          "/api/inventory/adjustments",
+    deleteAdjustment:     (id: string) => `/api/inventory/adjustments/${id}`,
+    badStocks:            "/api/inventory/bad-stocks",
+    deleteBadStock:       (id: string) => `/api/inventory/bad-stocks/${id}`,
+    stockCounts:          "/api/inventory/stock-counts",
+    stockCountById:       (id: string) => `/api/inventory/stock-counts/${id}`,
+    stockCountItems:      (id: string) => `/api/inventory/stock-counts/${id}/items`,
+    applyStockCount:      (id: string) => `/api/inventory/stock-counts/${id}/apply`,
   },
 
   // ─── Bad Stock ────────────────────────────────────────────────────────────
 
   badStock: {
-    getAll:               "/api/badstock",
-    create:               "/api/badstock",
-    delete:               (id: string) => `/api/badstock/${id}`,
+    getAll:               "/api/inventory/bad-stocks",
+    create:               "/api/inventory/bad-stocks",
+    delete:               (id: string) => `/api/inventory/bad-stocks/${id}`,
     summaryAnalysis:      "/api/badstock/summary/analysis",
   },
 
   // ─── Stock Counts ─────────────────────────────────────────────────────────
 
   stockCounts: {
-    create:               "/api/counts",
+    create:               "/api/inventory/stock-counts",
+    getAll:               "/api/inventory/stock-counts",
+    getById:              (id: string) => `/api/inventory/stock-counts/${id}`,
     getByShop:            (shopId: string) => `/api/counts/shop/${shopId}`,
-    countAnalysis:        "/analysis/stock/count/analysis",
+    countAnalysis:        "/api/reports/stock-count-analysis",
   },
 
   // ─── Expenses ─────────────────────────────────────────────────────────────
@@ -266,30 +301,6 @@ export const ENDPOINTS = {
   transfers: {
     shopTransfer:         "/api/transfer/shop/transfer",
     filter:               "/api/transfer/filter",
-  },
-
-  // ─── Printer (TODO: implement on local API or remove) ────────────────────
-
-  printer: {
-    // TODO: these came from the old bundled server — implement on local API or remove
-    status:               "/api/printer/status",
-    initialize:           "/api/printer/initialize",
-    test:                 "/api/printer/test",
-    list:                 "/api/printers",
-    saleReceipt:          "/api/printer/salereceipt",
-  },
-
-  // ─── Network / Config (TODO: remove — old server only) ──────────────────
-
-  network: {
-    // TODO: remove — these were old-server-only endpoints
-    check:                "/api/network/check",
-    status:               "/api/network/status",
-  },
-
-  config: {
-    // TODO: remove — old-server-only
-    get:                  "/api/config",
   },
 
 };
