@@ -67,12 +67,12 @@ export const API_ENDPOINTS = {
   
   // Auth endpoints - all go through /api/ proxy
   auth: {
-    register: "/api/business/register",
-    login: "/api/business/login",
-    logout: "/api/business/logout",
-    getAdmin: (id: string) => `/api/auth/admin/${id}`,
-    resetPassword: "/api/admin/reset/password",
-    requestPasswordReset: "/api/admin/request/password",
+    register:              "/api/auth/admin/register",
+    login:                 "/api/auth/admin/login",
+    logout:                "/api/auth/admin/logout",
+    adminProfile:          "/api/admin/profile",
+    resetPassword:         "/api/auth/admin/reset-password",
+    requestPasswordReset:  "/api/auth/admin/forgot-password",
   },
 
   // Analytics endpoints - all go through /api/ proxy

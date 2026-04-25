@@ -227,8 +227,17 @@ export const ENDPOINTS = {
   // ─── Payments ─────────────────────────────────────────────────────────────
 
   payments: {
-    confirm:              "/api/payment/confirm",
-    resend:               "/api/payment/resend",
+    confirm:              "/api/payments/confirm",
+    resend:               "/api/payments/resend",
+    mpesaCallback:        "/api/payments/mpesa/callback",
+    paystackWebhook:      "/api/payments/paystack/webhook",
+    stripeWebhook:        "/api/payments/stripe/webhook",
+  },
+
+  // ─── Printer ──────────────────────────────────────────────────────────────
+
+  printer: {
+    saleReceipt:          "/api/print/sale-receipt",
   },
 
   // ─── SMS ──────────────────────────────────────────────────────────────────
