@@ -72,26 +72,27 @@ export const useAuthProvider = (): AuthContextType => {
         headers,
       });
       
-      const adminData = await response.json();
+      const raw = await response.json();
+
+      // Support both shapes: plain object or { success, data: {...} }
+      const adminData = raw?.data && (raw.data._id || raw.data.id) ? raw.data : raw;
 
       dispatch(setCurrency(adminData?.primaryShop?.currency || 'KES'));
       console.log("Fetched admin data:", adminData);
-      if (!adminData?._id) {
-        dispatch(setCurrency(adminData?.primaryShop?.currency || 'KES'));
-        
-        let localdata = await localStorage.getItem('adminData');
-        if(localdata){
-          localdata = JSON.parse(localdata);
-          setAdmin(localdata );
-          return localdata;
+
+      const hasId = adminData?._id || adminData?.id;
+      if (!hasId) {
+        let localdata = localStorage.getItem('adminData');
+        if (localdata) {
+          const parsed = JSON.parse(localdata);
+          setAdmin(parsed);
+          return parsed;
         }
         logout();
       } else {
-        if (adminData?._id) {
-          setAdmin(adminData);
-          localStorage.setItem("adminData", JSON.stringify(adminData));
-          return adminData;
-        }
+        setAdmin(adminData);
+        localStorage.setItem("adminData", JSON.stringify(adminData));
+        return adminData;
       }
     } catch (error) {
       logout();
@@ -166,24 +167,30 @@ export const useAuthProvider = (): AuthContextType => {
       const data = await response.json();
       console.log("Login response:", data);
 
-      if (data && data.token && data.userdata) {
-        setToken(data.token);
-        localStorage.setItem("authToken", data.token);
+      // Support both response shapes:
+      //   old: { token, userdata }
+      //   new: { success, data: { token, id, ... } }
+      const token = data.token ?? data.data?.token;
+      const userdata = data.userdata ?? data.data;
+
+      if (token && userdata) {
+        setToken(token);
+        localStorage.setItem("authToken", token);
         
         // Fetch fresh admin data to get current primaryShop status
-        const adminId = data.userdata._id;
+        const adminId = userdata._id ?? userdata.id;
         if (adminId) {
           try {
-            await fetchAdminData(adminId, data.token);
+            await fetchAdminData(adminId, token);
           } catch (fetchError) {
             // Fallback to login response data if fetch fails
-            setAdmin(data.userdata);
-            localStorage.setItem("adminData", JSON.stringify(data.userdata));
+            setAdmin(userdata);
+            localStorage.setItem("adminData", JSON.stringify(userdata));
           }
         } else {
           // Fallback to login response data
-          setAdmin(data.userdata);
-          localStorage.setItem("adminData", JSON.stringify(data.userdata));
+          setAdmin(userdata);
+          localStorage.setItem("adminData", JSON.stringify(userdata));
         }
         
         // Force invalidation of shop-related queries after login
