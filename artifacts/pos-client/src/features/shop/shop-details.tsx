@@ -294,7 +294,7 @@ export default function ShopDetails() {
       inputPlaceholder: "Type DELETE SHOP to confirm",
       onConfirm: () => {
         // Call the delete shop API
-        apiCall(`/shop/${id}`, {
+        apiCall(ENDPOINTS.shop.getById(id), {
           method: 'DELETE',
         }).then(() => {
           toast({

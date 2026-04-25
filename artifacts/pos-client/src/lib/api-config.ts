@@ -163,7 +163,7 @@ export const apiCall = async (endpoint: string, options: RequestInit = {}) => {
         }
         
         // For login endpoints, don't auto-redirect on 401, just throw the error
-        if (endpoint === '/api/business/login') {
+        if (endpoint === '/api/auth/admin/login') {
           throw new Error(errorData?.message || errorMessage);
         }
         

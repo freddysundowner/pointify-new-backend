@@ -9,6 +9,7 @@ import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifySaleReceipt } from "../lib/emailEvents.js";
 import { notifySaleReceiptSms } from "../lib/smsEvents.js";
+import { sendRawEmail } from "../lib/email.js";
 import { recordProductHistory } from "../lib/product-history.js";
 
 const router = Router();
@@ -32,6 +33,32 @@ async function resolvePaymentMethodName(input: string | undefined | null): Promi
   }
   return row.name;
 }
+
+router.post("/email-receipt", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { toEmail, receiptHtml, receiptNo, shopName, shopEmail, customerName, pdfBase64 } = req.body;
+    if (!toEmail || !receiptHtml) {
+      return res.status(400).json({ success: false, error: "toEmail and receiptHtml are required" });
+    }
+    const attachments = pdfBase64
+      ? [{ content: pdfBase64, name: `receipt-${receiptNo || "sale"}.pdf`, type: "application/pdf" }]
+      : [];
+    const subject = shopName
+      ? `Your receipt from ${shopName}${receiptNo ? ` — #${receiptNo}` : ""}`
+      : `Your receipt${receiptNo ? ` — #${receiptNo}` : ""}`;
+    const result = await sendRawEmail({
+      to: toEmail,
+      name: customerName || undefined,
+      subject,
+      html: receiptHtml,
+      attachments,
+    });
+    if (result.ok) {
+      return res.json({ success: true });
+    }
+    return res.status(500).json({ success: false, error: result.error || result.skipped || "Failed to send email" });
+  } catch (e) { next(e); }
+});
 
 router.get("/cross-shop", requireAdmin, async (req, res, next) => {
   try {

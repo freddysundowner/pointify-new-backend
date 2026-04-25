@@ -100,8 +100,8 @@ export default function DebtorsPage() {
 
   const handleDownloadReport = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/customers/customers/debtors/excel?shopId=${shopId}`, {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/reports/dues/detail?shopId=${shopId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/useAuth";
 import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 
 interface Shop {
   _id: string;
@@ -31,9 +32,10 @@ export function useShop() {
     queryFn: async () => {
       if (!shopId) return null;
       
-      const shopData = await apiCall(`/shop/${shopId}`, {
+      const shopResponse = await apiCall(ENDPOINTS.shop.getById(shopId), {
         method: "GET",
       });
+      const shopData = await shopResponse.json();
       return shopData as Shop;
     },
     enabled: !!shopId,

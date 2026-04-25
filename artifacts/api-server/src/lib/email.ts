@@ -195,3 +195,50 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
 export function sendEmailAsync(input: SendEmailInput): void {
   sendEmail(input).catch((err) => logger.error({ err, key: input.key }, "sendEmailAsync failed"));
 }
+
+/**
+ * Send a one-off email with a custom HTML body (no template lookup required).
+ * Used for on-demand receipt emails where the HTML is generated client-side.
+ */
+export async function sendRawEmail(input: {
+  to: string;
+  name?: string;
+  subject: string;
+  html: string;
+  attachments?: Array<{ content: string; name: string; type: string }>;
+}): Promise<{ ok: boolean; messageId?: string; error?: string; skipped?: string }> {
+  try {
+    const cfg = await getEmailConfig();
+    if (!cfg || !cfg.apiKey || !cfg.fromAddress) {
+      return { ok: false, skipped: "email provider not configured (set /system/settings/email)" };
+    }
+    const { html: htmlContent } = withFooter(input.html, "");
+    const payload: Record<string, unknown> = {
+      sender: { email: cfg.fromAddress, name: cfg.fromName ?? cfg.fromAddress },
+      to: [{ email: input.to, ...(input.name ? { name: input.name } : {}) }],
+      subject: input.subject,
+      htmlContent,
+      ...(cfg.replyTo ? { replyTo: { email: cfg.replyTo } } : {}),
+      ...(input.attachments && input.attachments.length > 0 ? { attachment: input.attachments } : {}),
+    };
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "api-key": cfg.apiKey,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      logger.warn({ to: input.to, status: res.status, body: text }, "sendRawEmail brevo failed");
+      return { ok: false, error: `Brevo ${res.status}: ${text}` };
+    }
+    const json = (await res.json().catch(() => ({}))) as { messageId?: string };
+    return { ok: true, messageId: json.messageId };
+  } catch (err) {
+    logger.error({ err, to: input.to }, "sendRawEmail threw");
+    return { ok: false, error: (err as Error).message };
+  }
+}

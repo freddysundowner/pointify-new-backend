@@ -87,10 +87,11 @@ export default function StockTransfer() {
     queryKey: ["stock-transfers"],
     queryFn: async () => {
       try {
-        const response = await apiCall("/stock-transfers", {
+        const response = await apiCall(ENDPOINTS.transfers.filter, {
           method: "GET",
         });
-        return Array.isArray(response) ? response : [];
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
       } catch (error) {
         return [];
       }

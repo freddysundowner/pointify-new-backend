@@ -97,21 +97,22 @@ export default function ShopForm({
         placeId: placeDetails?.place_id,
       };
 
-      const response = await apiCall("/shop", {
+      const shopResponse = await apiCall(ENDPOINTS.shop.create, {
         method: "POST",
         body: JSON.stringify(shopData),
       });
+      const createdShop = await shopResponse.json();
 
-      if (response && response._id) {
+      if (createdShop && createdShop.id) {
         // If this is the user's first shop, update their primary shop
         if (!isAdditionalShop && admin) {
-          const updatedAdmin = { ...admin, primaryShop: response._id };
+          const updatedAdmin = { ...admin, primaryShop: createdShop.id };
           updateAdmin(updatedAdmin);
           
           // Update admin's primary shop in backend
-          await apiCall(`/admin/${admin._id}`, {
+          await apiCall(ENDPOINTS.auth.adminProfile, {
             method: "PUT",
-            body: JSON.stringify({ primaryShop: response._id }),
+            body: JSON.stringify({ primaryShop: createdShop.id }),
           });
         }
 
