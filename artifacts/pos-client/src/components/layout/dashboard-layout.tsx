@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Menu, X, Home, ScanBarcode, Package, BarChart3, History, Settings, User, LogOut, Store, ChevronDown, ChevronRight, TrendingUp, Receipt, ShoppingCart, Users, Truck, DollarSign, UserCheck, FileText, Shield, Edit, Clock } from "lucide-react";
+import { Menu, X, Home, ScanBarcode, Package, BarChart3, History, Settings, User, LogOut, Store, ChevronDown, ChevronRight, TrendingUp, Receipt, ShoppingCart, Users, Truck, DollarSign, UserCheck, FileText, Shield, Edit, Clock, MailWarning } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/features/auth/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +23,9 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
   const { isExpired: isSubscriptionExpired } = useSubscriptionStatus();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
+
+  const showEmailBanner = !emailBannerDismissed && admin && !admin.emailVerified;
 
   // Check if current route is an attendant route
   const isAttendantRoute = location.startsWith('/attendant/');
@@ -439,7 +442,26 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
 
       {/* Main Content */}
       <div className={`w-full ${!isAttendantRoute ? 'lg:pl-72' : ''}`}>
-        <div className="pt-16 p-6 w-full max-w-none overflow-x-hidden">
+        {showEmailBanner && (
+          <div className="pt-16 px-6">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+              <div className="flex items-center gap-2 text-sm">
+                <MailWarning className="h-4 w-4 shrink-0" />
+                <span>
+                  <strong>Verify your email address</strong> — check your inbox for a verification link to secure your account.
+                </span>
+              </div>
+              <button
+                onClick={() => setEmailBannerDismissed(true)}
+                className="shrink-0 rounded p-1 hover:bg-amber-100 transition-colors"
+                aria-label="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+        <div className={`${showEmailBanner ? 'pt-3' : 'pt-16'} p-6 w-full max-w-none overflow-x-hidden`}>
           {children}
         </div>
       </div>

@@ -82,15 +82,11 @@ export default function Signup() {
           ...(formData.affliate && { affliate: formData.affliate }),
         }),
       });
-      const data = await response.json();
-      setRegisteredEmail(formData.email);
-      setStep("verify");
       toast({
         title: "Account Created!",
-        description: data.otp
-          ? `Your verification code is: ${data.otp}`
-          : "A verification code has been sent to your email.",
+        description: "Welcome to Pointify. Please verify your email when you're ready.",
       });
+      await login(formData.email, formData.password);
     } catch (error) {
       toast({
         title: "Registration Failed",
