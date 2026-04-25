@@ -93,8 +93,8 @@ function AppContent() {
   const [, setLocation] = useLocation();
   const [location] = useLocation();
 
-  // Check if user has a primary shop from admin data
-  const hasPrimaryShop = admin?.primaryShop;
+  // Check if user has a primary shop from admin data (API returns `shop` or `primaryShop`)
+  const hasPrimaryShop = admin?.primaryShop ?? (admin as any)?.shop;
 
   // Auto-route based on localStorage on initial load
   useEffect(() => {

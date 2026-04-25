@@ -75,9 +75,14 @@ export const useAuthProvider = (): AuthContextType => {
       const raw = await response.json();
 
       // Support both shapes: plain object or { success, data: {...} }
-      const adminData = raw?.data && (raw.data._id || raw.data.id) ? raw.data : raw;
+      let adminData = raw?.data && (raw.data._id || raw.data.id) ? raw.data : raw;
 
-      dispatch(setCurrency(adminData?.primaryShop?.currency || 'KES'));
+      // Normalize: API returns `shop` (id or object); map to `primaryShop` so the rest of the app works
+      if (!adminData.primaryShop && (adminData.shop !== undefined && adminData.shop !== null)) {
+        adminData = { ...adminData, primaryShop: adminData.shop };
+      }
+
+      dispatch(setCurrency((adminData?.primaryShop as any)?.currency || 'KES'));
       console.log("Fetched admin data:", adminData);
 
       const hasId = adminData?._id || adminData?.id;
