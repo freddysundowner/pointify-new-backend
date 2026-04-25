@@ -64,6 +64,9 @@ export default function BusinessDashboard() {
   const { isExpired: isSubscriptionExpired } = useSubscriptionStatus();
   const [location] = useLocation();
 
+  // Normalize admin ID — PostgreSQL returns `id`, legacy code may use `_id`
+  const adminId = admin?.id ?? (admin as any)?._id;
+
   // Get effective shop ID from Redux state
   const effectiveShopId = selectedShopId || 
     (admin?.primaryShop && typeof admin.primaryShop === 'string' 
@@ -108,35 +111,36 @@ export default function BusinessDashboard() {
         productType: "",
         useWarehouse: "true",
         warehouse: shop?.warehouse?.toString() || "false",
-        adminid: admin?._id || "",
+        adminid: String(adminId || ""),
       });
 
       const url = `${ENDPOINTS.products.getAll}?${params.toString()}`;
       const response = await apiCall(url, { method: "GET" });
       return response.json();
     },
-    enabled: !!admin?._id && !!effectiveShopId,
+    enabled: !!adminId && !!effectiveShopId,
   });
 
   // Get today's date for the net profit API call
   const today = new Date().toISOString().split('T')[0];
 
-  // Fetch net profit data for dashboard cards
+  // Fetch today's profit/loss data for dashboard stat cards
   const { data: netProfitData, refetch: refetchNetProfit } = useQuery({
     queryKey: [ENDPOINTS.analytics.netProfit, effectiveShopId, today],
     queryFn: async () => {
       const params = new URLSearchParams({
-        fromDate: today,
-        toDate: today,
+        from: today,
+        to: today,
         shopId: effectiveShopId || "",
-        attendant: ""
       });
 
-      const url = `${ENDPOINTS.analytics.netProfit}/?${params.toString()}`;
+      const url = `${ENDPOINTS.analytics.netProfit}?${params.toString()}`;
       const response = await apiCall(url, { method: "GET" });
-      return response.json();
+      const json = await response.json();
+      // API wraps in { success, data: { revenue, cost, expenses, profit } }
+      return json?.data ?? json;
     },
-    enabled: !!admin?._id && !!effectiveShopId,
+    enabled: !!effectiveShopId,
   });
 
   // Fetch recent sales data for homepage - limited to 20 records
@@ -160,13 +164,12 @@ export default function BusinessDashboard() {
       const response = await apiCall(url, { method: "GET" });
       return response.json();
     },
-    enabled: !!admin?._id && !!effectiveShopId,
+    enabled: !!adminId && !!effectiveShopId,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
 
   // Fetch shops for the admin
-  const adminId = admin?.id ?? (admin as any)?._id;
   const { data: shopsData } = useQuery({
     queryKey: ["shops", adminId],
     queryFn: async () => {
@@ -203,19 +206,19 @@ export default function BusinessDashboard() {
 
   // Fetch overdue customers data - only on business dashboard page
   const { data: overdueCustomersData, isLoading: overdueCustomersLoading, error: overdueCustomersError } = useQuery({
-    queryKey: ['overdue-customers', effectiveShopId, admin?._id],
+    queryKey: ['overdue-customers', effectiveShopId, adminId],
     queryFn: async () => {
-      if (!effectiveShopId || !admin?._id) return null;
+      if (!effectiveShopId || !adminId) return null;
       
       const params = new URLSearchParams({
-        adminid: admin._id
+        adminid: String(adminId)
       });
       
       const response = await apiCall(`${ENDPOINTS.customers.getOverdue}?shopId=${effectiveShopId}&${params.toString()}`, { method: "GET" });
       const data = await response.json();
       return data;
     },
-    enabled: !!admin?._id && (location === '/business-dashboard' || location === '/dashboard'),
+    enabled: !!adminId && (location === '/business-dashboard' || location === '/dashboard'),
     staleTime: 0, // 5 minutes
     refetchInterval: false, // Disable auto-refetch
   });
@@ -327,12 +330,12 @@ export default function BusinessDashboard() {
 
 
   // Today's key metrics from net profit API - using correct field mappings
+  // API returns { revenue, cost, expenses, profit }
   const todayMetrics = {
-    sales: netProfitData?.totalProfitAndSalesValue?.totalSales || 0,
-    profit: netProfitData?.totalProfitAndSalesValue?.totalProfit || 0,
-    expenses: netProfitData?.totalExpenses?.totalExpenses || 0,
-    transactions: 0, // Would need separate endpoint for transaction count
-    customers: 0 // Would need separate endpoint for customer count
+    sales: parseFloat(netProfitData?.revenue ?? "0") || 0,
+    profit: parseFloat(netProfitData?.profit ?? "0") || 0,
+    expenses: parseFloat(netProfitData?.expenses ?? "0") || 0,
+    transactions: salesData?.meta?.total ?? recentSales.length,
   };
 
 
