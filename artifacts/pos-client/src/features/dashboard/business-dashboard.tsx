@@ -364,14 +364,15 @@ export default function BusinessDashboard() {
 
   // Process real sales data from API
   const recentSales = Array.isArray(salesData?.data) ? salesData.data.map((sale: any) => ({
-    id: sale._id, // Use _id for navigation
-    receiptNo: sale.receiptNo || sale._id, // Keep receipt number for display
+    id: sale.id ?? sale._id,
+    receiptNo: sale.receiptNo || sale.id || sale._id,
     customer: sale.customerName || sale.customerId?.name || sale.customer?.name || "Walk-in",
-    amount: parseFloat(sale.totalWithDiscount || sale.totalAmount || sale.total || 0), // Use totalWithDiscount if available, fallback to totalAmount
-    items: sale.products?.length || sale.items?.length || 1,
+    amount: parseFloat(sale.totalWithDiscount || sale.totalAmount || sale.total || 0),
+    items: sale.saleItems?.length || sale.products?.length || sale.items?.length || 1,
     time: timeAgo(sale.createdAt),
     paymentMethod: sale.paymentType || sale.paymentMethod || "Cash",
-    status: sale.status || "completed"
+    status: sale.status || "completed",
+    outstandingBalance: parseFloat(sale.outstandingBalance || 0)
   })) : [];
 
   // Pagination logic
@@ -379,6 +380,35 @@ export default function BusinessDashboard() {
   const startIndex = (currentPage - 1) * salesPerPage;
   const endIndex = startIndex + salesPerPage;
   const currentSales = recentSales.slice(startIndex, endIndex);
+
+  // Calculated profit margin (%)
+  const profitMargin = todayMetrics.sales > 0
+    ? Math.round((todayMetrics.profit / todayMetrics.sales) * 100)
+    : 0;
+
+  // Transform overdue API response { rows, summary } into per-customer grouped data
+  const overdueRows: any[] = overdueCustomersData?.rows ?? [];
+  const overdueSummary = overdueCustomersData?.summary ?? { totalOverdue: "0", overdueCount: 0 };
+  const overdueByCustomer = Object.values(
+    overdueRows.reduce((acc: Record<string, any>, row: any) => {
+      const key = row.customerId ?? row.customerName ?? "walk-in";
+      if (!acc[key]) {
+        acc[key] = {
+          name: row.customerName || "Walk-in",
+          phone: row.customerPhone || "",
+          totalOverdue: 0,
+          dueCount: 0,
+          earliestDue: row.dueDate,
+          latestDue: row.dueDate,
+        };
+      }
+      acc[key].totalOverdue += parseFloat(row.outstandingBalance || 0);
+      acc[key].dueCount += 1;
+      if (row.dueDate && new Date(row.dueDate) < new Date(acc[key].earliestDue)) acc[key].earliestDue = row.dueDate;
+      if (row.dueDate && new Date(row.dueDate) > new Date(acc[key].latestDue)) acc[key].latestDue = row.dueDate;
+      return acc;
+    }, {})
+  ) as any[];
 
   const getPaymentMethodBadge = (method: string) => {
     switch (method) {
@@ -662,7 +692,7 @@ export default function BusinessDashboard() {
                   <>
                     <div className="text-2xl font-bold">{formatCurrency(todayMetrics.profit)}</div>
                     <p className="text-xs text-green-100">
-                      30% margin
+                      {profitMargin}% margin
                     </p>
                   </>
                 ) : (
@@ -774,6 +804,11 @@ export default function BusinessDashboard() {
                           </td>
                           <td className="py-3 px-2">
                             <span className="font-bold text-gray-900">{formatCurrency(sale.amount)}</span>
+                            {sale.outstandingBalance > 0 && (
+                              <p className="text-xs text-orange-600 mt-0.5">
+                                Owes {formatCurrency(sale.outstandingBalance)}
+                              </p>
+                            )}
                           </td>
                           <td className="py-3 px-2">
                             {getPaymentMethodBadge(sale.paymentMethod)}
@@ -886,33 +921,33 @@ export default function BusinessDashboard() {
               <CardTitle className="flex items-center gap-2 text-red-800 text-lg">
                 <Clock className="h-4 w-4" />
                 Overdue Customers
-                {overdueCustomersData?.totalOverdueCustomers > 0 && (
+                {overdueSummary.overdueCount > 0 && (
                   <Badge variant="destructive" className="ml-2">
-                    {overdueCustomersData.totalOverdueCustomers}
+                    {overdueSummary.overdueCount}
                   </Badge>
                 )}
               </CardTitle>
               <CardDescription className="text-red-600 text-sm">
-                {overdueCustomersData?.totalOverdueCustomers > 0 
-                  ? `${overdueCustomersData.totalOverdueCustomers} customers with overdue payments`
+                {overdueByCustomer.length > 0
+                  ? `${overdueByCustomer.length} customer${overdueByCustomer.length !== 1 ? 's' : ''} with overdue payments`
                   : 'No overdue customers'
                 }
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6">
-              {overdueCustomersData?.totalOverdueCustomers > 0 ? (
+              {overdueByCustomer.length > 0 ? (
                 <>
                   <div className="mb-6 text-center p-4 bg-red-50 dark:bg-red-950/20 rounded-lg">
                     <p className="text-sm font-medium text-red-800 dark:text-red-200">Total Overdue Amount</p>
                     <p className="text-2xl font-bold text-red-600">
-                      {currency} {overdueCustomersData.totalOverdueAmount?.toLocaleString() || '0'}
+                      {currency} {parseFloat(overdueSummary.totalOverdue || "0").toLocaleString()}
                     </p>
                   </div>
                   
                   {/* Grid of overdue customers */}
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {overdueCustomersData.overdueCustomers?.map((customer: any, index: number) => (
-                      <div key={customer.customerId || index} className="p-4 bg-red-100 dark:bg-red-900/30 rounded-lg border border-red-200">
+                    {overdueByCustomer.map((customer: any, index: number) => (
+                      <div key={index} className="p-4 bg-red-100 dark:bg-red-900/30 rounded-lg border border-red-200">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white font-semibold text-xs">
@@ -924,14 +959,14 @@ export default function BusinessDashboard() {
                             {customer.dueCount} overdue
                           </Badge>
                         </div>
-                        <p className="text-xs text-red-600 dark:text-red-300 mb-2">{customer.phonenumber}</p>
+                        <p className="text-xs text-red-600 dark:text-red-300 mb-2">{customer.phone}</p>
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-bold text-red-600 dark:text-red-400 text-lg">
                               {currency} {customer.totalOverdue?.toLocaleString() || '0'}
                             </p>
                             <p className="text-xs text-red-500 dark:text-red-400">
-                              {customer.daysOverdue} days overdue
+                              {customer.dueCount} unpaid invoice{customer.dueCount !== 1 ? 's' : ''}
                             </p>
                           </div>
                           <div className="text-right">
