@@ -1132,7 +1132,7 @@ export default function ProductGrid({
                           </div>
                           <div className="text-right ml-3">
                             <span className="text-sm font-semibold text-green-600">
-                              Ksh {getPriceForSaleType(product, saleType).toFixed(2)}
+                              Ksh {(+getPriceForSaleType(product, saleType)).toFixed(2)}
                             </span>
                           </div>
                         </div>
@@ -1189,14 +1189,14 @@ export default function ProductGrid({
                             <div className="flex-1">
                               <p className="font-semibold text-gray-800 text-sm truncate">{item.name}</p>
                               <p className="text-gray-500 text-xs">
-                                Ksh {item.price.toFixed(2)} × {item.quantity}
+                                Ksh {(+item.price).toFixed(2)} × {item.quantity}
                                 {item.discount && item.discount > 0 && (
-                                  <span className="text-green-600"> (-Ksh {item.discount.toFixed(2)})</span>
+                                  <span className="text-green-600"> (-Ksh {(+item.discount).toFixed(2)})</span>
                                 )}
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="font-semibold text-gray-800 text-sm">Ksh {item.total.toFixed(2)}</p>
+                              <p className="font-semibold text-gray-800 text-sm">Ksh {(+item.total).toFixed(2)}</p>
                             </div>
                           </div>
                           
@@ -1293,9 +1293,9 @@ export default function ProductGrid({
                           
                           {/* Column 2: Unit Price */}
                           <div className="text-right">
-                            <p className="font-semibold text-gray-800">Ksh {item.price.toFixed(2)}</p>
+                            <p className="font-semibold text-gray-800">Ksh {(+item.price).toFixed(2)}</p>
                             {item.discount && item.discount > 0 && (
-                              <p className="text-xs text-green-600">-Ksh {item.discount.toFixed(2)}</p>
+                              <p className="text-xs text-green-600">-Ksh {(+item.discount).toFixed(2)}</p>
                             )}
                           </div>
                           
@@ -1345,7 +1345,7 @@ export default function ProductGrid({
                           
                           {/* Column 5: Subtotal */}
                           <div className="text-right">
-                            <p className="font-bold text-primary">Ksh {item.total.toFixed(2)}</p>
+                            <p className="font-bold text-primary">Ksh {(+item.total).toFixed(2)}</p>
                           </div>
                           
                           {/* Column 6: Remove */}
@@ -1499,7 +1499,7 @@ export default function ProductGrid({
                             <div className="flex justify-between items-center">
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-gray-900 truncate">{productName}</p>
-                                <p className="text-xs text-gray-500">Ksh {price.toFixed(2)}</p>
+                                <p className="text-xs text-gray-500">Ksh {(+price).toFixed(2)}</p>
                               </div>
                               <div className="ml-1 text-right">
                                 {isVirtual ? (
@@ -1592,7 +1592,7 @@ export default function ProductGrid({
                       >
                         <div className="w-12 h-12 bg-gray-200 rounded mx-auto mb-2"></div>
                         <p className="text-xs font-medium text-gray-800 truncate">{productName}</p>
-                        <p className="text-xs text-gray-500">Ksh {price.toFixed(2)}</p>
+                        <p className="text-xs text-gray-500">Ksh {(+price).toFixed(2)}</p>
                         <div className="mt-1 flex items-center justify-center space-x-1">
                           {isVirtual ? (
                             <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded">
@@ -2180,7 +2180,7 @@ export default function ProductGrid({
             {selectedPriceItem && (
               <div className="text-center">
                 <p className="text-lg font-semibold">{selectedPriceItem.name}</p>
-                <p className="text-sm text-gray-500">Current price: Ksh {selectedPriceItem.price.toFixed(2)}</p>
+                <p className="text-sm text-gray-500">Current price: Ksh {(+selectedPriceItem.price).toFixed(2)}</p>
               </div>
             )}
             
@@ -2654,7 +2654,7 @@ export default function ProductGrid({
                             {outOfStock && <span className="ml-2 text-xs text-red-500">Out of stock</span>}
                           </div>
                           <span className="text-green-600 font-semibold ml-3 shrink-0">
-                            Ksh {getPriceForSaleType(p, saleType).toFixed(2)}
+                            Ksh {(+getPriceForSaleType(p, saleType)).toFixed(2)}
                           </span>
                         </div>
                       );
