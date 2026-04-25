@@ -77,6 +77,7 @@ export const ENDPOINTS = {
     getDebtors:           "/api/customers/debtors",
     getPayments:          "/api/customers/payments",
     getOverdue:           (shopId: string) => `/api/customers/overdue/${shopId}`,
+    getAnalysis:          (shopId: string) => `/api/customers/analysis/${shopId}`,
   },
 
   // ─── Sales ────────────────────────────────────────────────────────────────
@@ -107,6 +108,7 @@ export const ENDPOINTS = {
     getDiscountReports:   "/api/sales/discount/reports",
     getStatements:        "/api/sales/reports/statements",
     sendReportEmail:      "/api/sales/send/report/email",
+    emailReceipt:         "/api/sales/email-receipt",
     reportFilter:         "/api/analysis/report/sales",
   },
 
@@ -149,8 +151,10 @@ export const ENDPOINTS = {
   // ─── Suppliers ────────────────────────────────────────────────────────────
 
   suppliers: {
-    // TODO: normalize — some files use /api/supplier (singular), others use /api/suppliers
+    // TODO: normalize — some files use /api/supplier (singular), others /api/suppliers (plural)
     getAll:               "/api/suppliers",
+    // supplier-selector.tsx still uses the singular form
+    getAllSingular:        "/api/supplier",
     create:               "/api/suppliers",
   },
 
@@ -191,6 +195,9 @@ export const ENDPOINTS = {
 
   subscriptions: {
     getById:              (id: string) => `/api/subscriptions/${id}`,
+    // NOTE: subscription.tsx currently calls an external staging URL
+    // https://staging.pointifypos.com/api/subscriptions — needs to be moved to local API
+    getAll:               "/api/subscriptions",
   },
 
   // ─── Payments ─────────────────────────────────────────────────────────────
@@ -204,6 +211,41 @@ export const ENDPOINTS = {
 
   sms: {
     getLogs:              (adminId: string) => `/api/sms/sms-logs?adminId=${adminId}`,
+    topup:                "/api/sms/topup",
+  },
+
+  // ─── Bad Stock ────────────────────────────────────────────────────────────
+
+  badStock: {
+    getAll:               "/api/badstock",
+    create:               "/api/badstock",
+    delete:               (id: string) => `/api/badstock/${id}`,
+    summaryAnalysis:      "/api/badstock/summary/analysis",
+  },
+
+  // ─── Stock Counts ─────────────────────────────────────────────────────────
+
+  stockCounts: {
+    create:               "/api/counts",
+    getByShop:            (shopId: string) => `/api/counts/shop/${shopId}`,
+  },
+
+  // ─── Expenses ─────────────────────────────────────────────────────────────
+
+  expenses: {
+    getAll:               "/api/expenses",
+    create:               "/api/expenses",
+    delete:               (id: string) => `/api/expenses/${id}`,
+    summaryAnalysis:      "/api/expenses/stats/summary/analysis",
+  },
+
+  // ─── Expense Categories ───────────────────────────────────────────────────
+
+  expenseCategories: {
+    getAll:               "/api/expense-categories",
+    create:               "/api/expense-categories",
+    update:               (id: string) => `/api/expense-categories/${id}`,
+    delete:               (id: string) => `/api/expense-categories/${id}`,
   },
 
   // ─── Stock Transfers ──────────────────────────────────────────────────────
