@@ -543,11 +543,10 @@ export default function CashFlow() {
       }
 
       const payload = {
-        name: formData.name,
+        description: formData.name,
         amount: parseFloat(formData.amount),
-        category: formData.category,
-        attendantId: attendantId,
-        shopId: shopId
+        categoryId: formData.category,
+        shopId: shopId,
       };
 
       console.log('Submitting cashflow transaction:', payload);

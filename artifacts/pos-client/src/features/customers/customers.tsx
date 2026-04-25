@@ -139,12 +139,10 @@ export default function Customers() {
 
       const customerData = {
         name: data.name.trim(),
-        wallet: Number(data.wallet) || 0,
-        phonenumber: data.phone || '',
+        phone: data.phone || '',
         email: data.email || '',
         address: data.address || '',
         shopId: shopId,
-        adminid: currentAdminId
       };
 
       console.log('Customer Creation Debug:', {
@@ -184,9 +182,14 @@ export default function Customers() {
   // Update customer mutation
   const updateCustomerMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest('PUT', ENDPOINTS.customers.update(data._id), {
-        body: JSON.stringify(data)
-      });
+      const updatePayload = {
+        name: data.name?.trim(),
+        phone: data.phone || data.phonenumber || '',
+        email: data.email || '',
+        address: data.address || '',
+        shopId: shopId,
+      };
+      const response = await apiRequest('PUT', ENDPOINTS.customers.update(data._id || data.id), updatePayload);
       return response.json();
     },
     onSuccess: () => {

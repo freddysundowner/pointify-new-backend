@@ -132,29 +132,22 @@ export default function CreatePurchase() {
 
       // Map items to Pointify format
       const purchaseItems = validItems.map(item => {
-        // Find the product to get its ID
         const product = products.find((p: any) => (p.name || p.title) === item.productName);
         return {
-          product: product?._id || null,
+          productId: product?._id || product?.id || null,
           quantity: item.quantity,
           unitPrice: item.unitCost,
-          sellingPrice: (item as any).sellingPrice || product?.sellingPrice || item.unitCost * 1.5, // Use custom selling price or default
-          lineDiscount: 0,
-          attendantId
+          sellingPrice: (item as any).sellingPrice || product?.sellingPrice || item.unitCost * 1.5,
+          discount: 0,
         };
       });
 
       const payload = {
-        purchase: {
-          shopId: shopId,
-          supplierId: selectedSupplier?._id || null,
-          attendantId: attendantId,
-          paymentType: "cash"
-        },
-        purchaseItems: purchaseItems,
-        amountpaid: calculateTotal(),
-        trackBatches: trackBatches,
-        useWarehouse: true
+        shopId: shopId,
+        supplierId: selectedSupplier?._id || null,
+        paymentMethod: "cash",
+        amountPaid: calculateTotal(),
+        items: purchaseItems,
       };
       
       const response = await apiRequest('POST', ENDPOINTS.purchases.create, payload);

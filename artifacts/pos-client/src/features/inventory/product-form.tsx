@@ -43,6 +43,7 @@ import BundleProductsSelector from "@/components/ui/bundle-products-selector";
 import SupplierSelector from "@/components/ui/supplier-selector-simple";
 import { useProducts } from "@/contexts/ProductsContext";
 import { ENDPOINTS } from "@/lib/api-endpoints";
+import { apiCall } from "@/lib/api-config";
 
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
@@ -376,18 +377,16 @@ export default function ProductForm() {
 
       const payload = {
         name: formData.name,
-        measure: formData.unitOfMeasure || "",
+        measureUnit: formData.unitOfMeasure || "",
         sellingPrice: formData.sellingPrice,
         buyingPrice: formData.buyingPrice,
         quantity: formData.quantity,
-        bundle: formData.isBundle,
-        virtual: formData.productType === "service",
         manageByPrice: formData.manageByPrice,
         manufacturer: formData.manufacturer || "",
-        serialnumber: formData.serialnumber || "",
+        serialNumber: formData.serialnumber || "",
         wholesalePrice: formData.wholesalePrice || 0,
         dealerPrice: formData.dealerPrice || 0,
-        productCategoryId:
+        categoryId:
           formData.productCategoryId === "none" || !formData.productCategoryId
             ? null
             : formData.productCategoryId,
@@ -397,28 +396,22 @@ export default function ProductForm() {
             : formData.supplier,
         expiryDate: formData.expiryDate || "",
         reorderLevel: formData.reorderLevel || 0,
+        alertQuantity: formData.reorderLevel || 0,
         maxDiscount: formData.maxDiscount || 0,
         description: formData.description || "",
-        items: formData.isBundle
-          ? Object.entries(selectedBundleProducts).map(([productId, data]) => ({
-              item: productId,
+        bundleItems: formData.isBundle
+          ? Object.entries(selectedBundleProducts).map(([pid, data]) => ({
+              componentProductId: Number(pid),
               quantity: typeof data === "number" ? data : data.quantity,
             }))
           : undefined,
+        type: formData.productType === "service" ? "service" : formData.isBundle ? "bundle" : "product",
         shopId,
-        adminId,
-        attendantId,
-        productType: formData.productType === "service" ? "service" : "product",
       };
 
-
-      const response = await fetch(endpoint, {
+      const response = await apiCall(endpoint, {
         method,
         body: JSON.stringify(payload),
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
       });
 
       if (!response.ok) {
@@ -455,15 +448,10 @@ export default function ProductForm() {
 
   const createCategoryMutation = useMutation({
     mutationFn: async (categoryName: string) => {
-      const response = await fetch(ENDPOINTS.products.createCategory, {
+      const response = await apiCall(ENDPOINTS.products.createCategory, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
         body: JSON.stringify({
           name: categoryName,
-          admin: adminId,
         }),
       });
 

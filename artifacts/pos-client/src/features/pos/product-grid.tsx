@@ -536,12 +536,6 @@ export default function ProductGrid({
     }
     setIsCreatingCustomItem(true);
     try {
-      const resolvedAttendantId = attendant?._id
-        ? attendant._id
-        : (typeof admin?.attendantId === 'object' && admin?.attendantId
-            ? (admin.attendantId as any)._id
-            : admin?.attendantId) || admin?._id;
-
       const buyingPrice = customItemType === "product" ? parseFloat(customItemBuyingPrice || "0") : 0;
       const quantity = customItemType === "product" ? parseInt(customItemQuantity || "1") : 0;
 
@@ -550,14 +544,12 @@ export default function ProductGrid({
         body: JSON.stringify({
           name: customItemName.trim(),
           shopId,
-          attendantId: resolvedAttendantId,
-          admin: adminId,
           sellingPrice: price,
           wholesalePrice: price,
           dealerPrice: price,
           buyingPrice,
           quantity,
-          productType: customItemType,
+          type: customItemType,
         }),
       });
       const product = await response.json();
@@ -679,55 +671,37 @@ export default function ProductGrid({
       return;
     }
 
-    // Check shop batch tracking setting
-    const shouldTrackBatches = Boolean(shopData?.trackbatches);
+    // Build the payments array for split payments
+    const buildPayments = () => {
+      if (isHold || selectedPaymentMethod !== "split") return undefined;
+      const payments = [];
+      if (splitAmounts.cash > 0) payments.push({ method: "cash", amount: splitAmounts.cash });
+      if (splitAmounts.mpesa > 0) payments.push({ method: "mpesa", amount: splitAmounts.mpesa });
+      if (splitAmounts.bank > 0) payments.push({ method: "bank", amount: splitAmounts.bank });
+      return payments.length > 0 ? payments : undefined;
+    };
 
     const transactionData = {
-      products: cartItems.map(item => {
-        // Find the product data for logging
-        const productData = allProducts.find(p => p._id === item.id || p.id === item.id);
-        
-        console.log(`Product ${item.name}: productId=${item.id}, inventoryId=${(productData as any)?.inventoryId}, availableQty=${(productData as any)?.quantity}`);
-        
-        return {
-          product: item.id,
-          quantity: parseFloat(item.quantity.toString()),
-          unitPrice: parseFloat(item.price.toString()),
-          tax: parseFloat((item.price * (taxRate / 100)).toString()),
-          attendantId: attendantId,
-          inventory: (productData as any)?.inventoryId || item.id, // Use inventoryId field
-          lineDiscount: parseFloat(((item.discount || 0) * item.quantity).toString()),
-          createdAt: new Date().toISOString().split('T')[0] // YYYY-MM-DD format
-        };
-      }),
+      items: cartItems.map(item => ({
+        productId: item.id,
+        quantity: parseFloat(item.quantity.toString()),
+        price: parseFloat(item.price.toString()),
+        discount: item.discount || 0,
+        saleType: saleType,
+      })),
       shopId: shopId || "",
-      attendantId: attendantId,
       saleType: saleType,
-      createdAt: (!isHold && isCustomDateTime && customDateTime) ? customDateTime : new Date().toISOString(),
-      status: isHold ? "hold" : "cashed",
-      totaltax: parseFloat(totals.tax.toString()),
-      salesnote: "",
-      orderId: orderId,
-      duedate: selectedPaymentMethod === "credit" ? creditDueDate : null,
-      ready_date: readyDate || "",
-      batchTrack: shouldTrackBatches,
-      allownegativeselling: false,
-      mpesaTransId: !isHold && selectedPaymentMethod === "mpesa" ? mpesaTransactionId : 
-                   !isHold && selectedPaymentMethod === "split" && splitAmounts.mpesa > 0 ? `SPLIT_${Date.now()}` : "",
-      mpesaTotal: !isHold && selectedPaymentMethod === "mpesa" ? parseFloat(totals.total.toString()) :
-                 !isHold && selectedPaymentMethod === "split" ? splitAmounts.mpesa : 0.0,
-      bankTotal: !isHold && selectedPaymentMethod === "bank" ? parseFloat(totals.total.toString()) :
-                !isHold && selectedPaymentMethod === "split" ? splitAmounts.bank : 0.0,
-      bankTransId: !isHold && selectedPaymentMethod === "bank" ? bankTransactionId : 
-                  !isHold && selectedPaymentMethod === "split" && splitAmounts.bank > 0 ? `BANK_${Date.now()}` : "",
-      amountPaid: isHold || selectedPaymentMethod === "credit" ? 0.0 : 
-                 selectedPaymentMethod === "split" ? splitAmounts.cash : parseFloat(totals.total.toString()),
-      outstandingBalance: isHold || selectedPaymentMethod === "credit" ? parseFloat(totals.total.toString()) : 0.0,
-      paymentType: isHold ? "cash" : selectedPaymentMethod,
-      paymentTag: isHold ? "cash" : selectedPaymentMethod,
-      totalDiscount: parseFloat(totals.discount.toString()),
-      customerId: selectedCustomerId || null,
-      saleDiscount: 0.0
+      saleDate: (!isHold && isCustomDateTime && customDateTime) ? customDateTime : undefined,
+      note: "",
+      held: isHold ? true : undefined,
+      dueDate: selectedPaymentMethod === "credit" ? creditDueDate : undefined,
+      amountPaid: isHold || selectedPaymentMethod === "credit" ? 0.0 :
+                 selectedPaymentMethod === "split" ? (splitAmounts.cash + splitAmounts.mpesa + splitAmounts.bank) :
+                 parseFloat(totals.total.toString()),
+      paymentMethod: isHold ? "cash" : selectedPaymentMethod !== "split" ? selectedPaymentMethod : undefined,
+      payments: buildPayments(),
+      discount: parseFloat(totals.discount.toString()),
+      customerId: selectedCustomerId ? Number(selectedCustomerId) : null,
     };
 
     try {
@@ -773,12 +747,10 @@ export default function ProductGrid({
         method: 'POST',
         body: JSON.stringify({
           name: data.name.trim(),
-          phonenumber: data.phone,
+          phone: data.phone,
           email: data.email,
           address: data.address,
-          wallet: 0,
           shopId: shopId,
-          adminid: adminId,
         }),
       });
       return response.json();

@@ -88,13 +88,18 @@ export default function ShopForm({
 
       // Prepare shop data
       const shopData = {
-        ...formData,
-        adminId: admin?._id,
-        coordinates: placeDetails?.geometry?.location ? {
-          lat: placeDetails.geometry.location.lat(),
-          lng: placeDetails.geometry.location.lng()
-        } : undefined,
-        placeId: placeDetails?.place_id,
+        name: formData.name,
+        categoryId: formData.category || undefined,
+        address: formData.address,
+        phone: formData.phone,
+        currency: formData.currency,
+        allowOnlineSelling: formData.allowOnlineSelling,
+        locationLat: placeDetails?.geometry?.location
+          ? placeDetails.geometry.location.lat()
+          : undefined,
+        locationLng: placeDetails?.geometry?.location
+          ? placeDetails.geometry.location.lng()
+          : undefined,
       };
 
       const shopResponse = await apiCall(ENDPOINTS.shop.create, {

@@ -41,15 +41,7 @@ export default function EditProfilePage() {
   // Mutation for updating profile
   const updateProfileMutation = useMutation({
     mutationFn: async (profileData: any) => {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(ENDPOINTS.auth.adminProfile, {
-        method: 'PUT',
-        body: JSON.stringify(profileData),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await apiRequest('PUT', ENDPOINTS.auth.adminProfile, profileData);
       
       if (!response.ok) {
         throw new Error('Failed to update profile');
@@ -119,7 +111,6 @@ export default function EditProfilePage() {
   // Password change mutation - sends to /admin/:id with password field
   const changePasswordMutation = useMutation({
     mutationFn: async (passwordChangeData: any) => {
-      const token = localStorage.getItem('authToken');
       // Include all current profile data plus the new password
       const fullUpdateData = {
         username: `${formData.firstName} ${formData.lastName}`.trim() || admin.username,
@@ -128,14 +119,7 @@ export default function EditProfilePage() {
         password: passwordChangeData.newPassword
       };
       
-      const response = await fetch(ENDPOINTS.auth.adminProfile, {
-        method: 'PUT',
-        body: JSON.stringify(fullUpdateData),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await apiRequest('PUT', ENDPOINTS.auth.adminProfile, fullUpdateData);
       
       if (!response.ok) {
         throw new Error('Failed to change password');

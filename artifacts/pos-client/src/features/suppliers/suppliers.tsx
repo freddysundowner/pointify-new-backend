@@ -112,10 +112,11 @@ export default function SuppliersPage() {
   const createMutation = useMutation({
     mutationFn: async (data: SupplierFormData) => {
       const payload = {
-        ...data,
+        name: data.name,
+        phone: data.phoneNumber || '',
+        email: data.email || '',
+        address: data.address || '',
         shopId,
-        attendantId: isAttendantRoute ? attendant?._id : admin?.attendantId,
-        adminId: isAttendantRoute ? attendant?.adminId : admin?._id
       };
       const response = await apiRequest('POST', ENDPOINTS.suppliers.create, payload);
       return await response.json();
@@ -142,7 +143,14 @@ export default function SuppliersPage() {
   const updateMutation = useMutation({
     mutationFn: async (data: SupplierFormData) => {
       if (!selectedSupplier) throw new Error('No supplier selected');
-      const response = await apiRequest('PUT', ENDPOINTS.suppliers.update(selectedSupplier._id), data);
+      const payload = {
+        name: data.name,
+        phone: data.phoneNumber || '',
+        email: data.email || '',
+        address: data.address || '',
+        shopId,
+      };
+      const response = await apiRequest('PUT', ENDPOINTS.suppliers.update(selectedSupplier._id), payload);
       return await response.json();
     },
     onSuccess: () => {

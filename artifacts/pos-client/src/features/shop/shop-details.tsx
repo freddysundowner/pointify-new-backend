@@ -69,30 +69,27 @@ export default function ShopDetails() {
     onConfirm: () => {},
   });
 
-  // Shop settings form state
+  // Shop settings form state (internal keys kept as camelCase matching API)
   const [formData, setFormData] = useState({
     name: "",
-    email_receipt: "",
-    tax: 0,
-    shopCategoryId: "",
+    receiptEmail: "",
+    taxRate: 0,
+    categoryId: "",
     address: "",
     currency: "KES",
-    allownegativeselling: false,
-    trackbatches: false,
-    useWarehouse: false,
+    allowNegativeSelling: false,
+    trackBatches: false,
     allowOnlineSelling: true,
-    showstockonline: false,
-    showpriceonline: false,
-    deletewarning: 0,
+    showStockOnline: false,
+    showPriceOnline: false,
     backupInterval: "end_of_month",
     allowBackup: true,
-    warehouse: false,
-    production: false,
+    useWarehouse: false,
     // Receipt customization fields
     contact: "",
-    paybill_till: "",
-    paybill_account: "",
-    address_receipt: "",
+    paybillTill: "",
+    paybillAccount: "",
+    receiptAddress: "",
   });
 
   // Fetch categories from API
@@ -137,26 +134,22 @@ export default function ShopDetails() {
       console.log('Shop category:', shop.shopCategoryId?.name);
       setFormData({
         name: shop.name || "",
-        email_receipt: shop.email_receipt || "",
-        tax: shop.tax || 0,
-        shopCategoryId: shop.shopCategoryId?._id || "",
+        receiptEmail: shop.receiptEmail || shop.email_receipt || "",
+        taxRate: shop.taxRate ?? shop.tax ?? 0,
+        categoryId: (shop.categoryId?._id || shop.categoryId) || (shop.shopCategoryId?._id || shop.shopCategoryId) || "",
         address: shop.address || "",
         currency: shop.currency || "KES",
-        allownegativeselling: shop.allownegativeselling || false,
-        trackbatches: shop.trackbatches || false,
-        useWarehouse: shop.useWarehouse || false,
-        allowOnlineSelling: shop.allowOnlineSelling || true,
-        showstockonline: shop.showstockonline || false,
-        showpriceonline: shop.showpriceonline || false,
-        deletewarning: shop.deletewarning || 0,
+        allowNegativeSelling: shop.allowNegativeSelling ?? shop.allownegativeselling ?? false,
+        trackBatches: shop.trackBatches ?? shop.trackbatches ?? false,
+        allowOnlineSelling: shop.allowOnlineSelling ?? true,
+        showStockOnline: shop.showStockOnline ?? shop.showstockonline ?? false,
+        showPriceOnline: shop.showPriceOnline ?? shop.showpriceonline ?? false,
         backupInterval: shop.backupInterval || "end_of_month",
-        allowBackup: shop.allowBackup || true,
-        warehouse: shop.warehouse || false,
-        production: shop.production || false,
+        allowBackup: shop.allowBackup ?? true,
         contact: shop.contact || "",
-        paybill_till: shop.paybill_till || "",
-        paybill_account: shop.paybill_account || "",
-        address_receipt: shop.address_receipt || "",
+        paybillTill: shop.paybillTill || shop.paybill_till || "",
+        paybillAccount: shop.paybillAccount || shop.paybill_account || "",
+        receiptAddress: shop.receiptAddress || shop.address_receipt || "",
       });
     }
   }, [shop]);
@@ -197,26 +190,22 @@ export default function ShopDetails() {
   const handleSaveSettings = () => {
     const updateData = {
       name: formData.name,
-      email_receipt: formData.email_receipt,
-      shopCategoryId: formData.shopCategoryId,
+      receiptEmail: formData.receiptEmail,
+      categoryId: formData.categoryId || undefined,
       address: formData.address,
-      tax: formData.tax,
+      taxRate: formData.taxRate,
       currency: formData.currency,
-      allownegativeselling: formData.allownegativeselling,
-      trackbatches: formData.trackbatches,
-      useWarehouse: formData.useWarehouse,
+      allowNegativeSelling: formData.allowNegativeSelling,
+      trackBatches: formData.trackBatches,
       allowOnlineSelling: formData.allowOnlineSelling,
-      showstockonline: formData.showstockonline,
-      showpriceonline: formData.showpriceonline,
-      deletewarning: formData.deletewarning,
+      showStockOnline: formData.showStockOnline,
+      showPriceOnline: formData.showPriceOnline,
       backupInterval: formData.backupInterval,
       allowBackup: formData.allowBackup,
-      warehouse: formData.warehouse,
-      production: formData.production,
       contact: formData.contact,
-      paybill_till: formData.paybill_till,
-      paybill_account: formData.paybill_account,
-      address_receipt: formData.address_receipt,
+      paybillTill: formData.paybillTill,
+      paybillAccount: formData.paybillAccount,
+      receiptAddress: formData.receiptAddress,
     };
     
     console.log('Saving shop data:', updateData);
@@ -466,8 +455,8 @@ export default function ShopDetails() {
                     <div className="space-y-2">
                       <Label className="text-sm">Receipt Email</Label>
                       <Input
-                        value={formData.email_receipt}
-                        onChange={(e) => setFormData(prev => ({ ...prev, email_receipt: e.target.value }))}
+                        value={formData.receiptEmail}
+                        onChange={(e) => setFormData(prev => ({ ...prev, receiptEmail: e.target.value }))}
                         placeholder="email@company.com"
                         type="email"
                         className="h-9"
@@ -485,8 +474,8 @@ export default function ShopDetails() {
                     <div className="space-y-2">
                       <Label className="text-sm">M-Pesa Paybill/Till</Label>
                       <Input
-                        value={formData.paybill_till}
-                        onChange={(e) => setFormData(prev => ({ ...prev, paybill_till: e.target.value }))}
+                        value={formData.paybillTill}
+                        onChange={(e) => setFormData(prev => ({ ...prev, paybillTill: e.target.value }))}
                         placeholder="Paybill or Till number"
                         className="h-9"
                       />
@@ -494,8 +483,8 @@ export default function ShopDetails() {
                     <div className="space-y-2">
                       <Label className="text-sm">Paybill Account</Label>
                       <Input
-                        value={formData.paybill_account}
-                        onChange={(e) => setFormData(prev => ({ ...prev, paybill_account: e.target.value }))}
+                        value={formData.paybillAccount}
+                        onChange={(e) => setFormData(prev => ({ ...prev, paybillAccount: e.target.value }))}
                         placeholder="Account number"
                         className="h-9"
                       />
@@ -503,8 +492,8 @@ export default function ShopDetails() {
                     <div className="space-y-2">
                       <Label className="text-sm">Receipt Address</Label>
                       <Input
-                        value={formData.address_receipt}
-                        onChange={(e) => setFormData(prev => ({ ...prev, address_receipt: e.target.value }))}
+                        value={formData.receiptAddress}
+                        onChange={(e) => setFormData(prev => ({ ...prev, receiptAddress: e.target.value }))}
                         placeholder="Address to show on receipts"
                         className="h-9"
                       />
@@ -557,7 +546,7 @@ export default function ShopDetails() {
                         id="tax"
                         type="number"
                         step="0.01"
-                        value={formData.tax}
+                        value={formData.taxRate}
                         onChange={(e) => setFormData(prev => ({ ...prev, tax: parseFloat(e.target.value) || 0 }))}
                         placeholder="0.0"
                         className="h-10"
@@ -567,7 +556,7 @@ export default function ShopDetails() {
                     <div className="space-y-2">
                       <Label htmlFor="businessType" className="text-sm font-medium">Business Category</Label>
                       <Select
-                        value={formData.shopCategoryId}
+                        value={formData.categoryId}
                         onValueChange={(value) => setFormData(prev => ({ ...prev, shopCategoryId: value }))}
                       >
                         <SelectTrigger className="h-10">
@@ -626,9 +615,9 @@ export default function ShopDetails() {
                           <p className="text-xs text-red-600">Allow out-of-stock sales</p>
                         </div>
                         <Switch
-                          checked={formData.allownegativeselling}
+                          checked={formData.allowNegativeSelling}
                           onCheckedChange={(checked) => 
-                            setFormData(prev => ({ ...prev, allownegativeselling: checked }))
+                            setFormData(prev => ({ ...prev, allowNegativeSelling: checked }))
                           }
                         />
                       </div>
@@ -639,9 +628,9 @@ export default function ShopDetails() {
                           <p className="text-xs text-blue-600">Track product batches</p>
                         </div>
                         <Switch
-                          checked={formData.trackbatches}
+                          checked={formData.trackBatches}
                           onCheckedChange={(checked) => 
-                            setFormData(prev => ({ ...prev, trackbatches: checked }))
+                            setFormData(prev => ({ ...prev, trackBatches: checked }))
                           }
                         />
                       </div>
@@ -678,9 +667,9 @@ export default function ShopDetails() {
                           <p className="text-xs text-orange-600">Display stock levels on online store</p>
                         </div>
                         <Switch
-                          checked={formData.showstockonline}
+                          checked={formData.showStockOnline}
                           onCheckedChange={(checked) => 
-                            setFormData(prev => ({ ...prev, showstockonline: checked }))
+                            setFormData(prev => ({ ...prev, showStockOnline: checked }))
                           }
                         />
                       </div>
@@ -691,9 +680,9 @@ export default function ShopDetails() {
                           <p className="text-xs text-teal-600">Display product prices on online store</p>
                         </div>
                         <Switch
-                          checked={formData.showpriceonline}
+                          checked={formData.showPriceOnline}
                           onCheckedChange={(checked) => 
-                            setFormData(prev => ({ ...prev, showpriceonline: checked }))
+                            setFormData(prev => ({ ...prev, showPriceOnline: checked }))
                           }
                         />
                       </div>

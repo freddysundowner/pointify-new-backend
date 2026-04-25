@@ -353,11 +353,9 @@ export default function Attendants() {
 
     const submitData = {
       username: formData.username,
-      uniqueDigits: selectedAttendant ? selectedAttendant.uniqueDigits : generatedPin,
       shopId: formData.shopId,
-      adminId: admin?._id,
       permissions: formData.permissions,
-      ...(formData.password && { password: formData.password })
+      ...(formData.password && { pin: formData.password }),
     };
 
     if (selectedAttendant) {
@@ -480,10 +478,8 @@ export default function Attendants() {
     
     const submitData = {
       username: selectedAttendant.username,
-      uniqueDigits: selectedAttendant.uniqueDigits,
       shopId: typeof selectedAttendant.shopId === 'string' ? selectedAttendant.shopId : selectedAttendant.shopId._id,
-      adminId: admin?._id,
-      permissions: formData.permissions
+      permissions: formData.permissions,
     };
 
     updateAttendantMutation.mutate({ id: selectedAttendant._id, data: submitData });

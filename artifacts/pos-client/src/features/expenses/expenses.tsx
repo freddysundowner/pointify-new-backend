@@ -181,11 +181,10 @@ export default function Expenses() {
       const expenseData = {
         description: data.description.trim(),
         amount: parseFloat(data.amount),
-        category: data.category,
-        attendantId: attendantId,
+        categoryId: data.category,
         shopId: effectiveShopId,
         frequency: data.frequency || null,
-        autoSave: data.autoSave
+        autoSave: data.autoSave,
       };
       
       const response = await apiRequest('POST', ENDPOINTS.expenses.create, expenseData);
