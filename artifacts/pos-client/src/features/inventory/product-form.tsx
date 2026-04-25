@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { ArrowLeft, Plus, X, Package } from "lucide-react";
+import { ArrowLeft, Plus, X, Package, Tag, ShoppingCart, Layers, ChevronDown, ChevronUp, DollarSign, Barcode, Calendar, Building2, Hash, AlignLeft, Percent, TrendingDown, Users, Store } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -538,128 +538,121 @@ export default function ProductForm() {
     return (
       <DashboardLayout title="Loading...">
         <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-2 text-gray-600">Loading product...</p>
+          <div className="text-center space-y-3">
+            <div className="animate-spin rounded-full h-10 w-10 border-2 border-purple-200 border-t-purple-600 mx-auto"></div>
+            <p className="text-sm text-gray-500">Loading product details…</p>
           </div>
         </div>
       </DashboardLayout>
     );
   }
 
+  const productType = form.watch("productType");
+  const isBundle = form.watch("isBundle");
+
+  const typeOptions: { value: "product" | "service" | "virtual"; label: string }[] = [
+    { value: "product", label: "Product" },
+    { value: "service", label: "Service" },
+    { value: "virtual", label: "Virtual" },
+  ];
+
+  const TypeIcon = ({ type }: { type: string }) => {
+    if (type === "service") return <Tag className="h-4 w-4" />;
+    if (type === "virtual") return <Layers className="h-4 w-4" />;
+    return <ShoppingCart className="h-4 w-4" />;
+  };
+
+  const optionalFieldButtons: { key: keyof typeof expandedSections; label: string; forTypes: string[] }[] = [
+    { key: "manufacturer", label: "Manufacturer", forTypes: ["product"] },
+    { key: "serialnumber", label: "Serial Number", forTypes: ["product"] },
+    { key: "barcode", label: "Barcode", forTypes: ["product", "service", "virtual"] },
+    { key: "minSellingPrice", label: "Min Price", forTypes: ["product", "service", "virtual"] },
+    { key: "wholesalePrice", label: "Wholesale Price", forTypes: ["product"] },
+    { key: "dealerPrice", label: "Dealer Price", forTypes: ["product"] },
+    { key: "maxDiscount", label: "Max Discount", forTypes: ["product", "service"] },
+    { key: "description", label: "Description", forTypes: ["product", "service", "virtual"] },
+    { key: "category", label: "Category", forTypes: ["product", "service", "virtual"] },
+    { key: "supplier", label: "Supplier", forTypes: ["product"] },
+    { key: "reorderLevel", label: "Reorder Level", forTypes: ["product"] },
+    { key: "expiryDate", label: "Expiry Date", forTypes: ["product"] },
+  ];
+
   return (
     <DashboardLayout title={isEditMode ? "Edit Product" : "Add New Product"}>
-      <div className="-mx-6 px-2 py-4">
-        <div className="flex items-center space-x-4 mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
+      <div className="-mx-6 px-3 pb-10">
+
+        {/* Page header */}
+        <div className="flex items-center gap-3 py-4 mb-2">
+          <button
+            type="button"
             onClick={() => navigate(productsRoute)}
-            className="flex items-center space-x-2"
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Back to Products</span>
-          </Button>
+            Back to Products
+          </button>
+          <span className="text-gray-300">/</span>
+          <span className="text-sm font-medium text-gray-800">
+            {isEditMode ? "Edit Product" : "New Product"}
+          </span>
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Left Column - Basic Information */}
-              <div className="lg:col-span-2 space-y-8">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Basic Information</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Product Type Selection */}
-                    <FormField
-                      control={form.control}
-                      name="productType"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Type *</FormLabel>
-                          <FormControl>
-                            <div className="flex gap-4">
-                              <label className="flex items-center space-x-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  value="product"
-                                  checked={field.value === "product"}
-                                  onChange={() => field.onChange("product")}
-                                  className="w-4 h-4 text-blue-600"
-                                />
-                                <span className="text-sm font-medium">
-                                  Product
-                                </span>
-                              </label>
-                              <label className="flex items-center space-x-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  value="service"
-                                  checked={field.value === "service"}
-                                  onChange={() => field.onChange("service")}
-                                  className="w-4 h-4 text-blue-600"
-                                />
-                                <span className="text-sm font-medium">
-                                  Service
-                                </span>
-                              </label>
-                              <label className="flex items-center space-x-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  value="virtual"
-                                  checked={field.value === "virtual"}
-                                  onChange={() => field.onChange("virtual")}
-                                  className="w-4 h-4 text-blue-600"
-                                />
-                                <span className="text-sm font-medium">
-                                  Virtual
-                                </span>
-                              </label>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-                    {/* isTaxable checkbox — always visible */}
-                    <FormField
-                      control={form.control}
-                      name="isTaxable"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">
-                            Taxable product
-                          </FormLabel>
-                        </FormItem>
-                      )}
-                    />
+              {/* ── LEFT COLUMN ── */}
+              <div className="lg:col-span-2 space-y-5">
+
+                {/* Type selector */}
+                <FormField
+                  control={form.control}
+                  name="productType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="inline-flex rounded-xl bg-gray-100 p-1 gap-1">
+                        {typeOptions.map(({ value, label }) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => field.onChange(value)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                              field.value === value
+                                ? "bg-white text-purple-700 shadow-sm"
+                                : "text-gray-500 hover:text-gray-700"
+                            }`}
+                          >
+                            <TypeIcon type={value} />
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Core Information */}
+                <Card className="shadow-sm border-gray-100">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-base font-semibold text-gray-800">
+                      {productType === "service" ? "Service Details" : "Product Details"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
 
                     <FormField
                       control={form.control}
                       name="name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>
-                            {form.watch("productType") === "service"
-                              ? "Service Name *"
-                              : "Product Name *"}
+                          <FormLabel className="text-gray-700">
+                            {productType === "service" ? "Service Name" : "Product Name"} <span className="text-red-500">*</span>
                           </FormLabel>
                           <FormControl>
                             <Input
-                              placeholder={
-                                form.watch("productType") === "service"
-                                  ? "Enter service name"
-                                  : "Enter product name"
-                              }
+                              placeholder={productType === "service" ? "e.g. Delivery, Installation…" : "e.g. Blue T-Shirt, 1kg Rice…"}
+                              className="h-10"
                               {...field}
                             />
                           </FormControl>
@@ -668,19 +661,15 @@ export default function ProductForm() {
                       )}
                     />
 
-                    {/* Unit of Measure - only for products */}
-                    {form.watch("productType") === "product" && (
+                    {productType === "product" && (
                       <FormField
                         control={form.control}
                         name="unitOfMeasure"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Unit of Measure</FormLabel>
+                            <FormLabel className="text-gray-700">Unit of Measure</FormLabel>
                             <FormControl>
-                              <Input
-                                placeholder="e.g., kg, pcs, liters"
-                                {...field}
-                              />
+                              <Input placeholder="e.g. kg, pcs, liters, boxes" className="h-10" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -688,1058 +677,613 @@ export default function ProductForm() {
                       />
                     )}
 
-                    <FormField
-                      control={form.control}
-                      name="sellingPrice"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Selling Price *</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              {...field}
-                              value={field.value || ""}
-                              onChange={(e) =>
-                                field.onChange(
-                                  e.target.value === ""
-                                    ? undefined
-                                    : parseFloat(e.target.value),
-                                )
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Wholesale Price - expandable */}
-                    {expandedSections.wholesalePrice && (
+                    {/* Pricing row */}
+                    <div className={`grid gap-4 ${productType === "product" && !isBundle ? "grid-cols-2" : "grid-cols-1"}`}>
                       <FormField
                         control={form.control}
-                        name="wholesalePrice"
+                        name="sellingPrice"
                         render={({ field }) => (
                           <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Wholesale Price</FormLabel>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleSection("wholesalePrice")}
-                                className="text-gray-500 hover:text-gray-700"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            <FormLabel className="text-gray-700">Selling Price <span className="text-red-500">*</span></FormLabel>
                             <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="0.00"
-                                min="0"
-                                step="0.01"
-                                {...field}
-                                value={field.value || ""}
-                                onChange={(e) =>
-                                  field.onChange(
-                                    e.target.value === ""
-                                      ? undefined
-                                      : parseFloat(e.target.value),
-                                  )
-                                }
-                              />
-                            </FormControl>
-                            <FormMessage />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Special price for wholesale customers
-                            </p>
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    {/* Dealer Price - expandable */}
-                    {expandedSections.dealerPrice && (
-                      <FormField
-                        control={form.control}
-                        name="dealerPrice"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Dealer Price</FormLabel>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleSection("dealerPrice")}
-                                className="text-gray-500 hover:text-gray-700"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="0.00"
-                                min="0"
-                                step="0.01"
-                                {...field}
-                                value={field.value || ""}
-                                onChange={(e) =>
-                                  field.onChange(
-                                    e.target.value === ""
-                                      ? undefined
-                                      : parseFloat(e.target.value),
-                                  )
-                                }
-                              />
-                            </FormControl>
-                            <FormMessage />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Special price for dealer customers
-                            </p>
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    {/* Max Discount - expandable */}
-                    {expandedSections.maxDiscount && (
-                      <FormField
-                        control={form.control}
-                        name="maxDiscount"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Maximum Discount Amount</FormLabel>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleSection("maxDiscount")}
-                                className="text-gray-500 hover:text-gray-700"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="0.00"
-                                min="0"
-                                step="0.01"
-                                {...field}
-                                value={field.value || ""}
-                                onChange={(e) =>
-                                  field.onChange(
-                                    e.target.value === ""
-                                      ? undefined
-                                      : parseFloat(e.target.value),
-                                  )
-                                }
-                              />
-                            </FormControl>
-                            <FormMessage />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Maximum fixed discount amount allowed for this
-                              product (in currency)
-                            </p>
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    {/* Barcode - expandable */}
-                    {expandedSections.barcode && (
-                      <FormField
-                        control={form.control}
-                        name="barcode"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Barcode</FormLabel>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleSection("barcode")}
-                                className="text-gray-500 hover:text-gray-700"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <FormControl>
-                              <Input placeholder="e.g., 1234567890128" {...field} />
+                              <div className="relative">
+                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Input
+                                  type="number"
+                                  placeholder="0.00"
+                                  className="h-10 pl-9"
+                                  {...field}
+                                  value={field.value || ""}
+                                  onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))}
+                                />
+                              </div>
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                    )}
 
-                    {/* Min Selling Price - expandable */}
-                    {expandedSections.minSellingPrice && (
-                      <FormField
-                        control={form.control}
-                        name="minSellingPrice"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Minimum Selling Price</FormLabel>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleSection("minSellingPrice")}
-                                className="text-gray-500 hover:text-gray-700"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="0.00"
-                                min="0"
-                                step="0.01"
-                                {...field}
-                                value={field.value ?? ""}
-                                onChange={(e) =>
-                                  field.onChange(
-                                    e.target.value === ""
-                                      ? undefined
-                                      : parseFloat(e.target.value),
-                                  )
-                                }
-                              />
-                            </FormControl>
-                            <FormMessage />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Price floor — product cannot be sold below this price
-                            </p>
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    {/* Buying Price - only for products and non-bundle items */}
-                    {form.watch("productType") === "product" &&
-                      !form.watch("isBundle") && (
+                      {productType === "product" && !isBundle && (
                         <FormField
                           control={form.control}
                           name="buyingPrice"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Buying Price</FormLabel>
+                              <FormLabel className="text-gray-700">Buying Price</FormLabel>
                               <FormControl>
-                                <Input
-                                  type="number"
-                                  placeholder="0"
-                                  {...field}
-                                  value={field.value || ""}
-                                  onChange={(e) =>
-                                    field.onChange(
-                                      e.target.value === ""
-                                        ? undefined
-                                        : parseFloat(e.target.value),
-                                    )
-                                  }
-                                />
+                                <div className="relative">
+                                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                  <Input
+                                    type="number"
+                                    placeholder="0.00"
+                                    className="h-10 pl-9"
+                                    {...field}
+                                    value={field.value || ""}
+                                    onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))}
+                                  />
+                                </div>
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
                       )}
+                    </div>
 
-                    {/* Quantity field - only for products */}
-                    {form.watch("productType") === "product" && (
+                    {/* Quantity */}
+                    {productType === "product" && (
                       <FormField
                         control={form.control}
                         name="quantity"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>
-                              {form.watch("isBundle")
-                                ? "Bundle Quantity Available"
-                                : "Initial Quantity"}
+                            <FormLabel className="text-gray-700">
+                              {isBundle ? "Bundle Quantity Available" : "Initial Quantity"}
                             </FormLabel>
                             <FormControl>
                               <Input
                                 type="number"
                                 placeholder="0"
+                                className="h-10"
                                 {...field}
                                 value={field.value || ""}
-                                onChange={(e) =>
-                                  field.onChange(
-                                    e.target.value === ""
-                                      ? undefined
-                                      : parseInt(e.target.value),
-                                  )
-                                }
+                                onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseInt(e.target.value))}
                               />
                             </FormControl>
                             <FormMessage />
-                            {form.watch("isBundle") && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                Number of complete bundle units available for
-                                sale
-                              </p>
+                            {isBundle && (
+                              <p className="text-xs text-gray-400 mt-1">Number of complete bundle units available for sale</p>
                             )}
                           </FormItem>
                         )}
                       />
                     )}
 
-                    {/* Reorder Level - only for products, expandable */}
-                    {form.watch("productType") === "product" &&
-                      expandedSections.reorderLevel && (
+                    {/* Taxable toggle */}
+                    <FormField
+                      control={form.control}
+                      name="isTaxable"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 space-y-0">
+                          <FormControl>
+                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                          <div>
+                            <FormLabel className="font-medium text-gray-700 cursor-pointer">Taxable product</FormLabel>
+                            <p className="text-xs text-gray-400 mt-0.5">Tax will be applied at checkout</p>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+
+                {/* Optional expandable fields */}
+                {(expandedSections.wholesalePrice || expandedSections.dealerPrice ||
+                  expandedSections.maxDiscount || expandedSections.barcode ||
+                  expandedSections.minSellingPrice || expandedSections.description ||
+                  expandedSections.manufacturer || expandedSections.serialnumber ||
+                  expandedSections.category || expandedSections.supplier ||
+                  expandedSections.expiryDate || (productType === "product" && expandedSections.reorderLevel)) && (
+                  <Card className="shadow-sm border-gray-100">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base font-semibold text-gray-800">Additional Details</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+
+                      {expandedSections.barcode && (
+                        <FormField
+                          control={form.control}
+                          name="barcode"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel className="text-gray-700 flex items-center gap-1.5"><Barcode className="h-3.5 w-3.5 text-gray-400" />Barcode</FormLabel>
+                                <button type="button" onClick={() => toggleSection("barcode")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
+                              </div>
+                              <FormControl><Input placeholder="e.g. 1234567890128" className="h-10" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {expandedSections.description && (
+                        <FormField
+                          control={form.control}
+                          name="description"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel className="text-gray-700 flex items-center gap-1.5"><AlignLeft className="h-3.5 w-3.5 text-gray-400" />Description</FormLabel>
+                                <button type="button" onClick={() => toggleSection("description")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
+                              </div>
+                              <FormControl>
+                                <textarea
+                                  className="flex min-h-[90px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  placeholder="Describe this product…"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {expandedSections.category && (
+                        <FormField
+                          control={form.control}
+                          name="productCategoryId"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel className="text-gray-700 flex items-center gap-1.5"><Tag className="h-3.5 w-3.5 text-gray-400" />Category</FormLabel>
+                                <button type="button" onClick={() => toggleSection("category")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
+                              </div>
+                              <div className="flex gap-2">
+                                <div className="flex-1">
+                                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                                    <FormControl>
+                                      <SelectTrigger className="h-10">
+                                        <SelectValue placeholder="Select a category" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="none">No category</SelectItem>
+                                      {categoriesLoading ? (
+                                        <SelectItem value="loading" disabled>Loading…</SelectItem>
+                                      ) : (
+                                        categories?.map((category: any) => (
+                                          <SelectItem key={category._id} value={category._id}>{category.name}</SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
+                                  <DialogTrigger asChild>
+                                    <Button type="button" variant="outline" size="sm" className="h-10 px-3">
+                                      <Plus className="h-4 w-4" />
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="sm:max-w-md">
+                                    <DialogHeader><DialogTitle>New Category</DialogTitle></DialogHeader>
+                                    <div className="space-y-3 pt-2">
+                                      <label className="text-sm font-medium text-gray-700">Category Name</label>
+                                      <Input
+                                        value={newCategoryName}
+                                        onChange={(e) => setNewCategoryName(e.target.value)}
+                                        placeholder="e.g. Electronics, Clothing…"
+                                        className="h-10"
+                                      />
+                                    </div>
+                                    <div className="flex justify-end gap-2 mt-4">
+                                      <Button type="button" variant="outline" onClick={() => { setIsCategoryDialogOpen(false); setNewCategoryName(""); }}>Cancel</Button>
+                                      <Button type="button" onClick={handleCreateCategory} disabled={!newCategoryName.trim() || createCategoryMutation.isPending} className="bg-purple-600 hover:bg-purple-700">
+                                        {createCategoryMutation.isPending ? "Creating…" : "Create"}
+                                      </Button>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {expandedSections.supplier && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5 text-gray-400" />Supplier</label>
+                            <button type="button" onClick={() => toggleSection("supplier")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
+                          </div>
+                          <SupplierSelector
+                            value={form.watch("supplier") || ""}
+                            onChange={(value) => form.setValue("supplier", value)}
+                            shopId={shopId}
+                            adminId={adminId}
+                          />
+                        </div>
+                      )}
+
+                      {expandedSections.manufacturer && (
+                        <FormField
+                          control={form.control}
+                          name="manufacturer"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel className="text-gray-700 flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5 text-gray-400" />Manufacturer</FormLabel>
+                                <button type="button" onClick={() => toggleSection("manufacturer")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
+                              </div>
+                              <FormControl><Input placeholder="e.g. Samsung, Nike…" className="h-10" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {expandedSections.serialnumber && (
+                        <FormField
+                          control={form.control}
+                          name="serialnumber"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel className="text-gray-700 flex items-center gap-1.5"><Hash className="h-3.5 w-3.5 text-gray-400" />Serial Number</FormLabel>
+                                <button type="button" onClick={() => toggleSection("serialnumber")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
+                              </div>
+                              <FormControl><Input placeholder="Enter serial number" className="h-10" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {/* Pricing extras — side by side when both visible */}
+                      {(expandedSections.wholesalePrice || expandedSections.dealerPrice) && (
+                        <div className={`grid gap-4 ${expandedSections.wholesalePrice && expandedSections.dealerPrice ? "grid-cols-2" : "grid-cols-1"}`}>
+                          {expandedSections.wholesalePrice && (
+                            <FormField
+                              control={form.control}
+                              name="wholesalePrice"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <div className="flex items-center justify-between">
+                                    <FormLabel className="text-gray-700 flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-gray-400" />Wholesale Price</FormLabel>
+                                    <button type="button" onClick={() => toggleSection("wholesalePrice")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
+                                  </div>
+                                  <FormControl>
+                                    <div className="relative">
+                                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                      <Input type="number" placeholder="0.00" className="h-10 pl-9" {...field} value={field.value || ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))} />
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          )}
+                          {expandedSections.dealerPrice && (
+                            <FormField
+                              control={form.control}
+                              name="dealerPrice"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <div className="flex items-center justify-between">
+                                    <FormLabel className="text-gray-700 flex items-center gap-1.5"><Store className="h-3.5 w-3.5 text-gray-400" />Dealer Price</FormLabel>
+                                    <button type="button" onClick={() => toggleSection("dealerPrice")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
+                                  </div>
+                                  <FormControl>
+                                    <div className="relative">
+                                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                      <Input type="number" placeholder="0.00" className="h-10 pl-9" {...field} value={field.value || ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))} />
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      {expandedSections.minSellingPrice && (
+                        <FormField
+                          control={form.control}
+                          name="minSellingPrice"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel className="text-gray-700 flex items-center gap-1.5"><TrendingDown className="h-3.5 w-3.5 text-gray-400" />Minimum Selling Price</FormLabel>
+                                <button type="button" onClick={() => toggleSection("minSellingPrice")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
+                              </div>
+                              <FormControl>
+                                <div className="relative">
+                                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                  <Input type="number" placeholder="0.00" className="h-10 pl-9" {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))} />
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                              <p className="text-xs text-gray-400 mt-1">Product cannot be sold below this price</p>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {expandedSections.maxDiscount && (
+                        <FormField
+                          control={form.control}
+                          name="maxDiscount"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel className="text-gray-700 flex items-center gap-1.5"><Percent className="h-3.5 w-3.5 text-gray-400" />Maximum Discount</FormLabel>
+                                <button type="button" onClick={() => toggleSection("maxDiscount")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
+                              </div>
+                              <FormControl>
+                                <div className="relative">
+                                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                  <Input type="number" placeholder="0.00" className="h-10 pl-9" {...field} value={field.value || ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))} />
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                              <p className="text-xs text-gray-400 mt-1">Max fixed discount allowed on this product</p>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {productType === "product" && expandedSections.reorderLevel && (
                         <FormField
                           control={form.control}
                           name="reorderLevel"
                           render={({ field }) => (
                             <FormItem>
                               <div className="flex items-center justify-between">
-                                <FormLabel>Minimum Stock Level</FormLabel>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => toggleSection("reorderLevel")}
-                                  className="text-gray-500 hover:text-gray-700"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
+                                <FormLabel className="text-gray-700">Reorder Level</FormLabel>
+                                <button type="button" onClick={() => toggleSection("reorderLevel")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
                               </div>
                               <FormControl>
-                                <Input
-                                  type="number"
-                                  placeholder="0"
-                                  min="0"
-                                  {...field}
-                                  value={field.value || ""}
-                                  onChange={(e) =>
-                                    field.onChange(
-                                      e.target.value === ""
-                                        ? undefined
-                                        : parseInt(e.target.value),
-                                    )
-                                  }
-                                />
+                                <Input type="number" placeholder="0" className="h-10" {...field} value={field.value || ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseInt(e.target.value))} />
                               </FormControl>
                               <FormMessage />
-                              <p className="text-xs text-gray-500 mt-1">
-                                Alert when stock falls below this level
-                              </p>
+                              <p className="text-xs text-gray-400 mt-1">Alert when stock falls below this level</p>
                             </FormItem>
                           )}
                         />
                       )}
 
-                    {/* Description - expandable */}
-                    {expandedSections.description && (
-                      <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Description</FormLabel>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleSection("description")}
-                                className="text-gray-500 hover:text-gray-700"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <FormControl>
-                              <textarea
-                                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                placeholder="Enter product description"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    {/* Manufacturer - expandable */}
-                    {expandedSections.manufacturer && (
-                      <FormField
-                        control={form.control}
-                        name="manufacturer"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Manufacturer</FormLabel>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleSection("manufacturer")}
-                                className="text-gray-500 hover:text-gray-700"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <FormControl>
-                              <Input
-                                placeholder="Enter manufacturer name"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
-                    {/* Serial Number - expandable */}
-                    {expandedSections.serialnumber && (
-                      <FormField
-                        control={form.control}
-                        name="serialnumber"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Serial Number</FormLabel>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleSection("serialnumber")}
-                                className="text-gray-500 hover:text-gray-700"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <FormControl>
-                              <Input
-                                placeholder="Enter serialnumber name"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    {/* Category - expandable */}
-                    {expandedSections.category && (
-                      <FormField
-                        control={form.control}
-                        name="productCategoryId"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Category</FormLabel>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleSection("category")}
-                                className="text-gray-500 hover:text-gray-700"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <div className="flex gap-2">
-                              <div className="flex-1">
-                                <Select
-                                  onValueChange={field.onChange}
-                                  value={field.value || ""}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select category" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="none">
-                                      No category
-                                    </SelectItem>
-                                    {categoriesLoading ? (
-                                      <SelectItem value="loading" disabled>
-                                        Loading categories...
-                                      </SelectItem>
-                                    ) : (
-                                      categories?.map((category: any) => (
-                                        <SelectItem 
-                                          key={category._id} 
-                                          value={category._id}
-                                        >
-                                          {category.name}
-                                        </SelectItem>
-                                      ))
-                                    )}
-                                  </SelectContent>
-                                </Select>
+                      {expandedSections.expiryDate && (
+                        <FormField
+                          control={form.control}
+                          name="expiryDate"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel className="text-gray-700 flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 text-gray-400" />Expiry Date</FormLabel>
+                                <button type="button" onClick={() => toggleSection("expiryDate")} className="text-gray-300 hover:text-gray-500"><X className="h-4 w-4" /></button>
                               </div>
-                              <Dialog
-                                open={isCategoryDialogOpen}
-                                onOpenChange={setIsCategoryDialogOpen}
-                              >
-                                <DialogTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="px-3"
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="sm:max-w-md">
-                                  <DialogHeader>
-                                    <DialogTitle>
-                                      Create New Category
-                                    </DialogTitle>
-                                  </DialogHeader>
-                                  <div className="space-y-4">
-                                    <div>
-                                      <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                        Category Name
-                                      </label>
-                                      <Input
-                                        value={newCategoryName}
-                                        onChange={(e) =>
-                                          setNewCategoryName(e.target.value)
-                                        }
-                                        placeholder="Enter category name"
-                                        className="mt-2"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="flex justify-end space-x-2 mt-6">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      onClick={() => {
-                                        setIsCategoryDialogOpen(false);
-                                        setNewCategoryName("");
-                                      }}
-                                    >
-                                      Cancel
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      onClick={handleCreateCategory}
-                                      disabled={
-                                        !newCategoryName.trim() ||
-                                        createCategoryMutation.isPending
-                                      }
-                                    >
-                                      {createCategoryMutation.isPending
-                                        ? "Creating..."
-                                        : "Create"}
-                                    </Button>
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
-                            </div>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    {/* Supplier - expandable */}
-                    {expandedSections.supplier && (
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            Supplier
-                          </label>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleSection("supplier")}
-                            className="text-gray-500 hover:text-gray-700"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <SupplierSelector
-                          value={form.watch("supplier") || ""}
-                          onChange={(value) => form.setValue("supplier", value)}
-                          shopId={shopId}
-                          adminId={adminId}
+                              <FormControl>
+                                <Input type="date" className="h-10" {...field} value={field.value || ""} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
                         />
-                      </div>
-                    )}
-
-                    {/* Expiry Date - expandable */}
-                    {expandedSections.expiryDate && (
-                      <FormField
-                        control={form.control}
-                        name="expiryDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between">
-                              <FormLabel>Expiry Date</FormLabel>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleSection("expiryDate")}
-                                className="text-gray-500 hover:text-gray-700"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <FormControl>
-                              <Input
-                                type="date"
-                                {...field}
-                                value={field.value || ""}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Set expiry date for perishable products
-                            </p>
-                          </FormItem>
-                        )}
-                      />
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Additional Information - only for products */}
-                {form.watch("productType") === "product" && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Additional Information</CardTitle>
-                      <p className="text-sm text-gray-500">
-                        Add optional product details
-                      </p>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="flex flex-wrap gap-2">
-                        {!expandedSections.manufacturer && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("manufacturer")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Manufacturer</span>
-                          </button>
-                        )}
-                        {!expandedSections.serialnumber && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("serialnumber")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Serial Number</span>
-                          </button>
-                        )}
-
-                        {!expandedSections.barcode && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("barcode")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Barcode</span>
-                          </button>
-                        )}
-
-                        {!expandedSections.minSellingPrice && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("minSellingPrice")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Min Selling Price</span>
-                          </button>
-                        )}
-
-                        {!expandedSections.wholesalePrice && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("wholesalePrice")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Wholesale Price</span>
-                          </button>
-                        )}
-
-                        {!expandedSections.dealerPrice && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("dealerPrice")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Dealer Price</span>
-                          </button>
-                        )}
-
-                        {!expandedSections.maxDiscount && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("maxDiscount")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Max Discount</span>
-                          </button>
-                        )}
-
-                        {!expandedSections.description && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("description")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Description</span>
-                          </button>
-                        )}
-
-                        {!expandedSections.category && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("category")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Category</span>
-                          </button>
-                        )}
-
-                        {!expandedSections.supplier && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("supplier")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Supplier</span>
-                          </button>
-                        )}
-
-                        {!expandedSections.reorderLevel && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("reorderLevel")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Reorder Level</span>
-                          </button>
-                        )}
-
-                        {!expandedSections.expiryDate && (
-                          <button
-                            type="button"
-                            onClick={() => toggleSection("expiryDate")}
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Expiry Date</span>
-                          </button>
-                        )}
-                      </div>
+                      )}
                     </CardContent>
                   </Card>
                 )}
 
-                {/* Bundle Products Selector - only for bundle products */}
-                {form.watch("productType") === "product" &&
-                  form.watch("isBundle") && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Bundle Products</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                          Select products to include in this bundle
-                        </p>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <Button
+                {/* Add optional fields */}
+                {optionalFieldButtons.filter(f => f.forTypes.includes(productType as string) && !expandedSections[f.key]).length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Add more fields</p>
+                    <div className="flex flex-wrap gap-2">
+                      {optionalFieldButtons
+                        .filter(f => f.forTypes.includes(productType as string) && !expandedSections[f.key])
+                        .map(({ key, label }) => (
+                          <button
+                            key={key}
                             type="button"
-                            variant="outline"
-                            onClick={() => setIsBundleDialogOpen(true)}
-                            className="w-full"
+                            onClick={() => toggleSection(key)}
+                            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-purple-700 bg-white hover:bg-purple-50 border border-gray-200 hover:border-purple-200 px-3 py-1.5 rounded-lg transition-all"
                           >
-                            <Package className="h-4 w-4 mr-2" />
-                            {Object.keys(selectedBundleProducts).length > 0
-                              ? `Manage Bundle Products (${Object.keys(selectedBundleProducts).length} selected)`
-                              : "Select Bundle Products"}
-                          </Button>
+                            <Plus className="h-3 w-3" />
+                            {label}
+                          </button>
+                        ))
+                      }
+                    </div>
+                  </div>
+                )}
 
-                          {/* Show selected bundle products */}
-                          {Object.keys(selectedBundleProducts).length > 0 && (
-                            <div className="border-t pt-4">
-                              <h4 className="text-sm font-medium mb-3 text-gray-700">
-                                Bundle Products (
-                                {Object.keys(selectedBundleProducts).length})
-                              </h4>
-                              <div className="space-y-2">
-                                {Object.entries(selectedBundleProducts).map(
-                                  ([productId, data]) => {
-                                    const productData =
-                                      typeof data === "object" &&
-                                      "productName" in data
-                                        ? data
-                                        : {
-                                            quantity:
-                                              typeof data === "object"
-                                                ? data.quantity
-                                                : data,
-                                            productName: undefined,
-                                          };
-                                    const product = products?.find(
-                                      (p) => p._id === productId,
-                                    );
-                                    return (
-                                      <div
-                                        key={productId}
-                                        className="flex items-center justify-between p-3 bg-white border rounded-lg"
-                                      >
-                                        <div className="flex-1">
-                                          <p className="font-medium text-sm">
-                                            {product?.name ||
-                                              productData.productName ||
-                                              `Product ${productId}`}
-                                          </p>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <Input
-                                            type="number"
-                                            min="1"
-                                            value={productData.quantity}
-                                            onChange={(e) => {
-                                              const newQty =
-                                                parseInt(e.target.value) || 1;
-                                              setSelectedBundleProducts(
-                                                (prev) => ({
-                                                  ...prev,
-                                                  [productId]: {
-                                                    ...(typeof prev[
-                                                      productId
-                                                    ] === "object"
-                                                      ? prev[productId]
-                                                      : {
-                                                          productId: productId,
-                                                          inventoryId: "",
-                                                          quantity: 1,
-                                                        }),
-                                                    quantity: newQty,
-                                                  },
-                                                }),
-                                              );
-                                            }}
-                                            className="w-16 h-8 text-xs"
-                                          />
-                                          <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                              const newSelected = {
-                                                ...selectedBundleProducts,
-                                              };
-                                              delete newSelected[productId];
-                                              setSelectedBundleProducts(
-                                                newSelected,
-                                              );
-                                            }}
-                                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                                          >
-                                            <X className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    );
-                                  },
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                {/* Bundle Products */}
+                {productType === "product" && isBundle && (
+                  <Card className="shadow-sm border-gray-100">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base font-semibold text-gray-800">Bundle Products</CardTitle>
+                      <p className="text-sm text-gray-400">Select products to include in this bundle</p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsBundleDialogOpen(true)}
+                          className="w-full h-10 border-dashed"
+                        >
+                          <Package className="h-4 w-4 mr-2 text-gray-400" />
+                          {Object.keys(selectedBundleProducts).length > 0
+                            ? `Manage Bundle Items (${Object.keys(selectedBundleProducts).length} selected)`
+                            : "Select Products to Bundle"}
+                        </Button>
 
-                        <BundleProductsSelector
-                          selectedBundleProducts={selectedBundleProducts}
-                          onToggleProduct={(
-                            productId: string,
-                            productData?: any,
-                          ) => {
-                            if (selectedBundleProducts[productId]) {
-                              // Remove product
-                              const newSelected = { ...selectedBundleProducts };
-                              delete newSelected[productId];
-                              setSelectedBundleProducts(newSelected);
-                            } else {
-                              // Add product
-                              setSelectedBundleProducts((prev) => ({
-                                ...prev,
-                                [productId]: {
-                                  quantity: 1,
-                                  productId: productId,
-                                  inventoryId:
-                                    productData?.inventoryId ||
-                                    productData?._id ||
-                                    "",
-                                  productName: productData?.name,
-                                  sellingPrice: productData?.sellingPrice,
-                                },
-                              }));
-                            }
-                          }}
-                          onUpdateQuantity={(
-                            productId: string,
-                            quantity: number,
-                          ) => {
+                        {Object.keys(selectedBundleProducts).length > 0 && (
+                          <div className="space-y-2">
+                            {Object.entries(selectedBundleProducts).map(([productId, data]) => {
+                              const productData = typeof data === "object" && "productName" in data
+                                ? data
+                                : { quantity: typeof data === "object" ? data.quantity : data, productName: undefined };
+                              const prod = products?.find((p) => p._id === productId);
+                              return (
+                                <div key={productId} className="flex items-center justify-between px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                                  <p className="text-sm font-medium text-gray-700 flex-1">
+                                    {prod?.name || productData.productName || `Product ${productId}`}
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      value={productData.quantity}
+                                      onChange={(e) => {
+                                        const newQty = parseInt(e.target.value) || 1;
+                                        setSelectedBundleProducts((prev) => ({
+                                          ...prev,
+                                          [productId]: {
+                                            ...(typeof prev[productId] === "object" ? prev[productId] : { productId, inventoryId: "", quantity: 1 }),
+                                            quantity: newQty,
+                                          },
+                                        }));
+                                      }}
+                                      className="w-16 h-8 text-xs text-center"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const n = { ...selectedBundleProducts };
+                                        delete n[productId];
+                                        setSelectedBundleProducts(n);
+                                      }}
+                                      className="text-gray-300 hover:text-red-500 transition-colors"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      <BundleProductsSelector
+                        selectedBundleProducts={selectedBundleProducts}
+                        onToggleProduct={(productId: string, productData?: any) => {
+                          if (selectedBundleProducts[productId]) {
+                            const n = { ...selectedBundleProducts };
+                            delete n[productId];
+                            setSelectedBundleProducts(n);
+                          } else {
                             setSelectedBundleProducts((prev) => ({
                               ...prev,
-                              [productId]: {
-                                ...(typeof prev[productId] === "object"
-                                  ? prev[productId]
-                                  : {
-                                      productId: productId,
-                                      inventoryId: "",
-                                      quantity: 1,
-                                    }),
-                                quantity: quantity,
-                              },
+                              [productId]: { quantity: 1, productId, inventoryId: productData?.inventoryId || productData?._id || "", productName: productData?.name, sellingPrice: productData?.sellingPrice },
                             }));
-                          }}
-                          onRemoveProduct={(productId: string) => {
-                            const newSelected = { ...selectedBundleProducts };
-                            delete newSelected[productId];
-                            setSelectedBundleProducts(newSelected);
-                          }}
-                          shopId={shopId}
-                          adminId={adminId}
-                          existingProducts={products || []}
-                          excludeProductId={productId || ""}
-                          isOpen={isBundleDialogOpen}
-                          onClose={() => setIsBundleDialogOpen(false)}
-                        />
-                      </CardContent>
-                    </Card>
-                  )}
-              </div>
-
-              {/* Right Column - Product Settings & Actions */}
-              <div className="space-y-8">
-                {/* Product Settings - only for products */}
-                {form.watch("productType") === "product" && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Product Settings</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="isBundle"
-                        render={({ field }) => (
-                          <FormItem className="flex items-start space-x-3 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel>Bundle Product</FormLabel>
-                              <p className="text-sm text-muted-foreground">
-                                This product contains other products
-                              </p>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="manageInventory"
-                        render={({ field }) => (
-                          <FormItem className="flex items-start space-x-3 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel>Manage Inventory</FormLabel>
-                              <p className="text-sm text-muted-foreground">
-                                Track stock quantity for this product
-                              </p>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="manageByPrice"
-                        render={({ field }) => (
-                          <FormItem className="flex items-start space-x-3 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel>Manage by Price</FormLabel>
-                              <p className="text-sm text-muted-foreground">
-                                Sell products by price amount
-                              </p>
-                            </div>
-                          </FormItem>
-                        )}
+                          }
+                        }}
+                        onUpdateQuantity={(productId: string, quantity: number) => {
+                          setSelectedBundleProducts((prev) => ({
+                            ...prev,
+                            [productId]: {
+                              ...(typeof prev[productId] === "object" ? prev[productId] : { productId, inventoryId: "", quantity: 1 }),
+                              quantity,
+                            },
+                          }));
+                        }}
+                        onRemoveProduct={(productId: string) => {
+                          const n = { ...selectedBundleProducts };
+                          delete n[productId];
+                          setSelectedBundleProducts(n);
+                        }}
+                        shopId={shopId}
+                        adminId={adminId}
+                        existingProducts={products || []}
+                        excludeProductId={productId || ""}
+                        isOpen={isBundleDialogOpen}
+                        onClose={() => setIsBundleDialogOpen(false)}
                       />
                     </CardContent>
                   </Card>
                 )}
+              </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+              {/* ── RIGHT COLUMN ── */}
+              <div className="space-y-5">
+
+                {/* Actions */}
+                <Card className="shadow-sm border-gray-100">
+                  <CardContent className="pt-5 space-y-3">
                     <Button
                       type="submit"
                       disabled={mutation.isPending}
-                      className="w-full bg-purple-600 hover:bg-purple-700"
+                      className="w-full h-10 bg-purple-600 hover:bg-purple-700 font-medium"
                     >
                       {mutation.isPending
-                        ? isEditMode
-                          ? "Updating..."
-                          : "Creating..."
-                        : isEditMode
-                          ? "Update Product"
-                          : "Create Product"}
+                        ? (isEditMode ? "Saving…" : "Creating…")
+                        : (isEditMode ? "Save Changes" : "Create Product")}
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => navigate(productsRoute)}
-                      className="w-full"
+                      className="w-full h-10"
                     >
                       Cancel
                     </Button>
                   </CardContent>
                 </Card>
+
+                {/* Product Settings */}
+                {productType === "product" && (
+                  <Card className="shadow-sm border-gray-100">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Product Settings</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-1">
+                      {[
+                        { name: "isBundle" as const, label: "Bundle Product", desc: "Contains multiple products" },
+                        { name: "manageInventory" as const, label: "Track Inventory", desc: "Monitor stock quantities" },
+                        { name: "manageByPrice" as const, label: "Sell by Price", desc: "Use price-based selling" },
+                      ].map(({ name, label, desc }) => (
+                        <FormField
+                          key={name}
+                          control={form.control}
+                          name={name}
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-50 space-y-0 transition-colors">
+                              <FormControl>
+                                <Checkbox checked={field.value as boolean} onCheckedChange={field.onChange} />
+                              </FormControl>
+                              <div className="flex-1 min-w-0">
+                                <FormLabel className="text-sm font-medium text-gray-700 cursor-pointer">{label}</FormLabel>
+                                <p className="text-xs text-gray-400 mt-0.5 truncate">{desc}</p>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Help hint */}
+                <div className="rounded-xl bg-purple-50 border border-purple-100 px-4 py-3">
+                  <p className="text-xs font-medium text-purple-700 mb-1">
+                    {productType === "product" ? "Physical Product" : productType === "service" ? "Service" : "Virtual Item"}
+                  </p>
+                  <p className="text-xs text-purple-500 leading-relaxed">
+                    {productType === "product"
+                      ? "Track inventory, set buying & selling prices, and manage stock levels."
+                      : productType === "service"
+                      ? "Services don't require inventory tracking. Set a price and you're ready."
+                      : "Virtual items are digital goods — no physical stock needed."}
+                  </p>
+                </div>
               </div>
+
             </div>
           </form>
         </Form>
