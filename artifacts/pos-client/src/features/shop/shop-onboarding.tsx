@@ -110,7 +110,7 @@ export default function ShopOnboarding() {
           {step === 1 && (
             <>
               <h1 className="text-3xl font-bold text-gray-900 mb-8">
-                What's your shop called?
+                What's your business called?
               </h1>
               <input
                 autoFocus
@@ -137,7 +137,7 @@ export default function ShopOnboarding() {
           {step === 2 && (
             <>
               <h1 className="text-3xl font-bold text-gray-900 mb-8">
-                Where is your shop located?
+                Where is your business located?
               </h1>
 
               <div className="space-y-8">
@@ -170,7 +170,7 @@ export default function ShopOnboarding() {
                   disabled={isLoading || !address.trim()}
                   className="flex items-center gap-2 px-8 py-4 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-2xl transition-all text-lg"
                 >
-                  {isLoading ? "Setting up…" : <> Create shop <ArrowRight className="w-5 h-5" /> </>}
+                  {isLoading ? "Setting up…" : <> Create business <ArrowRight className="w-5 h-5" /> </>}
                 </button>
               </div>
             </>
