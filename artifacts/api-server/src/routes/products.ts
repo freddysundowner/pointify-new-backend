@@ -246,8 +246,10 @@ router.post("/", requireAdmin, async (req, res, next) => {
   try {
     const {
       name, shopId, categoryId, barcode, serialNumber, buyingPrice, sellingPrice,
-      wholesalePrice, dealerPrice, quantity, measureUnit, manufacturer,
+      wholesalePrice, dealerPrice, minSellingPrice, maxDiscount,
+      quantity, measureUnit, manufacturer,
       supplierId, description, alertQuantity, expiryDate, type,
+      isTaxable, manageByPrice,
       bundleItems: bundleItemsPayload,
     } = req.body;
     if (!name || !shopId) throw badRequest("name and shopId required");
@@ -294,12 +296,16 @@ router.post("/", requireAdmin, async (req, res, next) => {
       sellingPrice: sellingPrice != null ? String(sellingPrice) : null,
       wholesalePrice: wholesalePrice != null ? String(wholesalePrice) : null,
       dealerPrice: dealerPrice != null ? String(dealerPrice) : null,
+      minSellingPrice: minSellingPrice != null ? String(minSellingPrice) : null,
+      maxDiscount: maxDiscount != null ? String(maxDiscount) : null,
       measureUnit: measureUnit ?? "",
       manufacturer: manufacturer ?? "",
       supplier: supplierId ? Number(supplierId) : null,
       description,
       expiryDate: expiryDate ? new Date(expiryDate) : null,
       type: bundlePayload.length > 0 ? "bundle" : (type ?? "product"),
+      isTaxable: isTaxable != null ? Boolean(isTaxable) : false,
+      manageByPrice: manageByPrice != null ? Boolean(manageByPrice) : false,
       createdBy: req.attendant?.id ?? null,
     }).returning();
 
