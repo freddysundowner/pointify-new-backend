@@ -48,8 +48,7 @@ export default function PurchaseEditPage() {
     queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
       if (!shopId) return [];
-      const response = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
-      if (!response.ok) throw new Error('Failed to fetch suppliers');
+      const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
       return response.json();
     },
     enabled: !!shopId,
@@ -76,16 +75,7 @@ export default function PurchaseEditPage() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await fetch(ENDPOINTS.purchases.update(id), {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        throw new Error(`${response.status}: ${response.statusText}`);
-      }
+      const response = await apiRequest('PUT', ENDPOINTS.purchases.update(id), data);
       return response.json();
     },
     onSuccess: () => {

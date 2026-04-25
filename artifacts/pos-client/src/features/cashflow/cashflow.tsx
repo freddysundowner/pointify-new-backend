@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { apiRequest } from '@/lib/queryClient';
 import { Search, Plus, TrendingUp, TrendingDown, DollarSign, Calendar, ArrowUpRight, ArrowDownRight, Filter, ChevronRight, ArrowLeft } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useNavigationRoute } from '@/lib/navigation-utils';
@@ -260,12 +261,7 @@ export default function CashFlow() {
   const { data: shopsData } = useQuery({
     queryKey: ["shops", admin?._id],
     queryFn: async () => {
-      const response = await fetch(ENDPOINTS.shop.getAll, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      if (!response.ok) throw new Error('Failed to fetch shops');
+      const response = await apiRequest('GET', ENDPOINTS.shop.getAll);
       return response.json();
     },
     enabled: !!admin?._id
@@ -306,17 +302,7 @@ export default function CashFlow() {
         params.append('attendantId', attendant._id);
       }
       
-      const response = await fetch(`${ENDPOINTS.cashflow.getAll}?${params.toString()}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch cashflow data');
-      }
-      
+      const response = await apiRequest('GET', `${ENDPOINTS.cashflow.getAll}?${params.toString()}`);
       return response.json();
     },
     enabled: !!effectiveShopId,
@@ -328,18 +314,7 @@ export default function CashFlow() {
   // Create cashflow transaction mutation
   const createTransactionMutation = useMutation({
     mutationFn: async (payload: { name: string; amount: number; category: string; attendantId: string; shopId: string }) => {
-      const response = await fetch(ENDPOINTS.cashflow.create, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create transaction');
-      }
-      
+      const response = await apiRequest('POST', ENDPOINTS.cashflow.create, payload);
       return response.json();
     },
     onSuccess: () => {
@@ -366,15 +341,7 @@ export default function CashFlow() {
   const { data: cashflowCategories = [] } = useQuery({
     queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId],
     queryFn: async () => {
-      const response = await fetch(`${ENDPOINTS.cashflow.categories}?shop=${effectiveShopId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch categories');
-      }
+      const response = await apiRequest('GET', `${ENDPOINTS.cashflow.categories}?shop=${effectiveShopId}`);
       return response.json();
     },
     enabled: !!effectiveShopId,
@@ -585,19 +552,7 @@ export default function CashFlow() {
 
       console.log('Submitting cashflow transaction:', payload);
 
-      const response = await fetch(ENDPOINTS.cashflow.create, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create cashflow transaction');
-      }
-
+      const response = await apiRequest('POST', ENDPOINTS.cashflow.create, payload);
       const result = await response.json();
       console.log('Cashflow transaction created:', result);
 

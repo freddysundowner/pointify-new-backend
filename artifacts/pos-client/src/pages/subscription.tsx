@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -74,7 +75,7 @@ export default function SubscriptionPage() {
   // Fetch packages from API
   const { data: packagesData, isLoading: isLoadingPackages, error: packagesError, refetch: refetchPackages } = useQuery({
     queryKey: [ENDPOINTS.packages.getAll],
-    queryFn: () => fetch(`${ENDPOINTS.packages.getAll}?page=1&limit=20&admin=true`).then(res => res.json()),
+    queryFn: () => apiRequest("GET", `${ENDPOINTS.packages.getAll}?page=1&limit=20&admin=true`).then(res => res.json()),
   });
 
   // Fetch real shops data from API
@@ -82,7 +83,7 @@ export default function SubscriptionPage() {
     queryKey: [ENDPOINTS.shop.getAll, adminData?._id],
     queryFn: () => {
       if (!adminData?._id) return Promise.resolve([]);
-      return fetch(ENDPOINTS.shop.getAll).then(res => res.json());
+      return apiRequest("GET", ENDPOINTS.shop.getAll).then(res => res.json());
     },
     enabled: !!adminData?._id,
   });

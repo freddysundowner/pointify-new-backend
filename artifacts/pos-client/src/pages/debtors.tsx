@@ -61,7 +61,7 @@ export default function DebtorsPage() {
         throw new Error('Shop ID or Admin ID not available');
       }
 
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const response = await fetch(`${ENDPOINTS.customers.getDebtors}?shopId=${shopId}&adminid=${admin._id}&page=${currentPage}&limit=${pageSize}`, {
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -14,6 +14,7 @@ import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useLocation } from "wouter";
 import { ENDPOINTS } from "@/lib/api-endpoints";
+import { apiRequest } from "@/lib/queryClient";
 
 interface ProfitLossData {
   creditTotals: number;
@@ -86,10 +87,7 @@ export default function ProfitLossPage() {
         shopId: effectiveShopId || "",
         adminId: effectiveAdminId || "",
       });
-      const response = await fetch(`${ENDPOINTS.attendants.getByShop}?${params}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch attendants");
-      }
+      const response = await apiRequest('GET', `${ENDPOINTS.attendants.getByShop}?${params}`);
       return response.json();
     },
     enabled: !!effectiveShopId && !!effectiveAdminId && !!user, // Only enable for admin users

@@ -56,18 +56,7 @@ export default function SupplierSelector({
   // Create supplier mutation
   const createSupplierMutation = useMutation({
     mutationFn: async (supplierData: { name: string; shopId: string; phoneNumber: string }) => {
-      const response = await fetch(ENDPOINTS.suppliers.create, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(supplierData)
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create supplier');
-      }
-      
+      const response = await apiRequest('POST', ENDPOINTS.suppliers.create, supplierData);
       return await response.json();
     },
     onSuccess: (data: any) => {

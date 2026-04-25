@@ -46,16 +46,7 @@ export default function PurchasePaymentPage() {
 
   const paymentMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await fetch(ENDPOINTS.purchases.addPayment(id), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        throw new Error(`${response.status}: ${response.statusText}`);
-      }
+      const response = await apiRequest('POST', ENDPOINTS.purchases.addPayment(id), data);
       return response.json();
     },
     onSuccess: () => {

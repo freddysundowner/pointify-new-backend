@@ -58,7 +58,7 @@ export default function SmsSettingsPage() {
     queryKey: ["shop-sms", shopId],
     queryFn: async () => {
       if (!shopId) return null;
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("authToken");
       const res = await fetch(ENDPOINTS.shop.getById(shopId), {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -88,7 +88,7 @@ export default function SmsSettingsPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("authToken");
       const res = await fetch(ENDPOINTS.shop.getById(shopId), {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -113,7 +113,7 @@ export default function SmsSettingsPage() {
 
   const topUpMutation = useMutation({
     mutationFn: async ({ phone, amount }: { phone: string; amount: number }) => {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("authToken");
       const userId = shopData?.adminId?._id || admin?._id;
       const res = await fetch(ENDPOINTS.sms.topup, {
         method: "POST",
@@ -159,7 +159,7 @@ export default function SmsSettingsPage() {
     queryKey: ["sms-logs", adminId],
     queryFn: async () => {
       if (!adminId) return [];
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("authToken");
       const res = await fetch(ENDPOINTS.sms.getLogs, {
         headers: { Authorization: `Bearer ${token}` },
       });

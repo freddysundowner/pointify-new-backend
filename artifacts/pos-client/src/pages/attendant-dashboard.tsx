@@ -29,6 +29,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAttendantAuth } from '@/contexts/AttendantAuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { ENDPOINTS } from '@/lib/api-endpoints';
+import { apiRequest } from '@/lib/queryClient';
 
 interface AttendantData {
   _id: string;
@@ -87,21 +89,17 @@ function AttendantDashboardContent() {
       if (attendant?.shopId) {
         try {
           const shopId = typeof attendant.shopId === 'object' ? attendant.shopId._id : attendant.shopId;
-          const response = await fetch(ENDPOINTS.shop.getById(shopId));
-          if (response.ok) {
-            const shopData = await response.json();
-            setShopName(shopData.name || 'Unknown Shop');
-            
-            // Store complete shop data with subscription info for permission checks
-            localStorage.setItem('currentShopData', JSON.stringify(shopData));
-            console.log('Cached shop subscription data for attendant permissions:', {
-              shopId: shopData._id,
-              subscriptionStatus: shopData.subscription?.status,
-              subscriptionEndDate: shopData.subscription?.endDate
-            });
-          } else {
-            setShopName('Unknown Shop');
-          }
+          const response = await apiRequest('GET', ENDPOINTS.shop.getById(shopId));
+          const shopData = await response.json();
+          setShopName(shopData.name || 'Unknown Shop');
+          
+          // Store complete shop data with subscription info for permission checks
+          localStorage.setItem('currentShopData', JSON.stringify(shopData));
+          console.log('Cached shop subscription data for attendant permissions:', {
+            shopId: shopData._id,
+            subscriptionStatus: shopData.subscription?.status,
+            subscriptionEndDate: shopData.subscription?.endDate
+          });
         } catch (error) {
           console.error('Error fetching shop data:', error);
           setShopName('Unknown Shop');

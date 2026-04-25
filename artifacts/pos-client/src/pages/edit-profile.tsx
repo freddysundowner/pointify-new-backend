@@ -41,7 +41,7 @@ export default function EditProfilePage() {
   // Mutation for updating profile
   const updateProfileMutation = useMutation({
     mutationFn: async (profileData: any) => {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const response = await fetch(ENDPOINTS.auth.adminProfile, {
         method: 'PUT',
         body: JSON.stringify(profileData),
@@ -119,7 +119,7 @@ export default function EditProfilePage() {
   // Password change mutation - sends to /admin/:id with password field
   const changePasswordMutation = useMutation({
     mutationFn: async (passwordChangeData: any) => {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       // Include all current profile data plus the new password
       const fullUpdateData = {
         username: `${formData.firstName} ${formData.lastName}`.trim() || admin.username,

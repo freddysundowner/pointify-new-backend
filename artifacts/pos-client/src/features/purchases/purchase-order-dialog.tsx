@@ -106,8 +106,7 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
     queryFn: async () => {
       const shopId = getShopId();
       if (!shopId) return [];
-      const response = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
-      if (!response.ok) throw new Error("Failed to fetch suppliers");
+      const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
       return response.json();
     },
     enabled: isOpen && !!getShopId(),
@@ -168,12 +167,7 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
   // Create purchase order mutation
   const createPurchaseMutation = useMutation({
     mutationFn: async (purchaseData: any) => {
-      const response = await fetch(ENDPOINTS.purchases.create, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(purchaseData)
-      });
-      if (!response.ok) throw new Error("Failed to create purchase order");
+      const response = await apiRequest('POST', ENDPOINTS.purchases.create, purchaseData);
       return response.json();
     },
     onSuccess: () => {

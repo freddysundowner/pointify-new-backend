@@ -17,6 +17,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { ENDPOINTS } from "@/lib/api-endpoints";
+import { apiRequest } from "@/lib/queryClient";
 
 function ReturnsList() {
   const { hasPermission, user } = usePermissions();
@@ -212,16 +213,7 @@ function ReturnsList() {
     
     setIsDeleting(true);
     try {
-      const response = await fetch(ENDPOINTS.saleReturns.delete(returnToDelete.id), {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete return');
-      }
+      const response = await apiRequest('DELETE', ENDPOINTS.saleReturns.delete(returnToDelete.id));
 
       // Refresh the returns list after successful deletion
       refetch();

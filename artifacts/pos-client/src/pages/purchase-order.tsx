@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useCurrency } from '@/utils';
 import { ENDPOINTS } from '@/lib/api-endpoints';
+import { apiRequest } from '@/lib/queryClient';
 
 interface Product {
   _id?: string;
@@ -88,18 +89,7 @@ export default function PurchaseOrderPage() {
   // Create purchase mutation
   const createPurchaseMutation = useMutation({
     mutationFn: async (purchaseData: any) => {
-      const response = await fetch(ENDPOINTS.purchases.create, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(purchaseData),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create purchase');
-      }
-
+      const response = await apiRequest('POST', ENDPOINTS.purchases.create, purchaseData);
       return response.json();
     },
     onSuccess: () => {

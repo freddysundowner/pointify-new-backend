@@ -75,15 +75,7 @@ export default function CashflowCategories() {
   const { data: categories = [], isLoading, error } = useQuery({
     queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId],
     queryFn: async () => {
-      const response = await fetch(`${ENDPOINTS.cashflow.categories}?shop=${effectiveShopId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch categories');
-      }
+      const response = await apiRequest('GET', `${ENDPOINTS.cashflow.categories}?shop=${effectiveShopId}`);
       return response.json();
     },
     enabled: !!effectiveShopId,

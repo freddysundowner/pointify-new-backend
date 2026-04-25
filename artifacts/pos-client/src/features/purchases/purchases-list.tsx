@@ -120,8 +120,7 @@ export default function PurchasesList() {
     queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
       if (!shopId) return [];
-      const response = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
-      if (!response.ok) throw new Error("Failed to fetch suppliers");
+      const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
       return response.json();
     },
     enabled: !!shopId,
@@ -133,10 +132,7 @@ export default function PurchasesList() {
     queryKey: [ENDPOINTS.attendants.getByShop, shopId],
     queryFn: async () => {
       if (!shopId || !showAttendantFilter) return [];
-      const response = await fetch(
-        `${ENDPOINTS.attendants.getByShop}?shopId=${shopId}`,
-      );
-      if (!response.ok) throw new Error("Failed to fetch attendants");
+      const response = await apiRequest('GET', `${ENDPOINTS.attendants.getByShop}?shopId=${shopId}`);
       return response.json();
     },
     enabled: !!shopId && showAttendantFilter,
@@ -205,16 +201,7 @@ export default function PurchasesList() {
       const queryParams = buildQueryParams();
       // Add timestamp to force cache busting
       const timestamp = Date.now();
-      const response = await fetch(
-        `${ENDPOINTS.purchases.getAll}?${queryParams}&_t=${timestamp}`,
-        {
-          headers: {
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-          },
-        },
-      );
-      if (!response.ok) throw new Error("Failed to fetch purchases");
+      const response = await apiRequest('GET', `${ENDPOINTS.purchases.getAll}?${queryParams}&_t=${timestamp}`);
       return response.json();
     },
     // enabled: !!shopId && canViewPurchases,
@@ -272,16 +259,7 @@ export default function PurchasesList() {
 
       // Add timestamp to force cache busting
       const timestamp = Date.now();
-      const response = await fetch(
-        `${ENDPOINTS.purchases.reportFilter}?${params}&_t=${timestamp}`,
-        {
-          headers: {
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-          },
-        },
-      );
-      if (!response.ok) throw new Error("Failed to fetch analytics");
+      const response = await apiRequest('GET', `${ENDPOINTS.purchases.reportFilter}?${params}&_t=${timestamp}`);
       return response.json();
     },
     enabled: !!shopId,
@@ -293,10 +271,7 @@ export default function PurchasesList() {
   // Delete purchase mutation
   const deletePurchaseMutation = useMutation({
     mutationFn: async (purchaseId: string) => {
-      const response = await fetch(ENDPOINTS.purchases.delete(purchaseId), {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error("Failed to delete purchase");
+      const response = await apiRequest('DELETE', ENDPOINTS.purchases.delete(purchaseId));
       return response.json();
     },
     onSuccess: () => {

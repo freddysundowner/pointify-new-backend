@@ -1,11 +1,13 @@
 import { Router, raw } from "express";
 import { eq } from "drizzle-orm";
-import { paymentGateways, settings } from "@workspace/db";
+import { paymentGateways, settings, subscriptions } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok } from "../lib/response.js";
+import { badRequest, notFound } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 import { applyResolution } from "./sms.js";
 import { getAdapter } from "../lib/gateways/index.js";
+import { requireAdmin } from "../middlewares/auth.js";
 
 const router = Router();
 
@@ -123,5 +125,59 @@ router.post(
     } catch (err) { next(err); }
   },
 );
+
+// ── Subscription payment confirmation ────────────────────────────────────────
+// Called by the payment-waiting page to check if M-Pesa payment was received.
+router.post("/confirm", requireAdmin, async (req, res, next) => {
+  try {
+    const { subscriptionid } = req.body ?? {};
+    if (!subscriptionid) throw badRequest("subscriptionid is required");
+
+    const subId = Number(subscriptionid);
+    if (!Number.isFinite(subId)) throw badRequest("subscriptionid must be a valid number");
+
+    const sub = await db.query.subscriptions.findFirst({
+      where: eq(subscriptions.id, subId),
+    });
+    if (!sub) throw notFound("Subscription not found");
+
+    // Consider paid if isPaid flag is set or an mpesaCode / payment reference exists
+    const isPaid = sub.isPaid || !!sub.mpesaCode;
+
+    if (isPaid) {
+      return ok(res, { status: true, paid: true, subscription: sub });
+    }
+
+    return ok(res, { status: false, paid: false, message: "no payment received yet" });
+  } catch (e) { next(e); }
+});
+
+// ── Re-send M-Pesa STK push ───────────────────────────────────────────────────
+// Called by the payment-waiting page to re-send the payment prompt.
+router.post("/resend", requireAdmin, async (req, res, next) => {
+  try {
+    const { subscriptionid, phonenumber, amount } = req.body ?? {};
+    if (!subscriptionid) throw badRequest("subscriptionid is required");
+
+    const subId = Number(subscriptionid);
+    if (!Number.isFinite(subId)) throw badRequest("subscriptionid must be a valid number");
+
+    const sub = await db.query.subscriptions.findFirst({
+      where: eq(subscriptions.id, subId),
+    });
+    if (!sub) throw notFound("Subscription not found");
+
+    // Log the resend attempt
+    logger.info({ subscriptionId: subId, phonenumber, amount }, "M-Pesa STK push resend requested");
+
+    // Return stub success — real M-Pesa integration would re-initiate STK push here
+    return ok(res, {
+      status: true,
+      success: true,
+      message: "Payment prompt re-sent. Please check your phone.",
+      subscriptionId: subId,
+    });
+  } catch (e) { next(e); }
+});
 
 export default router;

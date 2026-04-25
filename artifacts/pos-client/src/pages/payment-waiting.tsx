@@ -6,6 +6,7 @@ import { CheckCircle, Clock, Smartphone, RefreshCw, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/utils';
 import { ENDPOINTS } from '@/lib/api-endpoints';
+import { apiRequest } from '@/lib/queryClient';
 
 interface PaymentWaitingProps {
   subscriptionId: string;
@@ -78,17 +79,7 @@ export default function PaymentWaiting() {
     
     try {
       // First get subscription details to extract shop information
-      const subscriptionResponse = await fetch(ENDPOINTS.subscriptions.getById(subscriptionId), {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!subscriptionResponse.ok) {
-        throw new Error('Failed to fetch subscription details');
-      }
-
+      const subscriptionResponse = await apiRequest('GET', ENDPOINTS.subscriptions.getById(subscriptionId));
       const subscriptionData = await subscriptionResponse.json();
       console.log('Subscription data:', subscriptionData);
 
@@ -101,18 +92,7 @@ export default function PaymentWaiting() {
 
       console.log('Confirming payment with payload:', confirmPayload);
 
-      const confirmResponse = await fetch(ENDPOINTS.payments.confirm, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(confirmPayload)
-      });
-
-      if (!confirmResponse.ok) {
-        throw new Error('Failed to confirm payment');
-      }
-
+      const confirmResponse = await apiRequest('POST', ENDPOINTS.payments.confirm, confirmPayload);
       const confirmResult = await confirmResponse.json();
       console.log('Payment confirmation result:', confirmResult);
 
@@ -198,18 +178,7 @@ export default function PaymentWaiting() {
 
       console.log('Resending push notification with payload:', resendPayload);
 
-      const response = await fetch(ENDPOINTS.payments.resend, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(resendPayload)
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to resend push notification');
-      }
-
+      const response = await apiRequest('POST', ENDPOINTS.payments.resend, resendPayload);
       const result = await response.json();
       console.log('Resend result:', result);
 

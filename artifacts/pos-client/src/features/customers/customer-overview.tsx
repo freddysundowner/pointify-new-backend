@@ -408,7 +408,7 @@ export default function CustomerOverview() {
       console.log('Selected Shop ID from Redux:', selectedShopId);
       console.log('PaymentTag parameter included:', params.get('paymentTag'));
       
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -444,7 +444,7 @@ export default function CustomerOverview() {
     queryFn: async () => {
       if (!customerId) return [];
       
-      const token = localStorage.getItem('token') || localStorage.getItem('attendantToken');
+      const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
       const url = `${ENDPOINTS.customers.getPayments(customerId)}?type=${statementFilter}`;
       
       const response = await fetch(url, {
@@ -693,7 +693,7 @@ export default function CustomerOverview() {
         attendantId: attendantId
       };
 
-      const token = localStorage.getItem("token") || localStorage.getItem("attendantToken");
+      const token = localStorage.getItem("authToken") || localStorage.getItem("attendantToken");
       const response = await fetch(ENDPOINTS.customers.update(customerId), {
         method: 'PUT',
         headers: {
