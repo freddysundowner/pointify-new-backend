@@ -80,6 +80,7 @@ export default function StockProducts() {
   const { toast } = useToast();
   const { refreshProducts } = useProducts();
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [page, setPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -118,10 +119,16 @@ export default function StockProducts() {
     }
   }, [location]);
 
+  // Debounce search — wait 400ms after last keystroke before querying API
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Reset page to 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, selectedCategory, productType, sortBy, stockFilter]);
+  }, [debouncedSearch, selectedCategory, productType, sortBy, stockFilter]);
 
   // Get effective shop ID from Redux state or fallback to admin/attendant data
   const getShopId = () => {
@@ -162,7 +169,7 @@ export default function StockProducts() {
       effectiveShopId,
       page,
       itemsPerPage,
-      searchQuery,
+      debouncedSearch,
       selectedCategory,
       productType,
       sortBy,
@@ -172,7 +179,7 @@ export default function StockProducts() {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: itemsPerPage.toString(),
-        search: searchQuery,
+        search: debouncedSearch,
         shopId: effectiveShopId || "",
         ...(stockFilter !== "all" ? { stockStatus: stockFilter } : {}),
         ...(selectedCategory !== "all" ? { categoryId: selectedCategory } : {}),
