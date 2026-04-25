@@ -712,7 +712,7 @@ export default function ProductForm() {
                                   placeholder="0.00"
                                   className="h-10 pl-9"
                                   {...field}
-                                  value={field.value ?? ""}
+                                  value={field.value || ""}
                                   onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))}
                                 />
                               </div>
@@ -740,7 +740,7 @@ export default function ProductForm() {
                                     placeholder="0.00"
                                     className="h-10 pl-9"
                                     {...field}
-                                    value={field.value ?? ""}
+                                    value={field.value || ""}
                                     onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))}
                                   />
                                 </div>
@@ -1028,7 +1028,7 @@ export default function ProductForm() {
                               <FormControl>
                                 <div className="relative">
                                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                  <Input type="number" placeholder="0.00" className="h-10 pl-9" {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))} />
+                                  <Input type="number" placeholder="0.00" className="h-10 pl-9" {...field} value={field.value || ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))} />
                                 </div>
                               </FormControl>
                               <FormMessage />
