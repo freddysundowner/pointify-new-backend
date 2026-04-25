@@ -22,11 +22,11 @@ app.use(
       return "info";
     },
     customSuccessMessage(req, res, responseTime) {
-      const url = (req.url ?? "/").split("?")[0];
+      const url = req.originalUrl ?? req.url ?? "/";
       return `${req.method} ${url} ${res.statusCode} — ${responseTime}ms`;
     },
     customErrorMessage(req, res, err) {
-      const url = (req.url ?? "/").split("?")[0];
+      const url = req.originalUrl ?? req.url ?? "/";
       return `${req.method} ${url} ${res.statusCode} — ${err.message}`;
     },
     serializers: {
