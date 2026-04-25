@@ -545,6 +545,7 @@ export default function ProductForm() {
 
   const productType = form.watch("productType");
   const isBundle = form.watch("isBundle");
+  const manageByPrice = form.watch("manageByPrice");
 
   // Auto-derive isBundle from selected products
   useEffect(() => {
@@ -566,18 +567,18 @@ export default function ProductForm() {
     return <ShoppingCart className="h-4 w-4" />;
   };
 
-  const optionalFieldButtons: { key: keyof typeof expandedSections; label: string; forTypes: string[] }[] = [
+  const optionalFieldButtons: { key: keyof typeof expandedSections; label: string; forTypes: string[]; hideWhenByPrice?: boolean }[] = [
     { key: "manufacturer", label: "Manufacturer", forTypes: ["product"] },
     { key: "serialnumber", label: "Serial Number", forTypes: ["product"] },
     { key: "barcode", label: "Barcode", forTypes: ["product", "service", "virtual"] },
-    { key: "minSellingPrice", label: "Min Price", forTypes: ["product", "service", "virtual"] },
-    { key: "wholesalePrice", label: "Wholesale Price", forTypes: ["product"] },
-    { key: "dealerPrice", label: "Dealer Price", forTypes: ["product"] },
-    { key: "maxDiscount", label: "Max Discount", forTypes: ["product", "service"] },
+    { key: "minSellingPrice", label: "Min Price", forTypes: ["product", "service", "virtual"], hideWhenByPrice: true },
+    { key: "wholesalePrice", label: "Wholesale Price", forTypes: ["product"], hideWhenByPrice: true },
+    { key: "dealerPrice", label: "Dealer Price", forTypes: ["product"], hideWhenByPrice: true },
+    { key: "maxDiscount", label: "Max Discount", forTypes: ["product", "service"], hideWhenByPrice: true },
     { key: "description", label: "Description", forTypes: ["product", "service", "virtual"] },
     { key: "category", label: "Category", forTypes: ["product", "service", "virtual"] },
     { key: "supplier", label: "Supplier", forTypes: ["product"] },
-    { key: "reorderLevel", label: "Reorder Level", forTypes: ["product"] },
+    { key: "reorderLevel", label: "Reorder Level", forTypes: ["product"], hideWhenByPrice: true },
     { key: "expiryDate", label: "Expiry Date", forTypes: ["product"] },
   ];
 
@@ -735,7 +736,7 @@ export default function ProductForm() {
                     </div>
 
                     {/* Quantity */}
-                    {productType === "product" && (
+                    {productType === "product" && !manageByPrice && (
                       <FormField
                         control={form.control}
                         name="quantity"
@@ -783,12 +784,12 @@ export default function ProductForm() {
                 </Card>
 
                 {/* Optional expandable fields */}
-                {(expandedSections.wholesalePrice || expandedSections.dealerPrice ||
-                  expandedSections.maxDiscount || expandedSections.barcode ||
-                  expandedSections.minSellingPrice || expandedSections.description ||
+                {((!manageByPrice && (expandedSections.wholesalePrice || expandedSections.dealerPrice ||
+                  expandedSections.maxDiscount || expandedSections.minSellingPrice || expandedSections.reorderLevel)) ||
+                  expandedSections.barcode || expandedSections.description ||
                   expandedSections.manufacturer || expandedSections.serialnumber ||
                   expandedSections.category || expandedSections.supplier ||
-                  expandedSections.expiryDate || (productType === "product" && expandedSections.reorderLevel)) && (
+                  expandedSections.expiryDate) && (
                   <Card className="shadow-sm border-gray-100">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base font-semibold text-gray-800">Additional Details</CardTitle>
@@ -947,7 +948,7 @@ export default function ProductForm() {
                       )}
 
                       {/* Pricing extras — side by side when both visible */}
-                      {(expandedSections.wholesalePrice || expandedSections.dealerPrice) && (
+                      {!manageByPrice && (expandedSections.wholesalePrice || expandedSections.dealerPrice) && (
                         <div className={`grid gap-4 ${expandedSections.wholesalePrice && expandedSections.dealerPrice ? "grid-cols-2" : "grid-cols-1"}`}>
                           {expandedSections.wholesalePrice && (
                             <FormField
@@ -994,7 +995,7 @@ export default function ProductForm() {
                         </div>
                       )}
 
-                      {expandedSections.minSellingPrice && (
+                      {!manageByPrice && expandedSections.minSellingPrice && (
                         <FormField
                           control={form.control}
                           name="minSellingPrice"
@@ -1017,7 +1018,7 @@ export default function ProductForm() {
                         />
                       )}
 
-                      {expandedSections.maxDiscount && (
+                      {!manageByPrice && expandedSections.maxDiscount && (
                         <FormField
                           control={form.control}
                           name="maxDiscount"
@@ -1040,7 +1041,7 @@ export default function ProductForm() {
                         />
                       )}
 
-                      {productType === "product" && expandedSections.reorderLevel && (
+                      {productType === "product" && !manageByPrice && expandedSections.reorderLevel && (
                         <FormField
                           control={form.control}
                           name="reorderLevel"
@@ -1083,12 +1084,12 @@ export default function ProductForm() {
                 )}
 
                 {/* Add optional fields */}
-                {optionalFieldButtons.filter(f => f.forTypes.includes(productType as string) && !expandedSections[f.key]).length > 0 && (
+                {optionalFieldButtons.filter(f => f.forTypes.includes(productType as string) && !expandedSections[f.key] && !(f.hideWhenByPrice && manageByPrice)).length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Add more fields</p>
                     <div className="flex flex-wrap gap-2">
                       {optionalFieldButtons
-                        .filter(f => f.forTypes.includes(productType as string) && !expandedSections[f.key])
+                        .filter(f => f.forTypes.includes(productType as string) && !expandedSections[f.key] && !(f.hideWhenByPrice && manageByPrice))
                         .map(({ key, label }) => (
                           <button
                             key={key}
