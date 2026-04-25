@@ -441,9 +441,12 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
       </div>
 
       {/* Main Content */}
-      <div className={`w-full ${!isAttendantRoute ? 'lg:pl-72' : ''}`}>
+      <div className={`flex flex-col min-h-screen ${!isAttendantRoute ? 'lg:pl-72' : ''}`}>
+        {/* Spacer that exactly matches the fixed header height */}
+        <div className="h-16 flex-shrink-0" />
+
         {showEmailBanner && (
-          <div className="pt-16 px-6">
+          <div className="px-6 pt-3">
             <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
               <div className="flex items-center gap-2 text-sm">
                 <MailWarning className="h-4 w-4 shrink-0" />
@@ -461,7 +464,8 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
             </div>
           </div>
         )}
-        <div className={`${showEmailBanner ? 'pt-3' : 'pt-16'} p-6 w-full max-w-none overflow-x-hidden`}>
+
+        <div className="flex-1 px-6 py-6 w-full max-w-none overflow-x-hidden">
           {children}
         </div>
       </div>
