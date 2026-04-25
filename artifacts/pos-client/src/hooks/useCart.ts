@@ -23,10 +23,10 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
     return attendant.permissions.some(perm => perm.value?.includes(permission));
   };
 
-  const getPriceForSaleType = (product: Product, saleType: SaleType) => {
-    const sellingPrice = product.sellingPrice || product.price || 0;
-    const wholesalePrice = product.wholesalePrice || 0;
-    const dealerPrice = product.dealerPrice || 0;
+  const getPriceForSaleType = (product: Product, saleType: SaleType): number => {
+    const sellingPrice = parseFloat(String(product.sellingPrice || product.price || 0)) || 0;
+    const wholesalePrice = parseFloat(String(product.wholesalePrice || 0)) || 0;
+    const dealerPrice = parseFloat(String(product.dealerPrice || 0)) || 0;
 
     switch (saleType) {
       case "Wholesale":
@@ -74,7 +74,7 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
       if (existingItem) {
         if (isByPrice) {
           // Replace price with the newly entered amount; keep qty at 1
-          const newPrice = (product as any).sellingPrice || (product as any).price || 0;
+          const newPrice = parseFloat(String((product as any).sellingPrice || (product as any).price || 0)) || 0;
           const bpExist = parseFloat(String((product as any).buyingPrice || 0)) || 0;
           const refSpExist = parseFloat(String((product as any)._refSellingPrice || 0)) || 0;
           const derivedCost = (bpExist > 0 && refSpExist > 0) ? newPrice * (bpExist / refSpExist) : 0;
@@ -106,7 +106,7 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
       }
 
       const price = isByPrice
-        ? ((product as any).sellingPrice || (product as any).price || 0)
+        ? (parseFloat(String((product as any).sellingPrice || (product as any).price || 0)) || 0)
         : getPriceForSaleType(product, saleType);
 
       // For sell-by-price products, derive the cost of this transaction so
