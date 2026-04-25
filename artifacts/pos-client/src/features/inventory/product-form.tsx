@@ -48,7 +48,10 @@ import { apiCall } from "@/lib/api-config";
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
   unitOfMeasure: z.string().optional(),
-  sellingPrice: z.number().min(0, "Selling price must be positive"),
+  sellingPrice: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.number().min(0, "Selling price must be positive").optional(),
+  ),
   buyingPrice: z.number().min(0, "Buying price must be positive").optional(),
   quantity: z.number().min(0, "Quantity must be positive").optional(),
   isBundle: z.boolean().default(false),
@@ -86,6 +89,14 @@ const productSchema = z.object({
     z.number().min(0).optional(),
   ),
   description: z.string().optional().or(z.literal("")),
+}).superRefine((data, ctx) => {
+  if (!data.manageByPrice && (data.sellingPrice == null || isNaN(data.sellingPrice as number))) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Selling price is required",
+      path: ["sellingPrice"],
+    });
+  }
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -689,7 +700,10 @@ export default function ProductForm() {
                         name="sellingPrice"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-gray-700">Selling Price <span className="text-red-500">*</span></FormLabel>
+                            <FormLabel className="text-gray-700">
+                              {manageByPrice ? "Default Amount" : "Selling Price"}
+                              {!manageByPrice && <span className="text-red-500"> *</span>}
+                            </FormLabel>
                             <FormControl>
                               <div className="relative">
                                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -698,11 +712,14 @@ export default function ProductForm() {
                                   placeholder="0.00"
                                   className="h-10 pl-9"
                                   {...field}
-                                  value={field.value || ""}
+                                  value={field.value ?? ""}
                                   onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))}
                                 />
                               </div>
                             </FormControl>
+                            {manageByPrice && (
+                              <p className="text-xs text-gray-400 mt-1">Optional. Cashier enters the actual amount at the time of sale.</p>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -723,11 +740,14 @@ export default function ProductForm() {
                                     placeholder="0.00"
                                     className="h-10 pl-9"
                                     {...field}
-                                    value={field.value || ""}
+                                    value={field.value ?? ""}
                                     onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))}
                                   />
                                 </div>
                               </FormControl>
+                              {manageByPrice && (
+                                <p className="text-xs text-gray-400 mt-1">Optional. Used for profit tracking.</p>
+                              )}
                               <FormMessage />
                             </FormItem>
                           )}
