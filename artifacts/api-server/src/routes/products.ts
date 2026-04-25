@@ -85,6 +85,7 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     const search = getSearch(req);
     const requestedShopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const categoryId = req.query["categoryId"] ? Number(req.query["categoryId"]) : null;
+    const stockStatus = String(req.query["stockStatus"] ?? "").trim();
 
     const allowedShops = await resolveShopFilter(req, requestedShopId);
 
@@ -96,10 +97,29 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
           ? eq(products.shop, allowedShops[0]!)
           : inArray(products.shop, allowedShops);
 
-    const conditions = [];
+    const conditions: any[] = [];
     if (shopCondition) conditions.push(shopCondition);
     if (categoryId) conditions.push(eq(products.category, categoryId));
     if (search) conditions.push(ilike(products.name, `%${search}%`));
+
+    if (stockStatus === "outofstock") {
+      conditions.push(sql`EXISTS (
+        SELECT 1 FROM inventory inv
+        WHERE inv.product = ${products.id}
+        AND inv.shop = ${products.shop}
+        AND inv.quantity::numeric <= 0
+      )`);
+    } else if (stockStatus === "lowstock") {
+      conditions.push(sql`EXISTS (
+        SELECT 1 FROM inventory inv
+        WHERE inv.product = ${products.id}
+        AND inv.shop = ${products.shop}
+        AND inv.quantity::numeric > 0
+        AND inv.reorder_level::numeric > 0
+        AND inv.quantity::numeric <= inv.reorder_level::numeric
+      )`);
+    }
+
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     const rows = await db.query.products.findMany({
@@ -109,7 +129,38 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
       orderBy: (p, { asc }) => [asc(p.name)],
     });
     const total = await db.$count(products, where);
-    return paginated(res, await attachBundleItems(rows), { total, page, limit });
+
+    const withBundles = await attachBundleItems(rows);
+
+    if (withBundles.length > 0) {
+      const productIds = withBundles.map((p: any) => p.id).filter(Boolean);
+      const invRows = await db
+        .select({
+          product: inventory.product,
+          shop: inventory.shop,
+          quantity: inventory.quantity,
+          reorderLevel: inventory.reorderLevel,
+          status: inventory.status,
+        })
+        .from(inventory)
+        .where(inArray(inventory.product, productIds));
+
+      const invMap = new Map(invRows.map((inv) => [`${inv.product}-${inv.shop}`, inv]));
+
+      const enriched = withBundles.map((p: any) => {
+        const inv = invMap.get(`${p.id}-${p.shop}`);
+        return {
+          ...p,
+          quantity: inv ? Number(inv.quantity) : 0,
+          reorderLevel: inv ? Number(inv.reorderLevel) : 0,
+          stockStatus: inv?.status ?? "active",
+        };
+      });
+
+      return paginated(res, enriched, { total, page, limit });
+    }
+
+    return paginated(res, withBundles, { total, page, limit });
   } catch (e) { next(e); }
 });
 

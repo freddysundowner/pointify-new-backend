@@ -185,8 +185,13 @@ router.get("/inventory", requireAdmin, async (req, res, next) => {
     const [summary] = await db
       .select({
         totalProducts: sql<number>`COUNT(*)`,
+        totalstock: sql<string>`COALESCE(SUM(${inventory.quantity}::numeric), 0)`,
         totalQuantity: sql<string>`COALESCE(SUM(${inventory.quantity}::numeric), 0)`,
         totalValue: sql<string>`COALESCE(SUM(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric), 0)`,
+        totalStockValue: sql<string>`COALESCE(SUM(${inventory.quantity}::numeric * ${products.sellingPrice}::numeric), 0)`,
+        profitEstimate: sql<string>`COALESCE(SUM(${inventory.quantity}::numeric * (${products.sellingPrice}::numeric - ${products.buyingPrice}::numeric)), 0)`,
+        outofstock: sql<number>`COUNT(*) FILTER (WHERE ${inventory.quantity}::numeric <= 0)`,
+        lowstock: sql<number>`COUNT(*) FILTER (WHERE ${inventory.quantity}::numeric > 0 AND ${inventory.reorderLevel}::numeric > 0 AND ${inventory.quantity}::numeric <= ${inventory.reorderLevel}::numeric)`,
       })
       .from(inventory)
       .leftJoin(products, eq(inventory.product, products.id))

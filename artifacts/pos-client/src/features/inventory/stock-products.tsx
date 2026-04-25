@@ -169,30 +169,13 @@ export default function StockProducts() {
       stockFilter,
     ],
     queryFn: async ({ queryKey }) => {
-      // Determine type parameter based on stock filter
-      let typeParam = selectedCategory === "all" ? "" : selectedCategory;
-      if (stockFilter === "outofstock") {
-        typeParam = "outofstock";
-      } else if (stockFilter === "lowstock") {
-        typeParam = "runninglow";
-      }
-
       const params = new URLSearchParams({
         page: page.toString(),
-        reason: "",
-        date: "",
         limit: itemsPerPage.toString(),
-        name: searchQuery,
-        shopid: effectiveShopId || "",
-        type: typeParam,
-        sort: sortBy,
-        productid: "",
-        barcodeid: "",
-        productType: productType === "all" ? "" : productType,
-        useWarehouse: "true",
-        warehouse: shop?.warehouse?.toString() || "false",
-        // Only include adminid for admin users, not attendants
-        ...(isAttendant ? {} : { adminid: admin?._id || "" }),
+        search: searchQuery,
+        shopId: effectiveShopId || "",
+        ...(stockFilter !== "all" ? { stockStatus: stockFilter } : {}),
+        ...(selectedCategory !== "all" ? { categoryId: selectedCategory } : {}),
       });
 
       const url = `${ENDPOINTS.products.getAll}?${params.toString()}`;
@@ -218,7 +201,7 @@ export default function StockProducts() {
     },
     staleTime: 0,
     enabled:
-      (isAttendant ? !!localStorage.getItem("attendantData") : !!admin?._id) &&
+      (isAttendant ? !!localStorage.getItem("attendantData") : !!(admin?.id ?? (admin as any)?._id)) &&
       !!effectiveShopId,
     refetchOnMount: true,
     refetchOnWindowFocus: false,
@@ -226,19 +209,10 @@ export default function StockProducts() {
 
   // Fetch stock analysis data
   const { data: stockAnalysis, error: stockAnalysisError } = useQuery({
-    queryKey: [ENDPOINTS.analytics.stockAnalysis, effectiveShopId, true],
-    queryFn: async ({ queryKey }) => {
-      const warehouse = true;
-      const url = `${ENDPOINTS.analytics.stockAnalysis}/?shopid=${effectiveShopId}&warehouse=${warehouse}&totalstock=true`;
-      
-      console.log("=== STOCK ANALYSIS QUERY TRIGGERED ===");
-      console.log("Query URL:", url);
-      console.log("Effective Shop ID:", effectiveShopId);
-      console.log("=====================================");
-
-      // Get auth token from localStorage
+    queryKey: [ENDPOINTS.analytics.stockAnalysis, effectiveShopId],
+    queryFn: async () => {
+      const url = `${ENDPOINTS.analytics.stockAnalysis}?shopId=${effectiveShopId}`;
       const token = localStorage.getItem("authToken");
-
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -247,25 +221,14 @@ export default function StockProducts() {
         },
         credentials: "include",
       });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
-      }
-
-      const stockData = await response.json();
-      console.log("=== STOCK ANALYSIS API DATA ===");
-      console.log("Stock Analysis Response:", stockData);
-      console.log("Low Stock Count:", stockData?.lowstock);
-      console.log("Out of Stock Count:", stockData?.outofstock);
-      console.log("================================");
-      
-      return stockData;
+      if (!response.ok) throw new Error(`API Error: ${response.status}`);
+      return response.json();
     },
     staleTime: 0,
     refetchOnMount: true,
     refetchOnWindowFocus: false,
     enabled:
-      (isAttendant ? !!localStorage.getItem("attendantData") : !!admin?._id) &&
+      (isAttendant ? !!localStorage.getItem("attendantData") : !!(admin?.id ?? (admin as any)?._id)) &&
       !!effectiveShopId,
   });
 
@@ -316,15 +279,15 @@ export default function StockProducts() {
   });
 
   // Use authentic API pagination data
-  const totalProducts = productsData?.count || 0;
-  const totalPages = productsData?.totalPages || 1;
-  const currentPage = productsData?.currentPage || 1;
-  // Use API data for accurate stats instead of filtered page data
-  const lowQuantityProducts = stockAnalysis?.lowstock || 0;
-  const outOfStockProducts = stockAnalysis?.outofstock || 0;
-  const totalStockValue = stockAnalysis?.totalStockValue || 0;
-  const profitEstimate = stockAnalysis?.profitEstimate || 0;
-  const totalStockCount = stockAnalysis?.totalstock || 0;
+  const totalProducts = productsData?.meta?.total || 0;
+  const totalPages = productsData?.meta?.totalPages || 1;
+  const currentPage = productsData?.meta?.page || 1;
+  const stockSummary = stockAnalysis?.data ?? stockAnalysis ?? {};
+  const lowQuantityProducts = Number(stockSummary?.lowstock ?? 0);
+  const outOfStockProducts = Number(stockSummary?.outofstock ?? 0);
+  const totalStockValue = Number(stockSummary?.totalStockValue ?? stockSummary?.totalValue ?? 0);
+  const profitEstimate = Number(stockSummary?.profitEstimate ?? 0);
+  const totalStockCount = Number(stockSummary?.totalstock ?? stockSummary?.totalQuantity ?? 0);
 
   // Download stock data function
   const downloadStockData = async (type: 'outofstock' | 'lowstock') => {
@@ -429,15 +392,16 @@ export default function StockProducts() {
       const delta = Number(adjustQuantity);
       const qtyAfter = adjustType === 'increase' ? qtyBefore + delta : Math.max(0, qtyBefore - delta);
 
+      const productId = selectedProduct.id ?? selectedProduct._id;
       const payload = {
         shopId: getShopId(),
-        productId: selectedProduct._id,
+        productId,
         type: adjustType === 'increase' ? 'add' : 'remove',
         quantityBefore: qtyBefore,
         quantityAfter: qtyAfter,
       };
 
-      const response = await apiCall(ENDPOINTS.products.adjust(selectedProduct._id), {
+      const response = await apiCall(ENDPOINTS.products.adjust(productId), {
         method: 'POST',
         body: JSON.stringify(payload),
       });
@@ -497,7 +461,8 @@ export default function StockProducts() {
 
   // Function to navigate to adjustment history page
   const openHistoryDialog = (product: any) => {
-    const route = isAttendant ? `/attendant/product/adjustment-history/${product._id}` : `/product/adjustment-history/${product._id}`;
+    const pid = product.id ?? product._id;
+    const route = isAttendant ? `/attendant/product/adjustment-history/${pid}` : `/product/adjustment-history/${pid}`;
     setLocation(route);
   };
 
@@ -751,7 +716,7 @@ export default function StockProducts() {
 
                         return (
                           <tr
-                            key={product._id}
+                            key={(product as any).id ?? product._id}
                             className={`border-b hover:bg-gray-50 ${rowBgClass}`}
                           >
                             <td className="p-4">
@@ -836,7 +801,7 @@ export default function StockProducts() {
                                       className="flex items-center space-x-2"
                                       onClick={() =>
                                         setLocation(
-                                          `${productHistoryRoute}/${product._id}/history`,
+                                          `${productHistoryRoute}/${(product as any).id ?? product._id}/history`,
                                         )
                                       }
                                     >
@@ -870,7 +835,7 @@ export default function StockProducts() {
 
                                         // Use client-side navigation without page reload
                                         setLocation(
-                                          `${editProductRoute}/${product._id}`,
+                                          `${editProductRoute}/${(product as any).id ?? product._id}`,
                                         );
                                       }}
                                     >
