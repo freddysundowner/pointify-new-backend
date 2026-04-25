@@ -72,50 +72,33 @@ export const ProductsProvider = ({ children }: ProductsProviderProps) => {
     try {
       const queryParams = new URLSearchParams({
         page: pageNumber.toString(),
-        reason: '',
-        date: '',
         limit: '50',
-        name: '',
-        shopid: shopId,
-        type: 'all',
-        sort: '',
-        productid: '',
-        barcodeid: '',
-        productType: '',
-        useWarehouse: 'true',
-        warehouse: 'false'
+        shopId: shopId.toString(),
       });
-
-      if (attendant) queryParams.append('attendantId', attendant._id);
-      else if (admin) queryParams.append('adminid', admin._id || admin.id);
 
       const response = await apiCall(`${ENDPOINTS.products.getAll}?${queryParams.toString()}`, {
         method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
       });
 
       const data = await response.json();
 
-      const productList = Array.isArray(data)
+      const productList: any[] = Array.isArray(data)
         ? data
-        : data.data || data.products || [];
+        : Array.isArray(data.data) ? data.data : [];
 
       setProducts(prev => {
         if (append && prev.length > 0) {
-          const ids = new Set(prev.map(p => p._id || p.id));
-          const newItems = productList.filter(p => !ids.has(p._id || p.id));
+          const ids = new Set(prev.map((p: any) => p.id));
+          const newItems = productList.filter((p: any) => !ids.has(p.id));
           return [...prev, ...newItems];
         }
         return productList;
       });
 
-      const moreAvailable =
-        (data.totalPages && data.currentPage < data.totalPages) ||
-        productList.length === 50;
+      const meta = data.meta;
+      const moreAvailable = meta
+        ? meta.page < meta.totalPages
+        : productList.length === 50;
 
       setHasMore(moreAvailable);
       setPage(pageNumber);

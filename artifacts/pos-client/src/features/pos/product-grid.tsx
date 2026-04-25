@@ -142,12 +142,8 @@ export default function ProductGrid({
       const params = new URLSearchParams({
         page: "1",
         limit: "100",
-        name: query,
-        shopid: shopId || "",
-        adminid: adminId || "",
-        useWarehouse: "true",
-        warehouse: "false",
-        type: "all"
+        search: query,
+        shopId: shopId || "",
       });
 
       const response = await apiCall(`${ENDPOINTS.products.getAll}?${params.toString()}`, {
@@ -263,8 +259,9 @@ export default function ProductGrid({
 
     // Filter by category
     if (activeCategory !== "all") {
-      filteredProducts = filteredProducts.filter(product => 
-        product.category?.toLowerCase() === activeCategory.toLowerCase()
+      filteredProducts = filteredProducts.filter(product =>
+        product.category?.id?.toString() === activeCategory?.toString() ||
+        product.category?.name === activeCategory
       );
     }
 
@@ -1069,11 +1066,11 @@ export default function ProductGrid({
                       </div>
                     ) : (
                       products.slice(0, 8).map((product: any) => {
-                        const isService = product?.productType === 'service' || product?.virtual === true;
+                        const isService = product?.type === 'service' || product?.type === 'virtual';
                         const isOutOfStock = !isService && (product.quantity === 0);
                         return (
                         <div
-                          key={product._id}
+                          key={product.id}
                           onClick={isOutOfStock ? undefined : () => {
                             onAddToCart(product);
                             onSearchChange(''); // Clear search after adding
@@ -1446,10 +1443,10 @@ export default function ProductGrid({
                     ) : (
                       products.map((product: any) => {
                         const price = getPriceForSaleType(product, saleType);
-                        const productId = product._id || product.id;
+                        const productId = product.id;
                         const productName = product.name || product.title;
                         const quantity = product.quantity || 0;
-                        const isVirtual = product.virtual;
+                        const isVirtual = product.type === 'virtual' || product.type === 'service';
                         const isOutOfStock = !isVirtual && quantity === 0;
                         
                         return (
@@ -2113,16 +2110,18 @@ export default function ProductGrid({
               <div className="font-medium">All Categories</div>
               <div className="text-sm text-gray-500">Show all products</div>
             </div>
-            {categories.map((category: any) => (
+            {categories.map((category: any) => {
+              const catKey = String(category.id ?? category._id ?? category.name);
+              return (
               <div 
-                key={category.id || category._id || category.name}
+                key={catKey}
                 className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                  activeCategory === (category.id || category._id || category.name) 
+                  activeCategory === catKey
                     ? "bg-red-100 border-red-200 text-red-800" 
                     : "bg-gray-50 hover:bg-gray-100"
                 }`}
                 onClick={() => {
-                  onCategoryChange(category.id || category._id || category.name);
+                  onCategoryChange(catKey);
                   setShowCategoriesDrawer(false);
                 }}
               >
@@ -2131,7 +2130,7 @@ export default function ProductGrid({
                   <div className="text-sm text-gray-500">{category.description}</div>
                 )}
               </div>
-            ))}
+            );})}
           </div>
         </SheetContent>
       </Sheet>
@@ -2552,11 +2551,11 @@ export default function ProductGrid({
                 return (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
                     {suggestions.map((p: any) => {
-                      const isService = p.productType === 'service' || p.virtual;
+                      const isService = p.type === 'service' || p.type === 'virtual';
                       const outOfStock = !isService && (p.quantity ?? 0) <= 0;
                       return (
                         <div
-                          key={p._id}
+                          key={p.id}
                           className={`flex items-center justify-between px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 ${outOfStock ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50'}`}
                           onMouseDown={(e) => {
                             e.preventDefault();

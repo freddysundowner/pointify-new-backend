@@ -54,7 +54,13 @@ const productSchema = z.object({
   isBundle: z.boolean().default(false),
   manageInventory: z.boolean().default(false),
   manageByPrice: z.boolean().default(false),
-  productType: z.enum(["product", "service"]).default("product"),
+  productType: z.enum(["product", "service", "virtual"]).default("product"),
+  barcode: z.string().optional().or(z.literal("")),
+  isTaxable: z.boolean().default(false),
+  minSellingPrice: z.preprocess(
+    (val) => (val === "" || val === null ? undefined : val),
+    z.number().min(0).optional(),
+  ),
   manufacturer: z.string().optional().or(z.literal("")),
   serialnumber: z.string().optional().or(z.literal("")),
   wholesalePrice: z.preprocess(
@@ -140,6 +146,7 @@ export default function ProductForm() {
     manufacturer: false,
     wholesalePrice: false,
     dealerPrice: false,
+    minSellingPrice: false,
     category: false,
     supplier: false,
     expiryDate: false,
@@ -147,6 +154,7 @@ export default function ProductForm() {
     discount: false,
     maxDiscount: false,
     serialnumber: false,
+    barcode: false,
     description: false,
     bundle: false,
   });
@@ -189,6 +197,12 @@ export default function ProductForm() {
             break;
           case "maxDiscount":
             form.setValue("maxDiscount", undefined, { shouldValidate: true });
+            break;
+          case "barcode":
+            form.setValue("barcode", "", { shouldValidate: true });
+            break;
+          case "minSellingPrice":
+            form.setValue("minSellingPrice", undefined, { shouldValidate: true });
             break;
         }
       }
@@ -262,14 +276,18 @@ export default function ProductForm() {
         sellingPrice: Number(productData.sellingPrice) || 0,
         buyingPrice:
           Number(productData.buyingPrice) || Number(productData.costPrice) || 0,
-        quantity:
-          Number(productData.quantity) || 0,
+        quantity: Number(productData.quantity) || 0,
         isBundle: Boolean(productData.bundle || productData.isBundle || productData.type === "bundle"),
         manageInventory: false,
         manageByPrice: Boolean(productData.manageByPrice),
-        productType: (productData.type === "service" || productData.type === "virtual" || productData.virtual ? "service" : "product") as
-          | "product"
-          | "service",
+        productType: (
+          productData.type === "service" ? "service"
+          : productData.type === "virtual" ? "virtual"
+          : "product"
+        ) as "product" | "service" | "virtual",
+        barcode: productData.barcode || "",
+        isTaxable: Boolean(productData.isTaxable),
+        minSellingPrice: productData.minSellingPrice != null ? Number(productData.minSellingPrice) : undefined,
         manufacturer: productData.manufacturer || "",
         serialnumber: productData.serialNumber || productData.serialnumber || "",
         wholesalePrice: Number(productData.wholesalePrice) || 0,
@@ -292,10 +310,9 @@ export default function ProductForm() {
 
       setExpandedSections({
         manufacturer: !!formData.manufacturer,
-        wholesalePrice: !!(
-          formData.wholesalePrice && formData.wholesalePrice > 0
-        ),
+        wholesalePrice: !!(formData.wholesalePrice && formData.wholesalePrice > 0),
         dealerPrice: !!(formData.dealerPrice && formData.dealerPrice > 0),
+        minSellingPrice: formData.minSellingPrice != null && formData.minSellingPrice > 0,
         category: !!formData.productCategoryId,
         supplier: !!formData.supplier,
         expiryDate: !!formData.expiryDate,
@@ -305,6 +322,7 @@ export default function ProductForm() {
         description: !!formData.description,
         bundle: !!formData.isBundle,
         serialnumber: !!formData.serialnumber,
+        barcode: !!formData.barcode,
       });
 
       // Clean up navigation data after use
@@ -319,16 +337,19 @@ export default function ProductForm() {
         name: productData.name || "",
         unitOfMeasure: productData.measureUnit || productData.measure || productData.unitOfMeasure || "",
         sellingPrice: Number(productData.sellingPrice) || 0,
-        buyingPrice:
-          Number(productData.buyingPrice) || Number(productData.costPrice) || 0,
-        quantity:
-          Number(productData.quantity) || 0,
+        buyingPrice: Number(productData.buyingPrice) || Number(productData.costPrice) || 0,
+        quantity: Number(productData.quantity) || 0,
         isBundle: Boolean(productData.bundle || productData.isBundle || productData.type === "bundle"),
         manageInventory: false,
         manageByPrice: Boolean(productData.manageByPrice),
-        productType: (productData.type === "service" || productData.type === "virtual" || productData.virtual ? "service" : "product") as
-          | "product"
-          | "service",
+        productType: (
+          productData.type === "service" ? "service"
+          : productData.type === "virtual" ? "virtual"
+          : "product"
+        ) as "product" | "service" | "virtual",
+        barcode: productData.barcode || "",
+        isTaxable: Boolean(productData.isTaxable),
+        minSellingPrice: productData.minSellingPrice != null ? Number(productData.minSellingPrice) : undefined,
         manufacturer: productData.manufacturer || "",
         serialnumber: productData.serialNumber || productData.serialnumber || "",
         wholesalePrice: Number(productData.wholesalePrice) || 0,
@@ -352,10 +373,10 @@ export default function ProductForm() {
       setExpandedSections({
         manufacturer: !!formData.manufacturer,
         serialnumber: !!formData.serialnumber,
-        wholesalePrice: !!(
-          formData.wholesalePrice && formData.wholesalePrice > 0
-        ),
+        barcode: !!formData.barcode,
+        wholesalePrice: !!(formData.wholesalePrice && formData.wholesalePrice > 0),
         dealerPrice: !!(formData.dealerPrice && formData.dealerPrice > 0),
+        minSellingPrice: formData.minSellingPrice != null && formData.minSellingPrice > 0,
         category: !!formData.productCategoryId,
         supplier: !!formData.supplier,
         expiryDate: !!formData.expiryDate,
@@ -382,6 +403,9 @@ export default function ProductForm() {
         buyingPrice: formData.buyingPrice,
         quantity: formData.quantity,
         manageByPrice: formData.manageByPrice,
+        isTaxable: formData.isTaxable,
+        barcode: formData.barcode || undefined,
+        minSellingPrice: formData.minSellingPrice ?? undefined,
         manufacturer: formData.manufacturer || "",
         serialNumber: formData.serialnumber || "",
         wholesalePrice: formData.wholesalePrice || 0,
@@ -405,7 +429,11 @@ export default function ProductForm() {
               quantity: typeof data === "number" ? data : data.quantity,
             }))
           : undefined,
-        type: formData.productType === "service" ? "service" : formData.isBundle ? "bundle" : "product",
+        type:
+          formData.productType === "service" ? "service"
+          : formData.productType === "virtual" ? "virtual"
+          : formData.isBundle ? "bundle"
+          : "product",
         shopId,
       };
 
@@ -567,9 +595,40 @@ export default function ProductForm() {
                                   Service
                                 </span>
                               </label>
+                              <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  value="virtual"
+                                  checked={field.value === "virtual"}
+                                  onChange={() => field.onChange("virtual")}
+                                  className="w-4 h-4 text-blue-600"
+                                />
+                                <span className="text-sm font-medium">
+                                  Virtual
+                                </span>
+                              </label>
                             </div>
                           </FormControl>
                           <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* isTaxable checkbox — always visible */}
+                    <FormField
+                      control={form.control}
+                      name="isTaxable"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal cursor-pointer">
+                            Taxable product
+                          </FormLabel>
                         </FormItem>
                       )}
                     />
@@ -775,6 +834,79 @@ export default function ProductForm() {
                             <p className="text-xs text-gray-500 mt-1">
                               Maximum fixed discount amount allowed for this
                               product (in currency)
+                            </p>
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    {/* Barcode - expandable */}
+                    {expandedSections.barcode && (
+                      <FormField
+                        control={form.control}
+                        name="barcode"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Barcode</FormLabel>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => toggleSection("barcode")}
+                                className="text-gray-500 hover:text-gray-700"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <FormControl>
+                              <Input placeholder="e.g., 1234567890128" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    {/* Min Selling Price - expandable */}
+                    {expandedSections.minSellingPrice && (
+                      <FormField
+                        control={form.control}
+                        name="minSellingPrice"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Minimum Selling Price</FormLabel>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => toggleSection("minSellingPrice")}
+                                className="text-gray-500 hover:text-gray-700"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="0.00"
+                                min="0"
+                                step="0.01"
+                                {...field}
+                                value={field.value ?? ""}
+                                onChange={(e) =>
+                                  field.onChange(
+                                    e.target.value === ""
+                                      ? undefined
+                                      : parseFloat(e.target.value),
+                                  )
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                            <p className="text-xs text-gray-500 mt-1">
+                              Price floor — product cannot be sold below this price
                             </p>
                           </FormItem>
                         )}
@@ -1199,6 +1331,28 @@ export default function ProductForm() {
                           >
                             <Plus className="h-3 w-3" />
                             <span>Add Serial Number</span>
+                          </button>
+                        )}
+
+                        {!expandedSections.barcode && (
+                          <button
+                            type="button"
+                            onClick={() => toggleSection("barcode")}
+                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
+                          >
+                            <Plus className="h-3 w-3" />
+                            <span>Add Barcode</span>
+                          </button>
+                        )}
+
+                        {!expandedSections.minSellingPrice && (
+                          <button
+                            type="button"
+                            onClick={() => toggleSection("minSellingPrice")}
+                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 text-sm px-2 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
+                          >
+                            <Plus className="h-3 w-3" />
+                            <span>Add Min Selling Price</span>
                           </button>
                         )}
 
