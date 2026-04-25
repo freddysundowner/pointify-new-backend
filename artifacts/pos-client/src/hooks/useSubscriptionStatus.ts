@@ -16,110 +16,71 @@ export const useSubscriptionStatus = (): SubscriptionStatus => {
   const { admin } = useAuth();
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
 
-  // Fetch current shop data to get subscription info
+  const adminId = admin?.id ?? (admin as any)?._id;
+
   const { data: shopsData, isError: shopsError, isLoading: shopsLoading } = useQuery({
-    queryKey: ["shops", admin?._id],
+    queryKey: ["shops", adminId],
     queryFn: async () => {
-      if (!admin?._id) return [];
-      const response = await apiCall(ENDPOINTS.shop.getAll, {
-        method: "GET",
-      });
-      return response.json();
+      if (!adminId) return [];
+      const response = await apiCall(ENDPOINTS.shop.getAll, { method: "GET" });
+      const json = await response.json();
+      return Array.isArray(json) ? json : (json?.data ?? []);
     },
-    enabled: !!admin?._id,
-    retry: 1, // Only retry once to fail faster when offline
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    enabled: !!adminId,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
   });
 
-  const calculateDaysRemaining = (subscriptionEndDate: string) => {
-    if (!subscriptionEndDate) return null;
-    const endDate = new Date(subscriptionEndDate);
-    const today = new Date();
-    const diffTime = endDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
   return useMemo(() => {
-    // Always get admin data from localStorage for offline resilience
-    const adminData = (() => {
-      try {
-        const adminData = localStorage.getItem('adminData');
-        return adminData ? JSON.parse(adminData) : null;
-      } catch (error) {
-        return null;
-      }
-    })();
-
-    // Find the currently selected shop from shops data or fallback to localStorage
-    // Ensure shopsData is an array before using find
-    const shopsArray = Array.isArray(shopsData) ? shopsData : [];
-    let currentShop = shopsArray.find((shop: any) => shop._id === selectedShopId);
-    
-    // If API data is not available (offline/error), use cached admin data
-    if (!currentShop && adminData?.primaryShop && (!shopsError && !shopsLoading)) {
-      currentShop = adminData.primaryShop;
-    }
-    
-    // If still no shop data and we have error/loading, use fallback from localStorage shops
-    if (!currentShop && adminData?.shops?.length > 0) {
-      currentShop = adminData.shops.find((shop: any) => shop._id === selectedShopId) || adminData.shops[0];
+    // While loading, don't block the UI
+    if (shopsLoading) {
+      return { isExpired: false, daysRemaining: null, hasActiveSubscription: true };
     }
 
-    const currentSubscription = currentShop?.subscription;
+    // If API errored, don't block the UI
+    if (shopsError) {
+      return { isExpired: false, daysRemaining: null, hasActiveSubscription: true };
+    }
 
-    // Debug subscription validation
-    console.log('=== SUBSCRIPTION DEBUG ===');
-    console.log('Selected Shop ID:', selectedShopId);
-    console.log('Shops API Error:', shopsError);
-    console.log('Shops Loading:', shopsLoading);
-    console.log('Current Shop:', currentShop);
-    console.log('Current Subscription:', currentSubscription);
+    const shopsArray: any[] = Array.isArray(shopsData) ? shopsData : [];
 
-    // Only check by date - no status field validation
-    if (currentSubscription?.endDate) {
-      const daysRemaining = calculateDaysRemaining(currentSubscription.endDate);
-      const isExpired = daysRemaining !== null ? daysRemaining <= 0 : false;
-      console.log(`📅 Subscription check by date only: ${daysRemaining} days remaining, expired: ${isExpired}`);
-      
+    // Find the current shop: prefer selectedShopId, fallback to first shop
+    const currentShop =
+      shopsArray.find((s: any) => (s.id ?? s._id) === selectedShopId) ??
+      shopsArray[0] ??
+      null;
+
+    if (!currentShop) {
+      // No shops at all — don't expire (onboarding in progress)
+      return { isExpired: false, daysRemaining: null, hasActiveSubscription: true };
+    }
+
+    // The API returns subscriptionInfo (not subscription)
+    const subInfo = currentShop.subscriptionInfo ?? currentShop.subscription ?? null;
+
+    if (!subInfo || subInfo.status === 'none') {
+      // No subscription record — treat as expired so user can renew
+      return { isExpired: true, daysRemaining: null, hasActiveSubscription: false };
+    }
+
+    const { endDate, isExpired, daysRemaining } = subInfo;
+
+    if (typeof isExpired === 'boolean') {
       return {
         isExpired,
-        daysRemaining,
+        daysRemaining: daysRemaining ?? null,
         hasActiveSubscription: !isExpired,
       };
     }
 
-    // Fallback to primary shop subscription from localStorage - date only
-    const fallbackSubscription = adminData?.primaryShop?.subscription;
-    if (fallbackSubscription?.endDate) {
-      console.log('🔄 Using fallback subscription from localStorage - date only');
-      
-      const daysRemaining = calculateDaysRemaining(fallbackSubscription.endDate);
-      const isExpired = daysRemaining !== null ? daysRemaining <= 0 : false;
-      
-      return {
-        isExpired,
-        daysRemaining,
-        hasActiveSubscription: !isExpired,
-      };
+    // Fallback: compute from endDate
+    if (endDate) {
+      const diff = new Date(endDate).getTime() - Date.now();
+      const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+      const expired = days <= 0;
+      return { isExpired: expired, daysRemaining: days, hasActiveSubscription: !expired };
     }
 
-    // If we're still loading or have an error, assume valid to avoid blocking UI
-    if (shopsLoading || shopsError) {
-      console.log('⏳ API loading/error - assuming valid subscription to avoid blocking UI');
-      return {
-        isExpired: false,
-        daysRemaining: null,
-        hasActiveSubscription: true,
-      };
-    }
-
-    // Final fallback: No subscription data found
-    console.log('❌ No subscription data found - marking as expired');
-    return {
-      isExpired: true,
-      daysRemaining: null,
-      hasActiveSubscription: false,
-    };
+    return { isExpired: true, daysRemaining: null, hasActiveSubscription: false };
   }, [shopsData, selectedShopId, shopsError, shopsLoading]);
 };

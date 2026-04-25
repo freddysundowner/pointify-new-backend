@@ -182,19 +182,16 @@ router.post("/", requireAdmin, async (req, res, next) => {
       ...(pointsValue !== undefined && { pointsValue: blank(pointsValue) ? "0" : String(pointsValue) }),
     }).returning();
 
-    // Auto-create a trial subscription for the new shop.
-    // Reads trial days from system settings (key "trial") — defaults to 14.
-    void (async () => {
-      try {
-        const trialSetting = await db.query.settings.findFirst({ where: eq(settings.name, "trial") });
-        const trialDays = (trialSetting?.setting as { days?: number } | null)?.days ?? 14;
+    // Auto-create a trial subscription for the new shop (synchronous so it
+    // is committed before the 201 response is sent to the client).
+    try {
+      const trialSetting = await db.query.settings.findFirst({ where: eq(settings.name, "trial") });
+      const trialDays = (trialSetting?.setting as { days?: number } | null)?.days ?? 14;
 
-        const trialPkg = await db.query.packages.findFirst({ where: eq(packages.type, "trial") });
-        if (!trialPkg) {
-          logger.warn({ shopId: shop.id }, "shops: no trial package found — skipping trial subscription");
-          return;
-        }
-
+      const trialPkg = await db.query.packages.findFirst({ where: eq(packages.type, "trial") });
+      if (!trialPkg) {
+        logger.warn({ shopId: shop.id }, "shops: no trial package found — skipping trial subscription");
+      } else {
         const startDate = new Date();
         const endDate = new Date(startDate);
         endDate.setDate(endDate.getDate() + trialDays);
@@ -219,10 +216,10 @@ router.post("/", requireAdmin, async (req, res, next) => {
         }).onConflictDoNothing();
 
         logger.info({ shopId: shop.id, trialDays, endDate }, "shops: trial subscription created");
-      } catch (err) {
-        logger.warn({ err, shopId: shop.id }, "shops: failed to create trial subscription");
       }
-    })();
+    } catch (err) {
+      logger.warn({ err, shopId: shop.id }, "shops: failed to create trial subscription");
+    }
 
     return created(res, shop);
   } catch (e) { next(e); }
