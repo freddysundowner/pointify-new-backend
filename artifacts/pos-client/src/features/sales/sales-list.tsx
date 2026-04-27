@@ -747,23 +747,22 @@ function SalesList() {
             </div>
           </div>
 
-          {/* Filters — compact single-bar */}
+          {/* Filters */}
           <Card className="mb-3">
-            <CardContent className="p-2">
+            <CardContent className="p-3 space-y-2">
+              {/* Row 1 — search, type, attendant, clear */}
               <div className="flex flex-wrap items-center gap-2">
-                {/* Search */}
                 <div className="relative min-w-[180px] flex-1">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
                     type="text"
-                    placeholder="Receipt no..."
+                    placeholder="Search receipt no..."
                     value={searchQuery}
                     onChange={(e) => handleSearchChange(e.target.value)}
                     className="pl-7 h-8 text-xs"
                   />
                 </div>
 
-                {/* Status / payment filter */}
                 <Select value={statusFilter} onValueChange={handleStatusFilter}>
                   <SelectTrigger className="h-8 text-xs w-[130px]">
                     <SelectValue placeholder="All types" />
@@ -779,7 +778,6 @@ function SalesList() {
                   </SelectContent>
                 </Select>
 
-                {/* Attendant filter — admin only */}
                 {userType === "admin" && (
                   <Select value={attendantFilter} onValueChange={handleAttendantFilter}>
                     <SelectTrigger className="h-8 text-xs w-[140px]">
@@ -796,26 +794,6 @@ function SalesList() {
                   </Select>
                 )}
 
-                {/* Date range */}
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
-                  className="h-8 text-xs w-[130px]"
-                />
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
-                  className="h-8 text-xs w-[130px]"
-                />
-
-                {/* Quick date shortcuts */}
-                <Button variant="outline" size="sm" onClick={() => setDateRange(7)} className="h-8 text-xs px-2">7d</Button>
-                <Button variant="outline" size="sm" onClick={() => setDateRange(30)} className="h-8 text-xs px-2">30d</Button>
-                <Button variant="outline" size="sm" onClick={() => setDateRange(90)} className="h-8 text-xs px-2">90d</Button>
-
-                {/* Clear all */}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -828,10 +806,37 @@ function SalesList() {
                     setDateFilter("all");
                     setCurrentPage(1);
                   }}
-                  className="h-8 text-xs px-2 text-muted-foreground"
+                  className="h-8 text-xs px-3 text-muted-foreground ml-auto"
                 >
-                  Clear
+                  Clear all
                 </Button>
+              </div>
+
+              {/* Row 2 — date range + quick shortcuts */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Date:</span>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+                  className="h-8 text-xs w-[130px]"
+                />
+                <span className="text-xs text-muted-foreground">–</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+                  className="h-8 text-xs w-[130px]"
+                />
+                <div className="flex items-center gap-1 ml-1">
+                  <Button variant="outline" size="sm" onClick={() => setDateRange(1)} className="h-8 text-xs px-3">Today</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDateRange(7)} className="h-8 text-xs px-3">7d</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDateRange(30)} className="h-8 text-xs px-3">30d</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDateRange(90)} className="h-8 text-xs px-3">90d</Button>
+                  {(startDate || endDate) && (
+                    <Button variant="ghost" size="sm" onClick={clearDateFilters} className="h-8 text-xs px-2 text-muted-foreground">✕</Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
