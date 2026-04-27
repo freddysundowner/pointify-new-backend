@@ -66,6 +66,9 @@ import ExpenseCategories from "@/pages/expense-categories";
 import CashflowCategories from "@/pages/cashflow-categories";
 import ProfitLossPage from "@/pages/profit-loss";
 import BusinessOverviewPage from "@/pages/business-overview";
+import ReportsHubPage from "@/pages/reports-hub";
+import SalesReportPage from "@/pages/reports-sales";
+import ProductsReportPage from "@/pages/reports-products";
 import DebtorsPage from "@/pages/debtors";
 import PrinterConfigPage from "@/pages/printer-config";
 import SettingsPage from "@/pages/settings";
@@ -444,6 +447,9 @@ function AppContent() {
             <Route path="/profit-analysis" component={ProfitAnalysis} />
             <Route path="/profit-loss" component={ProfitLossPage} />
             <Route path="/reports/business" component={BusinessOverviewPage} />
+            <Route path="/reports/sales" component={SalesReportPage} />
+            <Route path="/reports/products" component={ProductsReportPage} />
+            <Route path="/reports" component={ReportsHubPage} />
             <Route path="/debtors" component={DebtorsPage} />
             <Route path="/printer-config" component={PrinterConfigPage} />
             <Route path="/settings" component={SettingsPage} />

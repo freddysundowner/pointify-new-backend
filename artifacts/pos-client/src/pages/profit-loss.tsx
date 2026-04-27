@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import {
-  TrendingUp, TrendingDown, ShoppingCart, Receipt, Calculator,
-  ArrowLeft, RefreshCw, CreditCard, Package, AlertTriangle, Tag, RotateCcw
+  ArrowLeft, RefreshCw, FileText, TrendingUp, TrendingDown,
+  ShoppingCart, Package, Banknote, CreditCard, AlertTriangle
 } from "lucide-react";
 import { RootState } from "@/store";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
@@ -17,15 +17,13 @@ import { useLocation } from "wouter";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { apiRequest } from "@/lib/queryClient";
 
-interface Attendant { _id: string; username: string; uniqueDigits: number; }
+interface Attendant { _id: string; username: string; }
 
 const n = (v: any) => Number(v ?? 0);
 const fmt = (v: any) => {
   const num = n(v);
-  return `KES ${isNaN(num) ? 0 : num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  return `KES ${isNaN(num) ? "0" : num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
-const pct = (part: number, total: number) =>
-  total > 0 ? `${((part / total) * 100).toFixed(1)}%` : "—";
 
 const METHOD_LABELS: Record<string, string> = {
   cash: "Cash", mpesa: "M-Pesa", mpesa_stk: "M-Pesa STK", bank: "Bank",
@@ -57,7 +55,6 @@ export default function ProfitLossPage() {
       const json = await res.json();
       return Array.isArray(json) ? json : (json?.data ?? []);
     },
-    select: (raw: any) => Array.isArray(raw) ? raw : (raw?.data ?? []),
     enabled: !!effectiveShopId && !!effectiveAdminId && !!user,
   });
 
@@ -88,234 +85,205 @@ export default function ProfitLossPage() {
   const revenue = n(income.revenue);
   const cost = n(cogs.cost);
   const grossProfit = n(cogs.grossProfit);
-  const grossMargin = n(cogs.grossMarginPercent);
   const expTotal = n(exp.total);
   const netProfit = n(raw?.netProfit);
-  const netMargin = n(raw?.netMarginPercent);
   const saleCount = n(income.saleCount);
   const totalDiscount = n(income.totalDiscount);
   const voidedAmount = n(income.voidedAmount);
   const refundedAmount = n(income.refundedAmount);
-  const avgOrder = saleCount > 0 ? revenue / saleCount : 0;
+  const avgOrder = saleCount > 0 ? Math.round(revenue / saleCount) : 0;
 
-  const kpis = [
-    { label: "Revenue", value: fmt(revenue), sub: `${saleCount} sales`, color: "blue", Icon: ShoppingCart },
-    { label: "Gross Profit", value: fmt(grossProfit), sub: `${grossMargin.toFixed(1)}% margin`, color: "green", Icon: TrendingUp },
-    { label: "Net Profit", value: fmt(netProfit), sub: `${netMargin.toFixed(1)}% margin`, color: netProfit >= 0 ? "green" : "red", Icon: netProfit >= 0 ? TrendingUp : TrendingDown },
-    { label: "Expenses", value: fmt(expTotal), sub: `${pct(expTotal, revenue)} of revenue`, color: "orange", Icon: Receipt },
-  ];
+  const isProfit = netProfit >= 0;
 
   return (
     <DashboardLayout>
-      <div className="p-4 space-y-3">
+      <div className="max-w-2xl space-y-4">
 
         {/* Header + filters */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={() => setLocation(attendant ? "/attendant/dashboard" : "/dashboard")} className="gap-1 px-2">
-            <ArrowLeft className="h-4 w-4" /> Back
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/reports")} className="gap-1 px-2">
+            <ArrowLeft className="h-4 w-4" /> Reports
           </Button>
           <div className="flex items-center gap-2">
-            <Calculator className="h-5 w-5 text-purple-600" />
+            <FileText className="h-5 w-5 text-purple-600" />
             <h1 className="text-lg font-bold text-gray-900">Profit & Loss</h1>
           </div>
-          <Button variant="outline" size="sm" className="text-xs" onClick={() => setLocation("/reports/business")}>
-            Business Overview →
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="h-8 text-sm w-36" />
+          <span className="text-gray-400 text-sm">to</span>
+          <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="h-8 text-sm w-36" />
+          {user && (Array.isArray(attendants) && attendants.length > 0) && (
+            <Select value={selectedAttendant} onValueChange={setSelectedAttendant}>
+              <SelectTrigger className="h-8 text-sm w-40">
+                <SelectValue placeholder="All staff" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All staff</SelectItem>
+                {attendants.map(a => (
+                  <SelectItem key={a._id} value={a._id}>{a.username}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button size="sm" onClick={() => refetch()} disabled={isLoading} className="h-8 gap-1 bg-purple-600 hover:bg-purple-700">
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Apply
           </Button>
-          <div className="flex items-center gap-2 ml-auto flex-wrap">
-            <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="h-8 text-sm w-36" />
-            <span className="text-gray-400 text-sm">to</span>
-            <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="h-8 text-sm w-36" />
-            {user && (
-              <Select value={selectedAttendant} onValueChange={setSelectedAttendant}>
-                <SelectTrigger className="h-8 text-sm w-38">
-                  <SelectValue placeholder="All attendants" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All attendants</SelectItem>
-                  {(Array.isArray(attendants) ? attendants : []).map(a => (
-                    <SelectItem key={a._id} value={a._id}>{a.username}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Button size="sm" onClick={() => refetch()} disabled={isLoading} className="h-8 gap-1 bg-purple-600 hover:bg-purple-700">
-              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Apply
-            </Button>
-          </div>
         </div>
 
         {error && (
           <div className="text-center py-6 text-red-500 text-sm">
-            Failed to load data. <button onClick={() => refetch()} className="underline">Retry</button>
+            Could not load data. <button onClick={() => refetch()} className="underline">Try again</button>
           </div>
         )}
 
         {isLoading && !raw && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-gray-100 rounded-lg animate-pulse" />)}
+          <div className="space-y-3">
+            {[...Array(4)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
           </div>
         )}
 
         {raw && (
           <>
-            {/* KPI strip */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {kpis.map(({ label, value, sub, color, Icon }) => (
-                <Card key={label} className="border-0 shadow-sm">
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <div className={`h-9 w-9 rounded-lg bg-${color}-100 flex items-center justify-center shrink-0`}>
-                      <Icon className={`h-4 w-4 text-${color}-600`} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-500 truncate">{label}</p>
-                      <p className={`text-sm font-bold text-${color}-600 truncate`}>{value}</p>
-                      <p className="text-xs text-gray-400 truncate">{sub}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            {/* Result banner */}
+            <div className={`rounded-xl p-4 flex items-center gap-3 ${isProfit ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
+              {isProfit
+                ? <TrendingUp className="h-6 w-6 text-green-600 shrink-0" />
+                : <TrendingDown className="h-6 w-6 text-red-500 shrink-0" />}
+              <div>
+                <p className={`text-lg font-bold ${isProfit ? "text-green-700" : "text-red-600"}`}>
+                  {isProfit ? "You made " : "You lost "}{fmt(Math.abs(netProfit))} {isProfit ? "profit" : "this period"}
+                </p>
+                <p className={`text-sm ${isProfit ? "text-green-600" : "text-red-500"}`}>
+                  {saleCount} sales · Average sale: {fmt(avgOrder)}
+                </p>
+              </div>
             </div>
 
-            {/* 3-column detail */}
-            <div className="grid md:grid-cols-3 gap-3">
+            {/* Breakdown */}
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-4 space-y-0">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Where the money went</p>
 
-              {/* P&L Statement */}
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">P&L Statement</p>
-                  <div className="space-y-1.5 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Revenue</span>
-                      <span className="font-medium text-blue-700">{fmt(revenue)}</span>
+                {/* Revenue */}
+                <div className="flex justify-between items-center py-3 border-b">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <ShoppingCart className="h-4 w-4 text-blue-600" />
                     </div>
-                    {totalDiscount > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-400 flex items-center gap-1"><Tag className="h-3 w-3" /> Discounts given</span>
-                        <span className="text-orange-500">- {fmt(totalDiscount)}</span>
-                      </div>
-                    )}
-                    {(voidedAmount > 0 || refundedAmount > 0) && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-400 flex items-center gap-1"><RotateCcw className="h-3 w-3" /> Voids / Refunds</span>
-                        <span className="text-red-400">{fmt(voidedAmount + refundedAmount)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Cost of Goods</span>
-                      <span className="font-medium text-gray-700">- {fmt(cost)}</span>
-                    </div>
-                    <div className="flex justify-between py-1.5 border-t border-b font-semibold">
-                      <span className="text-green-800">Gross Profit</span>
-                      <span className="text-green-700">{fmt(grossProfit)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Operating Expenses</span>
-                      <span className="font-medium text-orange-600">- {fmt(expTotal)}</span>
-                    </div>
-
-                    {/* Expense breakdown by category */}
-                    {(exp.byCategory ?? []).map((c: any) => (
-                      <div key={c.categoryName} className="flex justify-between text-xs pl-2">
-                        <span className="text-gray-400">{c.categoryName ?? "Uncategorised"}</span>
-                        <span className="text-gray-500">{fmt(c.total)}</span>
-                      </div>
-                    ))}
-
-                    <div className={`flex justify-between pt-2 border-t font-bold text-base ${netProfit >= 0 ? "text-green-700" : "text-red-600"}`}>
-                      <span>Net Profit</span>
-                      <span>{fmt(netProfit)}</span>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Money collected from sales</p>
+                      {totalDiscount > 0 && (
+                        <p className="text-xs text-orange-500">{fmt(totalDiscount)} given as discounts</p>
+                      )}
+                      {(voidedAmount + refundedAmount) > 0 && (
+                        <p className="text-xs text-red-400">{fmt(voidedAmount + refundedAmount)} voided/refunded</p>
+                      )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                  <span className="text-base font-bold text-blue-700">{fmt(revenue)}</span>
+                </div>
 
-              {/* Payment method breakdown */}
+                {/* COGS */}
+                <div className="flex justify-between items-center py-3 border-b">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                      <Package className="h-4 w-4 text-gray-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">What you paid for that stock</p>
+                      <p className="text-xs text-gray-400">Cost of goods sold</p>
+                    </div>
+                  </div>
+                  <span className="text-base font-semibold text-gray-600">− {fmt(cost)}</span>
+                </div>
+
+                {/* Gross profit */}
+                <div className="flex justify-between items-center py-3 border-b bg-green-50 -mx-4 px-4">
+                  <p className="text-sm font-semibold text-green-800">Profit from selling goods</p>
+                  <span className="text-base font-bold text-green-700">{fmt(grossProfit)}</span>
+                </div>
+
+                {/* Expenses */}
+                <div className="flex justify-between items-center py-3 border-b">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                      <Banknote className="h-4 w-4 text-orange-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Expenses paid</p>
+                      {(exp.byCategory ?? []).map((c: any) => (
+                        <p key={c.categoryName} className="text-xs text-gray-400">
+                          {c.categoryName ?? "Other"}: {fmt(c.total)}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                  <span className="text-base font-semibold text-orange-600">− {fmt(expTotal)}</span>
+                </div>
+
+                {/* Stock purchases this period */}
+                {n(purchases.total) > 0 && (
+                  <div className="flex justify-between items-center py-3 border-b">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                        <Package className="h-4 w-4 text-indigo-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">Stock restocked (purchases)</p>
+                        <p className="text-xs text-gray-400">Money spent on buying stock</p>
+                      </div>
+                    </div>
+                    <span className="text-base font-semibold text-indigo-600">{fmt(purchases.total)}</span>
+                  </div>
+                )}
+
+                {/* Net profit */}
+                <div className={`flex justify-between items-center py-4 -mx-4 px-4 ${isProfit ? "bg-green-100" : "bg-red-100"}`}>
+                  <p className={`text-base font-bold ${isProfit ? "text-green-900" : "text-red-700"}`}>
+                    {isProfit ? "Money in your pocket" : "Loss this period"}
+                  </p>
+                  <span className={`text-xl font-bold ${isProfit ? "text-green-700" : "text-red-600"}`}>
+                    {isProfit ? "" : "− "}{fmt(Math.abs(netProfit))}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Payment method breakdown */}
+            {byPayment.length > 0 && (
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Revenue by Payment Method</p>
-                  {byPayment.length === 0 ? (
-                    <p className="text-xs text-gray-400 text-center py-4">No payment data</p>
-                  ) : (
-                    <div className="space-y-2 text-sm">
-                      {byPayment.map(row => {
-                        const amt = n(row.total);
-                        const share = pct(amt, revenue);
-                        const barW = revenue > 0 ? Math.round((amt / revenue) * 100) : 0;
-                        return (
-                          <div key={row.paymentType}>
-                            <div className="flex justify-between mb-0.5">
-                              <span className="text-gray-600 flex items-center gap-1">
-                                <CreditCard className="h-3 w-3 text-gray-400" />
-                                {METHOD_LABELS[row.paymentType] ?? row.paymentType}
-                              </span>
-                              <span className="font-medium">{fmt(amt)} <span className="text-gray-400 font-normal text-xs">({share})</span></span>
-                            </div>
-                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-purple-400 rounded-full" style={{ width: `${barW}%` }} />
-                            </div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">How customers paid</p>
+                  <div className="space-y-2">
+                    {byPayment.map(row => {
+                      const amt = n(row.total);
+                      const barW = revenue > 0 ? Math.round((amt / revenue) * 100) : 0;
+                      return (
+                        <div key={row.paymentType}>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-gray-700">{METHOD_LABELS[row.paymentType] ?? row.paymentType}</span>
+                            <span className="font-semibold text-gray-900">{fmt(amt)}</span>
                           </div>
-                        );
-                      })}
-                      <div className="flex justify-between pt-2 border-t font-semibold text-purple-700 text-sm">
-                        <span>Total Collected</span>
-                        <span>{fmt(byPayment.reduce((s, r) => s + n(r.total), 0))}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Purchases info */}
-                  <div className="mt-4 pt-3 border-t">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Stock Purchases</p>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 flex items-center gap-1"><Package className="h-3 w-3" /> Total Purchased</span>
-                      <span className="font-medium">{fmt(purchases.total)}</span>
-                    </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-purple-400 rounded-full" style={{ width: `${barW}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
+            )}
 
-              {/* Margins & health */}
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Margins & Health</p>
-                  <div className="space-y-3 text-sm">
-                    {[
-                      { label: "Gross Margin", value: `${grossMargin.toFixed(1)}%`, good: grossMargin > 20 },
-                      { label: "Net Margin", value: `${netMargin.toFixed(1)}%`, good: netMargin > 0 },
-                      { label: "Expense Ratio", value: pct(expTotal, revenue), good: expTotal / revenue < 0.3 },
-                      { label: "COGS Ratio", value: pct(cost, revenue), good: cost / revenue < 0.7 },
-                      { label: "Avg Order Value", value: fmt(avgOrder), good: true },
-                    ].map(({ label, value, good }) => (
-                      <div key={label} className="flex justify-between items-center">
-                        <span className="text-gray-600">{label}</span>
-                        <span className={`font-semibold ${good ? "text-green-700" : "text-orange-600"}`}>{value}</span>
-                      </div>
-                    ))}
-
-                    {/* Verdict */}
-                    <div className={`mt-3 p-3 rounded-lg text-sm font-medium flex items-center gap-2 ${netProfit >= 0 ? "bg-green-50 text-green-800" : "bg-red-50 text-red-700"}`}>
-                      {netProfit >= 0
-                        ? <TrendingUp className="h-4 w-4 shrink-0" />
-                        : <AlertTriangle className="h-4 w-4 shrink-0" />}
-                      {netProfit >= 0
-                        ? `Profitable — ${netMargin.toFixed(1)}% net margin`
-                        : `Operating at a loss — review expenses`}
-                    </div>
-
-                    {/* Quick actions */}
-                    <div className="pt-2 border-t space-y-1">
-                      <p className="text-xs text-gray-400 mb-1.5">Quick Reports</p>
-                      <Button variant="outline" size="sm" className="w-full justify-start text-xs h-7" onClick={() => setLocation("/reports/business")}>
-                        Business Overview
-                      </Button>
-                      <Button variant="outline" size="sm" className="w-full justify-start text-xs h-7" onClick={() => setLocation("/debtors")}>
-                        Debtors & Credit
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            {/* If loss, show a note */}
+            {!isProfit && (
+              <div className="flex items-start gap-2 text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-xl p-3">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <p>Your expenses are higher than your gross profit this period. Check if any expense categories can be reduced.</p>
+              </div>
+            )}
           </>
         )}
       </div>
