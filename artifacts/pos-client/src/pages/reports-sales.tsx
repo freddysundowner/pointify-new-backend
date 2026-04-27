@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { DollarSign, ArrowLeft, RefreshCw, CreditCard, Smartphone, Banknote, Building, Clock } from "lucide-react";
+import { DollarSign, ArrowLeft, RefreshCw, CreditCard, Smartphone, Banknote, Building, Clock, ShoppingCart } from "lucide-react";
 import { RootState } from "@/store";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useLocation } from "wouter";
@@ -17,22 +17,14 @@ const fmt = (v: any) => {
   return `KES ${isNaN(num) ? "0" : num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
 
-const METHOD_ICONS: Record<string, any> = {
-  cash: Banknote, mpesa: Smartphone, mpesa_stk: Smartphone,
-  bank: Building, card: CreditCard, wallet: CreditCard, credit: CreditCard,
-};
-const METHOD_LABELS: Record<string, string> = {
-  cash: "Cash", mpesa: "M-Pesa", mpesa_stk: "M-Pesa (STK)",
-  bank: "Bank Transfer", card: "Card", wallet: "Wallet", credit: "Credit",
-};
-const METHOD_COLORS: Record<string, string> = {
-  cash: "bg-green-100 text-green-700",
-  mpesa: "bg-emerald-100 text-emerald-700",
-  mpesa_stk: "bg-emerald-100 text-emerald-700",
-  bank: "bg-blue-100 text-blue-700",
-  card: "bg-indigo-100 text-indigo-700",
-  wallet: "bg-purple-100 text-purple-700",
-  credit: "bg-orange-100 text-orange-700",
+const METHOD_CONFIG: Record<string, { label: string; icon: any; bg: string; text: string; bar: string }> = {
+  cash:      { label: "Cash",          icon: Banknote,   bg: "bg-green-50",   text: "text-green-700",  bar: "bg-green-500" },
+  mpesa:     { label: "M-Pesa",        icon: Smartphone, bg: "bg-emerald-50", text: "text-emerald-700",bar: "bg-emerald-500" },
+  mpesa_stk: { label: "M-Pesa STK",   icon: Smartphone, bg: "bg-emerald-50", text: "text-emerald-700",bar: "bg-emerald-500" },
+  bank:      { label: "Bank Transfer", icon: Building,   bg: "bg-blue-50",    text: "text-blue-700",   bar: "bg-blue-500" },
+  card:      { label: "Card",          icon: CreditCard, bg: "bg-indigo-50",  text: "text-indigo-700", bar: "bg-indigo-500" },
+  wallet:    { label: "Wallet",        icon: CreditCard, bg: "bg-purple-50",  text: "text-purple-700", bar: "bg-purple-500" },
+  credit:    { label: "Credit",        icon: Clock,      bg: "bg-orange-50",  text: "text-orange-700", bar: "bg-orange-400" },
 };
 
 const QUICK = [
@@ -48,11 +40,9 @@ export default function SalesReportPage() {
   const [, setLocation] = useLocation();
 
   const shopId = selectedShopId || primaryShop?.shopId;
-
   const today = new Date().toISOString().split("T")[0];
   const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
 
-  // Default to Today
   const [quickDays, setQuickDays] = useState(1);
   const [from, setFrom] = useState(firstOfMonth);
   const [to, setTo] = useState(today);
@@ -92,9 +82,15 @@ export default function SalesReportPage() {
   const cashCollected = n(paymentData?.grandTotal);
   const dailyRows: any[] = (dailyData?.rows ?? []).slice().reverse();
 
-  const totalSalesValue = dailyRows.reduce((s: number, r: any) => s + n(r.totalRevenue), 0);
+  const totalSalesValue  = dailyRows.reduce((s: number, r: any) => s + n(r.totalRevenue), 0);
   const totalTransactions = dailyRows.reduce((s: number, r: any) => s + n(r.totalSales), 0);
-  const totalOnCredit = Math.max(0, totalSalesValue - cashCollected);
+  const totalOnCredit    = Math.max(0, totalSalesValue - cashCollected);
+
+  // Build full payment method list: real payments + credit remainder
+  const allMethods = [
+    ...paymentRows.map((r: any) => ({ type: r.paymentType, amount: n(r.totalAmount), count: n(r.saleCount) })),
+    ...(totalOnCredit > 0 ? [{ type: "credit", amount: totalOnCredit, count: 0 }] : []),
+  ];
 
   const refetch = () => { refetchPay(); refetchDaily(); };
   const isLoading = loadingPay || loadingDaily;
@@ -117,13 +113,7 @@ export default function SalesReportPage() {
         {/* Period selector */}
         <div className="flex items-center gap-2 flex-wrap">
           {QUICK.map(q => (
-            <Button
-              key={q.days}
-              variant={quickDays === q.days ? "default" : "outline"}
-              size="sm"
-              className="h-8 text-sm"
-              onClick={() => setQuickDays(q.days)}
-            >
+            <Button key={q.days} variant={quickDays === q.days ? "default" : "outline"} size="sm" className="h-8 text-sm" onClick={() => setQuickDays(q.days)}>
               {q.label}
             </Button>
           ))}
@@ -135,143 +125,107 @@ export default function SalesReportPage() {
             </>
           )}
           <Button size="sm" onClick={refetch} disabled={isLoading} className="h-8 gap-1 ml-auto bg-green-600 hover:bg-green-700">
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-            Apply
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Apply
           </Button>
         </div>
 
         {isLoading && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-gray-100 rounded-xl animate-pulse" />)}
+            {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />)}
           </div>
         )}
 
-        {!isLoading && (
+        {!isLoading && totalTransactions === 0 && (
+          <Card className="border-0 shadow-sm">
+            <CardContent className="py-16 text-center">
+              <ShoppingCart className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+              <p className="text-gray-400 font-medium">No sales in this period</p>
+              <p className="text-xs text-gray-300 mt-1">Try a different date range</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {!isLoading && totalTransactions > 0 && (
           <>
-            {/* Summary cards — 4 across */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Card className="border-0 shadow-sm bg-blue-50">
+            {/* Top summary row */}
+            <div className="grid grid-cols-3 gap-3">
+              <Card className="border-0 shadow-sm bg-blue-50 col-span-1">
                 <CardContent className="p-4">
-                  <p className="text-xs text-blue-600 font-medium mb-1">Total Sales</p>
-                  <p className="text-xl font-bold text-blue-700">{fmt(totalSalesValue)}</p>
+                  <p className="text-xs text-blue-500 font-medium">Total Sales Value</p>
+                  <p className="text-2xl font-bold text-blue-700">{fmt(totalSalesValue)}</p>
                   <p className="text-xs text-blue-400 mt-1">{totalTransactions} transaction{totalTransactions !== 1 ? "s" : ""}</p>
                 </CardContent>
               </Card>
-              <Card className="border-0 shadow-sm bg-green-50">
+              <Card className="border-0 shadow-sm bg-green-50 col-span-1">
                 <CardContent className="p-4">
-                  <p className="text-xs text-green-600 font-medium mb-1">Cash & M-Pesa Received</p>
-                  <p className="text-xl font-bold text-green-700">{fmt(cashCollected)}</p>
-                  <p className="text-xs text-green-400 mt-1">actual payments collected</p>
+                  <p className="text-xs text-green-500 font-medium">Money Received</p>
+                  <p className="text-2xl font-bold text-green-700">{fmt(cashCollected)}</p>
+                  <p className="text-xs text-green-400 mt-1">cash + mpesa + bank</p>
                 </CardContent>
               </Card>
-              <Card className={`border-0 shadow-sm ${totalOnCredit > 0 ? "bg-orange-50" : "bg-gray-50"}`}>
+              <Card className={`border-0 shadow-sm col-span-1 ${totalOnCredit > 0 ? "bg-orange-50" : "bg-gray-50"}`}>
                 <CardContent className="p-4">
-                  <p className={`text-xs font-medium mb-1 ${totalOnCredit > 0 ? "text-orange-600" : "text-gray-400"}`}>Still on Credit</p>
-                  <p className={`text-xl font-bold ${totalOnCredit > 0 ? "text-orange-600" : "text-gray-400"}`}>{fmt(totalOnCredit)}</p>
-                  <p className={`text-xs mt-1 ${totalOnCredit > 0 ? "text-orange-400" : "text-gray-400"}`}>
-                    {totalOnCredit > 0 ? "not yet paid by customers" : "all paid"}
+                  <p className={`text-xs font-medium ${totalOnCredit > 0 ? "text-orange-500" : "text-gray-400"}`}>Still on Credit</p>
+                  <p className={`text-2xl font-bold ${totalOnCredit > 0 ? "text-orange-600" : "text-gray-400"}`}>{fmt(totalOnCredit)}</p>
+                  <p className={`text-xs mt-1 ${totalOnCredit > 0 ? "text-orange-400" : "text-gray-300"}`}>
+                    {totalOnCredit > 0 ? "not yet paid" : "all paid"}
                   </p>
-                </CardContent>
-              </Card>
-              <Card className="border-0 shadow-sm bg-gray-50">
-                <CardContent className="p-4">
-                  <p className="text-xs text-gray-500 font-medium mb-1">Transactions</p>
-                  <p className="text-xl font-bold text-gray-700">{totalTransactions}</p>
-                  <p className="text-xs text-gray-400 mt-1">completed sales</p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Payment breakdown */}
-            <Card className="border-0 shadow-sm">
-              <CardContent className="p-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">How Payments Were Received</p>
-
-                {paymentRows.length === 0 && totalOnCredit === 0 && (
-                  <p className="text-sm text-gray-400 text-center py-6">No sales in this period</p>
-                )}
-
-                {paymentRows.length === 0 && totalOnCredit > 0 && (
-                  <div className="flex items-center gap-3 py-4 px-3 bg-orange-50 rounded-lg">
-                    <div className="h-9 w-9 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
-                      <Clock className="h-4 w-4 text-orange-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-orange-800">All sales are on credit</p>
-                      <p className="text-xs text-orange-600 mt-0.5">
-                        {fmt(totalOnCredit)} sold but not yet paid — customers owe this amount
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {paymentRows.length > 0 && (
-                  <div className="space-y-3">
-                    {paymentRows.map(row => {
-                      const amt = n(row.totalAmount);
-                      const Icon = METHOD_ICONS[row.paymentType] ?? CreditCard;
-                      const colorClass = METHOD_COLORS[row.paymentType] ?? "bg-gray-100 text-gray-700";
-                      const barW = cashCollected > 0 ? Math.round((amt / cashCollected) * 100) : 0;
-                      return (
-                        <div key={row.paymentType}>
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-2">
-                              <div className={`h-7 w-7 rounded-lg flex items-center justify-center ${colorClass}`}>
-                                <Icon className="h-3.5 w-3.5" />
-                              </div>
-                              <span className="text-sm font-medium text-gray-800">
-                                {METHOD_LABELS[row.paymentType] ?? row.paymentType}
-                              </span>
-                              <span className="text-xs text-gray-400">({n(row.saleCount)} sales)</span>
+            {/* Payment method cards — the main section */}
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2 px-1">How Money Came In</p>
+              {allMethods.length === 0 ? (
+                <Card className="border-0 shadow-sm">
+                  <CardContent className="py-8 text-center text-sm text-gray-400">
+                    No payments recorded yet
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {allMethods.map(m => {
+                    const cfg = METHOD_CONFIG[m.type] ?? { label: m.type, icon: CreditCard, bg: "bg-gray-50", text: "text-gray-700", bar: "bg-gray-400" };
+                    const Icon = cfg.icon;
+                    const shareOfTotal = totalSalesValue > 0 ? Math.round((m.amount / totalSalesValue) * 100) : 0;
+                    return (
+                      <Card key={m.type} className={`border-0 shadow-sm ${cfg.bg}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className={`h-8 w-8 rounded-lg bg-white/60 flex items-center justify-center shrink-0`}>
+                              <Icon className={`h-4 w-4 ${cfg.text}`} />
                             </div>
-                            <span className="font-bold text-gray-900">{fmt(amt)}</span>
+                            <p className={`text-sm font-semibold ${cfg.text}`}>{cfg.label}</p>
                           </div>
-                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden ml-9">
-                            <div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${barW}%` }} />
+                          <p className={`text-2xl font-bold ${cfg.text}`}>{fmt(m.amount)}</p>
+                          {m.count > 0 && <p className={`text-xs mt-1 opacity-70 ${cfg.text}`}>{m.count} sale{m.count !== 1 ? "s" : ""}</p>}
+                          {m.count === 0 && m.type === "credit" && <p className={`text-xs mt-1 opacity-70 ${cfg.text}`}>awaiting payment</p>}
+                          {/* Share bar */}
+                          <div className="mt-3 h-1.5 bg-white/50 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${cfg.bar}`} style={{ width: `${shareOfTotal}%` }} />
                           </div>
-                        </div>
-                      );
-                    })}
+                          <p className={`text-xs mt-1 opacity-60 ${cfg.text}`}>{shareOfTotal}% of total</p>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
-                    {/* Show credit remainder if any */}
-                    {totalOnCredit > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-orange-100 text-orange-600">
-                              <Clock className="h-3.5 w-3.5" />
-                            </div>
-                            <span className="text-sm font-medium text-gray-800">Credit (unpaid)</span>
-                          </div>
-                          <span className="font-bold text-orange-600">{fmt(totalOnCredit)}</span>
-                        </div>
-                        <div className="h-2 bg-orange-100 rounded-full overflow-hidden ml-9">
-                          <div className="h-full bg-orange-300 rounded-full" style={{ width: `${totalSalesValue > 0 ? Math.round((totalOnCredit / totalSalesValue) * 100) : 0}%` }} />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center pt-2 border-t font-bold text-base">
-                      <span className="text-gray-700">Total Sales Value</span>
-                      <span className="text-blue-700">{fmt(totalSalesValue)}</span>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Daily breakdown */}
+            {/* Day-by-day table */}
             {dailyRows.length > 0 && (
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Day-by-Day Breakdown</p>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Day-by-Day</p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-xs text-gray-400 border-b">
                           <th className="text-left pb-2 font-medium">Date</th>
                           <th className="text-right pb-2 font-medium">Sales</th>
-                          <th className="text-right pb-2 font-medium">Sales Value</th>
+                          <th className="text-right pb-2 font-medium">Total Value</th>
                           <th className="text-right pb-2 font-medium">Cash Received</th>
                           <th className="text-right pb-2 font-medium">Discounts</th>
                         </tr>
@@ -279,23 +233,23 @@ export default function SalesReportPage() {
                       <tbody className="divide-y divide-gray-50">
                         {dailyRows.map((row: any) => (
                           <tr key={row.day} className="hover:bg-gray-50">
-                            <td className="py-2 text-gray-700">
+                            <td className="py-2.5 text-gray-700 font-medium">
                               {new Date(row.day + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
                             </td>
-                            <td className="py-2 text-right text-gray-500">{n(row.totalSales)}</td>
-                            <td className="py-2 text-right font-medium text-blue-700">{fmt(row.totalRevenue)}</td>
-                            <td className="py-2 text-right font-medium text-green-700">{fmt(row.totalPaid)}</td>
-                            <td className="py-2 text-right text-orange-500">{n(row.totalDiscount) > 0 ? fmt(row.totalDiscount) : "—"}</td>
+                            <td className="py-2.5 text-right text-gray-500">{n(row.totalSales)}</td>
+                            <td className="py-2.5 text-right font-semibold text-blue-700">{fmt(row.totalRevenue)}</td>
+                            <td className="py-2.5 text-right font-semibold text-green-700">{fmt(row.totalPaid)}</td>
+                            <td className="py-2.5 text-right text-orange-500">{n(row.totalDiscount) > 0 ? fmt(row.totalDiscount) : "—"}</td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr className="border-t font-semibold">
-                          <td className="pt-2 text-gray-700">Total</td>
-                          <td className="pt-2 text-right text-gray-600">{totalTransactions}</td>
-                          <td className="pt-2 text-right text-blue-700">{fmt(totalSalesValue)}</td>
-                          <td className="pt-2 text-right text-green-700">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalPaid), 0))}</td>
-                          <td className="pt-2 text-right text-orange-500">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalDiscount), 0))}</td>
+                        <tr className="border-t font-bold">
+                          <td className="pt-2.5 text-gray-700">Total</td>
+                          <td className="pt-2.5 text-right text-gray-600">{totalTransactions}</td>
+                          <td className="pt-2.5 text-right text-blue-700">{fmt(totalSalesValue)}</td>
+                          <td className="pt-2.5 text-right text-green-700">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalPaid), 0))}</td>
+                          <td className="pt-2.5 text-right text-orange-500">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalDiscount), 0))}</td>
                         </tr>
                       </tfoot>
                     </table>
