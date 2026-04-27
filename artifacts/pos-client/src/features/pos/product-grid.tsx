@@ -366,29 +366,23 @@ export default function ProductGrid({
     onSuccess: (response: any, variables: any) => {
       console.log("Transaction successful:", response);
       
-      // Invalidate all sales-related queries to refresh dashboard and sales lists
+      // Invalidate all sales-related and dashboard queries
+      const isDashboardOrSalesKey = (query: any) => {
+        const key = String(query.queryKey[0] || '');
+        return (
+          key.includes('/api/sales') ||
+          key.includes('/api/analysis') ||
+          key.includes('/api/reports') ||
+          key.includes('/api/product') ||
+          key.includes('recent-transactions') ||
+          key.includes('overdue-customers') ||
+          key.includes('dashboard') ||
+          key.includes('shops')
+        );
+      };
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ 
-        predicate: (query) => {
-          const key = String(query.queryKey[0] || '');
-          return key.includes('/api/sales') || 
-                 key.includes('/api/analysis') || 
-                 key.includes('/api/product') || // Add product queries
-                 key.includes('recent-transactions') ||
-                 key.includes('dashboard');
-        }
-      });
-      
-      // Force immediate refetch for dashboard data and products
-      queryClient.refetchQueries({
-        predicate: (query) => {
-          const key = String(query.queryKey[0] || '');
-          return key.includes('/api/sales') || 
-                 key.includes('/api/analysis') ||
-                 key.includes('/api/product') || // Add product queries
-                 key.includes('recent-transactions');
-        }
-      });
+      queryClient.invalidateQueries({ predicate: isDashboardOrSalesKey });
+      queryClient.refetchQueries({ predicate: isDashboardOrSalesKey });
       
       // Also refresh ProductsContext to update POS grid immediately
       refreshProducts();
