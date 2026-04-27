@@ -133,7 +133,7 @@ export default function SalesReportPage() {
 
         {isLoading && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />)}
+            {[...Array(4)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
           </div>
         )}
 
@@ -150,26 +150,26 @@ export default function SalesReportPage() {
         {!isLoading && totalTransactions > 0 && (
           <>
             {/* Top summary row */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2.5">
               <Card className="border-0 shadow-sm bg-blue-50 col-span-1">
-                <CardContent className="p-4">
+                <CardContent className="p-3">
                   <p className="text-xs text-blue-500 font-medium">Total Sales Value</p>
-                  <p className="text-2xl font-bold text-blue-700">{fmt(totalSalesValue)}</p>
-                  <p className="text-xs text-blue-400 mt-1">{totalTransactions} transaction{totalTransactions !== 1 ? "s" : ""}</p>
+                  <p className="text-xl font-bold text-blue-700 leading-tight mt-0.5">{fmt(totalSalesValue)}</p>
+                  <p className="text-xs text-blue-400 mt-0.5">{totalTransactions} transaction{totalTransactions !== 1 ? "s" : ""}</p>
                 </CardContent>
               </Card>
               <Card className="border-0 shadow-sm bg-green-50 col-span-1">
-                <CardContent className="p-4">
+                <CardContent className="p-3">
                   <p className="text-xs text-green-500 font-medium">Money Received</p>
-                  <p className="text-2xl font-bold text-green-700">{fmt(cashCollected)}</p>
-                  <p className="text-xs text-green-400 mt-1">cash + mpesa + bank</p>
+                  <p className="text-xl font-bold text-green-700 leading-tight mt-0.5">{fmt(cashCollected)}</p>
+                  <p className="text-xs text-green-400 mt-0.5">cash + mpesa + bank</p>
                 </CardContent>
               </Card>
               <Card className={`border-0 shadow-sm col-span-1 ${totalOnCredit > 0 ? "bg-orange-50" : "bg-gray-50"}`}>
-                <CardContent className="p-4">
+                <CardContent className="p-3">
                   <p className={`text-xs font-medium ${totalOnCredit > 0 ? "text-orange-500" : "text-gray-400"}`}>Still on Credit</p>
-                  <p className={`text-2xl font-bold ${totalOnCredit > 0 ? "text-orange-600" : "text-gray-400"}`}>{fmt(totalOnCredit)}</p>
-                  <p className={`text-xs mt-1 ${totalOnCredit > 0 ? "text-orange-400" : "text-gray-300"}`}>
+                  <p className={`text-xl font-bold leading-tight mt-0.5 ${totalOnCredit > 0 ? "text-orange-600" : "text-gray-400"}`}>{fmt(totalOnCredit)}</p>
+                  <p className={`text-xs mt-0.5 ${totalOnCredit > 0 ? "text-orange-400" : "text-gray-300"}`}>
                     {totalOnCredit > 0 ? "not yet paid" : "all paid"}
                   </p>
                 </CardContent>
@@ -186,28 +186,27 @@ export default function SalesReportPage() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
                   {allMethods.map(m => {
                     const cfg = METHOD_CONFIG[m.type] ?? { label: m.type, icon: CreditCard, bg: "bg-gray-50", text: "text-gray-700", bar: "bg-gray-400" };
                     const Icon = cfg.icon;
                     const shareOfTotal = totalSalesValue > 0 ? Math.round((m.amount / totalSalesValue) * 100) : 0;
                     return (
                       <Card key={m.type} className={`border-0 shadow-sm ${cfg.bg}`}>
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className={`h-8 w-8 rounded-lg bg-white/60 flex items-center justify-center shrink-0`}>
-                              <Icon className={`h-4 w-4 ${cfg.text}`} />
+                        <CardContent className="p-3">
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <div className={`h-6 w-6 rounded-md bg-white/60 flex items-center justify-center shrink-0`}>
+                              <Icon className={`h-3.5 w-3.5 ${cfg.text}`} />
                             </div>
-                            <p className={`text-sm font-semibold ${cfg.text}`}>{cfg.label}</p>
+                            <p className={`text-xs font-semibold ${cfg.text}`}>{cfg.label}</p>
                           </div>
-                          <p className={`text-2xl font-bold ${cfg.text}`}>{fmt(m.amount)}</p>
-                          {m.count > 0 && <p className={`text-xs mt-1 opacity-70 ${cfg.text}`}>{m.count} sale{m.count !== 1 ? "s" : ""}</p>}
-                          {m.count === 0 && m.type === "credit" && <p className={`text-xs mt-1 opacity-70 ${cfg.text}`}>awaiting payment</p>}
-                          {/* Share bar */}
-                          <div className="mt-3 h-1.5 bg-white/50 rounded-full overflow-hidden">
+                          <p className={`text-lg font-bold leading-tight ${cfg.text}`}>{fmt(m.amount)}</p>
+                          {m.count > 0 && <p className={`text-xs mt-0.5 opacity-70 ${cfg.text}`}>{m.count} sale{m.count !== 1 ? "s" : ""}</p>}
+                          {m.count === 0 && m.type === "credit" && <p className={`text-xs mt-0.5 opacity-70 ${cfg.text}`}>awaiting payment</p>}
+                          <div className="mt-2 h-1 bg-white/50 rounded-full overflow-hidden">
                             <div className={`h-full rounded-full ${cfg.bar}`} style={{ width: `${shareOfTotal}%` }} />
                           </div>
-                          <p className={`text-xs mt-1 opacity-60 ${cfg.text}`}>{shareOfTotal}% of total</p>
+                          <p className={`text-xs mt-0.5 opacity-60 ${cfg.text}`}>{shareOfTotal}% of total</p>
                         </CardContent>
                       </Card>
                     );
