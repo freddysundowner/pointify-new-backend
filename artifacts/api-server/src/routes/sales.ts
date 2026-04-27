@@ -106,7 +106,7 @@ router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
       totalCount: sql<number>`COUNT(CASE WHEN ${sales.status} NOT IN ('voided','refunded') THEN 1 END)`,
       cash: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) IN ('cash') AND ${sales.status} NOT IN ('voided','refunded') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
       mpesa: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) SIMILAR TO '%(mpesa|m-pesa)%' AND ${sales.status} NOT IN ('voided','refunded') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
-      credit: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) = 'credit' AND ${sales.status} NOT IN ('voided','refunded') AND ${sales.outstandingBalance}::numeric > 0 THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+      credit: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) = 'credit' AND ${sales.status} NOT IN ('voided','refunded') AND ${sales.outstandingBalance}::numeric > 0 THEN ${sales.outstandingBalance}::numeric ELSE 0 END), 0)`,
       wallet: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) = 'wallet' AND ${sales.status} NOT IN ('voided','refunded') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
       hold: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'held' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
       bank: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) = 'bank' AND ${sales.status} NOT IN ('voided','refunded') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
