@@ -154,7 +154,7 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
     setCartItems(prev =>
       prev.map(item => {
         if (item.id !== id) return item;
-        const validDiscount = Math.min(discountAmount, item.maxDiscount || 0);
+        const validDiscount = Math.min(discountAmount, parseFloat(String(item.maxDiscount || 0)) || 0);
         return {
           ...item,
           discount: validDiscount,

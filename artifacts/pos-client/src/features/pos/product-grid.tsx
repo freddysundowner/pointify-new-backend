@@ -551,10 +551,23 @@ export default function ProductGrid({
 
   const handleDiscountUpdate = () => {
     if (!selectedDiscountItem) return;
-    
+
     const discount = parseFloat(discountAmount) || 0;
+
+    const allSources = [...allProducts, ...searchResults];
+    const productData = allSources.find(p => (p as any)._id === selectedDiscountItem.id || p.id === selectedDiscountItem.id);
+    const rawMin = (productData as any)?.minSellingPrice;
+    const minSellingPrice = rawMin != null ? (parseFloat(String(rawMin)) || 0) : 0;
+    const finalPrice = selectedDiscountItem.price - discount;
+
+    if (minSellingPrice > 0 && finalPrice < minSellingPrice) {
+      setMinPriceWarningData({ attempted: finalPrice, minimum: minSellingPrice });
+      setShowMinPriceWarning(true);
+      return;
+    }
+
     onApplyDiscount(selectedDiscountItem.id, discount);
-    
+
     setShowDiscountDialog(false);
     setSelectedDiscountItem(null);
     setDiscountAmount("");
