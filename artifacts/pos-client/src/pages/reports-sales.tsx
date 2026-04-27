@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { DollarSign, ArrowLeft, RefreshCw, ShoppingBag, CreditCard, Smartphone, Banknote, Building } from "lucide-react";
+import { DollarSign, ArrowLeft, RefreshCw, CreditCard, Smartphone, Banknote, Building, Clock } from "lucide-react";
 import { RootState } from "@/store";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useLocation } from "wouter";
@@ -52,7 +52,8 @@ export default function SalesReportPage() {
   const today = new Date().toISOString().split("T")[0];
   const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
 
-  const [quickDays, setQuickDays] = useState(30);
+  // Default to Today
+  const [quickDays, setQuickDays] = useState(1);
   const [from, setFrom] = useState(firstOfMonth);
   const [to, setTo] = useState(today);
   const isCustom = quickDays === 0;
@@ -87,11 +88,13 @@ export default function SalesReportPage() {
     staleTime: 0,
   });
 
-  const rows: any[] = paymentData?.rows ?? [];
-  const grandTotal = n(paymentData?.grandTotal);
+  const paymentRows: any[] = paymentData?.rows ?? [];
+  const cashCollected = n(paymentData?.grandTotal);
   const dailyRows: any[] = (dailyData?.rows ?? []).slice().reverse();
 
+  const totalSalesValue = dailyRows.reduce((s: number, r: any) => s + n(r.totalRevenue), 0);
   const totalTransactions = dailyRows.reduce((s: number, r: any) => s + n(r.totalSales), 0);
+  const totalOnCredit = Math.max(0, totalSalesValue - cashCollected);
 
   const refetch = () => { refetchPay(); refetchDaily(); };
   const isLoading = loadingPay || loadingDaily;
@@ -138,27 +141,43 @@ export default function SalesReportPage() {
         </div>
 
         {isLoading && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-gray-100 rounded-xl animate-pulse" />)}
           </div>
         )}
 
         {!isLoading && (
           <>
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 gap-3">
-              <Card className="border-0 shadow-sm bg-green-50">
-                <CardContent className="p-4">
-                  <p className="text-xs text-green-600 font-medium mb-1">Total Collected</p>
-                  <p className="text-2xl font-bold text-green-700">{fmt(grandTotal)}</p>
-                  <p className="text-xs text-green-500 mt-1">across all payment methods</p>
-                </CardContent>
-              </Card>
+            {/* Summary cards — 4 across */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Card className="border-0 shadow-sm bg-blue-50">
                 <CardContent className="p-4">
-                  <p className="text-xs text-blue-600 font-medium mb-1">Total Transactions</p>
-                  <p className="text-2xl font-bold text-blue-700">{totalTransactions.toLocaleString()}</p>
-                  <p className="text-xs text-blue-500 mt-1">completed sales</p>
+                  <p className="text-xs text-blue-600 font-medium mb-1">Total Sales</p>
+                  <p className="text-xl font-bold text-blue-700">{fmt(totalSalesValue)}</p>
+                  <p className="text-xs text-blue-400 mt-1">{totalTransactions} transaction{totalTransactions !== 1 ? "s" : ""}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm bg-green-50">
+                <CardContent className="p-4">
+                  <p className="text-xs text-green-600 font-medium mb-1">Cash & M-Pesa Received</p>
+                  <p className="text-xl font-bold text-green-700">{fmt(cashCollected)}</p>
+                  <p className="text-xs text-green-400 mt-1">actual payments collected</p>
+                </CardContent>
+              </Card>
+              <Card className={`border-0 shadow-sm ${totalOnCredit > 0 ? "bg-orange-50" : "bg-gray-50"}`}>
+                <CardContent className="p-4">
+                  <p className={`text-xs font-medium mb-1 ${totalOnCredit > 0 ? "text-orange-600" : "text-gray-400"}`}>Still on Credit</p>
+                  <p className={`text-xl font-bold ${totalOnCredit > 0 ? "text-orange-600" : "text-gray-400"}`}>{fmt(totalOnCredit)}</p>
+                  <p className={`text-xs mt-1 ${totalOnCredit > 0 ? "text-orange-400" : "text-gray-400"}`}>
+                    {totalOnCredit > 0 ? "not yet paid by customers" : "all paid"}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-sm bg-gray-50">
+                <CardContent className="p-4">
+                  <p className="text-xs text-gray-500 font-medium mb-1">Transactions</p>
+                  <p className="text-xl font-bold text-gray-700">{totalTransactions}</p>
+                  <p className="text-xs text-gray-400 mt-1">completed sales</p>
                 </CardContent>
               </Card>
             </div>
@@ -166,16 +185,33 @@ export default function SalesReportPage() {
             {/* Payment breakdown */}
             <Card className="border-0 shadow-sm">
               <CardContent className="p-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">How Payments Were Collected</p>
-                {rows.length === 0 ? (
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">How Payments Were Received</p>
+
+                {paymentRows.length === 0 && totalOnCredit === 0 && (
                   <p className="text-sm text-gray-400 text-center py-6">No sales in this period</p>
-                ) : (
+                )}
+
+                {paymentRows.length === 0 && totalOnCredit > 0 && (
+                  <div className="flex items-center gap-3 py-4 px-3 bg-orange-50 rounded-lg">
+                    <div className="h-9 w-9 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                      <Clock className="h-4 w-4 text-orange-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-orange-800">All sales are on credit</p>
+                      <p className="text-xs text-orange-600 mt-0.5">
+                        {fmt(totalOnCredit)} sold but not yet paid — customers owe this amount
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {paymentRows.length > 0 && (
                   <div className="space-y-3">
-                    {rows.map(row => {
+                    {paymentRows.map(row => {
                       const amt = n(row.totalAmount);
                       const Icon = METHOD_ICONS[row.paymentType] ?? CreditCard;
                       const colorClass = METHOD_COLORS[row.paymentType] ?? "bg-gray-100 text-gray-700";
-                      const barW = grandTotal > 0 ? Math.round((amt / grandTotal) * 100) : 0;
+                      const barW = cashCollected > 0 ? Math.round((amt / cashCollected) * 100) : 0;
                       return (
                         <div key={row.paymentType}>
                           <div className="flex items-center justify-between mb-1">
@@ -196,9 +232,28 @@ export default function SalesReportPage() {
                         </div>
                       );
                     })}
+
+                    {/* Show credit remainder if any */}
+                    {totalOnCredit > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-orange-100 text-orange-600">
+                              <Clock className="h-3.5 w-3.5" />
+                            </div>
+                            <span className="text-sm font-medium text-gray-800">Credit (unpaid)</span>
+                          </div>
+                          <span className="font-bold text-orange-600">{fmt(totalOnCredit)}</span>
+                        </div>
+                        <div className="h-2 bg-orange-100 rounded-full overflow-hidden ml-9">
+                          <div className="h-full bg-orange-300 rounded-full" style={{ width: `${totalSalesValue > 0 ? Math.round((totalOnCredit / totalSalesValue) * 100) : 0}%` }} />
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex justify-between items-center pt-2 border-t font-bold text-base">
-                      <span className="text-gray-700">Total</span>
-                      <span className="text-green-700">{fmt(grandTotal)}</span>
+                      <span className="text-gray-700">Total Sales Value</span>
+                      <span className="text-blue-700">{fmt(totalSalesValue)}</span>
                     </div>
                   </div>
                 )}
@@ -216,7 +271,8 @@ export default function SalesReportPage() {
                         <tr className="text-xs text-gray-400 border-b">
                           <th className="text-left pb-2 font-medium">Date</th>
                           <th className="text-right pb-2 font-medium">Sales</th>
-                          <th className="text-right pb-2 font-medium">Collected</th>
+                          <th className="text-right pb-2 font-medium">Sales Value</th>
+                          <th className="text-right pb-2 font-medium">Cash Received</th>
                           <th className="text-right pb-2 font-medium">Discounts</th>
                         </tr>
                       </thead>
@@ -227,7 +283,8 @@ export default function SalesReportPage() {
                               {new Date(row.day + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
                             </td>
                             <td className="py-2 text-right text-gray-500">{n(row.totalSales)}</td>
-                            <td className="py-2 text-right font-medium text-gray-900">{fmt(row.totalRevenue)}</td>
+                            <td className="py-2 text-right font-medium text-blue-700">{fmt(row.totalRevenue)}</td>
+                            <td className="py-2 text-right font-medium text-green-700">{fmt(row.totalPaid)}</td>
                             <td className="py-2 text-right text-orange-500">{n(row.totalDiscount) > 0 ? fmt(row.totalDiscount) : "—"}</td>
                           </tr>
                         ))}
@@ -236,7 +293,8 @@ export default function SalesReportPage() {
                         <tr className="border-t font-semibold">
                           <td className="pt-2 text-gray-700">Total</td>
                           <td className="pt-2 text-right text-gray-600">{totalTransactions}</td>
-                          <td className="pt-2 text-right text-green-700">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalRevenue), 0))}</td>
+                          <td className="pt-2 text-right text-blue-700">{fmt(totalSalesValue)}</td>
+                          <td className="pt-2 text-right text-green-700">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalPaid), 0))}</td>
                           <td className="pt-2 text-right text-orange-500">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalDiscount), 0))}</td>
                         </tr>
                       </tfoot>
