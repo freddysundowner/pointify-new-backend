@@ -111,7 +111,7 @@ export default function StockCountHistoryPage() {
   // Filter stock counts based on search query
   const filteredCounts = stockCounts.filter((count) =>
     count.attendantId?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    count._id.toLowerCase().includes(searchQuery.toLowerCase())
+    (count._id || count.id || '').toString().toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Pagination

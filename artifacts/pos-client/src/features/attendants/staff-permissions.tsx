@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { normalizeId } from '@/lib/utils';
 import { Plus, Search, Edit, Trash2, Phone, Mail, User, Clock, DollarSign, Shield, Settings, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -584,7 +585,7 @@ export default function StaffPermissions() {
             {/* Staff Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredAttendants.map((attendant) => (
-                <Card key={attendant._id} className="hover:shadow-lg transition-shadow">
+                <Card key={normalizeId(attendant)._id} className="hover:shadow-lg transition-shadow">
                   <CardHeader className="pb-4">
                     <div className="flex justify-between items-start">
                       <div className="flex items-center space-x-3">

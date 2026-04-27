@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { normalizeIds } from "@/lib/utils";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Search, Calculator, Package, Minus, Plus, Trash2, CreditCard, Wallet, Smartphone, Building, Banknote, Split, User, X, Edit3, Calendar, Clock, UserCheck, Grid3X3, Table, PlusCircle, Loader2, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -342,9 +343,11 @@ export default function ProductGrid({
     ? categoriesResponse 
     : categoriesResponse?.categories || categoriesResponse?.data || [];
 
-  const customers = Array.isArray(customersResponse) 
-    ? customersResponse 
-    : customersResponse?.customers || customersResponse?.data || [];
+  const customers = normalizeIds(
+    Array.isArray(customersResponse)
+      ? customersResponse
+      : customersResponse?.customers || customersResponse?.data || []
+  );
     
   const selectedCustomer = Array.isArray(customers) 
     ? customers.find(c => {

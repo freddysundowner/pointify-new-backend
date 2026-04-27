@@ -82,6 +82,11 @@ export const useAuthProvider = (): AuthContextType => {
         adminData = { ...adminData, primaryShop: adminData.shop };
       }
 
+      // Normalize: ensure _id is always present (PostgreSQL API returns `id`, not `_id`)
+      if (adminData.id !== undefined && adminData._id === undefined) {
+        adminData = { ...adminData, _id: adminData.id };
+      }
+
       dispatch(setCurrency((adminData?.primaryShop as any)?.currency || 'KES'));
       console.log("Fetched admin data:", adminData);
 
@@ -89,7 +94,10 @@ export const useAuthProvider = (): AuthContextType => {
       if (!hasId) {
         let localdata = localStorage.getItem('adminData');
         if (localdata) {
-          const parsed = JSON.parse(localdata);
+          let parsed = JSON.parse(localdata);
+          if (parsed.id !== undefined && parsed._id === undefined) {
+            parsed = { ...parsed, _id: parsed.id };
+          }
           setAdmin(parsed);
           return parsed;
         }

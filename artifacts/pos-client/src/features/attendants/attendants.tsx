@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as React from 'react';
+import { normalizeIds } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit, Trash2, Eye, EyeOff, UserPlus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -179,7 +180,8 @@ export default function Attendants() {
         })
         .then(data => {
           console.log('Attendants API response data:', data);
-          return Array.isArray(data) ? data : data.data || [];
+          const list = Array.isArray(data) ? data : data.data || [];
+          return normalizeIds(list);
         });
     },
     enabled: !!(effectiveAdmin?._id || effectiveAdmin?.id),
