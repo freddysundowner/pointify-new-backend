@@ -13,9 +13,10 @@ interface ReceiptModalProps {
   onClose: () => void;
   transaction: Transaction | null;
   onNewTransaction: () => void;
+  shopData?: any;
 }
 
-export default function ReceiptModal({ isOpen, onClose, transaction, onNewTransaction }: ReceiptModalProps) {
+export default function ReceiptModal({ isOpen, onClose, transaction, onNewTransaction, shopData }: ReceiptModalProps) {
   if (!transaction) return null;
 
   const { toast } = useToast();
@@ -23,11 +24,12 @@ export default function ReceiptModal({ isOpen, onClose, transaction, onNewTransa
 
   const adminData = localStorage.getItem('adminData');
   const admin = adminData ? JSON.parse(adminData) : null;
-  const primaryShop = admin?.primaryShop;
+  // Prefer passed shopData prop; fall back to localStorage
+  const primaryShop = shopData ?? (typeof admin?.primaryShop === 'object' ? admin?.primaryShop : null);
   const attendantName = admin?.attendantId?.username || admin?.username || 'Staff';
   const items = transaction.items as CartItem[];
   const transactionDate = new Date();
-  const shopTaxRate = primaryShop?.tax || 0;
+  const shopTaxRate = primaryShop?.taxRate ?? primaryShop?.tax ?? 0;
   const currency = primaryShop?.currency || 'KES';
 
   // Reset to summary view when dialog closes

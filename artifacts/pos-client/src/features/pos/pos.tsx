@@ -134,6 +134,7 @@ export default function POS() {
         onClose={() => setShowReceipt(false)}
         transaction={lastTransaction}
         onNewTransaction={() => setShowReceipt(false)}
+        shopData={primaryShopData}
       />
 
       <CalculatorModal isOpen={showCalculator} onClose={() => setShowCalculator(false)} />
