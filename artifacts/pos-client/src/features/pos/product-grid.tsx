@@ -2272,7 +2272,7 @@ export default function ProductGrid({
                 <p className="text-lg font-semibold">{selectedDiscountItem.name}</p>
                 <p className="text-sm text-gray-500">Current price: Ksh {selectedDiscountItem.price.toFixed(2)}</p>
                 <p className="text-sm text-gray-500">
-                  Max discount: Ksh {(selectedDiscountItem.maxDiscount || 0).toFixed(2)}
+                  Max discount: Ksh {(+(selectedDiscountItem.maxDiscount || 0)).toFixed(2)}
                 </p>
                 {selectedDiscountItem.discount && selectedDiscountItem.discount > 0 && (
                   <p className="text-sm text-green-600">
@@ -2291,13 +2291,13 @@ export default function ProductGrid({
                 onChange={(e) => setDiscountAmount(e.target.value)}
                 placeholder="Enter discount amount"
                 className="text-lg"
-                max={selectedDiscountItem?.maxDiscount || 0}
+                max={+(selectedDiscountItem?.maxDiscount || 0)}
                 min="0"
                 step="0.01"
                 autoFocus
               />
               <p className="text-xs text-gray-500">
-                Maximum allowed: Ksh {(selectedDiscountItem?.maxDiscount || 0).toFixed(2)}
+                Maximum allowed: Ksh {(+(selectedDiscountItem?.maxDiscount || 0)).toFixed(2)}
               </p>
             </div>
           </div>
