@@ -296,8 +296,8 @@ function SalesList() {
     paymentTag: sale.paymentType || sale.paymentTag || "cash",
     saleType: sale.saleType || "Retail",
     items: sale.saleItems || sale.items || [],
-    attendantName: sale.attendantId?.username || sale.attendantName || "Unknown",
-    attendantId: sale.attendantId?._id || sale.attendantId?._id || sale.attendant,
+    attendantName: sale.attendant?.username || sale.attendantId?.username || sale.attendantName || "Admin",
+    attendantId: sale.attendant?.id || sale.attendantId?._id || sale.attendant?.id,
     shopId: sale.shop || sale.shopId,
   }));
 
