@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, sql, inArray, ilike } from "drizzle-orm";
 import { sales, saleItems, salePayments, saleReturns, saleReturnItems, products, inventory, customers, paymentMethods, batches, saleItemBatches, shops, loyaltyTransactions } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -77,6 +77,54 @@ router.get("/cross-shop", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["start"] ? new Date(String(req.query["start"])) : null;
+    const to = req.query["end"] ? new Date(String(req.query["end"])) : null;
+    const attendantId = req.query["attendantId"] ? Number(req.query["attendantId"]) : null;
+
+    const conditions: any[] = [];
+    if (req.attendant) {
+      conditions.push(eq(sales.attendant, req.attendant.id));
+      conditions.push(eq(sales.shop, req.attendant.shopId));
+    } else {
+      if (shopId) conditions.push(eq(sales.shop, shopId));
+      if (attendantId) conditions.push(eq(sales.attendant, attendantId));
+    }
+    if (from) conditions.push(gte(sales.createdAt, from));
+    if (to) {
+      const endOfDay = new Date(to);
+      endOfDay.setHours(23, 59, 59, 999);
+      conditions.push(lte(sales.createdAt, endOfDay));
+    }
+
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const [result] = await db.select({
+      totalSales: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} NOT IN ('voided','refunded') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+      totalCount: sql<number>`COUNT(CASE WHEN ${sales.status} NOT IN ('voided','refunded') THEN 1 END)`,
+      cash: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) IN ('cash') AND ${sales.status} NOT IN ('voided','refunded') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+      mpesa: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) SIMILAR TO '%(mpesa|m-pesa)%' AND ${sales.status} NOT IN ('voided','refunded') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+      credit: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) = 'credit' AND ${sales.status} NOT IN ('voided','refunded') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+      wallet: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) = 'wallet' AND ${sales.status} NOT IN ('voided','refunded') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+      hold: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'held' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+      bank: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) = 'bank' AND ${sales.status} NOT IN ('voided','refunded') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+    }).from(sales).where(where ?? sql`1=1`);
+
+    return ok(res, {
+      totalSales: Number(result.totalSales),
+      totalCount: Number(result.totalCount),
+      cashtransactions: Number(result.cash),
+      mpesa: Number(result.mpesa),
+      credit: Number(result.credit),
+      wallet: Number(result.wallet),
+      hold: Number(result.hold),
+      bank: Number(result.bank),
+    });
+  } catch (e) { next(e); }
+});
+
 router.get("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { page, limit, offset } = getPagination(req);
@@ -85,19 +133,32 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     const status = req.query["status"] ? String(req.query["status"]) : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
     const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+    // Also support start/end as aliases (sent by client)
+    const start = req.query["start"] ? new Date(String(req.query["start"])) : from;
+    const end = req.query["end"] ? new Date(String(req.query["end"])) : to;
+    const receiptNo = req.query["receiptNo"] ? String(req.query["receiptNo"]) : null;
+    const paymentTag = req.query["paymentTag"] ? String(req.query["paymentTag"]) : null;
+    const attendantId = req.query["attendantId"] ? Number(req.query["attendantId"]) : null;
 
-    const conditions = [];
+    const conditions: any[] = [];
     // Attendants can only see their own sales — admins see all.
     if (req.attendant) {
       conditions.push(eq(sales.attendant, req.attendant.id));
       conditions.push(eq(sales.shop, req.attendant.shopId));
     } else {
       if (shopId) conditions.push(eq(sales.shop, shopId));
+      if (attendantId) conditions.push(eq(sales.attendant, attendantId));
     }
     if (customerId) conditions.push(eq(sales.customer, customerId));
     if (status) conditions.push(eq(sales.status, status));
-    if (from) conditions.push(gte(sales.createdAt, from));
-    if (to) conditions.push(lte(sales.createdAt, to));
+    if (receiptNo) conditions.push(ilike(sales.receiptNo, `%${receiptNo}%`));
+    if (paymentTag) conditions.push(ilike(sales.paymentType, `%${paymentTag}%`));
+    if (start) conditions.push(gte(sales.createdAt, start));
+    if (end) {
+      const endOfDay = new Date(end);
+      endOfDay.setHours(23, 59, 59, 999);
+      conditions.push(lte(sales.createdAt, endOfDay));
+    }
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     const rows = await db.query.sales.findMany({

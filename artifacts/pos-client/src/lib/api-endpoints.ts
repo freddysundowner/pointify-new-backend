@@ -80,6 +80,7 @@ export const ENDPOINTS = {
   sales: {
     create:               "/api/sales",
     getAll:               "/api/sales",
+    stats:                "/api/sales/stats",
     getById:              (id: string) => `/api/sales/${id}`,
     getReceipt:           (id: string) => `/api/sales/${id}`,
     update:               (id: string) => `/api/sales/${id}`,

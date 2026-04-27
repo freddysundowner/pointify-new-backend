@@ -224,39 +224,27 @@ function SalesList() {
     enabled: queryEnabled,
   });
 
-  // Build query parameters for sales report analysis
-  const buildReportParams = () => {
+  // Build stats query params — mirrors the list filters (same shopId, dates, attendant)
+  const statsParams = useMemo(() => {
     const params = new URLSearchParams();
-    if (shopId) params.append("shopid", shopId);
-
-    // For attendants, filter analytics by their attendantId
+    if (shopId) params.append("shopId", shopId);
     if (userType === "attendant" && attendant?._id) {
       params.append("attendantId", attendant._id);
     }
-
-    // For admin users, filter by selected attendant if not "all"
     if (userType === "admin" && attendantFilter !== "all") {
       params.append("attendantId", attendantFilter);
     }
-
-    // Only add date filters if they are set (show all sales stats by default)
-    if (startDate) {
-      params.append("fromDate", startDate);
-    }
-
-    if (endDate) {
-      params.append("toDate", endDate);
-    }
-
+    if (startDate) params.append("start", startDate);
+    if (endDate) params.append("end", endDate);
     return params.toString();
-  };
+  }, [shopId, userType, attendant?._id, attendantFilter, startDate, endDate]);
 
-  // Fetch sales report analysis data
+  // Fetch sales stats from dedicated endpoint
   const { data: salesReportData, isLoading: isReportLoading, refetch: refetchReport } = useQuery({
-    queryKey: [`${ENDPOINTS.analytics.salesReport}?${buildReportParams()}`],
+    queryKey: [`${ENDPOINTS.sales.stats}?${statsParams}`],
     staleTime: 0,
     refetchOnMount: "always",
-    // enabled: !!shopId
+    enabled: queryEnabled,
   });
 
   // Refresh both the sales list and summary stats whenever the user navigates to this page
@@ -282,8 +270,8 @@ function SalesList() {
   }, [location, refetch, refetchReport]);
 
   const salesData = (salesResponse as any)?.data || [];
-  const totalCount = (salesResponse as any)?.count || 0;
-  const apiTotalPages = (salesResponse as any)?.totalPages || 1;
+  const totalCount = (salesResponse as any)?.meta?.total ?? (salesResponse as any)?.count ?? 0;
+  const apiTotalPages = (salesResponse as any)?.meta?.totalPages ?? (salesResponse as any)?.totalPages ?? 1;
 
   // Transform API data to match expected format
   const transformedSales = salesData.map((sale: any) => ({
@@ -1004,7 +992,7 @@ function SalesList() {
                       </p>
                       <p className="text-2xl font-bold">
                         {primaryShopCurrency}{" "}
-                        {salesReportData?.totalSales?.toFixed(2) || "0.00"}
+                        {Number(salesReportData?.data?.totalSales ?? 0).toFixed(2)}
                       </p>
                     </div>
                     <DollarSign className="h-5 w-5 text-muted-foreground" />
@@ -1017,7 +1005,7 @@ function SalesList() {
                       <p className="text-sm font-medium text-muted-foreground">
                         Sales Count
                       </p>
-                      <p className="text-2xl font-bold">{filteredSalesCount}</p>
+                      <p className="text-2xl font-bold">{salesReportData?.data?.totalCount ?? filteredSalesCount}</p>
                     </div>
                     <TrendingUp className="h-5 w-5 text-muted-foreground" />
                   </div>
@@ -1032,8 +1020,7 @@ function SalesList() {
                       </p>
                       <p className="text-2xl font-bold">
                         {primaryShopCurrency}{" "}
-                        {salesReportData?.cashtransactions?.toFixed(2) ||
-                          "0.00"}
+                        {Number(salesReportData?.data?.cashtransactions ?? 0).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -1047,7 +1034,7 @@ function SalesList() {
                       </p>
                       <p className="text-2xl font-bold">
                         {primaryShopCurrency}{" "}
-                        {salesReportData?.mpesa?.toFixed(2) || "0.00"}
+                        {Number(salesReportData?.data?.mpesa ?? 0).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -1061,7 +1048,7 @@ function SalesList() {
                       </p>
                       <p className="text-2xl font-bold">
                         {primaryShopCurrency}{" "}
-                        {salesReportData?.credit?.toFixed(2) || "0.00"}
+                        {Number(salesReportData?.data?.credit ?? 0).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -1075,7 +1062,7 @@ function SalesList() {
                       </p>
                       <p className="text-2xl font-bold">
                         {primaryShopCurrency}{" "}
-                        {salesReportData?.wallet?.toFixed(2) || "0.00"}
+                        {Number(salesReportData?.data?.wallet ?? 0).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -1089,7 +1076,7 @@ function SalesList() {
                       </p>
                       <p className="text-2xl font-bold">
                         {primaryShopCurrency}{" "}
-                        {salesReportData?.hold?.toFixed(2) || "0.00"}
+                        {Number(salesReportData?.data?.hold ?? 0).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -1103,7 +1090,7 @@ function SalesList() {
                       </p>
                       <p className="text-2xl font-bold">
                         {primaryShopCurrency}{" "}
-                        {salesReportData?.bank?.toFixed(2) || "0.00"}
+                        {Number(salesReportData?.data?.bank ?? 0).toFixed(2)}
                       </p>
                     </div>
                   </div>
