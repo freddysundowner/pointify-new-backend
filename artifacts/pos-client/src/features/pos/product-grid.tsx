@@ -653,14 +653,6 @@ export default function ProductGrid({
       
       // Validate payment-specific requirements
       
-      if (selectedPaymentMethod === "bank" && !bankTransactionId.trim()) {
-        toast({
-          title: "Transaction ID Required", 
-          description: "Please enter the bank transaction ID",
-          variant: "destructive",
-        });
-        return;
-      }
       
       if (selectedPaymentMethod === "credit") {
         if (!selectedCustomerId) {
@@ -1972,7 +1964,7 @@ export default function ProductGrid({
                     <span className="font-medium text-blue-800">Bank Transfer</span>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Transaction ID *</label>
+                    <label className="text-sm font-medium text-gray-700">Transaction ID <span className="text-gray-400 font-normal">(optional)</span></label>
                     <Input
                       type="text"
                       placeholder="Enter bank transaction ID"
