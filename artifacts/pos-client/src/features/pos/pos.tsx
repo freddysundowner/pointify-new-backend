@@ -33,11 +33,12 @@ export default function POS() {
   const effectiveShopId =
     selectedShopId || (typeof attendant?.shopId === "object" ? attendant.shopId._id : attendant?.shopId);
 
-  const canSetSaleDate = attendant?.permissions?.some(p => p.key === "pos" && p.value.includes("set_sale_date")) ?? false;
-  const canSell = attendant?.permissions?.some(p => p.key === "pos" && p.value.includes("can_sell")) ?? false;
-  const canSellToDealer = attendant?.permissions?.some(p => p.key === "pos" && p.value.includes("can_sell_to_dealer_&_wholesaler")) ?? false;
-  const canDiscount = attendant?.permissions?.some(p => p.key === "pos" && p.value.includes("discount")) ?? false;
-  const canEditPrice = attendant?.permissions?.some(p => p.key === "pos" && p.value.includes("edit_price")) ?? false;
+  const isAdminSession = !!admin && !attendant;
+  const canSetSaleDate = isAdminSession || (attendant?.permissions?.some(p => p.key === "pos" && p.value.includes("set_sale_date")) ?? false);
+  const canSell = isAdminSession || (attendant?.permissions?.some(p => p.key === "pos" && p.value.includes("can_sell")) ?? false);
+  const canSellToDealer = isAdminSession || (attendant?.permissions?.some(p => p.key === "pos" && p.value.includes("can_sell_to_dealer_&_wholesaler")) ?? false);
+  const canDiscount = isAdminSession || (attendant?.permissions?.some(p => p.key === "pos" && p.value.includes("discount")) ?? false);
+  const canEditPrice = isAdminSession || (attendant?.permissions?.some(p => p.key === "pos" && p.value.includes("edit_price")) ?? false);
 
   const {
     cartItems,
