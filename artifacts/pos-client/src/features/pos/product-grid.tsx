@@ -352,7 +352,7 @@ export default function ProductGrid({
   const selectedCustomer = Array.isArray(customers) 
     ? customers.find(c => {
         const customerId = c._id || c.id;
-        return customerId && customerId.toString() === selectedCustomerId;
+        return customerId != null && String(customerId) === String(selectedCustomerId);
       })
     : null;
 
@@ -1045,8 +1045,8 @@ export default function ProductGrid({
                           return (
                             <div
                               key={cId}
-                              className={`px-3 py-2 text-xs lg:text-sm cursor-pointer hover:bg-gray-50 ${selectedCustomerId === cId ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
-                              onMouseDown={() => { setSelectedCustomerId(cId); setMainCustomerSearch(''); setShowMainCustomerDropdown(false); }}
+                              className={`px-3 py-2 text-xs lg:text-sm cursor-pointer hover:bg-gray-50 ${String(selectedCustomerId) === String(cId) ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                              onMouseDown={() => { setSelectedCustomerId(String(cId)); setMainCustomerSearch(''); setShowMainCustomerDropdown(false); }}
                             >
                               <div className="font-medium">{customer.name}</div>
                               {(customer.phone || customer.phonenumber) && (
@@ -2485,7 +2485,7 @@ export default function ProductGrid({
                       return (
                         <div
                           key={customerId}
-                          onClick={() => { setSelectedCustomerId(customerId); setHoldCustomerSearch(''); }}
+                          onClick={() => { setSelectedCustomerId(String(customerId)); setHoldCustomerSearch(''); }}
                           className="flex items-center justify-between px-3 py-2 hover:bg-purple-50 cursor-pointer border-b border-gray-100 last:border-b-0"
                         >
                           <div>
