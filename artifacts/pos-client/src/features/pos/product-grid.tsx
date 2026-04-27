@@ -652,14 +652,6 @@ export default function ProductGrid({
       if (!selectedPaymentMethod) return;
       
       // Validate payment-specific requirements
-      if (selectedPaymentMethod === "mpesa" && !mpesaTransactionId.trim()) {
-        toast({
-          title: "Transaction ID Required",
-          description: "Please enter the M-Pesa transaction ID",
-          variant: "destructive",
-        });
-        return;
-      }
       
       if (selectedPaymentMethod === "bank" && !bankTransactionId.trim()) {
         toast({
@@ -1942,7 +1934,7 @@ export default function ProductGrid({
                     <span className="font-medium text-green-800">M-Pesa Payment</span>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Transaction ID *</label>
+                    <label className="text-sm font-medium text-gray-700">Transaction ID <span className="text-gray-400 font-normal">(optional)</span></label>
                     <Input
                       type="text"
                       placeholder="Enter M-Pesa transaction ID"
