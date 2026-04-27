@@ -489,7 +489,7 @@ router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const sale = await db.query.sales.findFirst({
       where: eq(sales.id, Number(req.params["id"])),
-      with: { saleItems: true, salePayments: true },
+      with: { saleItems: { with: { product: true } }, salePayments: true, customer: true, attendant: true },
     });
     if (!sale) throw notFound("Sale not found");
     return ok(res, sale);

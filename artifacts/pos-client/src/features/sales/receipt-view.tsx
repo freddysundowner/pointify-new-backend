@@ -53,7 +53,8 @@ export default function ReceiptView() {
           credentials: "include",
         });
         if (!response.ok) throw new Error("Failed to fetch sale data");
-        const data = await response.json();
+        const json = await response.json();
+        const data = json?.data ?? json;
         setSale(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch sale data");
@@ -91,31 +92,36 @@ export default function ReceiptView() {
     );
   }
 
+  const outstandingBalance = parseFloat(String(sale.outstandingBalance ?? 0));
+  const amountPaid = parseFloat(String(sale.amountPaid ?? 0));
+  const isCreditFullyPaid = sale.status === "credit" && outstandingBalance === 0;
+
   const saleData = {
     id: sale._id || sale.id,
     receiptNo: sale.receiptNo || sale._id,
-    customerName: sale.customerId?.name || "Walk-in",
+    customerName: sale.customer?.name || sale.customerId?.name || "Walk-in",
+    customerEmail: sale.customer?.email || sale.customerId?.email || "",
     totalAmount: sale.totalAmount || 0,
-    totalWithDiscount: sale.totalWithDiscount || sale.totalAmount || 0,
-    totaltax: sale.totaltax || 0,
-    saleDiscount: sale.saleDiscount || 0,
+    totalWithDiscount: parseFloat(String(sale.totalWithDiscount || sale.totalAmount || 0)),
+    totaltax: parseFloat(String(sale.totaltax || 0)),
+    saleDiscount: parseFloat(String(sale.saleDiscount || 0)),
     saleDate: sale.createdAt || sale.saleDate,
-    status: sale.status === "cashed" ? "COMPLETED" : (sale.status || "").toUpperCase(),
+    status: (sale.status === "cashed" || isCreditFullyPaid) ? "COMPLETED" : (sale.status || "").toUpperCase(),
     paymentTag: sale.paymentTag || sale.paymentType || "cash",
     saleType: sale.saleType || "Retail",
-    salesnote: sale.salesnote || "",
-    items: (sale.items || []).map((item: any) => ({
+    salesnote: sale.salesnote || sale.saleNote || "",
+    items: (sale.saleItems || sale.items || []).map((item: any) => ({
       productName: item.product?.name || item.productName || "Unknown Product",
-      quantity: item.quantity || 0,
-      unitPrice: item.unitPrice || 0,
-      lineDiscount: item.lineDiscount || 0,
-      totalPrice: (item.quantity || 0) * (item.unitPrice || 0),
+      quantity: parseFloat(String(item.quantity || 0)),
+      unitPrice: parseFloat(String(item.unitPrice || 0)),
+      lineDiscount: parseFloat(String(item.lineDiscount || 0)),
+      totalPrice: parseFloat(String(item.quantity || 0)) * parseFloat(String(item.unitPrice || 0)),
     })),
-    attendantName: sale.attendantId?.username || "Unknown",
-    amountPaid: sale.amountPaid || 0,
-    outstandingBalance: sale.outstandingBalance || 0,
-    mpesaTotal: sale.mpesaTotal || sale.mpesaNewTotal || 0,
-    bankTotal: sale.bankTotal || 0,
+    attendantName: sale.attendant?.username || sale.attendantId?.username || "Unknown",
+    amountPaid,
+    outstandingBalance,
+    mpesaTotal: parseFloat(String(sale.mpesaTotal || sale.mpesaNewTotal || 0)),
+    bankTotal: parseFloat(String(sale.bankTotal || 0)),
     mpesaTransId: sale.mpesaTransId || "",
     bankTransId: sale.bankTransId || "",
     shop: {
