@@ -833,11 +833,13 @@ export default function ProductGrid({
     },
     onSuccess: (createdCustomer: any, variables: any) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
-      const newId = createdCustomer._id || createdCustomer.id || createdCustomer?.customer?._id;
+      // API wraps in { success, data } — handle both shapes
+      const raw = createdCustomer?.data ?? createdCustomer;
+      const newId = String(raw?._id || raw?.id || raw?.customer?._id || '');
       if (newId) setSelectedCustomerId(newId);
       setNewCustomerForm({ name: '', phone: '', email: '', address: '' });
       setShowAddCustomerDialog(false);
-      toast({ title: 'Customer created', description: `${variables.name} was added successfully.` });
+      toast({ title: 'Customer added', description: `${variables.name} has been added and selected.` });
     },
     onError: () => {
       toast({ title: 'Failed to create customer', variant: 'destructive' });
@@ -1049,20 +1051,40 @@ export default function ProductGrid({
                             </div>
                           );
                         })}
+                      {/* Add new customer shortcut at bottom of dropdown */}
+                      {hasAttendantPermission('customers', 'manage') && (
+                        <div
+                          className="px-3 py-2 text-xs text-purple-600 font-medium cursor-pointer hover:bg-purple-50 border-t flex items-center gap-1.5"
+                          onMouseDown={() => {
+                            setShowMainCustomerDropdown(false);
+                            setNewCustomerForm(f => ({ ...f, name: mainCustomerSearch.trim() }));
+                            setShowAddCustomerDialog(true);
+                          }}
+                        >
+                          <Plus className="h-3 w-3" />
+                          {mainCustomerSearch.trim()
+                            ? `Add "${mainCustomerSearch.trim()}" as new customer`
+                            : 'Add new customer'}
+                        </div>
+                      )}
                       {mainCustomerSearch && customers.filter((c: any) => {
                         const term = mainCustomerSearch.toLowerCase();
                         return (c.name || '').toLowerCase().includes(term) || (c.phone || '').toLowerCase().includes(term) || (c.phonenumber || '').toLowerCase().includes(term);
-                      }).length === 0 && (
+                      }).length === 0 && !hasAttendantPermission('customers', 'manage') && (
                         <div className="px-3 py-3 text-xs text-gray-400 text-center">No customers found</div>
                       )}
                     </div>
                   )}
                 </div>
-                {/* Add Customer Button - Only show if attendant has customers manage permission */}
+                {/* Add Customer Button */}
                 {hasAttendantPermission('customers', 'manage') && (
-                  <Button 
-                    onClick={() => window.open('/customers', '_blank')}
-                    className="bg-red-600 hover:bg-red-700 text-white h-8 lg:h-10 px-2 lg:px-4"
+                  <Button
+                    onClick={() => {
+                      setNewCustomerForm({ name: '', phone: '', email: '', address: '' });
+                      setShowAddCustomerDialog(true);
+                    }}
+                    className="bg-purple-600 hover:bg-purple-700 text-white h-8 lg:h-10 px-2 lg:px-4"
+                    title="Add new customer"
                   >
                     <Plus className="h-3 w-3 lg:h-4 lg:w-4" />
                   </Button>
