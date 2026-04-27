@@ -287,18 +287,18 @@ function SalesList() {
 
   // Transform API data to match expected format
   const transformedSales = salesData.map((sale: any) => ({
-    id: sale._id,
-    receiptNo: sale.receiptNo || sale._id,
-    customerName: sale.customerId?.name || "Walk-in",
-    totalAmount: sale.totalWithDiscount || sale.totalAmount || 0, // Use totalWithDiscount if available, fallback to totalAmount
-    saleDate: sale.createdAt,
+    id: sale.id || sale._id,
+    receiptNo: sale.receiptNo || String(sale.id || sale._id || ''),
+    customerName: sale.customer?.name || sale.customerId?.name || sale.customerName || "Walk-in",
+    totalAmount: sale.totalWithDiscount || sale.totalAmount || 0,
+    saleDate: sale.createdAt || sale.saleDate,
     status: sale.status === "cashed" ? "completed" : sale.status,
-    paymentTag: sale.paymentTag || "cash",
+    paymentTag: sale.paymentType || sale.paymentTag || "cash",
     saleType: sale.saleType || "Retail",
-    items: sale.items || [],
-    attendantName: sale.attendantId?.username || "Unknown",
-    attendantId: sale.attendantId?._id || sale.attendantId,
-    shopId: sale.shopId, // Preserve original shopId object
+    items: sale.saleItems || sale.items || [],
+    attendantName: sale.attendantId?.username || sale.attendantName || "Unknown",
+    attendantId: sale.attendantId?._id || sale.attendantId?._id || sale.attendant,
+    shopId: sale.shop || sale.shopId,
   }));
 
   // Fetch attendants from API - only for admin users

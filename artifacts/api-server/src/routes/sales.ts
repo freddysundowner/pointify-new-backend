@@ -105,7 +105,7 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
       limit,
       offset,
       orderBy: (s, { desc }) => [desc(s.createdAt)],
-      with: { saleItems: true, salePayments: true },
+      with: { saleItems: true, salePayments: true, customer: true, attendant: true },
     });
     const total = await db.$count(sales, where);
     return paginated(res, rows, { total, page, limit });
