@@ -833,10 +833,11 @@ export default function ProductGrid({
     },
     onSuccess: (createdCustomer: any, variables: any) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.refetchQueries({ queryKey: ['customers'] });
       // API wraps in { success, data } — handle both shapes
       const raw = createdCustomer?.data ?? createdCustomer;
       const newId = String(raw?._id || raw?.id || raw?.customer?._id || '');
-      if (newId) setSelectedCustomerId(newId);
+      if (newId) setSelectedCustomerId(String(newId));
       setNewCustomerForm({ name: '', phone: '', email: '', address: '' });
       setShowAddCustomerDialog(false);
       toast({ title: 'Customer added', description: `${variables.name} has been added and selected.` });
