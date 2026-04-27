@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, gte, lte, sql, inArray, ilike } from "drizzle-orm";
-import { sales, saleItems, salePayments, saleReturns, saleReturnItems, products, inventory, customers, paymentMethods, batches, saleItemBatches, shops, loyaltyTransactions } from "@workspace/db";
+import { sales, saleItems, salePayments, saleReturns, saleReturnItems, products, inventory, customers, customerWalletTransactions, paymentMethods, batches, saleItemBatches, shops, loyaltyTransactions } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -794,6 +794,9 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
     }
     // Delete saleReturns for this sale (no cascade on sale FK)
     await db.delete(saleReturns).where(eq(saleReturns.sale, id));
+
+    // Delete customer wallet statement entries that were created when paying off this sale's debt
+    await db.delete(customerWalletTransactions).where(eq(customerWalletTransactions.saleId, id));
 
     // Hard-delete the sale (saleItems + salePayments cascade automatically)
     const [deleted] = await db.delete(sales).where(eq(sales.id, id)).returning();

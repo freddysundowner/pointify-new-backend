@@ -361,21 +361,7 @@ router.post("/:id/wallet/payment", requireAdminOrAttendant, async (req, res, nex
       .set({ outstandingBalance: newOutstanding })
       .where(eq(customers.id, customerId));
 
-    // 2. Record a wallet transaction for the payment
-    const currentWallet = parseFloat(customer.wallet ?? "0");
-    const [tx] = await db.insert(customerWalletTransactions).values({
-      customer: customerId,
-      shop: customer.shop,
-      amount: String(numAmount.toFixed(2)),
-      balance: currentWallet.toFixed(2),
-      type: "payment",
-      paymentNo: paymentNo ?? null,
-      paymentReference: paymentReference ?? null,
-      paymentType: paymentType ?? null,
-      handledBy: req.attendant?.id ?? undefined,
-    }).returning();
-
-    // 3. Allocate payment against unpaid credit sales — oldest first
+    // 2. Allocate payment against unpaid credit sales — oldest first
     const creditSales = await db.query.sales.findMany({
       where: and(
         eq(sales.customer, customerId),
@@ -385,8 +371,10 @@ router.post("/:id/wallet/payment", requireAdminOrAttendant, async (req, res, nex
       orderBy: [asc(sales.createdAt)],
     });
 
+    const currentWallet = parseFloat(customer.wallet ?? "0");
     let remaining = numAmount;
     const updatedSales: number[] = [];
+    const insertedTxs: any[] = [];
 
     for (const sale of creditSales) {
       if (remaining <= 0) break;
@@ -413,12 +401,43 @@ router.post("/:id/wallet/payment", requireAdminOrAttendant, async (req, res, nex
         receivedBy: req.attendant?.id ?? undefined,
       });
 
+      // Record a wallet transaction per sale — linked via saleId so it is cleaned up if the sale is deleted
+      const [tx] = await db.insert(customerWalletTransactions).values({
+        customer: customerId,
+        shop: customer.shop,
+        amount: String(applied.toFixed(2)),
+        balance: currentWallet.toFixed(2),
+        type: "payment",
+        paymentNo: sale.receiptNo ?? paymentNo ?? null,
+        paymentReference: paymentReference ?? null,
+        paymentType: paymentType ?? null,
+        handledBy: req.attendant?.id ?? undefined,
+        saleId: sale.id,
+      }).returning();
+      insertedTxs.push(tx);
+
       updatedSales.push(sale.id);
       remaining -= applied;
     }
 
+    // If any amount was unallocated (no credit sales to absorb it), record a generic payment entry
+    if (remaining > 0) {
+      const [tx] = await db.insert(customerWalletTransactions).values({
+        customer: customerId,
+        shop: customer.shop,
+        amount: String(remaining.toFixed(2)),
+        balance: currentWallet.toFixed(2),
+        type: "payment",
+        paymentNo: paymentNo ?? null,
+        paymentReference: paymentReference ?? null,
+        paymentType: paymentType ?? null,
+        handledBy: req.attendant?.id ?? undefined,
+      }).returning();
+      insertedTxs.push(tx);
+    }
+
     return ok(res, {
-      transaction: tx,
+      transaction: insertedTxs[0] ?? null,
       customerOutstanding: newOutstanding,
       salesUpdated: updatedSales.length,
       amountAllocated: (numAmount - remaining).toFixed(2),

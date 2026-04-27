@@ -93,6 +93,10 @@ export const customerWalletTransactions = pgTable(
     // cash | mpesa | card | bank
     paymentType: text("payment_type"),
 
+    // Link back to the sale this transaction was created for (debt payment allocation).
+    // Not a FK (to avoid circular schema imports) — used for cascade-style cleanup on sale delete.
+    saleId: integer("sale_id"),
+
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
