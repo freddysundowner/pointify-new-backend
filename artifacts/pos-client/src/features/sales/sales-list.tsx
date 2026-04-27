@@ -814,27 +814,27 @@ function SalesList() {
 
               {/* Row 2 — date range + quick shortcuts */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground whitespace-nowrap">Date:</span>
+                <span className="text-xs text-muted-foreground whitespace-nowrap font-medium">Date:</span>
                 <Input
                   type="date"
                   value={startDate}
                   onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
-                  className="h-8 text-xs w-[130px]"
+                  className="h-8 text-xs w-[140px]"
                 />
                 <span className="text-xs text-muted-foreground">–</span>
                 <Input
                   type="date"
                   value={endDate}
                   onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
-                  className="h-8 text-xs w-[130px]"
+                  className="h-8 text-xs w-[140px]"
                 />
-                <div className="flex items-center gap-1 ml-1">
-                  <Button variant="outline" size="sm" onClick={() => setDateRange(1)} className="h-8 text-xs px-3">Today</Button>
-                  <Button variant="outline" size="sm" onClick={() => setDateRange(7)} className="h-8 text-xs px-3">7d</Button>
-                  <Button variant="outline" size="sm" onClick={() => setDateRange(30)} className="h-8 text-xs px-3">30d</Button>
-                  <Button variant="outline" size="sm" onClick={() => setDateRange(90)} className="h-8 text-xs px-3">90d</Button>
+                <div className="flex items-center gap-2 ml-2">
+                  <Button variant="outline" size="sm" onClick={() => setDateRange(1)} className="h-8 text-xs px-4">Today</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDateRange(7)} className="h-8 text-xs px-4">Last 7 Days</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDateRange(30)} className="h-8 text-xs px-4">Last 30 Days</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDateRange(90)} className="h-8 text-xs px-4">Last 90 Days</Button>
                   {(startDate || endDate) && (
-                    <Button variant="ghost" size="sm" onClick={clearDateFilters} className="h-8 text-xs px-2 text-muted-foreground">✕</Button>
+                    <Button variant="ghost" size="sm" onClick={clearDateFilters} className="h-8 text-xs px-3 text-muted-foreground">Clear dates</Button>
                   )}
                 </div>
               </div>
