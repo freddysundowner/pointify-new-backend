@@ -88,7 +88,8 @@ export default function ProfitLossPage() {
         adminId: effectiveAdminId || "",
       });
       const response = await apiRequest('GET', `${ENDPOINTS.attendants.getByShop}?${params}`);
-      return response.json();
+      const json = await response.json();
+      return Array.isArray(json) ? json : (json?.data ?? []);
     },
     enabled: !!effectiveShopId && !!effectiveAdminId && !!user, // Only enable for admin users
   });
