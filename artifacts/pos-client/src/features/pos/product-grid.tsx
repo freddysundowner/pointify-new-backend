@@ -1049,9 +1049,6 @@ export default function ProductGrid({
                               onMouseDown={() => { setSelectedCustomerId(String(cId)); setMainCustomerSearch(''); setShowMainCustomerDropdown(false); }}
                             >
                               <div className="font-medium">{customer.name}</div>
-                              {(customer.phone || customer.phonenumber) && (
-                                <div className="text-xs text-gray-400">{customer.phone || customer.phonenumber}</div>
-                              )}
                             </div>
                           );
                         })}
@@ -1106,12 +1103,6 @@ export default function ProductGrid({
                   </span>
                   <span className="text-gray-300">·</span>
                   <span className="text-gray-500">Limit: Ksh {parseFloat(selectedCustomer.creditLimit || '0').toFixed(2)}</span>
-                  {(selectedCustomer.phone || selectedCustomer.email) && (
-                    <>
-                      <span className="text-gray-300">·</span>
-                      <span className="text-gray-500">{selectedCustomer.phone || selectedCustomer.email}</span>
-                    </>
-                  )}
                 </div>
               )}
             </div>
@@ -2008,7 +1999,7 @@ export default function ProductGrid({
                           const customerId = customer._id || customer.id;
                           return (
                             <option key={customerId} value={customerId}>
-                              {customer.name} {customer.phone ? `(${customer.phone})` : ''}
+                              {customer.name}
                             </option>
                           );
                         })}
@@ -2458,9 +2449,6 @@ export default function ProductGrid({
                 <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 mb-2">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{selectedCustomer.name}</p>
-                    {(selectedCustomer.phone || selectedCustomer.phonenumber) && (
-                      <p className="text-xs text-gray-500">{selectedCustomer.phone || selectedCustomer.phonenumber}</p>
-                    )}
                   </div>
                   <button type="button" onClick={() => setSelectedCustomerId('')} className="text-gray-400 hover:text-gray-600">
                     <X className="h-4 w-4" />
@@ -2490,9 +2478,6 @@ export default function ProductGrid({
                         >
                           <div>
                             <p className="text-sm font-medium text-gray-900">{customer.name}</p>
-                            {(customer.phone || customer.phonenumber) && (
-                              <p className="text-xs text-gray-500">{customer.phone || customer.phonenumber}</p>
-                            )}
                           </div>
                           <User className="h-4 w-4 text-gray-300" />
                         </div>
