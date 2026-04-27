@@ -240,7 +240,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     } as typeof sales.$inferInsert).returning();
 
     // Generate a short, human-readable receipt number from the real DB ID
-    const receiptNo = `S-${String(sale.id).padStart(5, "0")}`;
+    const receiptNo = `REC${String(sale.id).padStart(5, "0")}`;
     await db.update(sales).set({ receiptNo }).where(eq(sales.id, sale.id));
     sale.receiptNo = receiptNo;
 
