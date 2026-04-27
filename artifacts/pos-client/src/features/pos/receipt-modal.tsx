@@ -108,37 +108,37 @@ export default function ReceiptModal({ isOpen, onClose, transaction, onNewTransa
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm w-full p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-sm w-full p-0 gap-0 overflow-hidden flex flex-col" style={{ maxHeight: '90vh' }}>
 
-        {/* ── Success summary (always visible) ── */}
-        <div className="px-6 pt-8 pb-6 flex flex-col items-center text-center">
+        {/* ── Success summary (always visible, never shrinks) ── */}
+        <div className="px-6 pt-7 pb-5 flex flex-col items-center text-center flex-shrink-0">
           {/* Big check */}
-          <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-4">
-            <div className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
-              <Check className="h-8 w-8 text-white stroke-[3]" />
+          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-3">
+            <div className="w-11 h-11 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
+              <Check className="h-6 w-6 text-white stroke-[3]" />
             </div>
           </div>
 
-          <h2 className="text-xl font-bold text-gray-900 mb-1">Payment Successful</h2>
-          <p className="text-sm text-gray-500 mb-4">
+          <h2 className="text-lg font-bold text-gray-900 mb-0.5">Payment Successful</h2>
+          <p className="text-xs text-gray-500 mb-3">
             Receipt #{transaction.id} &bull; {transaction.paymentMethod && <span className="capitalize">{transaction.paymentMethod}</span>}
           </p>
 
           {/* Big total */}
-          <div className="bg-gray-50 rounded-2xl px-8 py-4 mb-6 w-full">
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Paid</p>
-            <p className="text-4xl font-extrabold text-gray-900">
+          <div className="bg-gray-50 rounded-2xl px-6 py-3 mb-4 w-full">
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Total Paid</p>
+            <p className="text-3xl font-extrabold text-gray-900">
               {currency} {Number(transaction.total).toFixed(2)}
             </p>
             {totalDiscount > 0 && (
-              <p className="text-xs text-green-600 mt-1">Saved {currency} {totalDiscount.toFixed(2)}</p>
+              <p className="text-xs text-green-600 mt-0.5">Saved {currency} {totalDiscount.toFixed(2)}</p>
             )}
           </div>
 
           {/* Primary action */}
           <Button
             onClick={onNewTransaction}
-            className="w-full h-11 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 font-semibold text-sm shadow-md mb-3"
+            className="w-full h-10 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 font-semibold text-sm shadow-md mb-2"
           >
             <Plus className="mr-2 h-4 w-4" /> New Transaction
           </Button>
@@ -153,11 +153,11 @@ export default function ReceiptModal({ isOpen, onClose, transaction, onNewTransa
           </button>
         </div>
 
-        {/* ── Expandable receipt details ── */}
+        {/* ── Expandable receipt details (fills remaining height) ── */}
         {showDetails && (
-          <div className="border-t">
+          <div className="border-t flex flex-col min-h-0 flex-1">
             {/* Scrollable receipt */}
-            <div className="overflow-y-auto px-5 py-4 space-y-3 text-xs" style={{ maxHeight: '45vh' }}>
+            <div className="overflow-y-auto px-5 py-4 space-y-3 text-xs flex-1">
               {/* Shop header */}
               <div className="text-center pb-3 border-b">
                 <p className="font-bold text-sm text-gray-800">{primaryShop?.name || 'Store Name'}</p>
@@ -218,8 +218,8 @@ export default function ReceiptModal({ isOpen, onClose, transaction, onNewTransa
               <p className="text-center text-gray-400 pt-2">Thank you for your business!</p>
             </div>
 
-            {/* Action buttons */}
-            <div className="px-5 py-3 border-t bg-gray-50 grid grid-cols-3 gap-2">
+            {/* Action buttons — always visible at the bottom */}
+            <div className="px-5 py-3 border-t bg-gray-50 grid grid-cols-3 gap-2 flex-shrink-0">
               <Button variant="outline" size="sm" className="text-xs bg-white" onClick={printThermal}>
                 <Printer className="mr-1 h-3 w-3" /> Print
               </Button>
