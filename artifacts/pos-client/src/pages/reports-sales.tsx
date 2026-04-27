@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { DollarSign, ArrowLeft, RefreshCw, CreditCard, Smartphone, Banknote, Building, Clock, ShoppingCart } from "lucide-react";
+import { DollarSign, ArrowLeft, RefreshCw, CreditCard, Smartphone, Banknote, Building, Clock, ShoppingCart, ExternalLink } from "lucide-react";
 import { RootState } from "@/store";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useLocation } from "wouter";
@@ -228,6 +228,7 @@ export default function SalesReportPage() {
                           <th className="text-right pb-2 font-medium">Total Value</th>
                           <th className="text-right pb-2 font-medium">Cash Received</th>
                           <th className="text-right pb-2 font-medium">Discounts</th>
+                          <th className="pb-2"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
@@ -240,6 +241,16 @@ export default function SalesReportPage() {
                             <td className="py-2.5 text-right font-semibold text-blue-700">{fmt(row.totalRevenue)}</td>
                             <td className="py-2.5 text-right font-semibold text-green-700">{fmt(row.totalPaid)}</td>
                             <td className="py-2.5 text-right text-orange-500">{n(row.totalDiscount) > 0 ? fmt(row.totalDiscount) : "—"}</td>
+                            <td className="py-2.5 text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 gap-1"
+                                onClick={() => setLocation(`/sales?startDate=${row.day}&endDate=${row.day}`)}
+                              >
+                                View <ExternalLink className="h-3 w-3" />
+                              </Button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -250,6 +261,7 @@ export default function SalesReportPage() {
                           <td className="pt-2.5 text-right text-blue-700">{fmt(totalSalesValue)}</td>
                           <td className="pt-2.5 text-right text-green-700">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalPaid), 0))}</td>
                           <td className="pt-2.5 text-right text-orange-500">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalDiscount), 0))}</td>
+                          <td></td>
                         </tr>
                       </tfoot>
                     </table>
