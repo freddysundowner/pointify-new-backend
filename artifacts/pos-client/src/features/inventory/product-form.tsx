@@ -542,6 +542,18 @@ export default function ProductForm() {
     mutation.mutate(data);
   };
 
+  const productType = form.watch("productType");
+  const isBundle = form.watch("isBundle");
+  const manageByPrice = form.watch("manageByPrice");
+
+  // Auto-derive isBundle from selected products
+  useEffect(() => {
+    const hasBundle = Object.keys(selectedBundleProducts).length > 0;
+    if (hasBundle !== form.getValues("isBundle")) {
+      form.setValue("isBundle", hasBundle);
+    }
+  }, [selectedBundleProducts]);
+
   if (isEditMode && isLoadingProduct) {
     return (
       <DashboardLayout title="Loading...">
@@ -554,18 +566,6 @@ export default function ProductForm() {
       </DashboardLayout>
     );
   }
-
-  const productType = form.watch("productType");
-  const isBundle = form.watch("isBundle");
-  const manageByPrice = form.watch("manageByPrice");
-
-  // Auto-derive isBundle from selected products
-  useEffect(() => {
-    const hasBundle = Object.keys(selectedBundleProducts).length > 0;
-    if (hasBundle !== form.getValues("isBundle")) {
-      form.setValue("isBundle", hasBundle);
-    }
-  }, [selectedBundleProducts]);
 
   const typeOptions: { value: "product" | "service" | "virtual"; label: string }[] = [
     { value: "product", label: "Product" },
