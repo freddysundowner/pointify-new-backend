@@ -509,9 +509,11 @@ export default function ProductGrid({
     if (!selectedPriceItem) return;
 
     const price = parseFloat(newPrice);
-    const productData = allProducts.find(p => (p as any)._id === selectedPriceItem.id || p.id === selectedPriceItem.id);
+    const allSources = [...allProducts, ...searchResults];
+    const productData = allSources.find(p => (p as any)._id === selectedPriceItem.id || p.id === selectedPriceItem.id);
     const buyingPrice = (productData as any)?.buyingPrice;
-    const minSellingPrice = parseFloat(String((productData as any)?.minSellingPrice || 0)) || 0;
+    const rawMin = (productData as any)?.minSellingPrice;
+    const minSellingPrice = rawMin != null ? (parseFloat(String(rawMin)) || 0) : 0;
 
     if (minSellingPrice > 0 && price < minSellingPrice) {
       setMinPriceWarningData({ attempted: price, minimum: minSellingPrice });
@@ -2187,8 +2189,10 @@ export default function ProductGrid({
 
           <div className="space-y-4 py-4">
             {selectedPriceItem && (() => {
-              const productData = allProducts.find(p => (p as any)._id === selectedPriceItem.id || p.id === selectedPriceItem.id);
-              const minSp = parseFloat(String((productData as any)?.minSellingPrice || 0)) || 0;
+              const allSources = [...allProducts, ...searchResults];
+              const productData = allSources.find(p => (p as any)._id === selectedPriceItem.id || p.id === selectedPriceItem.id);
+              const rawMin = (productData as any)?.minSellingPrice;
+              const minSp = rawMin != null ? (parseFloat(String(rawMin)) || 0) : 0;
               return (
                 <div className="text-center">
                   <p className="text-lg font-semibold">{selectedPriceItem.name}</p>
