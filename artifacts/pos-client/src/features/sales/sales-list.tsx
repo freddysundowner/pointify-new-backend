@@ -761,16 +761,77 @@ function SalesList() {
             </div>
           </div>
 
-          {/* Filters Section */}
-          <Card className="mb-4">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  <span className="font-medium">Filters</span>
+          {/* Filters — compact single-bar */}
+          <Card className="mb-3">
+            <CardContent className="p-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Search */}
+                <div className="relative min-w-[180px] flex-1">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Receipt no..."
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="pl-7 h-8 text-xs"
+                  />
                 </div>
+
+                {/* Status / payment filter */}
+                <Select value={statusFilter} onValueChange={handleStatusFilter}>
+                  <SelectTrigger className="h-8 text-xs w-[130px]">
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="hold">Hold</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="mpesa">M-Pesa</SelectItem>
+                    <SelectItem value="credit">Credit</SelectItem>
+                    <SelectItem value="wallet">Wallet</SelectItem>
+                    <SelectItem value="bank">Bank</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Attendant filter — admin only */}
+                {userType === "admin" && (
+                  <Select value={attendantFilter} onValueChange={handleAttendantFilter}>
+                    <SelectTrigger className="h-8 text-xs w-[140px]">
+                      <SelectValue placeholder="All attendants" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Attendants</SelectItem>
+                      {uniqueAttendants.map((att: any) => (
+                        <SelectItem key={att._id} value={att._id}>
+                          {att.username}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Date range */}
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+                  className="h-8 text-xs w-[130px]"
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+                  className="h-8 text-xs w-[130px]"
+                />
+
+                {/* Quick date shortcuts */}
+                <Button variant="outline" size="sm" onClick={() => setDateRange(7)} className="h-8 text-xs px-2">7d</Button>
+                <Button variant="outline" size="sm" onClick={() => setDateRange(30)} className="h-8 text-xs px-2">30d</Button>
+                <Button variant="outline" size="sm" onClick={() => setDateRange(90)} className="h-8 text-xs px-2">90d</Button>
+
+                {/* Clear all */}
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => {
                     setSearchQuery("");
@@ -781,323 +842,36 @@ function SalesList() {
                     setDateFilter("all");
                     setCurrentPage(1);
                   }}
-                  className="h-8 px-3 text-xs"
+                  className="h-8 text-xs px-2 text-muted-foreground"
                 >
-                  Clear All
+                  Clear
                 </Button>
-              </div>
-
-              <div className="space-y-4">
-                {/* Search */}
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Search by Receipt Number
-                  </Label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="Search by receipt number..."
-                        value={searchQuery}
-                        onChange={(e) => handleSearchChange(e.target.value)}
-                        className="pl-10 h-9"
-                      />
-                    </div>
-                    {searchQuery && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleSearchChange("")}
-                        className="h-9 px-3"
-                      >
-                        Clear
-                      </Button>
-                    )}
-                  </div>
-                  {searchQuery && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Found {transformedSales.length} results for "{searchQuery}
-                      "
-                    </p>
-                  )}
-                </div>
-
-                {/* Attendant Filter - Only show for admin users */}
-                {userType === "admin" && (
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">
-                      Filter by Attendant
-                    </Label>
-                    <Select
-                      value={attendantFilter}
-                      onValueChange={handleAttendantFilter}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Select attendant..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Attendants</SelectItem>
-                        {uniqueAttendants.map((attendant: any) => (
-                          <SelectItem key={attendant._id} value={attendant._id}>
-                            {attendant.username}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {attendantFilter !== "all" && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Filtering by:{" "}
-                        {
-                          uniqueAttendants.find(
-                            (a: any) => a._id === attendantFilter,
-                          )?.username
-                        }
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Date Range */}
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Date Range
-                  </Label>
-                  <div className="flex flex-col lg:flex-row gap-4">
-                    {/* Date Inputs */}
-                    <div className="flex flex-col sm:flex-row gap-3 flex-1">
-                      <div className="flex-1">
-                        <Label
-                          htmlFor="start-date"
-                          className="text-xs text-muted-foreground mb-1 block"
-                        >
-                          Start Date
-                        </Label>
-                        <Input
-                          id="start-date"
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
-                          placeholder="dd/mm/yyyy"
-                          className="h-9"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <Label
-                          htmlFor="end-date"
-                          className="text-xs text-muted-foreground mb-1 block"
-                        >
-                          End Date
-                        </Label>
-                        <Input
-                          id="end-date"
-                          type="date"
-                          value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
-                          placeholder="dd/mm/yyyy"
-                          className="h-9"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Quick Date Buttons */}
-                    <div className="flex flex-wrap gap-2 items-end">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDateRange(7)}
-                        className="h-9"
-                      >
-                        Last 7 Days
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDateRange(30)}
-                        className="h-9"
-                      >
-                        Last 30 Days
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDateRange(90)}
-                        className="h-9"
-                      >
-                        Last 90 Days
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={clearDateFilters}
-                        disabled={!startDate && !endDate}
-                        className="flex items-center gap-1 h-9"
-                      >
-                        <Calendar className="h-3 w-3" />
-                        Clear Dates
-                      </Button>
-                    </div>
-                  </div>
-
-                  {(startDate || endDate) && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Showing {transformedSales.length} results from{" "}
-                      {startDate || "beginning"} to {endDate || "now"}
-                    </p>
-                  )}
-                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Summary Stats */}
-          <div className="space-y-4 mb-4">
-            {/* Date Range Header */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold">Summary Stats</h2>
-                <span className="text-sm text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded">
-                  {!startDate && !endDate
-                    ? "All Time"
-                    : startDate === endDate
-                      ? `${new Date(startDate).toLocaleDateString()}`
-                      : `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`}
-                </span>
-              </div>
-              <Select value={statusFilter} onValueChange={handleStatusFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filter by payment method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Transactions</SelectItem>
-                  <SelectItem value="hold">Hold</SelectItem>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="mpesa">M-Pesa</SelectItem>
-                  <SelectItem value="credit">Credit</SelectItem>
-                  <SelectItem value="wallet">Wallet</SelectItem>
-                  <SelectItem value="bank">Bank</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Summary Stats — compact */}
+          {(isAdmin || hasAttendantPermission("sales", "view_summary")) && (
+            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 mb-3">
+              {[
+                { label: "Total", value: Number(salesReportData?.data?.totalSales ?? 0).toFixed(2), currency: true },
+                { label: "Count", value: String(salesReportData?.data?.totalCount ?? filteredSalesCount), currency: false },
+                { label: "Cash", value: Number(salesReportData?.data?.cashtransactions ?? 0).toFixed(2), currency: true },
+                { label: "M-Pesa", value: Number(salesReportData?.data?.mpesa ?? 0).toFixed(2), currency: true },
+                { label: "Credit", value: Number(salesReportData?.data?.credit ?? 0).toFixed(2), currency: true },
+                { label: "Wallet", value: Number(salesReportData?.data?.wallet ?? 0).toFixed(2), currency: true },
+                { label: "Hold", value: Number(salesReportData?.data?.hold ?? 0).toFixed(2), currency: true },
+                { label: "Bank", value: Number(salesReportData?.data?.bank ?? 0).toFixed(2), currency: true },
+              ].map((stat) => (
+                <Card key={stat.label} className="p-2">
+                  <p className="text-[10px] text-muted-foreground leading-tight">{stat.label}</p>
+                  <p className="text-xs font-bold mt-0.5 truncate">
+                    {stat.currency ? `${primaryShopCurrency} ` : ""}{stat.value}
+                  </p>
+                </Card>
+              ))}
             </div>
-
-            {/* Summary Stats - Permission Controlled */}
-            {(isAdmin || hasAttendantPermission("sales", "view_summary")) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Main Metrics */}
-                <Card className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Total Sales
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {primaryShopCurrency}{" "}
-                        {Number(salesReportData?.data?.totalSales ?? 0).toFixed(2)}
-                      </p>
-                    </div>
-                    <DollarSign className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                </Card>
-
-                <Card className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Sales Count
-                      </p>
-                      <p className="text-2xl font-bold">{salesReportData?.data?.totalCount ?? filteredSalesCount}</p>
-                    </div>
-                    <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                </Card>
-
-                {/* Payment Method Cards */}
-                <Card className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Cash
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {primaryShopCurrency}{" "}
-                        {Number(salesReportData?.data?.cashtransactions ?? 0).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        M-Pesa
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {primaryShopCurrency}{" "}
-                        {Number(salesReportData?.data?.mpesa ?? 0).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Credit
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {primaryShopCurrency}{" "}
-                        {Number(salesReportData?.data?.credit ?? 0).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Wallet
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {primaryShopCurrency}{" "}
-                        {Number(salesReportData?.data?.wallet ?? 0).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Hold
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {primaryShopCurrency}{" "}
-                        {Number(salesReportData?.data?.hold ?? 0).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Bank
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {primaryShopCurrency}{" "}
-                        {Number(salesReportData?.data?.bank ?? 0).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Sales History Table */}
           <Card className="flex-1">
