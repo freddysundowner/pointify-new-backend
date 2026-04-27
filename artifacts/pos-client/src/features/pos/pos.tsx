@@ -105,7 +105,7 @@ export default function POS() {
           onCheckout={completeCheckout}
           taxRate={taxRate}
           shopId={effectiveShopId}
-          adminId={attendant?.adminId || admin?._id}
+          adminId={attendant?.adminId || (admin as any)?._id || (admin as any)?.id}
           saleType={saleType}
           onSaleTypeChange={handleSaleTypeChange}
           getPriceForSaleType={(product, type) => {
