@@ -714,14 +714,17 @@ export default function ProductGrid({
     } else if (admin) {
       // Admin flow - extract string IDs properly
       const adminAttendantId = typeof admin.attendantId === 'object' && admin.attendantId ? (admin.attendantId as any)._id : admin.attendantId;
-      attendantId = adminAttendantId || admin._id;
+      const adminId = (admin as any)._id || (admin as any).id;
+      attendantId = adminAttendantId || (adminId ? String(adminId) : undefined);
       
       // Ensure shopId is a string, not an object
       let adminShopId = selectedShopId || admin.primaryShop;
       if (typeof adminShopId === 'object' && adminShopId && (adminShopId as any)._id) {
-        shopId = (adminShopId as any)._id;
+        shopId = String((adminShopId as any)._id);
       } else if (typeof adminShopId === 'string') {
         shopId = adminShopId;
+      } else if (typeof adminShopId === 'number') {
+        shopId = String(adminShopId);
       } else {
         shopId = undefined;
       }
