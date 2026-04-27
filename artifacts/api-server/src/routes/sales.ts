@@ -492,7 +492,16 @@ router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
       with: { saleItems: { with: { product: true } }, salePayments: true, customer: true, attendant: true },
     });
     if (!sale) throw notFound("Sale not found");
-    return ok(res, sale);
+    res.setHeader("Cache-Control", "no-store");
+    // Normalize saleItems to include productName explicitly
+    const normalized = {
+      ...sale,
+      saleItems: (sale.saleItems ?? []).map((item: any) => ({
+        ...item,
+        productName: item.product?.name ?? item.productName ?? "Unknown Product",
+      })),
+    };
+    return ok(res, normalized);
   } catch (e) { next(e); }
 });
 
