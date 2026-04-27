@@ -309,7 +309,9 @@ function SalesList() {
     enabled: userType === "admin" && !!shopId && !!adminId,
   });
 
-  const uniqueAttendants = attendantsResponse || [];
+  const uniqueAttendants = Array.isArray(attendantsResponse)
+    ? attendantsResponse
+    : (attendantsResponse as any)?.data || [];
 
   const clearDateFilters = () => {
     setStartDate("");
@@ -422,7 +424,7 @@ function SalesList() {
   // Complete Sale handlers
   const handleCompleteSale = (sale: any) => {
     setSaleToComplete(sale);
-    setCompleteAmountPaid(sale.totalAmount.toFixed(2));
+    setCompleteAmountPaid(Number(sale.totalAmount).toFixed(2));
     setCompletePaymentMethod("cash");
     setCompleteSaleOpen(true);
   };
@@ -1222,7 +1224,7 @@ function SalesList() {
                           </td>
                           <td className="py-2 px-3 text-sm font-medium">
                             {getSaleCurrency(sale)}{" "}
-                            {sale.totalAmount.toFixed(2)}
+                            {Number(sale.totalAmount).toFixed(2)}
                           </td>
                           <td className="py-2 px-3 text-sm">
                             {new Date(sale.saleDate).toLocaleDateString()}
