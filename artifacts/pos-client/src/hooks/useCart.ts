@@ -113,9 +113,9 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
       // profit reports are meaningful.
       // costPrice = saleAmount × (buyingPrice / refSellingPrice)
       // e.g. "fill for 400" at 160/L buying 140/L → cost = 400 × (140/160) = 350 → profit = 50
-      let costPrice = 0;
+      const buyingPrice = parseFloat(String((product as any).buyingPrice || 0)) || 0;
+      let costPrice = buyingPrice; // default: use product's buying price directly
       if (isByPrice) {
-        const buyingPrice = parseFloat(String((product as any).buyingPrice || 0)) || 0;
         const refSellingPrice = parseFloat(String((product as any)._refSellingPrice || 0)) || 0;
         if (buyingPrice > 0 && refSellingPrice > 0) {
           costPrice = price * (buyingPrice / refSellingPrice);
@@ -131,11 +131,11 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
           quantity: 1,
           discount: 0,
           total: price,
+          costPrice,
           originalPrice: price,
           maxDiscount: product.maxDiscount || 0,
           serialnumber: product?.serialnumber,
           orderId: passedOrderId || orderId,
-          ...(isByPrice ? { costPrice } : {}),
         }
       ];
     });
