@@ -19,7 +19,7 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
   const { cartItems, setCartItems, orderId, setOrderId } = useCartContext();
   const [showReceipt, setShowReceipt] = useState(false);
   const hasAttendantPermission = (permission: string) => {
-    if (!attendant) return false;
+    if (!attendant) return true; // admin session — all permissions granted
     return attendant.permissions.some(perm => perm.value?.includes(permission));
   };
 

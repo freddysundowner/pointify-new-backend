@@ -109,14 +109,16 @@ export default function POS() {
           saleType={saleType}
           onSaleTypeChange={handleSaleTypeChange}
           getPriceForSaleType={(product, type) => {
-            const { sellingPrice = 0, wholesalePrice = 0, dealerPrice = 0, price = 0 } = product;
+            const sp = parseFloat(String(product.sellingPrice || product.price || 0)) || 0;
+            const wp = parseFloat(String(product.wholesalePrice || 0)) || 0;
+            const dp = parseFloat(String(product.dealerPrice || 0)) || 0;
             switch (type) {
               case "Wholesale":
-                return wholesalePrice > 0 ? wholesalePrice : sellingPrice || price;
+                return wp > 0 ? wp : sp;
               case "Dealer":
-                return dealerPrice > 0 ? dealerPrice : sellingPrice || price;
+                return dp > 0 ? dp : sp;
               default:
-                return sellingPrice || price;
+                return sp;
             }
           }}
           canSetSaleDate={canSetSaleDate}
