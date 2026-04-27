@@ -97,7 +97,7 @@ export default function ProfitLossPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-2xl space-y-4">
+      <div className="w-full space-y-4">
 
         {/* Header + filters */}
         <div className="flex items-center gap-2 flex-wrap">

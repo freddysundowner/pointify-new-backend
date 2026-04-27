@@ -63,7 +63,7 @@ export default function ReportsHubPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-3xl">
+      <div className="w-full">
         <div className="mb-5">
           <div className="flex items-center gap-2 mb-1">
             <BarChart2 className="h-5 w-5 text-purple-600" />
@@ -72,7 +72,7 @@ export default function ReportsHubPage() {
           <p className="text-sm text-gray-500">Choose a report to see what's happening in your business.</p>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-3">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {reports.map(r => (
             <Card
               key={r.href}

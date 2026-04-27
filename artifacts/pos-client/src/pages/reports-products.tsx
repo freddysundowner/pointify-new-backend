@@ -65,7 +65,7 @@ export default function ProductsReportPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-3xl space-y-4">
+      <div className="w-full space-y-4">
 
         {/* Header */}
         <div className="flex items-center gap-2 flex-wrap">
