@@ -541,7 +541,7 @@ router.get("/sales/by-payment-method", requireAdmin, async (req, res, next) => {
     const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
     if (shopId) conditions.push(eq(sales.shop, shopId));
     if (from) conditions.push(gte(sales.createdAt, from));
-    if (to) conditions.push(lte(sales.createdAt, to));
+    if (to) { const eod = new Date(to); eod.setUTCHours(23, 59, 59, 999); conditions.push(lte(sales.createdAt, eod)); }
     const where = and(...conditions);
 
     const rows = await db.select({
@@ -690,7 +690,7 @@ router.get("/sales/by-product/detail", requireAdmin, async (req, res, next) => {
     const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
     if (shopId) conditions.push(eq(saleItems.shop, shopId));
     if (from) conditions.push(gte(sales.createdAt, from));
-    if (to) conditions.push(lte(sales.createdAt, to));
+    if (to) { const eod = new Date(to); eod.setUTCHours(23, 59, 59, 999); conditions.push(lte(sales.createdAt, eod)); }
 
     const rows = await db.select({
       productId: saleItems.product,
