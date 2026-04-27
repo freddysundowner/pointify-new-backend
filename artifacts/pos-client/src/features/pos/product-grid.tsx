@@ -983,21 +983,15 @@ export default function ProductGrid({
         {/* Left Panel - Transaction Form */}
         <div className={`w-full ${viewMode === 'table' ? 'lg:w-2/3' : 'lg:w-2/3'} p-2 lg:p-6 bg-white order-2 lg:order-1 overflow-y-auto`}>
           {/* Mobile: Stack vertically, Desktop: 2 columns */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-6 mb-3 lg:mb-6">
-            <div>
-              <label className="text-xs lg:text-sm font-medium text-gray-700 block mb-1 lg:mb-2">Transaction ID</label>
-              <Input value="S-01154" className="h-8 lg:h-10 bg-gray-50 text-xs lg:text-sm" readOnly />
-            </div>
-            <div>
-              <label className="text-xs lg:text-sm font-medium text-gray-700 block mb-1 lg:mb-2">Date</label>
-              <Input 
-                type="date" 
-                defaultValue={new Date().toISOString().split('T')[0]} 
-                className="h-8 lg:h-10 text-xs lg:text-sm" 
-                disabled={!canSetSaleDate}
-                readOnly={!canSetSaleDate}
-              />
-            </div>
+          <div className="mb-3 lg:mb-6">
+            <label className="text-xs lg:text-sm font-medium text-gray-700 block mb-1 lg:mb-2">Date</label>
+            <Input 
+              type="date" 
+              defaultValue={new Date().toISOString().split('T')[0]} 
+              className="h-8 lg:h-10 text-xs lg:text-sm" 
+              disabled={!canSetSaleDate}
+              readOnly={!canSetSaleDate}
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-6 mb-3 lg:mb-6">
