@@ -1097,29 +1097,21 @@ export default function ProductGrid({
               
               {/* Customer Balance Display */}
               {selectedCustomer && (
-                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex justify-between items-center text-sm">
-                    <div>
-                      <span className="font-medium text-gray-700">Previous Balance: </span>
-                      <span className={`font-bold ${
-                        (selectedCustomer.wallet && parseFloat(selectedCustomer.wallet) >= 0) 
-                          ? 'text-green-600' 
-                          : 'text-red-600'
-                      }`}>
-                        Ksh {selectedCustomer.wallet 
-                          ? parseFloat(selectedCustomer.wallet).toFixed(2) 
-                          : '0.00'}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Credit Limit: Ksh {selectedCustomer.creditLimit 
-                        ? parseFloat(selectedCustomer.creditLimit).toFixed(2) 
-                        : '0.00'}
-                    </div>
-                  </div>
-                  <div className="mt-1 text-xs text-gray-600">
-                    Contact: {selectedCustomer.phone || selectedCustomer.email || 'N/A'}
-                  </div>
+                <div className="mt-1.5 px-2 py-1 bg-blue-50 border border-blue-200 rounded flex items-center gap-2 text-xs flex-wrap">
+                  <span className="text-gray-500">Bal:</span>
+                  <span className={`font-semibold ${
+                    parseFloat(selectedCustomer.wallet || '0') >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    Ksh {parseFloat(selectedCustomer.wallet || '0').toFixed(2)}
+                  </span>
+                  <span className="text-gray-300">·</span>
+                  <span className="text-gray-500">Limit: Ksh {parseFloat(selectedCustomer.creditLimit || '0').toFixed(2)}</span>
+                  {(selectedCustomer.phone || selectedCustomer.email) && (
+                    <>
+                      <span className="text-gray-300">·</span>
+                      <span className="text-gray-500">{selectedCustomer.phone || selectedCustomer.email}</span>
+                    </>
+                  )}
                 </div>
               )}
             </div>
