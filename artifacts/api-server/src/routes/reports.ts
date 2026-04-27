@@ -17,7 +17,12 @@ function shopDate(shopId: number | null, from: Date | null, to: Date | null, tab
   const conditions = [];
   if (shopId) conditions.push(eq(table.shop, shopId));
   if (from) conditions.push(gte(table.createdAt, from));
-  if (to) conditions.push(lte(table.createdAt, to));
+  if (to) {
+    // Extend to end-of-day so that records created any time on the `to` date are included
+    const endOfDay = new Date(to);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+    conditions.push(lte(table.createdAt, endOfDay));
+  }
   return conditions.length > 1 ? and(...conditions) : conditions[0];
 }
 
