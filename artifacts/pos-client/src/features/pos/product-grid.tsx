@@ -545,7 +545,7 @@ export default function ProductGrid({
     }
     
     setSelectedDiscountItem(item);
-    setDiscountAmount((item.discount || 0).toString());
+    setDiscountAmount(item.discount && item.discount > 0 ? item.discount.toString() : "");
     setShowDiscountDialog(true);
   };
 
@@ -2345,7 +2345,7 @@ export default function ProductGrid({
                       type="number"
                       value={discountAmount}
                       onChange={(e) => setDiscountAmount(e.target.value)}
-                      placeholder="Enter discount amount"
+                      placeholder="0"
                       className="text-lg"
                       max={effectiveMax < Infinity ? effectiveMax : undefined}
                       min="0"
