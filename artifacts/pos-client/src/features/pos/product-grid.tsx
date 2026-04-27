@@ -743,15 +743,33 @@ export default function ProductGrid({
       return;
     }
 
+    // Normalize client slug → DB payment_methods.name (case-insensitive lookup)
+    const normalizeMethod = (slug: string): string => {
+      const map: Record<string, string> = {
+        cash: "cash",
+        mpesa: "m-pesa",
+        "m-pesa": "m-pesa",
+        bank: "bank transfer",
+        "bank transfer": "bank transfer",
+        card: "card",
+        wallet: "wallet",
+      };
+      return map[slug.toLowerCase()] ?? slug.toLowerCase();
+    };
+
     // Build the payments array for split payments
     const buildPayments = () => {
       if (isHold || selectedPaymentMethod !== "split") return undefined;
       const payments = [];
-      if (splitAmounts.cash > 0) payments.push({ method: "cash", amount: splitAmounts.cash });
-      if (splitAmounts.mpesa > 0) payments.push({ method: "mpesa", amount: splitAmounts.mpesa });
-      if (splitAmounts.bank > 0) payments.push({ method: "bank", amount: splitAmounts.bank });
+      if (splitAmounts.cash > 0) payments.push({ method: normalizeMethod("cash"), amount: splitAmounts.cash });
+      if (splitAmounts.mpesa > 0) payments.push({ method: normalizeMethod("mpesa"), amount: splitAmounts.mpesa });
+      if (splitAmounts.bank > 0) payments.push({ method: normalizeMethod("bank"), amount: splitAmounts.bank });
       return payments.length > 0 ? payments : undefined;
     };
+
+    // For credit sales the sale-type is determined by outstanding > 0,
+    // not by the paymentMethod field. Send "cash" so the API can resolve it.
+    const effectivePaymentMethod = selectedPaymentMethod === "credit" ? "cash" : selectedPaymentMethod;
 
     const transactionData = {
       items: cartItems.map(item => ({
@@ -770,7 +788,7 @@ export default function ProductGrid({
       amountPaid: isHold || selectedPaymentMethod === "credit" ? 0.0 :
                  selectedPaymentMethod === "split" ? (splitAmounts.cash + splitAmounts.mpesa + splitAmounts.bank) :
                  parseFloat(totals.total.toString()),
-      paymentMethod: isHold ? "cash" : selectedPaymentMethod !== "split" ? selectedPaymentMethod : undefined,
+      paymentMethod: isHold ? "cash" : effectivePaymentMethod !== "split" ? normalizeMethod(effectivePaymentMethod) : undefined,
       payments: buildPayments(),
       discount: parseFloat(totals.discount.toString()),
       customerId: selectedCustomerId ? Number(selectedCustomerId) : null,

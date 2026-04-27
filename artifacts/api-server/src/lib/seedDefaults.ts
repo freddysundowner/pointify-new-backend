@@ -16,6 +16,7 @@ const DEFAULT_PAYMENT_METHODS = [
   { name: "M-Pesa",        description: "Mobile money",  sortOrder: 20 },
   { name: "Bank Transfer", description: "Direct bank deposit / EFT", sortOrder: 30 },
   { name: "Card",          description: "Debit / credit card", sortOrder: 40 },
+  { name: "Wallet",        description: "Customer wallet / prepaid balance", sortOrder: 50 },
 ];
 
 export async function seedDefaultPaymentMethods(): Promise<void> {
