@@ -1022,9 +1022,9 @@ export default function CustomerOverview() {
                         customerPayments.map((payment: any) => {
                           const date = new Date(payment.createdAt).toLocaleDateString();
                           const type = payment.type.charAt(0).toUpperCase() + payment.type.slice(1);
-                          const amount = payment.totalAmount || 0;
+                          const amount = Number(payment.amount ?? payment.totalAmount ?? 0);
                           const paymentNo = payment.paymentNo || 'N/A';
-                          const balance = payment.balance !== undefined ? payment.balance : (payment.customerId?.wallet || 0);
+                          const balance = Number(payment.balance ?? payment.customerId?.wallet ?? 0);
                           const attendant = payment.attendantId?.username || 'System';
                           
                           return (
