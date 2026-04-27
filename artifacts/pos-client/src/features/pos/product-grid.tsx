@@ -413,6 +413,7 @@ export default function ProductGrid({
       
       setShowPaymentDialog(false);
       setSelectedPaymentMethod("");
+      setSelectedCustomerId("");
       onClearCart();
     },
     onError: (error: any) => {
