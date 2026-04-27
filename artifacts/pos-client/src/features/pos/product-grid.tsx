@@ -1052,7 +1052,7 @@ export default function ProductGrid({
                           );
                         })}
                       {/* Add new customer shortcut at bottom of dropdown */}
-                      {hasAttendantPermission('customers', 'manage') && (
+                      {(hasAttendantPermission('customers', 'manage') || !!admin) && (
                         <div
                           className="px-3 py-2 text-xs text-purple-600 font-medium cursor-pointer hover:bg-purple-50 border-t flex items-center gap-1.5"
                           onMouseDown={() => {
@@ -1070,14 +1070,14 @@ export default function ProductGrid({
                       {mainCustomerSearch && customers.filter((c: any) => {
                         const term = mainCustomerSearch.toLowerCase();
                         return (c.name || '').toLowerCase().includes(term) || (c.phone || '').toLowerCase().includes(term) || (c.phonenumber || '').toLowerCase().includes(term);
-                      }).length === 0 && !hasAttendantPermission('customers', 'manage') && (
+                      }).length === 0 && !(hasAttendantPermission('customers', 'manage') || !!admin) && (
                         <div className="px-3 py-3 text-xs text-gray-400 text-center">No customers found</div>
                       )}
                     </div>
                   )}
                 </div>
                 {/* Add Customer Button */}
-                {hasAttendantPermission('customers', 'manage') && (
+                {(hasAttendantPermission('customers', 'manage') || !!admin) && (
                   <Button
                     onClick={() => {
                       setNewCustomerForm({ name: '', phone: '', email: '', address: '' });
