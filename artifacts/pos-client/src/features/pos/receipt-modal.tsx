@@ -1,12 +1,12 @@
-import { Printer, Plus, Check, Download, Mail } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Printer, Plus, Check, Download, Mail, ChevronDown, ChevronUp } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Transaction, CartItem } from "@shared/schema";
 import { jsPDF } from 'jspdf';
 import { useToast } from "@/hooks/use-toast";
 import { apiCall } from "@/lib/api-config";
 import { ENDPOINTS } from "@/lib/api-endpoints";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -19,6 +19,8 @@ export default function ReceiptModal({ isOpen, onClose, transaction, onNewTransa
   if (!transaction) return null;
 
   const { toast } = useToast();
+  const [showDetails, setShowDetails] = useState(false);
+
   const adminData = localStorage.getItem('adminData');
   const admin = adminData ? JSON.parse(adminData) : null;
   const primaryShop = admin?.primaryShop;
@@ -27,6 +29,11 @@ export default function ReceiptModal({ isOpen, onClose, transaction, onNewTransa
   const transactionDate = new Date();
   const shopTaxRate = primaryShop?.tax || 0;
   const currency = primaryShop?.currency || 'KES';
+
+  // Reset to summary view when dialog closes
+  useEffect(() => {
+    if (!isOpen) setShowDetails(false);
+  }, [isOpen]);
 
   const getPrintData = () => ({
     shopName: primaryShop?.name || 'Business Name',
@@ -49,8 +56,7 @@ export default function ReceiptModal({ isOpen, onClose, transaction, onNewTransa
   }, [isOpen, transaction]);
 
   const printThermal = async (receiptData: any = getPrintData()) => {
-    if (receiptData && typeof receiptData.preventDefault === 'function') receiptData = getPrintData();
-    if (!receiptData) receiptData = getPrintData();
+    if (!receiptData || typeof receiptData.preventDefault === 'function') receiptData = getPrintData();
     try {
       const response = await apiCall(ENDPOINTS.printer.saleReceipt, { method: 'POST', body: JSON.stringify(receiptData) });
       const respo = await response.json();
@@ -92,7 +98,7 @@ export default function ReceiptModal({ isOpen, onClose, transaction, onNewTransa
     doc.text(`Total: ${currency} ${transaction.total.toFixed(2)}`, 130, yPos); yPos += 12;
     doc.setFont('helvetica', 'normal');
     doc.text(`Payment: ${transaction.paymentMethod}`, 20, yPos); yPos += 15;
-    doc.setFontSize(10); doc.text('Thank you for your business!', 105, yPos, { align: 'center' });
+    doc.text('Thank you for your business!', 105, yPos, { align: 'center' });
     doc.save(`receipt-${transaction.id}-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
@@ -101,117 +107,129 @@ export default function ReceiptModal({ isOpen, onClose, transaction, onNewTransa
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-sm w-full p-0 gap-0 overflow-hidden">
-        {/* Header */}
-        <DialogHeader className="px-4 pt-4 pb-2">
-          <DialogTitle className="flex items-center gap-2 text-base font-bold">
-            <span className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-              <Check className="h-3.5 w-3.5 text-white" />
-            </span>
-            <span>Transaction Complete</span>
-          </DialogTitle>
-        </DialogHeader>
 
-        {/* Scrollable receipt body */}
-        <div className="overflow-y-auto px-4 pb-2" style={{ maxHeight: 'calc(85vh - 160px)' }}>
-          {/* Shop info */}
-          <div className="text-center mb-2">
-            <p className="font-semibold text-sm text-gray-800">{primaryShop?.name || 'Store Name'}</p>
-            {primaryShop?.address && <p className="text-xs text-gray-500">{primaryShop.address}</p>}
-          </div>
-
-          {/* Meta row */}
-          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs mb-2 pb-2 border-b">
-            <span className="text-gray-500">Receipt</span>
-            <span className="font-medium text-right">#{transaction.id}</span>
-            <span className="text-gray-500">Date</span>
-            <span className="font-medium text-right">{transactionDate.toLocaleDateString()} {transactionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-            <span className="text-gray-500">Served by</span>
-            <span className="font-medium text-right">{attendantName}</span>
-            {transaction.customerName && (
-              <>
-                <span className="text-gray-500">Customer</span>
-                <span className="font-medium text-right">{transaction.customerName}</span>
-              </>
-            )}
-          </div>
-
-          {/* Items */}
-          <div className="space-y-1 mb-2 pb-2 border-b">
-            {items.map((item, index) => (
-              <div key={`${item.id}-${index}`}>
-                <div className="flex justify-between text-xs">
-                  <span className="font-medium truncate max-w-[55%]">{item.name} <span className="text-gray-400 font-normal">×{item.quantity}</span></span>
-                  <span className="font-semibold">{currency} {Number(item.total).toFixed(2)}</span>
-                </div>
-                {item.discount && Number(item.discount) > 0 ? (
-                  <div className="flex justify-between text-xs text-green-600 pl-2">
-                    <span>Discount</span>
-                    <span>-{currency} {(Number(item.discount) * Number(item.quantity)).toFixed(2)}</span>
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-
-          {/* Totals */}
-          <div className="space-y-0.5 text-xs mb-2">
-            <div className="flex justify-between text-gray-600">
-              <span>Subtotal</span>
-              <span>{currency} {Number(transaction.subtotal).toFixed(2)}</span>
+        {/* ── Success summary (always visible) ── */}
+        <div className="px-6 pt-8 pb-6 flex flex-col items-center text-center">
+          {/* Big check */}
+          <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-4">
+            <div className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
+              <Check className="h-8 w-8 text-white stroke-[3]" />
             </div>
+          </div>
+
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Payment Successful</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Receipt #{transaction.id} &bull; {transaction.paymentMethod && <span className="capitalize">{transaction.paymentMethod}</span>}
+          </p>
+
+          {/* Big total */}
+          <div className="bg-gray-50 rounded-2xl px-8 py-4 mb-6 w-full">
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Paid</p>
+            <p className="text-4xl font-extrabold text-gray-900">
+              {currency} {Number(transaction.total).toFixed(2)}
+            </p>
             {totalDiscount > 0 && (
-              <div className="flex justify-between text-green-600">
-                <span>Discount</span>
-                <span>-{currency} {totalDiscount.toFixed(2)}</span>
-              </div>
+              <p className="text-xs text-green-600 mt-1">Saved {currency} {totalDiscount.toFixed(2)}</p>
             )}
-            {Number(transaction.tax) > 0 && (
-              <div className="flex justify-between text-gray-600">
-                <span>Tax ({shopTaxRate}%)</span>
-                <span>{currency} {Number(transaction.tax).toFixed(2)}</span>
+          </div>
+
+          {/* Primary action */}
+          <Button
+            onClick={onNewTransaction}
+            className="w-full h-11 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 font-semibold text-sm shadow-md mb-3"
+          >
+            <Plus className="mr-2 h-4 w-4" /> New Transaction
+          </Button>
+
+          {/* Toggle details */}
+          <button
+            onClick={() => setShowDetails(v => !v)}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            {showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {showDetails ? 'Hide details' : 'View receipt details'}
+          </button>
+        </div>
+
+        {/* ── Expandable receipt details ── */}
+        {showDetails && (
+          <div className="border-t">
+            {/* Scrollable receipt */}
+            <div className="overflow-y-auto px-5 py-4 space-y-3 text-xs" style={{ maxHeight: '45vh' }}>
+              {/* Shop header */}
+              <div className="text-center pb-3 border-b">
+                <p className="font-bold text-sm text-gray-800">{primaryShop?.name || 'Store Name'}</p>
+                {primaryShop?.address && <p className="text-gray-500">{primaryShop.address}</p>}
+                {primaryShop?.contact && <p className="text-gray-500">Tel: {primaryShop.contact}</p>}
               </div>
-            )}
-            <div className="flex justify-between font-bold text-sm pt-1 border-t mt-1">
-              <span>Total</span>
-              <span className="text-primary">{currency} {Number(transaction.total).toFixed(2)}</span>
+
+              {/* Meta */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 pb-3 border-b">
+                <span className="text-gray-500">Date</span>
+                <span className="text-right font-medium">{transactionDate.toLocaleDateString()} {transactionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="text-gray-500">Served by</span>
+                <span className="text-right font-medium">{attendantName}</span>
+                {transaction.customerName && <>
+                  <span className="text-gray-500">Customer</span>
+                  <span className="text-right font-medium">{transaction.customerName}</span>
+                </>}
+              </div>
+
+              {/* Items */}
+              <div className="space-y-1.5 pb-3 border-b">
+                {items.map((item, i) => (
+                  <div key={`${item.id}-${i}`}>
+                    <div className="flex justify-between">
+                      <span className="font-medium truncate max-w-[60%]">{item.name} <span className="text-gray-400 font-normal">×{item.quantity}</span></span>
+                      <span className="font-semibold">{currency} {Number(item.total).toFixed(2)}</span>
+                    </div>
+                    {item.discount && Number(item.discount) > 0 ? (
+                      <div className="flex justify-between text-green-600 pl-2">
+                        <span>Discount</span>
+                        <span>-{currency} {(Number(item.discount) * Number(item.quantity)).toFixed(2)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+
+              {/* Totals */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{currency} {Number(transaction.subtotal).toFixed(2)}</span></div>
+                {totalDiscount > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span>-{currency} {totalDiscount.toFixed(2)}</span></div>}
+                {Number(transaction.tax) > 0 && <div className="flex justify-between text-gray-600"><span>Tax ({shopTaxRate}%)</span><span>{currency} {Number(transaction.tax).toFixed(2)}</span></div>}
+                <div className="flex justify-between font-bold text-sm pt-1 border-t">
+                  <span>Total</span><span className="text-primary">{currency} {Number(transaction.total).toFixed(2)}</span>
+                </div>
+                {transaction.paymentMethod === 'split' ? (
+                  <div className="pt-1 border-t space-y-0.5">
+                    <p className="font-medium text-gray-600">Payment Breakdown</p>
+                    {transaction.amountPaid > 0 && <div className="flex justify-between"><span className="text-gray-500">Cash</span><span>{currency} {Number(transaction.amountPaid).toFixed(2)}</span></div>}
+                    {(transaction as any).mpesaNewTotal > 0 && <div className="flex justify-between"><span className="text-gray-500">M-Pesa</span><span>{currency} {Number((transaction as any).mpesaNewTotal).toFixed(2)}</span></div>}
+                    {(transaction as any).bankTotal > 0 && <div className="flex justify-between"><span className="text-gray-500">Bank</span><span>{currency} {Number((transaction as any).bankTotal).toFixed(2)}</span></div>}
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-gray-600 pt-1"><span>Payment</span><span className="capitalize font-medium">{transaction.paymentMethod}</span></div>
+                )}
+              </div>
+
+              <p className="text-center text-gray-400 pt-2">Thank you for your business!</p>
             </div>
 
-            {/* Payment */}
-            {transaction.paymentMethod === 'split' ? (
-              <div className="pt-1 border-t space-y-0.5">
-                <p className="font-medium text-gray-600">Payment Breakdown</p>
-                {transaction.amountPaid > 0 && <div className="flex justify-between"><span className="text-gray-500">Cash</span><span>{currency} {Number(transaction.amountPaid).toFixed(2)}</span></div>}
-                {(transaction as any).mpesaNewTotal > 0 && <div className="flex justify-between"><span className="text-gray-500">M-Pesa</span><span>{currency} {Number((transaction as any).mpesaNewTotal).toFixed(2)}</span></div>}
-                {(transaction as any).bankTotal > 0 && <div className="flex justify-between"><span className="text-gray-500">Bank</span><span>{currency} {Number((transaction as any).bankTotal).toFixed(2)}</span></div>}
-              </div>
-            ) : (
-              <div className="flex justify-between text-gray-600 pt-1">
-                <span>Payment</span>
-                <span className="capitalize font-medium">{transaction.paymentMethod}</span>
-              </div>
-            )}
+            {/* Action buttons */}
+            <div className="px-5 py-3 border-t bg-gray-50 grid grid-cols-3 gap-2">
+              <Button variant="outline" size="sm" className="text-xs bg-white" onClick={printThermal}>
+                <Printer className="mr-1 h-3 w-3" /> Print
+              </Button>
+              <Button variant="outline" size="sm" className="text-xs bg-white" onClick={generatePDF}>
+                <Download className="mr-1 h-3 w-3" /> PDF
+              </Button>
+              <Button variant="outline" size="sm" className="text-xs bg-white">
+                <Mail className="mr-1 h-3 w-3" /> Email
+              </Button>
+            </div>
           </div>
-
-          <p className="text-center text-xs text-gray-400 pb-1">Thank you for your business!</p>
-        </div>
-
-        {/* Sticky action footer */}
-        <div className="px-4 pb-4 pt-2 border-t bg-white space-y-2">
-          <div className="grid grid-cols-3 gap-2">
-            <Button variant="outline" size="sm" className="text-xs" onClick={printThermal}>
-              <Printer className="mr-1 h-3 w-3" /> Print
-            </Button>
-            <Button variant="outline" size="sm" className="text-xs" onClick={generatePDF}>
-              <Download className="mr-1 h-3 w-3" /> PDF
-            </Button>
-            <Button variant="outline" size="sm" className="text-xs">
-              <Mail className="mr-1 h-3 w-3" /> Email
-            </Button>
-          </div>
-          <Button onClick={onNewTransaction} size="sm" className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-sm font-semibold">
-            <Plus className="mr-1 h-4 w-4" /> New Transaction
-          </Button>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );
