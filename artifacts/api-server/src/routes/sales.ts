@@ -216,7 +216,6 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     const bankAmt  = resolvedPayments.filter(p => /bank|transfer/i.test(p.methodName)).reduce((s, p) => s + p.amount, 0);
     const cardAmt  = resolvedPayments.filter(p => /card/i.test(p.methodName)).reduce((s, p) => s + p.amount, 0);
 
-    const receiptNo = `REC${Date.now()}`;
     const saleStatus = held ? "held" : outstanding > 0 ? "credit" : "cashed";
 
     const [sale] = await db.insert(sales).values({
@@ -236,10 +235,14 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       status: saleStatus,
       saleNote: note,
       dueDate: !held && outstanding > 0 && dueDate ? new Date(dueDate) : null,
-      receiptNo,
       attendant: req.attendant?.id ?? undefined,
       ...(saleDate ? { createdAt: new Date(saleDate) } : {}),
     } as typeof sales.$inferInsert).returning();
+
+    // Generate a short, human-readable receipt number from the real DB ID
+    const receiptNo = `S-${String(sale.id).padStart(5, "0")}`;
+    await db.update(sales).set({ receiptNo }).where(eq(sales.id, sale.id));
+    sale.receiptNo = receiptNo;
 
     const itemRows = await db.insert(saleItems).values(
       items.map((item: any) => ({
