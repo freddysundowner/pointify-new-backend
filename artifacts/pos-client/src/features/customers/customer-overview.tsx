@@ -12,13 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Search, User, CreditCard, ShoppingBag, Calendar, DollarSign, TrendingUp, FileText, Phone, Mail, MapPin, ArrowLeft, Filter, ChevronLeft, ChevronRight, Wallet, Plus, Download } from "lucide-react";
-import { useLocation, Link } from "wouter";
+import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
 import { useAuth } from '@/features/auth/useAuth';
-import { apiCall } from '@/lib/api-config';
 import { apiRequest } from '@/lib/queryClient';
 import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useNavigationRoute } from '@/lib/navigation-utils';
@@ -93,180 +92,9 @@ interface CustomerOverviewData {
   loyaltyPoints: number;
 }
 
-// Dummy data for customer overview
-const dummyCustomer: CustomerOverviewData = {
-  _id: '1',
-  name: 'John Smith',
-  email: 'john.smith@email.com',
-  phone: '+1 (555) 123-4567',
-  address: '123 Main Street, Anytown, ST 12345',
-  balance: -150.00,
-  totalPurchases: 47,
-  totalSpent: 2850.75,
-  joinDate: '2023-03-15',
-  lastPurchase: '2024-06-15',
-  status: 'active',
-  customerType: 'vip',
-  creditLimit: 500.00,
-  loyaltyPoints: 285
-};
 
-const dummyTransactions: CustomerTransaction[] = [
-  {
-    _id: '1',
-    date: '2024-06-15',
-    type: 'purchase',
-    amount: 89.50,
-    description: 'Store Purchase - Receipt #R2024-0615-001',
-    status: 'completed',
-    referenceNumber: 'TXN2024061501'
-  },
-  {
-    _id: '2',
-    date: '2024-06-10',
-    type: 'credit',
-    amount: -200.00,
-    description: 'Cash Payment - Account Credit',
-    status: 'completed',
-    referenceNumber: 'PAY2024061001'
-  },
-  {
-    _id: '3',
-    date: '2024-06-08',
-    type: 'purchase',
-    amount: 156.25,
-    description: 'Store Purchase - Receipt #R2024-0608-003',
-    status: 'completed',
-    referenceNumber: 'TXN2024060801'
-  },
-  {
-    _id: '4',
-    date: '2024-06-05',
-    type: 'refund',
-    amount: -25.00,
-    description: 'Product Return - Defective Item',
-    status: 'completed',
-    referenceNumber: 'REF2024060501'
-  },
-  {
-    _id: '5',
-    date: '2024-06-01',
-    type: 'purchase',
-    amount: 78.90,
-    description: 'Store Purchase - Receipt #R2024-0601-002',
-    status: 'completed',
-    referenceNumber: 'TXN2024060101'
-  },
-  {
-    _id: '6',
-    date: '2024-05-28',
-    type: 'credit',
-    amount: -150.00,
-    description: 'Store Credit Applied',
-    status: 'completed',
-    referenceNumber: 'CRD2024052801'
-  },
-  {
-    _id: '7',
-    date: '2024-05-25',
-    type: 'refund',
-    amount: -45.75,
-    description: 'Return - Wrong Size',
-    status: 'completed',
-    referenceNumber: 'REF2024052501'
-  },
-  {
-    _id: '8',
-    date: '2024-05-20',
-    type: 'purchase',
-    amount: 234.80,
-    description: 'Store Purchase - Receipt #R2024-0520-007',
-    status: 'completed',
-    referenceNumber: 'TXN2024052001'
-  },
-  {
-    _id: '9',
-    date: '2024-05-15',
-    type: 'credit',
-    amount: -100.00,
-    description: 'Account Credit - Loyalty Reward',
-    status: 'completed',
-    referenceNumber: 'CRD2024051501'
-  },
-  {
-    _id: '10',
-    date: '2024-05-10',
-    type: 'purchase',
-    amount: 67.25,
-    description: 'Store Purchase - Receipt #R2024-0510-003',
-    status: 'completed',
-    referenceNumber: 'TXN2024051001'
-  },
-  {
-    _id: '11',
-    date: '2024-05-05',
-    type: 'refund',
-    amount: -89.90,
-    description: 'Return - Damaged Product',
-    status: 'completed',
-    referenceNumber: 'REF2024050501'
-  },
-  {
-    _id: '12',
-    date: '2024-05-01',
-    type: 'purchase',
-    amount: 125.40,
-    description: 'Store Purchase - Receipt #R2024-0501-002',
-    status: 'completed',
-    referenceNumber: 'TXN2024050101'
-  }
-];
-
-const dummyPurchases: CustomerPurchase[] = [
-  {
-    _id: '1',
-    date: '2024-06-15',
-    items: [
-      { productName: 'Premium Coffee Beans', quantity: 2, price: 24.99, total: 49.98 },
-      { productName: 'Organic Milk', quantity: 1, price: 4.50, total: 4.50 },
-      { productName: 'Artisan Bread', quantity: 3, price: 12.00, total: 36.00 }
-    ],
-    totalAmount: 89.50,
-    paymentMethod: 'Credit Card',
-    status: 'completed',
-    receiptNumber: 'R2024-0615-001'
-  },
-  {
-    _id: '2',
-    date: '2024-06-08',
-    items: [
-      { productName: 'Fresh Vegetables Pack', quantity: 1, price: 28.75, total: 28.75 },
-      { productName: 'Olive Oil', quantity: 2, price: 15.99, total: 31.98 },
-      { productName: 'Pasta Variety Pack', quantity: 4, price: 8.99, total: 35.96 },
-      { productName: 'Parmesan Cheese', quantity: 1, price: 18.50, total: 18.50 }
-    ],
-    totalAmount: 156.25,
-    paymentMethod: 'Cash',
-    status: 'completed',
-    receiptNumber: 'R2024-0608-003'
-  },
-  {
-    _id: '3',
-    date: '2024-06-01',
-    items: [
-      { productName: 'Seasonal Fruits', quantity: 2, price: 22.45, total: 44.90 },
-      { productName: 'Honey', quantity: 1, price: 12.99, total: 12.99 },
-      { productName: 'Nuts Mix', quantity: 1, price: 21.01, total: 21.01 }
-    ],
-    totalAmount: 78.90,
-    paymentMethod: 'Debit Card',
-    status: 'completed',
-    receiptNumber: 'R2024-0601-002'
-  }
-];
 
 export default function CustomerOverview() {
-  const [location] = useLocation();
   const [activeTab, setActiveTab] = useState("sales");
   const [salesFilter, setSalesFilter] = useState("all");
   const customersRoute = useNavigationRoute('customers');
@@ -279,34 +107,6 @@ export default function CustomerOverview() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [statementFilter, setStatementFilter] = useState("all");
-  const [walletBalance, setWalletBalance] = useState(125.50);
-  const [walletTransactions, setWalletTransactions] = useState([
-    {
-      _id: 'w1',
-      date: '2024-06-10',
-      type: 'deposit',
-      amount: 100.00,
-      description: 'Wallet deposit - Cash',
-      balance: 225.50
-    },
-    {
-      _id: 'w2',
-      date: '2024-06-08',
-      type: 'spend',
-      amount: -75.00,
-      description: 'Purchase - Receipt #R2024-0608-003',
-      balance: 125.50
-    },
-    {
-      _id: 'w3',
-      date: '2024-06-05',
-      type: 'deposit',
-      amount: 50.00,
-      description: 'Wallet deposit - Card',
-      balance: 200.50
-    }
-  ]);
-  
   const { toast } = useToast();
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const { admin } = useAuth();
@@ -314,124 +114,56 @@ export default function CustomerOverview() {
   // Get customer ID from URL parameters
   const urlParams = new URLSearchParams(window.location.search);
   const customerId = urlParams.get('id');
-  
-  // Check for passed customer data from customers page
-  const [passedCustomerData, setPassedCustomerData] = useState<any>(null);
-  
-  useEffect(() => {
-    const customerData = (window as any).__customerData;
-    if (customerData && customerData._id === customerId) {
-      console.log('Using passed customer data:', customerData);
-      setPassedCustomerData(customerData);
-      // Clear the data after use
-      delete (window as any).__customerData;
-    }
-  }, [customerId]);
-  
-  console.log('=== CUSTOMER OVERVIEW PAGE LOADED ===');
-  console.log('Wouter Location:', location);
-  console.log('Window Search:', window.location.search);
-  console.log('Extracted Customer ID:', customerId);
-  console.log('Passed Customer Data:', passedCustomerData);
-  console.log('Selected Shop ID:', selectedShopId);
-  
-  // If no customer ID, log error
-  if (!customerId) {
-    console.error('No customer ID found in URL. Expected format: /customer-overview?id=CUSTOMER_ID');
-    console.error('Full URL:', window.location.href);
-  }
-  
-  if (customerId && !selectedShopId) {
-    console.log('Customer ID found but waiting for shop ID from Redux state...');
-  }
-  
-  if (customerId && selectedShopId) {
-    console.log('Both customer ID and shop ID available - sales query should execute');
-  }
-  
-  // Effect to log when shop state changes
-  useEffect(() => {
-    console.log('Shop state changed:', selectedShopId);
-    if (customerId && selectedShopId) {
-      console.log('Ready to fetch customer sales data');
-    }
-  }, [selectedShopId, customerId]);
-  
 
+  const effectiveShopId = selectedShopId || '';
 
-  // Use passed customer data or minimal fallback - avoid redundant API calls
-  const customerData = passedCustomerData || (customerId ? { _id: customerId, name: 'Customer', wallet: 0 } : null);
-  const customerLoading = false;
-
-  // Fetch customer-specific sales data - use hardcoded shop ID if Redux not ready
-  const effectiveShopId = selectedShopId || '685077993dd888c2f51607d4'; // Use available shop ID
-  
-  console.log('Shop ID calculation:', {
-    selectedShopId,
-    effectiveShopId,
-    willUseEffectiveId: effectiveShopId
+  // Fetch the real customer record directly from the API
+  const { data: customerData, isLoading: customerLoading } = useQuery({
+    queryKey: ['customer-detail', customerId],
+    queryFn: async () => {
+      if (!customerId) return null;
+      const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
+      const response = await fetch(ENDPOINTS.customers.getById(customerId), {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) return null;
+      const result = await response.json();
+      const raw = result?.data ?? result;
+      return raw ? { ...raw, _id: String(raw.id ?? raw._id) } : null;
+    },
+    enabled: !!customerId,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
-  
+
   const { data: salesData, isLoading: salesLoading } = useQuery({
     queryKey: [ENDPOINTS.sales.getAll, customerId, effectiveShopId, salesFilter],
     enabled: !!customerId, // Only need customer ID
     queryFn: async () => {
-      console.log('Sales query function called with:', { customerId, effectiveShopId, salesFilter });
-      
-      if (!customerId) {
-        console.error('Cannot fetch sales: No customer ID available');
-        return { data: [] };
-      }
+      if (!customerId) return { data: [] };
       
       const params = new URLSearchParams();
-      params.append('shopId', effectiveShopId);
+      if (effectiveShopId) params.append('shopId', effectiveShopId);
       params.append('customerId', customerId);
-      params.append('customer', customerId); // Try both parameter names
       params.append('paginated', 'true');
       params.append('page', '1');
       params.append('limit', '100');
-      
-      // Always add paymentTag parameter as requested
-      if (salesFilter === 'credit') {
-        params.append('paymentTag', 'credit');
-      } else if (salesFilter === 'cash') {
-        params.append('paymentTag', 'cash');
-      } else {
-        // Always include paymentTag, even for 'all' filter
-        params.append('paymentTag', '');
-      }
-      
+      if (salesFilter === 'credit') params.append('paymentTag', 'credit');
+      else if (salesFilter === 'cash') params.append('paymentTag', 'cash');
+
       const url = `${ENDPOINTS.sales.getAll}?${params.toString()}`;
-      console.log('=== CUSTOMER OVERVIEW SALES API CALL ===');
-      console.log('Customer sales API call:', url);
-      console.log('Customer ID:', customerId);
-      console.log('Effective Shop ID:', effectiveShopId);
-      console.log('Selected Shop ID from Redux:', selectedShopId);
-      console.log('PaymentTag parameter included:', params.get('paymentTag'));
-      
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
       const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
       });
       
-      if (!response.ok) {
-        console.error('API call failed:', response.status, response.statusText);
-        return { data: [], count: 0, totalPages: 0, currentPage: 1 };
-      }
+      if (!response.ok) return { data: [], count: 0, totalPages: 0, currentPage: 1 };
       
-      const result = await response.json();
-      console.log('Raw API response:', result);
-      console.log('Response type:', typeof result);
-      console.log('Response has data property:', !!result.data);
-      
-      if (result && result.data) result = { ...result, data: normalizeIds(result.data) };
-      return result;
-
+      const raw = await response.json();
+      const normalized = raw?.data ? { ...raw, data: normalizeIds(raw.data) } : raw;
+      return normalized;
     },
     staleTime: 0,
     gcTime: 0,
@@ -442,7 +174,7 @@ export default function CustomerOverview() {
 
   // Fetch customer payment history
   const { data: customerPayments = [], isLoading: isLoadingPayments } = useQuery({
-    queryKey: [ENDPOINTS.customers.getPayments(customerId), statementFilter],
+    queryKey: [ENDPOINTS.customers.getPayments(customerId ?? ''), statementFilter],
     queryFn: async () => {
       if (!customerId) return [];
       
@@ -456,13 +188,9 @@ export default function CustomerOverview() {
         }
       });
       
-      if (!response.ok) {
-        console.error('Customer payments API failed:', response.status, response.statusText);
-        throw new Error('Failed to fetch customer payments');
-      }
+      if (!response.ok) return [];
       
       const result = await response.json();
-      console.log('Customer payments response:', result);
       const list = Array.isArray(result) ? result : result?.data || result?.payments || [];
       return normalizeIds(list);
     },
@@ -476,110 +204,56 @@ export default function CustomerOverview() {
   // Debt payment mutation
   const debtPaymentMutation = useMutation({
     mutationFn: async (paymentData: { amount: number; paymentMethod: string; notes: string }) => {
-      if (!customerId || !customerData) {
-        throw new Error('Customer data not available');
-      }
-
-      const currentWallet = customerData.wallet || 0;
-      const newWalletBalance = paymentData.amount; // Set wallet to the payment amount directly
-
-      const updateData = {
+      if (!customerId) throw new Error('Customer data not available');
+      const response = await apiRequest('POST', ENDPOINTS.customers.walletPayment(customerId), {
         amount: paymentData.amount,
-      };
-
-      // Create a timeout promise to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout - please try again')), 30000);
+        paymentType: paymentData.paymentMethod,
+        paymentReference: paymentData.notes || undefined,
       });
-
-      // Race between the API request and timeout
-      const response = await Promise.race([
-        apiRequest('POST', ENDPOINTS.customers.walletPayment(customerId), updateData),
-        timeoutPromise
-      ]) as Response;
-
       if (!response.ok) {
-        throw new Error('Failed to record payment');
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.message || 'Failed to record payment');
       }
-
       return response.json();
     },
     onSuccess: () => {
-      // Invalidate all customer-related queries with the specific keys used in this component
+      queryClient.invalidateQueries({ queryKey: ['customer-detail', customerId] });
       queryClient.invalidateQueries({ queryKey: [ENDPOINTS.sales.getAll, customerId, effectiveShopId, salesFilter] });
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.customers.getPayments(customerId), statementFilter] });
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.customers.getAll] });
-      
-      // Invalidate customers list page queries with proper shopId and userType
-      const userType = localStorage.getItem("attendantData") ? 'attendant' : 'admin';
-      queryClient.invalidateQueries({ queryKey: ['customers', effectiveShopId, userType] });
-      queryClient.invalidateQueries({ queryKey: ['customer-analysis', effectiveShopId, userType] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.customers.getPayments(customerId ?? ''), statementFilter] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['customer-analysis'] });
-      queryClient.invalidateQueries({ queryKey: ['customer-data'] });
-      
-      // Also invalidate any other customer-related queries
-      queryClient.invalidateQueries({ 
-        predicate: (query) => {
-          const key = String(query.queryKey[0] || '');
-          return key.includes('/api/customers') || key.includes('customer');
-        }
-      });
-      
       toast({
         title: "Payment Recorded",
-        description: `Customer debt payment of ${currency} ${debtPaymentAmount} has been recorded successfully.`,
+        description: `Debt payment of ${currency} ${debtPaymentAmount} recorded successfully.`,
       });
       setIsDebtPaymentDialogOpen(false);
       setDebtPaymentAmount("");
       setPaymentNotes("");
     },
     onError: (error: any) => {
-      // Log error for debugging
-      console.error('Debt payment error:', error);
-      
-      let errorMessage = "Failed to record debt payment";
-      
-      // Handle different types of errors
-      if (error.message?.includes('timeout')) {
-        errorMessage = "Request timed out. Please check your connection and try again.";
-      } else if (error.message?.includes('504')) {
-        errorMessage = "Server temporarily unavailable. Please try again in a moment.";
-      } else if (error.message?.includes('Network')) {
-        errorMessage = "Network error. Please check your connection and try again.";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
       toast({
         title: "Payment Failed",
-        description: errorMessage,
+        description: error.message || "Failed to record debt payment",
         variant: "destructive",
       });
-      
-      // Reset dialog state even on error to prevent hanging
-      setIsDebtPaymentDialogOpen(false);
-      setDebtPaymentAmount("");
-      setPaymentNotes("");
     },
   });
 
-  // Use actual customer data including passed data from customers page
   const customerOverviewData = customerData ? {
     _id: customerData._id,
     name: customerData.name || 'Customer',
     email: customerData.email || '',
-    phone: customerData.phonenumber || customerData.phone || '',
+    phone: customerData.phone || customerData.phonenumber || '',
     address: customerData.address || '',
     totalPurchases: salesData?.data?.length || 0,
-    totalSpent: passedCustomerData?.totalSpent || salesData?.data?.reduce((sum: number, sale: any) => sum + (sale.totalAmount || 0), 0) || 0,
-    outstandingBalance: passedCustomerData?.totalOutstanding || Math.abs(customerData.wallet || 0),
-    creditBalance: customerData.wallet || 0,
+    totalSpent: salesData?.data?.reduce((sum: number, sale: any) => sum + parseFloat(String(sale.totalWithDiscount || sale.totalAmount || 0)), 0) || 0,
+    outstandingBalance: parseFloat(String(customerData.outstandingBalance ?? 0)),
+    walletBalance: parseFloat(String(customerData.wallet ?? 0)),
     lastPurchaseDate: salesData?.data?.[0]?.createdAt || '',
     memberSince: customerData.createdAt || '',
     status: 'Active',
-    vipStatus: false,
-    customerType: customerData.customerType || 'Regular'
+    vipStatus: customerData.type === 'vip',
+    customerType: customerData.type || customerData.customerType || 'retail'
   } : {
     _id: customerId || '',
     name: customerLoading ? 'Loading...' : 'Customer Not Found',
@@ -589,12 +263,12 @@ export default function CustomerOverview() {
     totalPurchases: 0,
     totalSpent: 0,
     outstandingBalance: 0,
-    creditBalance: 0,
+    walletBalance: 0,
     lastPurchaseDate: '',
     memberSince: '',
     status: 'Active',
     vipStatus: false,
-    customerType: 'Regular'
+    customerType: 'retail'
   };
 
   // Convert sales data to transactions format
@@ -630,7 +304,7 @@ export default function CustomerOverview() {
   };
 
   // Get currency from customer data
-  const currency = customerData?.shopId?.currency || 'KES';
+  const currency = salesData?.data?.[0]?.shopId?.currency || 'KES';
 
   // Wallet deposit mutation
   const depositMutation = useMutation({
@@ -651,14 +325,15 @@ export default function CustomerOverview() {
       return response.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer-detail', customerId] });
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.customers.getPayments(customerId ?? ''), statementFilter] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
       toast({
         title: "Deposit Successful",
         description: `${currency} ${depositAmount} has been added to the wallet`,
       });
       setDepositAmount("");
       setIsDepositDialogOpen(false);
-      // Refresh the customer data without page reload
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.customers.getAll] });
     },
     onError: (error: any) => {
       toast({
@@ -1082,26 +757,50 @@ export default function CustomerOverview() {
                   </div>
                 </div>
               </div>
-              <div className="text-center sm:text-right border-t sm:border-t-0 pt-4 sm:pt-0">
-                <div className="text-xl sm:text-2xl font-bold text-blue-600">
-                  {customerData?.wallet ? 
-                    `${currency} ${customerData.wallet.toLocaleString()}` : 
-                    `${currency} 0`
-                  }
-                </div>
-                <div className={`text-sm ${(customerData?.wallet || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {(customerData?.wallet || 0) < 0 ? 'Outstanding Balance' : 'Wallet Balance'}
-                </div>
-                {customerData && (
-                  <Button
-                    onClick={() => (customerData.wallet || 0) < 0 ? setIsDebtPaymentDialogOpen(true) : setIsDepositDialogOpen(true)}
-                    size="sm"
-                    className={`mt-2 ${(customerData.wallet || 0) < 0 ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
-                  >
-                    <DollarSign className="h-4 w-4 mr-1" />
-                    {(customerData.wallet || 0) < 0 ? 'Pay Debt' : 'Deposit'}
-                  </Button>
+              <div className="flex flex-row sm:flex-col gap-3 sm:gap-2 border-t sm:border-t-0 pt-4 sm:pt-0 sm:text-right">
+                {customerOverviewData.outstandingBalance > 0 && (
+                  <div className="flex-1 sm:flex-none">
+                    <div className="text-lg sm:text-xl font-bold text-red-600">
+                      {currency} {customerOverviewData.outstandingBalance.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-red-500">Outstanding Debt</div>
+                  </div>
                 )}
+                {customerOverviewData.walletBalance > 0 && (
+                  <div className="flex-1 sm:flex-none">
+                    <div className="text-lg sm:text-xl font-bold text-green-600">
+                      {currency} {customerOverviewData.walletBalance.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-green-500">Wallet Credit</div>
+                  </div>
+                )}
+                {customerOverviewData.outstandingBalance === 0 && customerOverviewData.walletBalance === 0 && (
+                  <div className="flex-1 sm:flex-none">
+                    <div className="text-lg sm:text-xl font-bold text-gray-500">{currency} 0.00</div>
+                    <div className="text-xs text-gray-400">No balance</div>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1 mt-1">
+                  {customerOverviewData.outstandingBalance > 0 && (
+                    <Button
+                      onClick={() => setIsDebtPaymentDialogOpen(true)}
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <DollarSign className="h-4 w-4 mr-1" />
+                      Pay Debt
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => setIsDepositDialogOpen(true)}
+                    size="sm"
+                    variant="outline"
+                    className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add to Wallet
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -1202,7 +901,7 @@ export default function CustomerOverview() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        paginatedTransactions.map((transaction) => (
+                        paginatedTransactions.map((transaction: any) => (
                           <TableRow key={transaction._id}>
                             <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
                             <TableCell>
@@ -1220,7 +919,7 @@ export default function CustomerOverview() {
                               <Link 
                                 href={`/receipt/${transaction._id}`}
                                 onClick={() => {
-                                  const saleData = salesData?.data?.find(sale => sale._id === transaction._id);
+                                  const saleData = salesData?.data?.find((sale: any) => sale._id === transaction._id);
                                   if (saleData) {
                                     // Store in window object for immediate access
                                     (window as any).__receiptData = saleData;
@@ -1429,11 +1128,9 @@ export default function CustomerOverview() {
                   placeholder="Enter payment amount"
                   className="mt-1"
                 />
-                {!salesLoading && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Outstanding balance: {currency} -
-                  </p>
-                )}
+                <p className="text-sm text-gray-500 mt-1">
+                  Outstanding balance: {currency} {customerOverviewData.outstandingBalance.toFixed(2)}
+                </p>
               </div>
               <div>
                 <Label htmlFor="payment-method">Payment Method</Label>

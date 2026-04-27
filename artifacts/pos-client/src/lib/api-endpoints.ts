@@ -72,7 +72,7 @@ export const ENDPOINTS = {
     getDebtors:           "/api/reports/dues",
     getPayments:          (id: string) => `/api/customers/${id}/wallet-transactions`,
     getOverdue:           "/api/reports/dues/overdue",
-    getAnalysis:          "/api/reports/sales/by-customer",
+    getAnalysis:          "/api/customers/analysis",
   },
 
   // ─── Sales ────────────────────────────────────────────────────────────────

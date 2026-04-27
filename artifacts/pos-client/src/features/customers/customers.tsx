@@ -95,17 +95,8 @@ export default function Customers() {
     refetchOnWindowFocus: true, // Refetch when window gains focus
   });
 
-  const customers = Array.isArray(customersResponse) 
-    ? customersResponse 
-    : customersResponse?.customers || customersResponse?.data || [];
+  const customers = (customersResponse ?? []) as unknown as Customer[];
 
-  console.log('=== CUSTOMERS DEBUG ===');
-  console.log('Raw customersResponse:', customersResponse);
-  console.log('Processed customers array:', customers);
-  console.log('Array length:', customers.length);
-  if (customers.length > 0) {
-    console.log('First customer:', customers[0]);
-  }
 
   // Fetch customer analysis data
   const { data: analysisData } = useQuery({
@@ -119,8 +110,7 @@ export default function Customers() {
       
       const response = await apiRequest('GET', `${ENDPOINTS.customers.getAnalysis}?shopId=${shopId}&${params.toString()}`);
       const data = await response.json();
-      console.log('Customer Analysis Data:', data);
-      return data;
+      return data?.data ?? data;
     },
     enabled: !!shopId && !!currentAdminId && 
              (userType === "admin" ? !!admin && !!token : userType === "attendant" ? !!attendant && isAttendantAuth : false),
@@ -140,25 +130,17 @@ export default function Customers() {
         throw new Error('Customer name is required');
       }
 
-      const customerData = {
+      const customerData: any = {
         name: data.name.trim(),
         phone: data.phone || '',
         email: data.email || '',
         address: data.address || '',
         shopId: shopId,
       };
+      if (data.wallet && Number(data.wallet) > 0) {
+        customerData.wallet = Number(data.wallet);
+      }
 
-      console.log('Customer Creation Debug:', {
-        userType,
-        shopId,
-        currentAdminId,
-        primaryShopId,
-        adminId: adminId,
-        selectedShopId,
-        attendantExists: !!attendant,
-        adminExists: !!admin
-      });
-      console.log('Frontend: Sending customer data:', customerData);
       
       const response = await apiRequest('POST', ENDPOINTS.customers.create, customerData);
       return response.json();

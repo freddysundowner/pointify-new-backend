@@ -33,11 +33,47 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── Analysis ─────────────────────────────────────────────────────────────────
+router.get("/analysis", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    if (!shopId) throw badRequest("shopId required");
+
+    const where = eq(customers.shop, shopId);
+
+    const totalCustomers = await db.$count(customers, where);
+
+    const [summary] = await db.select({
+      totalWalletBalance: sql<string>`COALESCE(SUM(${customers.wallet}::numeric), 0)`,
+      totalOutstanding:   sql<string>`COALESCE(SUM(${customers.outstandingBalance}::numeric), 0)`,
+    }).from(customers).where(where);
+
+    const topDebtors = await db.select({
+      customerId:       customers.id,
+      name:             customers.name,
+      phonenumber:      customers.phone,
+      totalOutstanding: sql<string>`${customers.outstandingBalance}::numeric`,
+    }).from(customers)
+      .where(and(where, sql`${customers.outstandingBalance}::numeric > 0`))
+      .orderBy(sql`${customers.outstandingBalance}::numeric DESC`)
+      .limit(5);
+
+    return ok(res, {
+      totalCustomers,
+      totalWalletBalance: parseFloat(summary?.totalWalletBalance ?? "0"),
+      totalOutstanding:   parseFloat(summary?.totalOutstanding ?? "0"),
+      topDebtors: topDebtors.map(d => ({
+        ...d,
+        totalOutstanding: parseFloat(String(d.totalOutstanding)),
+      })),
+    });
+  } catch (e) { next(e); }
+});
+
 router.post("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
-    const { name, phone, email, shopId, creditLimit, type, address } = req.body;
+    const { name, phone, email, shopId, creditLimit, type, address, wallet } = req.body;
     if (!name || !shopId) throw badRequest("name and shopId required");
-    if (!phone) throw badRequest("phone required");
     await assertShopOwnership(req, Number(shopId));
 
     const [{ max }] = await db.select({ max: sql<number>`COALESCE(MAX(${customers.customerNo}), 0)` })
@@ -45,15 +81,18 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       .where(eq(customers.shop, Number(shopId)));
     const nextNo = (Number(max ?? 0)) + 1;
 
+    const initialWallet = wallet ? parseFloat(String(wallet)) : 0;
+
     const [customer] = await db.insert(customers).values({
       name,
-      phone,
+      phone: phone || null,
       email,
       address,
       shop: Number(shopId),
       creditLimit: creditLimit ? String(creditLimit) : null,
       type: type ?? "retail",
       customerNo: nextNo,
+      wallet: initialWallet > 0 ? String(initialWallet.toFixed(2)) : "0.00",
       createdBy: req.attendant?.id ?? undefined,
     }).returning();
 
@@ -266,7 +305,13 @@ async function applyWalletChange(
 
   if (type === "withdraw" && current + delta < 0) throw badRequest("insufficient wallet balance");
 
-  await db.update(customers).set({ wallet: newBalance }).where(eq(customers.id, customerId));
+  const updateFields: Record<string, string> = { wallet: newBalance };
+  if (type === "payment") {
+    const currentOutstanding = parseFloat(customer.outstandingBalance ?? "0");
+    const newOutstanding = Math.max(0, currentOutstanding - numAmount).toFixed(2);
+    updateFields.outstandingBalance = newOutstanding;
+  }
+  await db.update(customers).set(updateFields as any).where(eq(customers.id, customerId));
   const [tx] = await db.insert(customerWalletTransactions).values({
     customer: customerId,
     shop: customer.shop,
