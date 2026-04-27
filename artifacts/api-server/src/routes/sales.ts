@@ -394,10 +394,10 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
 
       // Insert a salePayments row for each payment method
       for (const p of resolvedPayments) {
-        if (p.amount > 0 && req.attendant) {
+        if (p.amount > 0) {
           await db.insert(salePayments).values({
             sale: sale.id,
-            receivedBy: req.attendant.id,
+            receivedBy: req.attendant?.id ?? undefined,
             amount: String(p.amount.toFixed(2)),
             balance: String(outstanding.toFixed(2)),
             paymentType: p.methodName,
@@ -688,10 +688,10 @@ router.post("/:id/checkout", requireAdminOrAttendant, async (req, res, next) => 
     );
 
     for (const p of resolvedPayments) {
-      if (p.amount > 0 && req.attendant) {
+      if (p.amount > 0) {
         await db.insert(salePayments).values({
           sale: saleId,
-          receivedBy: req.attendant.id,
+          receivedBy: req.attendant?.id ?? undefined,
           amount: String(p.amount.toFixed(2)),
           balance: String(outstanding.toFixed(2)),
           paymentType: p.methodName,
