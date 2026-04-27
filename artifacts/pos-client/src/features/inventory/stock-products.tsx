@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { extractId } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,9 +141,7 @@ export default function StockProducts() {
       if (attendantData) {
         try {
           const parsed = JSON.parse(attendantData);
-          return typeof parsed.shopId === "string"
-            ? parsed.shopId
-            : parsed.shopId?._id;
+          return String(extractId(parsed.shopId) ?? '');
         } catch {
           return null;
         }
@@ -151,9 +150,7 @@ export default function StockProducts() {
     }
 
     // For admins, use admin data
-    return typeof admin?.primaryShop === "string"
-      ? admin.primaryShop
-      : (admin?.primaryShop as any)?._id || (admin?.primaryShop as any)?.id;
+    return String(extractId(admin?.primaryShop) ?? '');
   };
 
   const effectiveShopId = getShopId();

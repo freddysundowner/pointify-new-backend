@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { apiRequest } from '@/lib/queryClient';
+import { normalizeIds, extractId } from '@/lib/utils';
 import { Search, Plus, TrendingUp, TrendingDown, DollarSign, Calendar, ArrowUpRight, ArrowDownRight, Filter, ChevronRight, ArrowLeft } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useNavigationRoute } from '@/lib/navigation-utils';
@@ -283,8 +284,8 @@ export default function CashFlow() {
   const salesRoute = useNavigationRoute('sales');
 
   // Get effective shop ID - use attendant's shop if attendant
-  const effectiveShopId = attendant 
-    ? (typeof attendant.shopId === 'string' ? attendant.shopId : attendant.shopId?._id)
+  const effectiveShopId = attendant
+    ? String(extractId(attendant.shopId) ?? '')
     : selectedShopId || localStorage.getItem('selectedShopId');
 
   // Fetch cashflow summary data with dynamic date filtering and attendant filtering
@@ -342,7 +343,9 @@ export default function CashFlow() {
     queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId],
     queryFn: async () => {
       const response = await apiRequest('GET', `${ENDPOINTS.cashflow.categories}?shop=${effectiveShopId}`);
-      return response.json();
+      const data = await response.json();
+      const list = Array.isArray(data) ? data : data?.data || data?.categories || [];
+      return normalizeIds(list);
     },
     enabled: !!effectiveShopId,
     staleTime: 1 * 60 * 1000, // 1 minute - shorter stale time for more frequent updates
@@ -529,9 +532,9 @@ export default function CashFlow() {
       }
 
       // Get shopId - use attendant's shop if attendant is logged in, otherwise admin's selected shop
-      const shopId = attendant 
-        ? (typeof attendant.shopId === 'string' ? attendant.shopId : attendant.shopId?._id)
-        : (selectedShopId || (typeof admin?.primaryShop === 'string' ? admin.primaryShop : admin?.primaryShop?._id));
+      const shopId = attendant
+        ? String(extractId(attendant.shopId) ?? '')
+        : (selectedShopId || extractId(admin?.primaryShop));
       
       if (!shopId) {
         toast({

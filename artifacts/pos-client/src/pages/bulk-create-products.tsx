@@ -8,6 +8,7 @@ import { Package, Plus, CheckCircle, XCircle } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiRequest } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
+import { extractId } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 const productTemplates = [
@@ -190,9 +191,7 @@ export default function BulkCreateProducts() {
 
     const adminData = JSON.parse(adminDataStr);
     const attendantId = adminData.attendantId?._id || adminData._id;
-    const shopId = typeof adminData?.primaryShop === 'string' 
-      ? adminData.primaryShop 
-      : adminData?.primaryShop?._id;
+    const shopId = extractId(adminData?.primaryShop);
 
     for (let i = 0; i < productTemplates.length; i++) {
       const template = productTemplates[i];

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { normalizeIds, extractId } from '@/lib/utils';
 import { Plus, Edit2, Trash2, Filter, Download, Calendar, Clock, RefreshCw, ChevronDown, ChevronUp, Settings } from 'lucide-react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -83,9 +84,7 @@ export default function Expenses() {
   const dashboardRoute = useNavigationRoute('dashboard');
 
   // Get effective shop ID and attendant ID (support both admin and attendant contexts)
-  const effectiveShopId = selectedShopId || 
-    (typeof admin?.primaryShop === 'string' ? admin.primaryShop : admin?.primaryShop?._id) ||
-    (typeof attendant?.shopId === 'string' ? attendant.shopId : attendant?.shopId?._id);
+  const effectiveShopId = selectedShopId || extractId(admin?.primaryShop) || extractId(attendant?.shopId);
   const attendantId = admin?.attendantId?._id || admin?._id || attendant?._id;
 
   // Fetch expenses with filters
@@ -115,7 +114,7 @@ export default function Expenses() {
       
       const response = await apiRequest('GET', `${ENDPOINTS.expenses.getAll}?${params.toString()}`);
       const data = await response.json();
-      return Array.isArray(data) ? data : data?.expenses || data?.data || [];
+      return normalizeIds(Array.isArray(data) ? data : data?.expenses || data?.data || []);
     },
     enabled: !!effectiveShopId,
     refetchOnMount: 'always',
@@ -135,7 +134,7 @@ export default function Expenses() {
       
       const response = await apiRequest('GET', `${ENDPOINTS.expenseCategories.getAll}?${params.toString()}`);
       const data = await response.json();
-      return Array.isArray(data) ? data : data?.categories || data?.data || [];
+      return normalizeIds(Array.isArray(data) ? data : data?.categories || data?.data || []);
     },
     enabled: !!effectiveShopId
   });

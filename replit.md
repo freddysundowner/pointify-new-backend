@@ -121,6 +121,18 @@ All 275+ endpoints across 25 sections implemented and verified passing:
 - **Customer-facing online ordering** (`/api/public/...`): `GET /public/shops/:shopId` (shop info), `GET /public/shops/:shopId/products` (paginated, searchable catalog, stock/price visibility controlled per shop), `GET /public/shops/:shopId/categories` (categories with products in that shop), `POST /public/orders` (customer JWT, place order), `GET /public/orders/:orderNo` (track order), `GET /public/my-orders` (list own orders), `GET /public/me` (own profile). All browse endpoints are unauthenticated; order endpoints require a customer JWT.
 - **Comprehensive reports** (all under `/api/reports/`): `debts/aging` (AR buckets: current/1-30/31-60/61-90/90+ days), `accounts` (cash position, receivables, payables, bank balances, net), `stock-take` (full per-product snapshot with cost/sale values, margin), `income` (revenue breakdown by payment method + daily time series), `expenses/by-category`, `sales/daily` (daily chart for last N days), `sales/monthly` (12-month trend), `sales/by-product/detail` (with margins), `profit-loss/detail` (P&L with expense breakdown), `purchases/detail` (by supplier + top products), `dues/detail` (all outstanding with aging), `sales/by-attendant`, `business-summary` (all KPIs in one call)
 
+## Client-side `_id` ↔ `id` Normalisation
+
+PostgreSQL always returns `id` (integer); the original MongoDB codebase expected `_id` everywhere. Three utility helpers in `artifacts/pos-client/src/lib/utils.ts` handle this transparently:
+
+| Helper | Purpose |
+|---|---|
+| `normalizeId(obj)` | Copies `id` → `_id` and vice-versa on a single entity object |
+| `normalizeIds(arr)` | Applies `normalizeId` to every item in an array (called at every API query boundary) |
+| `extractId(value)` | Safely extracts the ID from either a scalar (number/string) or a populated object (`{ id, _id }`). Used wherever legacy code used `something._id` and the API now returns a plain integer (e.g. `admin.primaryShop` is always `1`, never `{ _id: "..." }`) |
+
+**Coverage**: `normalizeIds` applied at all React Query `select` boundaries. `extractId` applied everywhere `primaryShop._id` or `attendant.shopId._id` was used across ~20 files.
+
 ### MongoDB → PostgreSQL design decisions
 
 - **ObjectId refs** → `integer` foreign keys (`serial` primary keys)

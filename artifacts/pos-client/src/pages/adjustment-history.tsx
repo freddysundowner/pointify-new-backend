@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { extractId } from "@/lib/utils";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,9 +42,7 @@ export default function AdjustmentHistoryPage() {
       if (attendantData) {
         try {
           const parsed = JSON.parse(attendantData);
-          return typeof parsed.shopId === "string"
-            ? parsed.shopId
-            : parsed.shopId?._id;
+          return String(extractId(parsed.shopId) ?? '');
         } catch {
           return null;
         }

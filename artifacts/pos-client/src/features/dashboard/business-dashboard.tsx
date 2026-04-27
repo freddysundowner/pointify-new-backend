@@ -47,6 +47,7 @@ import type { RootState, AppDispatch } from "@/store";
 import { setSelectedShop, setSelectedShopData, setAvailableShops, initializeSelectedShop } from "@/store/shopSlice";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { formatCurrency, formatDate, formatTime, useCurrency } from "@/utils";
+import { extractId } from "@/lib/utils";
 
 export default function BusinessDashboard() {
   const dispatch = useDispatch<AppDispatch>();
@@ -68,10 +69,7 @@ export default function BusinessDashboard() {
   const adminId = admin?.id ?? (admin as any)?._id;
 
   // Get effective shop ID from Redux state
-  const effectiveShopId = selectedShopId || 
-    (admin?.primaryShop && typeof admin.primaryShop === 'string' 
-      ? admin.primaryShop 
-      : (admin?.primaryShop as any)?._id || (admin?.primaryShop as any)?.id);
+  const effectiveShopId = selectedShopId || String(extractId(admin?.primaryShop) ?? '');
 
   // Reset attendant filter when shop changes
   useEffect(() => {
@@ -239,9 +237,7 @@ export default function BusinessDashboard() {
         ? availableShops.find(s => s.id === storedShopId)
         : null;
 
-      const primaryShopId = typeof admin?.primaryShop === 'string'
-        ? admin.primaryShop
-        : admin?.primaryShop?._id || admin?.primaryShop?.id;
+      const primaryShopId = String(extractId(admin?.primaryShop) ?? '');
 
       const currentShopBelongsToAdmin = availableShops.find(shop => shop.id === selectedShopId);
 

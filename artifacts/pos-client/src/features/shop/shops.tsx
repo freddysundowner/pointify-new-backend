@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { extractId } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,8 +44,7 @@ export default function Shops() {
   // Get primary shop ID from admin data (could be string or object)
   const getPrimaryShopId = () => {
     if (!admin?.primaryShop) return null;
-    if (typeof admin.primaryShop === 'string') return admin.primaryShop;
-    return admin.primaryShop._id || admin.primaryShop.id || null;
+    return extractId(admin.primaryShop) ?? null;
   };
 
   const primaryShopId = getPrimaryShopId();

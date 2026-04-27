@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { normalizeIds } from "@/lib/utils";
 import { X, CreditCard, Banknote, Check, UserX, User, Calendar } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,7 @@ export default function CheckoutModal({
       
       const response = await apiRequest('GET', `${ENDPOINTS.customers.getAll}?${params.toString()}`);
       const data = await response.json();
-      return Array.isArray(data) ? data : data?.customers || data?.data || [];
+      return normalizeIds(Array.isArray(data) ? data : data?.customers || data?.data || []);
     },
     enabled: !!admin && !!token
   });

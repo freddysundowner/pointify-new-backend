@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { normalizeIds } from '@/lib/utils';
 import { Plus, Search, Edit, Trash2, Phone, Mail, MapPin, CreditCard, Eye, ArrowLeft } from 'lucide-react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -82,7 +83,8 @@ export default function Customers() {
       
       const response = await apiRequest('GET', `${ENDPOINTS.customers.getAll}?${params.toString()}`);
       const data = await response.json();
-      return data;
+      const list = Array.isArray(data) ? data : data?.data || data?.customers || [];
+      return normalizeIds(list);
     },
     enabled: !!shopId && !!currentAdminId && 
              (userType === "admin" ? !!admin && !!token : userType === "attendant" ? !!attendant && isAttendantAuth : false),

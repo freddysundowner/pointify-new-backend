@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { normalizeIds } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { ArrowLeft, Plus, X, Package, Tag, ShoppingCart, Layers, ChevronDown, ChevronUp, DollarSign, Barcode, Calendar, Building2, Hash, AlignLeft, Percent, TrendingDown, Users, Store } from "lucide-react";
 
@@ -129,7 +130,7 @@ export default function ProductForm() {
       }
 
       const data = await response.json();
-      return data.data || data || [];
+      return normalizeIds(data.data || data || []);
     },
     enabled: !!(shopId && adminId),
   });

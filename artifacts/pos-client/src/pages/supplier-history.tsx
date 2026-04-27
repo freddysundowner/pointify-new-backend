@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { extractId } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { jsPDF } from 'jspdf';
@@ -88,7 +89,7 @@ export default function SupplierHistoryPage() {
   
   // Get admin data for shop context
   const adminData = JSON.parse(localStorage.getItem('adminData') || '{}');
-  const shopId = adminData?.primaryShop?._id;
+  const shopId = extractId(adminData?.primaryShop);
   const shopCurrency = adminData?.primaryShop?.currency || 'KES';
 
   // Fetch purchase analytics for summary cards

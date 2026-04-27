@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 import { ENDPOINTS } from "@/lib/api-endpoints";
+import { normalizeIds } from "@/lib/utils";
 
 interface SupplierSelectorProps {
   value: string;
@@ -35,7 +36,7 @@ export default function SupplierSelector({
       }
 
       const data = await response.json();
-      return Array.isArray(data) ? data : data.data || [];
+      return normalizeIds(Array.isArray(data) ? data : data.data || []);
     },
     enabled: !!(shopId && adminId),
   });

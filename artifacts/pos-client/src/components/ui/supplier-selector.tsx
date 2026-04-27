@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { normalizeId, normalizeIds, extractId } from "@/lib/utils";
 import { Search, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./dialog";
 import { Input } from "./input";
@@ -37,7 +38,7 @@ export default function SupplierSelector({
   // Get shop ID from auth context
   const getShopId = (primaryShop: any) => {
     if (!primaryShop) return "";
-    return primaryShop._id || primaryShop.id || "";
+    return String(extractId(primaryShop) ?? "");
   };
 
   const shopId = getShopId(admin?.primaryShop);
@@ -49,8 +50,9 @@ export default function SupplierSelector({
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
-  const suppliers = Array.isArray(suppliersResponse) ? suppliersResponse : 
-                   (suppliersResponse as any)?.data || [];
+  const suppliers = normalizeIds(
+    Array.isArray(suppliersResponse) ? suppliersResponse : (suppliersResponse as any)?.data || []
+  );
 
   // Filter suppliers based on search query
   // Create supplier mutation
@@ -70,8 +72,9 @@ export default function SupplierSelector({
       setNewSupplier({ name: "", phoneNumber: "" });
       setShowAddForm(false);
       // Auto-select the new supplier if it has an ID
-      if (data?._id) {
-        onToggleSupplier(data._id);
+      const created = normalizeId(data?.data || data);
+      if (created?._id) {
+        onToggleSupplier(created._id);
       }
     },
     onError: (error: any) => {

@@ -16,7 +16,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useProducts } from "@/contexts/ProductsContext";
 import { useAuth } from "@/features/auth/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, normalizeIds, extractId } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useSelector } from "react-redux";
@@ -63,9 +63,9 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
   const getShopId = () => {
     if (selectedShopId) return selectedShopId;
     if (attendant?.shopId) {
-      return typeof attendant.shopId === 'string' ? attendant.shopId : attendant.shopId._id;
+      return String(extractId(attendant.shopId) ?? '');
     }
-    return admin?.primaryShop?._id;
+    return String(extractId(admin?.primaryShop) ?? '');
   };
 
   // Form state
@@ -107,7 +107,9 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
       const shopId = getShopId();
       if (!shopId) return [];
       const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
-      return response.json();
+      const data = await response.json();
+      const list = Array.isArray(data) ? data : data?.data || [];
+      return normalizeIds(list);
     },
     enabled: isOpen && !!getShopId(),
   });

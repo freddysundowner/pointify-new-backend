@@ -17,6 +17,7 @@ import { useAuth } from "@/features/auth/useAuth";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { apiRequest } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
+import { extractId } from "@/lib/utils";
 
 interface ExpenseCategory {
   _id: string;
@@ -38,9 +39,7 @@ export default function ExpenseCategories() {
   const { attendant } = useAttendantAuth();
 
   // Get effective shop ID (support both admin and attendant contexts)
-  const effectiveShopId = selectedShopId || 
-    (typeof admin?.primaryShop === 'string' ? admin.primaryShop : admin?.primaryShop?._id) ||
-    (typeof attendant?.shopId === 'string' ? attendant.shopId : attendant?.shopId?._id);
+  const effectiveShopId = selectedShopId || extractId(admin?.primaryShop) || extractId(attendant?.shopId);
 
   // Fetch expense categories
   const { data: categories = [], isLoading } = useQuery({

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/useAuth";
+import { extractId } from "@/lib/utils";
 import { apiCall } from "@/lib/api-config";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 
@@ -21,8 +22,7 @@ export function useShop() {
   // Helper function to extract shop ID
   const getShopId = () => {
     if (!admin?.primaryShop) return "";
-    if (typeof admin.primaryShop === 'string') return admin.primaryShop;
-    return (admin.primaryShop as any)?._id || (admin.primaryShop as any)?.id || "";
+    return String(extractId(admin.primaryShop) ?? '');
   };
   
   const shopId = getShopId();

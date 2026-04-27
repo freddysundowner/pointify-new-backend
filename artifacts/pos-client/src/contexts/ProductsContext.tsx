@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
+import { extractId } from '@/lib/utils';
 import { useAuth } from '@/features/auth/useAuth';
 import { useAttendantAuth } from '@/contexts/AttendantAuthContext';
 import { apiCall } from '@/lib/api-config';
@@ -44,11 +45,7 @@ export const ProductsProvider = ({ children }: ProductsProviderProps) => {
 
   const getPrimaryShopId = () => {
     if (!admin?.primaryShop) return null;
-    if (typeof admin.primaryShop === 'string') return admin.primaryShop;
-    if (typeof admin.primaryShop === 'object' && admin.primaryShop !== null) {
-      return admin.primaryShop._id || admin.primaryShop.id;
-    }
-    return null;
+    return extractId(admin.primaryShop) ?? null;
   };
 
   const fetchProducts = useCallback(async (pageNumber = 1, append = false) => {
@@ -60,7 +57,7 @@ export const ProductsProvider = ({ children }: ProductsProviderProps) => {
 
     let shopId = selectedShopId || getPrimaryShopId();
     if (attendant && !shopId) {
-      shopId = typeof attendant.shopId === 'string' ? attendant.shopId : attendant.shopId?._id;
+      shopId = String(extractId(attendant.shopId) ?? '');
     }
     if (!shopId) {
       setError('No shop found');

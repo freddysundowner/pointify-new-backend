@@ -1,6 +1,7 @@
 import { useSelector } from 'react-redux';
 import { useAuth } from '@/features/auth/useAuth';
 import { useAttendantAuth } from '@/contexts/AttendantAuthContext';
+import { extractId } from '@/lib/utils';
 import type { RootState } from '@/store';
 
 interface PrimaryShopData {
@@ -20,9 +21,7 @@ export const usePrimaryShop = (): PrimaryShopData => {
 
   // Attendant takes priority
   if (attendant) {
-    const shopId = typeof attendant.shopId === 'string'
-      ? attendant.shopId
-      : attendant.shopId?._id || '';
+    const shopId = String(extractId(attendant.shopId) ?? '');
 
     return {
       shopId,
@@ -56,8 +55,7 @@ export const usePrimaryShop = (): PrimaryShopData => {
     // Fallback to primaryShop on the admin object (set by some auth flows)
     const getShopId = (primaryShop: any) => {
       if (!primaryShop) return '';
-      if (typeof primaryShop === 'string') return primaryShop;
-      return String(primaryShop._id || primaryShop.id || '');
+      return String(extractId(primaryShop) ?? '');
     };
 
     const shopId = getShopId(admin.primaryShop);
@@ -76,9 +74,7 @@ export const usePrimaryShop = (): PrimaryShopData => {
     const attendantData = localStorage.getItem('attendantData');
     if (attendantData) {
       const parsedAttendant = JSON.parse(attendantData);
-      const shopId = typeof parsedAttendant.shopId === 'string'
-        ? parsedAttendant.shopId
-        : parsedAttendant.shopId?._id || '';
+      const shopId = String(extractId(parsedAttendant.shopId) ?? '');
       return {
         shopId,
         adminId: parsedAttendant.adminId || '',
@@ -93,8 +89,7 @@ export const usePrimaryShop = (): PrimaryShopData => {
       const parsedAdmin = JSON.parse(adminData);
       const getShopId = (primaryShop: any) => {
         if (!primaryShop) return '';
-        if (typeof primaryShop === 'string') return primaryShop;
-        return primaryShop._id || primaryShop.id || '';
+        return String(extractId(primaryShop) ?? '');
       };
       return {
         shopId: getShopId(parsedAdmin.primaryShop),

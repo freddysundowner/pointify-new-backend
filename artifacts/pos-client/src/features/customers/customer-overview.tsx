@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { normalizeIds } from "@/lib/utils";
 import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -428,6 +429,7 @@ export default function CustomerOverview() {
       console.log('Response type:', typeof result);
       console.log('Response has data property:', !!result.data);
       
+      if (result && result.data) result = { ...result, data: normalizeIds(result.data) };
       return result;
 
     },
@@ -461,8 +463,8 @@ export default function CustomerOverview() {
       
       const result = await response.json();
       console.log('Customer payments response:', result);
-      
-      return result;
+      const list = Array.isArray(result) ? result : result?.data || result?.payments || [];
+      return normalizeIds(list);
     },
     enabled: !!customerId,
     staleTime: 0,

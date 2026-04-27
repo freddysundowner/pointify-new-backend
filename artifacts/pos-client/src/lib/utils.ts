@@ -21,3 +21,14 @@ export function normalizeId<T extends Record<string, any>>(obj: T): T & { _id: a
 export function normalizeIds<T extends Record<string, any>>(arr: T[]): (T & { _id: any; id: any })[] {
   return Array.isArray(arr) ? arr.map(normalizeId) : arr;
 }
+
+/**
+ * Safely extract the ID from a value that could be either a scalar (number/string)
+ * or a populated object ({ id, _id }).
+ * Used wherever legacy code used `something._id` and the API now returns a plain integer.
+ */
+export function extractId(value: any): string | number | undefined {
+  if (value == null) return undefined;
+  if (typeof value === 'object') return value._id ?? value.id;
+  return value; // already a scalar (number or string)
+}

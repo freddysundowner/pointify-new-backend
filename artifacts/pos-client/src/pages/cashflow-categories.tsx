@@ -18,6 +18,7 @@ import { RootState } from '@/store/store';
 import { apiRequest } from '@/lib/queryClient';
 import { ENDPOINTS } from '@/lib/api-endpoints';
 import { useAuth } from '@/features/auth/useAuth';
+import { extractId } from '@/lib/utils';
 import { useAttendantAuth } from '@/contexts/AttendantAuthContext';
 
 interface CashflowCategory {
@@ -41,8 +42,8 @@ export default function CashflowCategories() {
   const [, setLocation] = useLocation();
   
   // Get effective shop ID - use attendant's shop if attendant, otherwise admin's selected shop
-  const effectiveShopId = attendant 
-    ? (typeof attendant.shopId === 'string' ? attendant.shopId : attendant.shopId?._id)
+  const effectiveShopId = attendant
+    ? String(extractId(attendant.shopId) ?? '')
     : selectedShopId || localStorage.getItem('selectedShopId');
 
   // Helper function to extract clean error messages
@@ -67,7 +68,7 @@ export default function CashflowCategories() {
   };
 
   // Get shop currency
-  const shopId = effectiveShopId || (typeof admin?.primaryShop === 'string' ? admin.primaryShop : admin?.primaryShop?._id);
+  const shopId = effectiveShopId || extractId(admin?.primaryShop);
   const shop = admin?.shops?.find((s: any) => s._id === shopId || s.id === shopId);
   const currency = shop?.currency || 'KES';
 

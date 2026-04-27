@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import * as React from 'react';
-import { normalizeIds } from '@/lib/utils';
+import { normalizeIds, extractId } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit, Trash2, Eye, EyeOff, UserPlus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -58,7 +58,7 @@ export default function Attendants() {
   const shopId = selectedShopId || admin?.primaryShop?.id || admin?.primaryShop?._id || admin?.primaryShop;
   
   // Get admin's primary shop ID
-  const primaryShopId = typeof admin?.primaryShop === 'string' ? admin.primaryShop : admin?.primaryShop?._id;
+  const primaryShopId = extractId(admin?.primaryShop);
   const currentShopId = selectedShopId || primaryShopId;
 
   const [formData, setFormData] = useState({
@@ -316,7 +316,7 @@ export default function Attendants() {
     setFormData({
       username: attendant.username,
       password: '',
-      shopId: typeof attendant.shopId === 'string' ? attendant.shopId : attendant.shopId._id,
+      shopId: String(extractId(attendant.shopId) ?? ''),
       permissions: attendant.permissions || []
     });
     setIsDialogOpen(true);
@@ -480,7 +480,7 @@ export default function Attendants() {
     
     const submitData = {
       username: selectedAttendant.username,
-      shopId: typeof selectedAttendant.shopId === 'string' ? selectedAttendant.shopId : selectedAttendant.shopId._id,
+      shopId: String(extractId(selectedAttendant.shopId) ?? ''),
       permissions: formData.permissions,
     };
 
@@ -848,7 +848,7 @@ export default function Attendants() {
                   
                   const submitData = {
                     username: selectedAttendant.username,
-                    shopId: typeof selectedAttendant.shopId === 'string' ? selectedAttendant.shopId : selectedAttendant.shopId._id,
+                    shopId: String(extractId(selectedAttendant.shopId) ?? ''),
                     permissions: editingPermissions,
                   };
 

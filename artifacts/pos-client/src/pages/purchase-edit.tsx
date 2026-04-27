@@ -1,4 +1,5 @@
 import { useLocation, useParams } from "wouter";
+import { extractId } from "@/lib/utils";
 import { useNavigationRoute } from "@/lib/navigation-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +42,7 @@ export default function PurchaseEditPage() {
 
   // Get admin data for suppliers API
   const adminData = JSON.parse(localStorage.getItem('adminData') || '{}');
-  const shopId = adminData?.primaryShop?._id;
+  const shopId = extractId(adminData?.primaryShop);
 
   // Load suppliers with shopId parameter
   const { data: suppliers = [] } = useQuery({

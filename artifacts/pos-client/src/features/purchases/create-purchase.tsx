@@ -11,6 +11,7 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { normalizeIds } from "@/lib/utils";
 import { useAuth } from "@/features/auth/useAuth";
 import { useProducts } from "@/contexts/ProductsContext";
 import type { PurchaseItem } from "@shared/schema";
@@ -39,7 +40,7 @@ export default function CreatePurchase() {
   // Use existing ProductsContext with cached data
   const { products: contextProducts, isLoading: productsLoading, error: productsError, refreshProducts } = useProducts();
 
-  const suppliers = (suppliersResponse as any)?.data || [];
+  const suppliers = normalizeIds((suppliersResponse as any)?.data || []);
   const products = contextProducts || [];
 
   // Generate auto invoice number

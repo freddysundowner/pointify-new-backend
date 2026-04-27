@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { normalizeIds } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,9 +74,10 @@ export default function StockBadStock() {
         });
         const response = await apiRequest("GET", `${ENDPOINTS.badStock.getAll}?${params.toString()}`);
         const data = await response.json();
+        const items = Array.isArray(data) ? data : data?.data || [];
         return Array.isArray(data) ? 
-          { data, count: data.length, totalPages: 1 } : 
-          { data: data?.data || [], count: data?.count || 0, totalPages: data?.totalPages || 1 };
+          { data: normalizeIds(items), count: items.length, totalPages: 1 } : 
+          { data: normalizeIds(items), count: data?.count || 0, totalPages: data?.totalPages || 1 };
       } catch (error) {
         console.error("Failed to fetch bad stock:", error);
         return { data: [], count: 0, totalPages: 0 };

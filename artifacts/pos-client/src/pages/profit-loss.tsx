@@ -51,7 +51,7 @@ export default function ProfitLossPage() {
   const [, setLocation] = useLocation();
   
   // Get effective shop ID and admin ID for both admin and attendant contexts
-  const effectiveShopId = selectedShopId || (attendant ? (typeof attendant.shopId === 'string' ? attendant.shopId : attendant.shopId._id) : primaryShop?._id);
+  const effectiveShopId = selectedShopId || primaryShop?.shopId;
   const effectiveAdminId = user?.id || attendant?.adminId;
   
   // Handle back navigation based on user type
