@@ -2371,7 +2371,21 @@ export default function ProductGrid({
             })()}
           </div>
           
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {selectedDiscountItem && selectedDiscountItem.discount && selectedDiscountItem.discount > 0 && (
+              <Button
+                variant="destructive"
+                className="sm:mr-auto"
+                onClick={() => {
+                  onApplyDiscount(selectedDiscountItem.id, 0);
+                  setShowDiscountDialog(false);
+                  setSelectedDiscountItem(null);
+                  setDiscountAmount("");
+                }}
+              >
+                Remove Discount
+              </Button>
+            )}
             <Button variant="outline" onClick={handleDiscountDialogClose}>
               Cancel
             </Button>
