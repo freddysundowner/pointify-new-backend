@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
-import { sales, saleItems, salePayments, products, inventory, customers, paymentMethods, batches, saleItemBatches, shops, loyaltyTransactions } from "@workspace/db";
+import { sales, saleItems, salePayments, saleReturns, saleReturnItems, products, inventory, customers, paymentMethods, batches, saleItemBatches, shops, loyaltyTransactions } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -705,19 +705,30 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
     const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true, status: true, customer: true, outstandingBalance: true } });
     if (!existing) throw notFound("Sale not found");
     await assertShopOwnership(req, existing.shop);
+
+    // Restore product inventory before deleting
     if (existing.status !== "voided") await restoreSaleInventory(id);
-    const [updated] = await db.update(sales)
-      .set({ status: "voided", outstandingBalance: "0" })
-      .where(eq(sales.id, id))
-      .returning();
-    if (!updated) throw notFound("Sale not found");
-    // Reduce customer outstanding by whatever was remaining
+
+    // Reduce customer outstanding balance by whatever was remaining
     if (existing.customer && parseFloat(String(existing.outstandingBalance ?? "0")) > 0) {
       const prev = parseFloat(String(existing.outstandingBalance));
       await db.update(customers)
         .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric - ${prev}::numeric)` })
         .where(eq(customers.id, existing.customer));
     }
+
+    // Delete saleReturnItems that reference this sale's items (no cascade on saleItem FK)
+    const itemRows = await db.select({ id: saleItems.id }).from(saleItems).where(eq(saleItems.sale, id));
+    if (itemRows.length > 0) {
+      await db.delete(saleReturnItems).where(inArray(saleReturnItems.saleItem, itemRows.map(r => r.id)));
+    }
+    // Delete saleReturns for this sale (no cascade on sale FK)
+    await db.delete(saleReturns).where(eq(saleReturns.sale, id));
+
+    // Hard-delete the sale (saleItems + salePayments cascade automatically)
+    const [deleted] = await db.delete(sales).where(eq(sales.id, id)).returning();
+    if (!deleted) throw notFound("Sale not found");
+
     return noContent(res);
   } catch (e) { next(e); }
 });
