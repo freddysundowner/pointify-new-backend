@@ -767,6 +767,7 @@ export default function ProductGrid({
         productId: item.id,
         quantity: parseFloat(item.quantity.toString()),
         price: parseFloat(item.price.toString()),
+        costPrice: parseFloat((item.buyingPrice || 0).toString()),
         discount: item.discount || 0,
         saleType: saleType,
       })),
