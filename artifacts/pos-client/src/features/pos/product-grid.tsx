@@ -399,7 +399,7 @@ export default function ProductGrid({
       if (!isHoldTransaction) {
         // Only show receipt for regular payments
         const realTransaction: Transaction = {
-          id: response.sale?.receiptNo || response.sale?._id || Date.now(),
+          id: response.sale?.receiptNo || response.sale?.id || response.sale?._id || Date.now(),
           items: cartItems,
           subtotal: totals.subtotal,
           tax: totals.tax,
