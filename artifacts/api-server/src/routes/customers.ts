@@ -384,11 +384,13 @@ router.post("/:id/wallet/payment", requireAdminOrAttendant, async (req, res, nex
       const newSaleOutstanding = Math.max(0, saleOwed - applied).toFixed(2);
       const newSalePaid = (parseFloat(sale.amountPaid) + applied).toFixed(2);
 
-      // Update sale — keep status as "credit" even when fully paid
+      // Preserve the original paymentType — it reflects how the sale was made.
+      // If the sale is now fully settled, promote status to "cashed".
+      const isFullyPaid = parseFloat(newSaleOutstanding) === 0;
       await db.update(sales).set({
         amountPaid: newSalePaid,
         outstandingBalance: newSaleOutstanding,
-        paymentType: "credit",
+        ...(isFullyPaid ? { status: "cashed" } : {}),
       }).where(eq(sales.id, sale.id));
 
       // Record a salePayments entry for traceability
