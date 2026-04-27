@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Menu, X, Home, ScanBarcode, Package, BarChart3, History, Settings, User, LogOut, Store, ChevronDown, ChevronRight, TrendingUp, Receipt, ShoppingCart, Users, Truck, DollarSign, UserCheck, FileText, Shield, Edit, Clock } from "lucide-react";
+import { Menu, X, Home, ScanBarcode, Package, BarChart3, History, Settings, User, LogOut, Store, ChevronDown, ChevronRight, TrendingUp, Receipt, ShoppingCart, Users, Truck, DollarSign, UserCheck, FileText, Shield, Edit, Clock, MailWarning } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/features/auth/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -23,9 +23,15 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
   const { isExpired: isSubscriptionExpired } = useSubscriptionStatus();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
 
   // Check if current route is an attendant route
   const isAttendantRoute = location.startsWith('/attendant/');
+
+  // Only show welcome header + email banner on the main dashboard pages
+  const isDashboard = location === '/dashboard' || location === '/attendant/dashboard';
+
+  const showEmailBanner = isDashboard && !emailBannerDismissed && admin && !admin.emailVerified;
 
   const toggleMenu = (menuKey: string) => {
     setExpandedMenus(prev => ({
@@ -375,24 +381,27 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
                 <Menu className="w-5 h-5" />
               </Button>
             )}
-            
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <Store className="h-4 w-4 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Welcome {admin?.username}
-                </h1>
-                <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                  <span>{formatDate(currentTime)}</span>
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    <span className="font-medium">{formatTime(currentTime)}</span>
+
+            {/* Welcome block — dashboard only */}
+            {isDashboard && (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
+                  <Store className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Welcome {admin?.username}
+                  </h1>
+                  <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                    <span>{formatDate(currentTime)}</span>
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      <span className="font-medium">{formatTime(currentTime)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
           
           {/* Profile & Logout - Top Right */}
@@ -442,6 +451,25 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
         {/* Spacer that exactly matches the fixed header height */}
         <div className="h-16 flex-shrink-0" />
 
+        {showEmailBanner && (
+          <div className="px-6 pt-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+              <div className="flex items-center gap-2 text-sm">
+                <MailWarning className="h-4 w-4 shrink-0" />
+                <span>
+                  <strong>Verify your email address</strong> — check your inbox for a verification link to secure your account.
+                </span>
+              </div>
+              <button
+                onClick={() => setEmailBannerDismissed(true)}
+                className="shrink-0 rounded p-1 hover:bg-amber-100 transition-colors"
+                aria-label="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 px-6 py-6 w-full max-w-none overflow-x-hidden">
           {children}
