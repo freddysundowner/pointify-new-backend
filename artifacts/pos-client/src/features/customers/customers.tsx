@@ -35,6 +35,7 @@ interface Customer {
   status: 'active' | 'inactive';
   customerType: 'regular' | 'vip' | 'wholesale';
   wallet?: number;
+  outstandingBalance?: string | number;
   online?: boolean;
   dueDate?: string;
 }
@@ -516,8 +517,8 @@ export default function Customers() {
               {/* Mobile Card View */}
               <div className="block md:hidden">
                 {filteredCustomers.map((customer: Customer) => {
-                  const outstandingBalance = Math.abs(customer.wallet || 0);
-                  const walletBalance = customer.wallet || 0;
+                  const walletBalance = parseFloat(String(customer.wallet ?? 0));
+                  const outstanding = parseFloat(String(customer.outstandingBalance ?? 0));
                   
                   return (
                     <div key={customer._id} className="border-b border-gray-200 last:border-b-0 p-4">
@@ -587,9 +588,9 @@ export default function Customers() {
                           </div>
                           <div>
                             <p className="text-xs text-gray-500">Outstanding</p>
-                            {walletBalance < 0 ? (
+                            {outstanding > 0 ? (
                               <p className="font-medium text-sm text-red-600">
-                                {currency} {outstandingBalance.toLocaleString()}
+                                {currency} {outstanding.toLocaleString()}
                               </p>
                             ) : (
                               <p className="text-sm text-gray-500">-</p>
@@ -616,8 +617,8 @@ export default function Customers() {
                   </TableHeader>
                 <TableBody>
                   {filteredCustomers.map((customer: Customer) => {
-                    const outstandingBalance = Math.abs(customer.wallet || 0);
-                    const walletBalance = customer.wallet || 0;
+                    const walletBalance = parseFloat(String(customer.wallet ?? 0));
+                    const outstanding = parseFloat(String(customer.outstandingBalance ?? 0));
                     
                     return (
                       <TableRow key={customer._id}>
@@ -657,9 +658,9 @@ export default function Customers() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {walletBalance < 0 ? (
+                          {outstanding > 0 ? (
                             <span className="font-medium text-red-600">
-                              {currency} {outstandingBalance.toLocaleString()}
+                              {currency} {outstanding.toLocaleString()}
                             </span>
                           ) : (
                             <span className="text-gray-500">-</span>

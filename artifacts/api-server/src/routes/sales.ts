@@ -244,6 +244,13 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     await db.update(sales).set({ receiptNo }).where(eq(sales.id, sale.id));
     sale.receiptNo = receiptNo;
 
+    // Keep customer.outstandingBalance in sync when a credit sale is created
+    if (!held && outstanding > 0 && customerId) {
+      await db.update(customers)
+        .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric + ${outstanding}::numeric)` })
+        .where(eq(customers.id, Number(customerId)));
+    }
+
     const itemRows = await db.insert(saleItems).values(
       items.map((item: any) => ({
         sale: sale.id,
@@ -695,7 +702,7 @@ async function restoreSaleInventory(saleId: number): Promise<void> {
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params["id"]);
-    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true, status: true } });
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true, status: true, customer: true, outstandingBalance: true } });
     if (!existing) throw notFound("Sale not found");
     await assertShopOwnership(req, existing.shop);
     if (existing.status !== "voided") await restoreSaleInventory(id);
@@ -704,6 +711,13 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
       .where(eq(sales.id, id))
       .returning();
     if (!updated) throw notFound("Sale not found");
+    // Reduce customer outstanding by whatever was remaining
+    if (existing.customer && parseFloat(String(existing.outstandingBalance ?? "0")) > 0) {
+      const prev = parseFloat(String(existing.outstandingBalance));
+      await db.update(customers)
+        .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric - ${prev}::numeric)` })
+        .where(eq(customers.id, existing.customer));
+    }
     return noContent(res);
   } catch (e) { next(e); }
 });
@@ -711,7 +725,7 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
 router.post("/:id/void", requireAdmin, async (req, res, next) => {
   try {
     const saleId = Number(req.params["id"]);
-    const existing = await db.query.sales.findFirst({ where: eq(sales.id, saleId), columns: { shop: true, status: true } });
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, saleId), columns: { shop: true, status: true, customer: true, outstandingBalance: true } });
     if (!existing) throw notFound("Sale not found");
     await assertShopOwnership(req, existing.shop);
     if (existing.status !== "voided") await restoreSaleInventory(saleId);
@@ -720,6 +734,12 @@ router.post("/:id/void", requireAdmin, async (req, res, next) => {
       .where(eq(sales.id, saleId))
       .returning();
     if (!updated) throw notFound("Sale not found");
+    if (existing.customer && parseFloat(String(existing.outstandingBalance ?? "0")) > 0) {
+      const prev = parseFloat(String(existing.outstandingBalance));
+      await db.update(customers)
+        .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric - ${prev}::numeric)` })
+        .where(eq(customers.id, existing.customer));
+    }
     return ok(res, updated);
   } catch (e) { next(e); }
 });
@@ -735,6 +755,13 @@ router.post("/:id/refund", requireAdmin, async (req, res, next) => {
       .set({ status: "refunded", outstandingBalance: "0" })
       .where(eq(sales.id, saleId))
       .returning();
+    // Reduce customer outstanding by whatever was remaining before refund
+    if (sale.customer && parseFloat(String(sale.outstandingBalance ?? "0")) > 0) {
+      const prev = parseFloat(String(sale.outstandingBalance));
+      await db.update(customers)
+        .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric - ${prev}::numeric)` })
+        .where(eq(customers.id, sale.customer));
+    }
     return ok(res, updated);
   } catch (e) { next(e); }
 });
@@ -769,6 +796,14 @@ router.post("/:id/payments", requireAdminOrAttendant, async (req, res, next) => 
       outstandingBalance: String(newOutstanding.toFixed(2)),
       status: newOutstanding <= 0 ? "cashed" : "credit",
     }).where(eq(sales.id, saleId));
+
+    // Decrement customer's cached outstanding balance
+    if (sale.customer) {
+      const amountPaid = parseFloat(String(amount));
+      await db.update(customers)
+        .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric - ${amountPaid}::numeric)` })
+        .where(eq(customers.id, sale.customer));
+    }
 
     return created(res, payment);
   } catch (e) { next(e); }
