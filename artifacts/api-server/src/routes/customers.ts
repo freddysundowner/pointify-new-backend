@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, ilike, and, sql, desc } from "drizzle-orm";
-import { customers, customerWalletTransactions, loyaltyTransactions, shops } from "@workspace/db";
+import { eq, ilike, and, sql, desc, asc, gt } from "drizzle-orm";
+import { customers, customerWalletTransactions, loyaltyTransactions, shops, sales, salePayments } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -343,8 +343,87 @@ router.post("/:id/wallet/withdraw", requireAdminOrAttendant, async (req, res, ne
 
 router.post("/:id/wallet/payment", requireAdminOrAttendant, async (req, res, next) => {
   try {
-    const result = await applyWalletChange(req, "payment", (n) => -n);
-    return ok(res, { ...result, note: "Wallet applied to outstanding balance (stub)" });
+    const { amount, paymentNo, paymentReference, paymentType } = req.body ?? {};
+    if (!amount) throw badRequest("amount required");
+    const customerId = Number(req.params["id"]);
+
+    const customer = await db.query.customers.findFirst({ where: eq(customers.id, customerId) });
+    if (!customer) throw notFound("Customer not found");
+    await assertShopOwnership(req, customer.shop);
+
+    const numAmount = parseFloat(String(amount));
+    if (Number.isNaN(numAmount) || numAmount <= 0) throw badRequest("amount must be positive");
+
+    // 1. Reduce customer's aggregate outstanding balance
+    const currentOutstanding = parseFloat(customer.outstandingBalance ?? "0");
+    const newOutstanding = Math.max(0, currentOutstanding - numAmount).toFixed(2);
+    await db.update(customers)
+      .set({ outstandingBalance: newOutstanding })
+      .where(eq(customers.id, customerId));
+
+    // 2. Record a wallet transaction for the payment
+    const currentWallet = parseFloat(customer.wallet ?? "0");
+    const [tx] = await db.insert(customerWalletTransactions).values({
+      customer: customerId,
+      shop: customer.shop,
+      amount: String(numAmount.toFixed(2)),
+      balance: currentWallet.toFixed(2),
+      type: "payment",
+      paymentNo: paymentNo ?? null,
+      paymentReference: paymentReference ?? null,
+      paymentType: paymentType ?? null,
+      handledBy: req.attendant?.id ?? undefined,
+    }).returning();
+
+    // 3. Allocate payment against unpaid credit sales — oldest first
+    const creditSales = await db.query.sales.findMany({
+      where: and(
+        eq(sales.customer, customerId),
+        eq(sales.status, "credit"),
+        gt(sales.outstandingBalance, "0"),
+      ),
+      orderBy: [asc(sales.createdAt)],
+    });
+
+    let remaining = numAmount;
+    const updatedSales: number[] = [];
+
+    for (const sale of creditSales) {
+      if (remaining <= 0) break;
+
+      const saleOwed = parseFloat(sale.outstandingBalance);
+      const applied = Math.min(remaining, saleOwed);
+      const newSaleOutstanding = Math.max(0, saleOwed - applied).toFixed(2);
+      const newSalePaid = (parseFloat(sale.amountPaid) + applied).toFixed(2);
+
+      // Update sale — keep status as "credit" even when fully paid
+      await db.update(sales).set({
+        amountPaid: newSalePaid,
+        outstandingBalance: newSaleOutstanding,
+        paymentType: "credit",
+      }).where(eq(sales.id, sale.id));
+
+      // Record a salePayments entry for traceability
+      await db.insert(salePayments).values({
+        sale: sale.id,
+        amount: String(applied.toFixed(2)),
+        balance: newSaleOutstanding,
+        paymentType: paymentType ?? "cash",
+        paymentReference: paymentReference ?? null,
+        receivedBy: req.attendant?.id ?? undefined,
+      });
+
+      updatedSales.push(sale.id);
+      remaining -= applied;
+    }
+
+    return ok(res, {
+      transaction: tx,
+      customerOutstanding: newOutstanding,
+      salesUpdated: updatedSales.length,
+      amountAllocated: (numAmount - remaining).toFixed(2),
+      amountUnallocated: remaining > 0 ? remaining.toFixed(2) : "0.00",
+    });
   } catch (e) { next(e); }
 });
 
