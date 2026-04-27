@@ -12,11 +12,6 @@ import {
 } from "@/components/ui/select";
 import {
   TrendingUp,
-  DollarSign,
-  ShoppingCart,
-  Users,
-  Filter,
-  Calendar,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -724,15 +719,6 @@ function SalesList() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                   Sales Reports
                 </h1>
-                <div className="text-gray-600 dark:text-gray-400 mt-1">
-                  <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                    {!startDate && !endDate
-                      ? "Showing all sales transactions"
-                      : startDate === endDate
-                        ? `Showing transactions for ${new Date(startDate).toLocaleDateString()}`
-                        : `Showing transactions from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`}
-                  </p>
-                </div>
               </div>
             </div>
 
