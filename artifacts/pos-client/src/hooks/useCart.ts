@@ -210,7 +210,7 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
     setCartItems(prev =>
       prev.map(item =>
         item.id === id
-          ? { ...item, price: newPrice, total: item.quantity * newPrice }
+          ? { ...item, price: newPrice, total: item.quantity * (newPrice - (parseFloat(String(item.discount || 0)) || 0)) }
           : item
       )
     );

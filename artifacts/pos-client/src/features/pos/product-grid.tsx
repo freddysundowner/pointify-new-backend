@@ -514,9 +514,11 @@ export default function ProductGrid({
     const buyingPrice = (productData as any)?.buyingPrice;
     const rawMin = (productData as any)?.minSellingPrice;
     const minSellingPrice = rawMin != null ? (parseFloat(String(rawMin)) || 0) : 0;
+    const existingDiscount = parseFloat(String(selectedPriceItem.discount || 0)) || 0;
+    const effectivePrice = price - existingDiscount;
 
-    if (minSellingPrice > 0 && price < minSellingPrice) {
-      setMinPriceWarningData({ attempted: price, minimum: minSellingPrice });
+    if (minSellingPrice > 0 && effectivePrice < minSellingPrice) {
+      setMinPriceWarningData({ attempted: effectivePrice, minimum: minSellingPrice });
       setShowMinPriceWarning(true);
       return;
     }
@@ -2226,10 +2228,21 @@ export default function ProductGrid({
               const productData = allSources.find(p => (p as any)._id === selectedPriceItem.id || p.id === selectedPriceItem.id);
               const rawMin = (productData as any)?.minSellingPrice;
               const minSp = rawMin != null ? (parseFloat(String(rawMin)) || 0) : 0;
+              const existingDiscount = parseFloat(String(selectedPriceItem.discount || 0)) || 0;
+              const typedPrice = parseFloat(newPrice) || 0;
+              const effectivePrice = typedPrice > 0 ? typedPrice - existingDiscount : null;
               return (
-                <div className="text-center">
+                <div className="text-center space-y-1">
                   <p className="text-lg font-semibold">{selectedPriceItem.name}</p>
                   <p className="text-sm text-gray-500">Current price: Ksh {(+selectedPriceItem.price).toFixed(2)}</p>
+                  {existingDiscount > 0 && (
+                    <p className="text-sm text-blue-600">Applied discount: Ksh {existingDiscount.toFixed(2)}</p>
+                  )}
+                  {existingDiscount > 0 && effectivePrice !== null && (
+                    <p className="text-sm font-medium text-gray-800">
+                      Effective price after discount: Ksh {effectivePrice.toFixed(2)}
+                    </p>
+                  )}
                   {minSp > 0 && (
                     <p className="text-xs text-amber-600 mt-1">Minimum allowed price: Ksh {minSp.toFixed(2)}</p>
                   )}
