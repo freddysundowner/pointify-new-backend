@@ -557,9 +557,29 @@ export default function ProductGrid({
     const allSources = [...allProducts, ...searchResults];
     const productData = allSources.find(p => (p as any)._id === selectedDiscountItem.id || p.id === selectedDiscountItem.id);
     const rawMin = (productData as any)?.minSellingPrice;
+    const rawMax = (productData as any)?.maxDiscount ?? selectedDiscountItem.maxDiscount;
     const minSellingPrice = rawMin != null ? (parseFloat(String(rawMin)) || 0) : 0;
-    const finalPrice = selectedDiscountItem.price - discount;
+    const maxAllowedDiscount = parseFloat(String(rawMax ?? 0)) || 0;
 
+    if (maxAllowedDiscount > 0 && discount > maxAllowedDiscount) {
+      toast({
+        title: "Discount Too High",
+        description: `Maximum allowed discount for this product is Ksh ${maxAllowedDiscount.toFixed(2)}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (maxAllowedDiscount === 0 && discount > 0) {
+      toast({
+        title: "Discount Not Allowed",
+        description: "This product does not allow any discount.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const finalPrice = selectedDiscountItem.price - discount;
     if (minSellingPrice > 0 && finalPrice < minSellingPrice) {
       setMinPriceWarningData({ attempted: finalPrice, minimum: minSellingPrice });
       setShowMinPriceWarning(true);
@@ -2280,39 +2300,62 @@ export default function ProductGrid({
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {selectedDiscountItem && (
-              <div className="text-center">
-                <p className="text-lg font-semibold">{selectedDiscountItem.name}</p>
-                <p className="text-sm text-gray-500">Current price: Ksh {selectedDiscountItem.price.toFixed(2)}</p>
-                <p className="text-sm text-gray-500">
-                  Max discount: Ksh {(+(selectedDiscountItem.maxDiscount || 0)).toFixed(2)}
-                </p>
-                {selectedDiscountItem.discount && selectedDiscountItem.discount > 0 && (
-                  <p className="text-sm text-green-600">
-                    Current discount: Ksh {selectedDiscountItem.discount.toFixed(2)}
-                  </p>
-                )}
-              </div>
-            )}
-            
-            <div className="space-y-2">
-              <label htmlFor="discountAmount" className="text-sm font-medium">Discount Amount (Ksh)</label>
-              <Input
-                id="discountAmount"
-                type="number"
-                value={discountAmount}
-                onChange={(e) => setDiscountAmount(e.target.value)}
-                placeholder="Enter discount amount"
-                className="text-lg"
-                max={+(selectedDiscountItem?.maxDiscount || 0)}
-                min="0"
-                step="0.01"
-                autoFocus
-              />
-              <p className="text-xs text-gray-500">
-                Maximum allowed: Ksh {(+(selectedDiscountItem?.maxDiscount || 0)).toFixed(2)}
-              </p>
-            </div>
+            {selectedDiscountItem && (() => {
+              const allSources = [...allProducts, ...searchResults];
+              const pd = allSources.find(p => (p as any)._id === selectedDiscountItem.id || p.id === selectedDiscountItem.id);
+              const rawMin = (pd as any)?.minSellingPrice;
+              const rawMax = (pd as any)?.maxDiscount ?? selectedDiscountItem.maxDiscount;
+              const minSp = rawMin != null ? (parseFloat(String(rawMin)) || 0) : 0;
+              const maxDisc = parseFloat(String(rawMax ?? 0)) || 0;
+              const maxFromMinPrice = minSp > 0 ? Math.max(0, selectedDiscountItem.price - minSp) : Infinity;
+              const effectiveMax = maxDisc > 0 ? Math.min(maxDisc, maxFromMinPrice) : 0;
+              return (
+                <div>
+                  <div className="text-center mb-3">
+                    <p className="text-lg font-semibold">{selectedDiscountItem.name}</p>
+                    <p className="text-sm text-gray-500">Current price: Ksh {selectedDiscountItem.price.toFixed(2)}</p>
+                    {selectedDiscountItem.discount && selectedDiscountItem.discount > 0 && (
+                      <p className="text-sm text-green-600">
+                        Current discount: Ksh {selectedDiscountItem.discount.toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="bg-gray-50 rounded-md px-4 py-2 text-sm text-gray-600 space-y-1 mb-3">
+                    <div className="flex justify-between">
+                      <span>Max allowed discount:</span>
+                      <span className="font-medium">{maxDisc > 0 ? `Ksh ${maxDisc.toFixed(2)}` : "None"}</span>
+                    </div>
+                    {minSp > 0 && (
+                      <div className="flex justify-between">
+                        <span>Min selling price:</span>
+                        <span className="font-medium">Ksh {minSp.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {effectiveMax < Infinity && (
+                      <div className="flex justify-between font-semibold text-gray-800 border-t pt-1">
+                        <span>Effective max discount:</span>
+                        <span>Ksh {effectiveMax.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="discountAmount" className="text-sm font-medium">Discount Amount (Ksh)</label>
+                    <Input
+                      id="discountAmount"
+                      type="number"
+                      value={discountAmount}
+                      onChange={(e) => setDiscountAmount(e.target.value)}
+                      placeholder="Enter discount amount"
+                      className="text-lg"
+                      max={effectiveMax < Infinity ? effectiveMax : undefined}
+                      min="0"
+                      step="0.01"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+              );
+            })()}
           </div>
           
           <DialogFooter>
