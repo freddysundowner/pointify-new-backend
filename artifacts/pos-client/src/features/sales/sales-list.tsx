@@ -376,8 +376,9 @@ function SalesList() {
       });
 
       if (response.ok) {
-        // Refresh sales data
+        // Refresh sales data and stats
         refetch();
+        refetchReport();
         toast({
           title: "Sale Deleted",
           description: `Sale #${saleToDelete.receiptNo} has been successfully deleted.`,
@@ -422,6 +423,7 @@ function SalesList() {
       });
       if (response.ok) {
         refetch();
+        refetchReport();
         toast({
           title: "Sale Completed",
           description: `Sale #${saleToComplete.receiptNo} has been marked as completed.`,
