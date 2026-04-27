@@ -125,7 +125,7 @@ export const useCart = (products: Product[], taxRate: number, saleType: SaleType
       return [
         ...prev,
         {
-          id: product._id,
+          id: product._id || product.id,
           name: product.name,
           price,
           quantity: 1,
