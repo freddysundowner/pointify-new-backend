@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { normalizeIds } from "@/lib/utils";
+import { normalizeId, normalizeIds } from "@/lib/utils";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Search, Calculator, Package, Minus, Plus, Trash2, CreditCard, Wallet, Smartphone, Building, Banknote, Split, User, X, Edit3, Calendar, Clock, UserCheck, Grid3X3, Table, PlusCircle, Loader2, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -626,7 +626,8 @@ export default function ProductGrid({
           type: customItemType,
         }),
       });
-      const product = await response.json();
+      const json = await response.json();
+      const product = normalizeId(json?.data || json);
       onAddToCart(product);
       setShowCustomItemDialog(false);
       setCustomItemName("");
