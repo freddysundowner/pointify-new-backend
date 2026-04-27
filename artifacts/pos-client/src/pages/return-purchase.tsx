@@ -12,6 +12,7 @@ import {
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import React, { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useNavigationRoute } from "@/lib/navigation-utils";
 import { useAuth } from "@/features/auth/useAuth";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
@@ -44,6 +45,7 @@ export default function ReturnPurchase() {
   const { products } = useProducts();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const goBack = useGoBack("/purchases");
   const purchasesRoute = useNavigationRoute('purchases');
   
   // Get purchase data from navigation state
@@ -226,7 +228,7 @@ export default function ReturnPurchase() {
           <p className="text-gray-600 dark:text-gray-400">
             The requested purchase could not be found.
           </p>
-          <Button className="mt-4" onClick={() => window.location.href = purchasesRoute}>
+          <Button className="mt-4" onClick={goBack}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Go Back
           </Button>
@@ -246,7 +248,7 @@ export default function ReturnPurchase() {
           <p className="text-gray-600 dark:text-gray-400">
             This purchase has been cancelled and cannot be returned.
           </p>
-          <Button className="mt-4" onClick={() => window.location.href = purchasesRoute}>
+          <Button className="mt-4" onClick={goBack}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Go Back
           </Button>
@@ -272,7 +274,7 @@ export default function ReturnPurchase() {
           </div>
           
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => window.location.href = purchasesRoute}>
+            <Button variant="outline" onClick={goBack}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Cancel
             </Button>

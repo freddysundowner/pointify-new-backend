@@ -1,4 +1,5 @@
 import { useLocation, useParams } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { extractId } from "@/lib/utils";
 import { useNavigationRoute } from "@/lib/navigation-utils";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { useCurrency } from "@/utils";
 
 export default function PurchaseEditPage() {
   const [, setLocation] = useLocation();
+  const goBack = useGoBack("/purchases");
   const { id } = useParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -102,7 +104,7 @@ export default function PurchaseEditPage() {
       <DashboardLayout title="Edit Purchase">
         <div className="text-center py-12">
           <p className="text-muted-foreground">Purchase data not found. Please go back and try again.</p>
-          <Button onClick={() => setLocation(purchasesRoute)} className="mt-4">
+          <Button onClick={goBack} className="mt-4">
             Back to Purchases
           </Button>
         </div>
@@ -215,7 +217,7 @@ export default function PurchaseEditPage() {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setLocation(purchasesRoute)}
+              onClick={goBack}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Purchases
@@ -406,7 +408,7 @@ export default function PurchaseEditPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setLocation(purchasesRoute)}
+              onClick={goBack}
               className="flex-1"
             >
               Cancel

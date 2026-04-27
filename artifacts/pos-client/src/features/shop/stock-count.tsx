@@ -17,6 +17,7 @@ import { useLocation } from "wouter";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { ArrowLeft } from "lucide-react";
+import { useGoBack } from "@/hooks/useGoBack";
 
 interface Product {
   _id: string;
@@ -34,6 +35,7 @@ export default function StockCount() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [location, setLocation] = useLocation();
+  const goBack = useGoBack("/dashboard");
   const { attendant } = useAttendantAuth();
   const { shopId, adminId, attendantId } = usePrimaryShop();
   const [searchQuery, setSearchQuery] = useState("");
@@ -258,7 +260,7 @@ export default function StockCount() {
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={() => setLocation(backRoute)}
+                onClick={goBack}
                 className="flex items-center gap-2"
               >
                 <ArrowLeft className="h-4 w-4" />

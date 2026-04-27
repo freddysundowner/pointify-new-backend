@@ -14,6 +14,7 @@ import { RootState } from "@/store";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -36,6 +37,7 @@ export default function ProfitLossPage() {
   const { attendant } = useAttendantAuth();
   const { primaryShop } = usePrimaryShop();
   const [, setLocation] = useLocation();
+  const goBack = useGoBack("/reports");
 
   const effectiveShopId = selectedShopId || primaryShop?.shopId;
   const effectiveAdminId = user?.id || attendant?.adminId;
@@ -101,8 +103,8 @@ export default function ProfitLossPage() {
 
         {/* Header + filters */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={() => setLocation("/reports")} className="gap-1 px-2">
-            <ArrowLeft className="h-4 w-4" /> Reports
+          <Button variant="ghost" size="sm" onClick={goBack} className="gap-1 px-2">
+            <ArrowLeft className="h-4 w-4" /> Back
           </Button>
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-purple-600" />

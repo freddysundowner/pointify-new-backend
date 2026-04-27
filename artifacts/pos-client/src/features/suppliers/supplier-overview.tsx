@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Plus, Search, Edit, Trash2, Phone, Mail, MapPin, Download, FileText, Filter, Calendar, ArrowLeft } from 'lucide-react';
+import { useGoBack } from "@/hooks/useGoBack";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -136,6 +137,7 @@ const mockSupplierPurchases: SupplierPurchase[] = [
 
 export default function SupplierOverview() {
   const [location] = useLocation();
+  const goBack = useGoBack("/suppliers");
   const [activeTab, setActiveTab] = useState("purchases");
   const [purchaseStatusFilter, setPurchaseStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
@@ -219,12 +221,10 @@ export default function SupplierOverview() {
       <div className="space-y-6">
         {/* Header with back button */}
         <div className="flex items-center space-x-4">
-          <Link href="/suppliers">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Suppliers
-            </Button>
-          </Link>
+          <Button variant="outline" size="sm" onClick={goBack}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Suppliers
+          </Button>
           <div>
             <h1 className="text-3xl font-bold">{supplier.name}</h1>
             <p className="text-gray-600">{supplier.contact}</p>

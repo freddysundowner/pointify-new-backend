@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { extractId } from "@/lib/utils";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -180,13 +181,7 @@ export default function AdjustmentHistoryPage() {
   };
 
   // Navigate back
-  const goBack = () => {
-    if (isAttendant) {
-      setLocation('/attendant/products');
-    } else {
-      setLocation('/stock/products');
-    }
-  };
+  const goBack = useGoBack("/stock/products");
 
   useEffect(() => {
     if (productId) {

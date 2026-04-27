@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2, ArrowLeft, TrendingUp, TrendingDown, Settings, DollarSign } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
+import { useGoBack } from "@/hooks/useGoBack";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +41,7 @@ export default function CashflowCategories() {
   const { admin } = useAuth();
   const { attendant } = useAttendantAuth();
   const [, setLocation] = useLocation();
+  const goBack = useGoBack("/cashflow");
   
   // Get effective shop ID - use attendant's shop if attendant, otherwise admin's selected shop
   const effectiveShopId = attendant
@@ -223,7 +225,7 @@ export default function CashflowCategories() {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => setLocation(attendant ? '/attendant/cashflow' : '/cashflow')}
+              onClick={goBack}
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Cashflow

@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2, Tag, Search, Loader2, ArrowLeft } from "lucide-react";
 import { Link } from 'wouter';
+import { useGoBack } from "@/hooks/useGoBack";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useSelector } from 'react-redux';
@@ -28,6 +29,7 @@ interface ExpenseCategory {
 }
 
 export default function ExpenseCategories() {
+  const goBack = useGoBack("/expenses");
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
@@ -196,12 +198,10 @@ export default function ExpenseCategories() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Link href={window.location.pathname.includes('/attendant/') ? '/attendant/expenses' : '/expenses'}>
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Expenses
-              </Button>
-            </Link>
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Expenses
+            </Button>
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-gray-900">Expense Categories</h1>
               <p className="text-gray-600">Manage your expense categories for better organization</p>

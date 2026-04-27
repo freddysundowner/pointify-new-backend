@@ -9,6 +9,7 @@ import { TrendingUp, ArrowLeft, RefreshCw, Package } from "lucide-react";
 import { RootState } from "@/store";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { apiRequest } from "@/lib/queryClient";
 
 const n = (v: any) => Number(v ?? 0);
@@ -32,6 +33,7 @@ export default function ProductsReportPage() {
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const { primaryShop } = usePrimaryShop();
   const [, setLocation] = useLocation();
+  const goBack = useGoBack("/reports");
 
   const shopId = selectedShopId || primaryShop?.shopId;
 
@@ -69,8 +71,8 @@ export default function ProductsReportPage() {
 
         {/* Header */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={() => setLocation("/reports")} className="gap-1 px-2">
-            <ArrowLeft className="h-4 w-4" /> Reports
+          <Button variant="ghost" size="sm" onClick={goBack} className="gap-1 px-2">
+            <ArrowLeft className="h-4 w-4" /> Back
           </Button>
           <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-blue-600" />

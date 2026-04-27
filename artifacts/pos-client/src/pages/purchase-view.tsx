@@ -1,4 +1,5 @@
 import { useLocation, useParams } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useNavigationRoute } from "@/lib/navigation-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { useCurrency } from "@/utils";
 
 export default function PurchaseViewPage() {
   const [, setLocation] = useLocation();
+  const goBack = useGoBack("/purchases");
   const purchasesRoute = useNavigationRoute('purchases');
   
   // Get purchase data from navigation state
@@ -22,7 +24,7 @@ export default function PurchaseViewPage() {
       <DashboardLayout title="Purchase Details">
         <div className="text-center py-12">
           <p className="text-muted-foreground">Purchase data not found. Please go back and try again.</p>
-          <Button onClick={() => setLocation(purchasesRoute)} className="mt-4">
+          <Button onClick={goBack} className="mt-4">
             Back to Purchases
           </Button>
         </div>
@@ -49,7 +51,7 @@ export default function PurchaseViewPage() {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => setLocation(purchasesRoute)}
+            onClick={goBack}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Purchases

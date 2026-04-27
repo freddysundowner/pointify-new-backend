@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { Plus, Search, Edit, Trash2, Phone, Mail, MapPin, Building2, DollarSign, History, ArrowLeft, CreditCard } from 'lucide-react';
+import { useGoBack } from "@/hooks/useGoBack";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,13 +60,7 @@ export default function SuppliersPage() {
   const isAttendantRoute = window.location.pathname.startsWith('/attendant');
   
   // Handle back button navigation
-  const handleBack = () => {
-    if (isAttendantRoute) {
-      navigate('/attendant/dashboard');
-    } else {
-      navigate('/dashboard');
-    }
-  };
+  const handleBack = useGoBack("/dashboard");
 
   // Get shop ID based on user type
   const { selectedShopId } = useSelector((state: RootState) => state.shop);

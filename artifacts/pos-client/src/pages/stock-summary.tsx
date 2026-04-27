@@ -9,6 +9,7 @@ import { ENDPOINTS } from "@/lib/api-endpoints";
 import { usePermissions } from "@/hooks/usePermissions";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 
 interface StockAnalysisData {
   totalStockValue: number;
@@ -22,6 +23,7 @@ export default function StockSummary() {
   const { hasPermission, hasAttendantPermission } = usePermissions();
   const { shopId, shopData } = usePrimaryShop();
   const [, setLocation] = useLocation();
+  const goBack = useGoBack("/dashboard");
 
   // Fetch stock analysis data
   const { data: stockData, isLoading, error } = useQuery({
@@ -178,12 +180,7 @@ export default function StockSummary() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              // Determine the correct back route based on user type
-              const attendantData = localStorage.getItem('attendantData');
-              const backRoute = attendantData ? '/attendant/dashboard' : '/dashboard';
-              setLocation(backRoute);
-            }}
+            onClick={goBack}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />

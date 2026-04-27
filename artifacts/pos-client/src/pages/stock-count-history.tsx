@@ -14,6 +14,7 @@ import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { useAuth } from "@/features/auth/useAuth";
 import { useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useCurrency } from "@/utils";
@@ -57,6 +58,7 @@ export default function StockCountHistoryPage() {
   const { admin } = useAuth();
   const { shopId, adminId, attendantId } = usePrimaryShop();
   const [, setLocation] = useLocation();
+  const goBack = useGoBack("/stock/count");
   
   const currency = useCurrency()
 
@@ -223,7 +225,7 @@ export default function StockCountHistoryPage() {
           <div className="flex items-center">
             <Button 
               variant="outline" 
-              onClick={() => setLocation(attendant ? "/attendant/dashboard" : "/stock/count")}
+              onClick={goBack}
               className="flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />

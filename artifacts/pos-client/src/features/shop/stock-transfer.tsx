@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 import { Trash2, Plus, Package, ArrowRight, Eye, Download, ArrowLeft } from 'lucide-react';
+import { useGoBack } from "@/hooks/useGoBack";
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { apiCall } from '@/lib/api-config';
 import { apiRequest } from '@/lib/queryClient';
@@ -83,6 +84,7 @@ export default function StockTransfer() {
   const { attendant } = useAttendantAuth();
   const { shopId, adminId, userType, attendantId } = usePrimaryShop();
   const [, setLocation] = useLocation();
+  const goBack = useGoBack("/dashboard");
 
   const { data: transfers = [], isLoading } = useQuery<StockTransfer[]>({
     queryKey: ["stock-transfers"],
@@ -519,7 +521,7 @@ export default function StockTransfer() {
             {userType === 'attendant' && (
               <Button
                 variant="outline"
-                onClick={() => setLocation('/attendant/dashboard')}
+                onClick={goBack}
                 className="flex items-center gap-2"
               >
                 <ArrowLeft className="h-4 w-4" />

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { extractId } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
+import { useGoBack } from "@/hooks/useGoBack";
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { 
@@ -69,6 +70,7 @@ interface Purchase {
 
 export default function SupplierHistoryPage() {
   const [location, navigate] = useLocation();
+  const goBack = useGoBack("/suppliers");
   const { toast } = useToast();
   
   // Parse supplier ID from URL params
@@ -533,7 +535,7 @@ export default function SupplierHistoryPage() {
       <DashboardLayout title="Supplier History">
         <div className="text-center py-8">
           <p className="text-muted-foreground">No supplier selected</p>
-          <Button onClick={() => navigate('/suppliers')} className="mt-4">
+          <Button onClick={goBack} className="mt-4">
             Back to Suppliers
           </Button>
         </div>
@@ -548,11 +550,7 @@ export default function SupplierHistoryPage() {
         <div className="flex items-center justify-between">
           <Button 
             variant="outline" 
-            onClick={() => {
-              const isAttendantRoute = window.location.pathname.startsWith('/attendant');
-              const route = isAttendantRoute ? '/attendant/suppliers' : '/suppliers';
-              navigate(route);
-            }}
+            onClick={goBack}
             className="flex items-center gap-2"
           >
             <ChevronLeft className="h-4 w-4" />
