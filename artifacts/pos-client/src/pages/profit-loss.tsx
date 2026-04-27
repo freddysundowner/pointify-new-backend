@@ -91,6 +91,7 @@ export default function ProfitLossPage() {
       const json = await response.json();
       return Array.isArray(json) ? json : (json?.data ?? []);
     },
+    select: (raw: any) => Array.isArray(raw) ? raw : (raw?.data ?? []),
     enabled: !!effectiveShopId && !!effectiveAdminId && !!user, // Only enable for admin users
   });
 
