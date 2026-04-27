@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { TrendingUp, TrendingDown, ShoppingCart, Receipt, Calculator, ArrowLeft, RefreshCw } from "lucide-react";
+import { TrendingUp, TrendingDown, ShoppingCart, Receipt, Calculator, ArrowLeft, RefreshCw, DollarSign, Package } from "lucide-react";
 import { RootState } from "@/store";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
@@ -15,20 +15,10 @@ import { ENDPOINTS } from "@/lib/api-endpoints";
 import { apiRequest } from "@/lib/queryClient";
 
 interface ProfitLossData {
-  creditTotals: number;
-  debtPaid: number;
-  totalProfitAndSalesValue: {
-    totalProfit: number;
-    totalCashSales: number;
-    totalSales: number;
-    totalPurchases: number;
-    totalTaxes: number;
-  };
-  badStockValue: { badStockValue: number };
-  totalExpenses: { totalExpenses: number };
-  totalTaxes: number;
-  gross: number;
-  net: number;
+  revenue: number;
+  cost: number;
+  expenses: number;
+  profit: number;
 }
 
 interface Attendant {
@@ -37,10 +27,14 @@ interface Attendant {
   uniqueDigits: number;
 }
 
-const fmt = (n: number | undefined | null) => {
-  if (n === undefined || n === null || isNaN(n)) return "KES 0";
-  return `KES ${n.toLocaleString()}`;
+const fmt = (n: number | string | undefined | null) => {
+  const num = Number(n ?? 0);
+  if (isNaN(num)) return "KES 0";
+  return `KES ${num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
+
+const pct = (part: number, total: number) =>
+  total > 0 ? `${((part / total) * 100).toFixed(1)}%` : "0.0%";
 
 export default function ProfitLossPage() {
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
@@ -56,8 +50,8 @@ export default function ProfitLossPage() {
   const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
     .toISOString().split("T")[0];
 
-  const [fromDate, setFromDate] = useState(firstOfMonth);
-  const [toDate, setToDate] = useState(today);
+  const [from, setFrom] = useState(firstOfMonth);
+  const [to, setTo] = useState(today);
   const [selectedAttendant, setSelectedAttendant] = useState("all");
 
   const { data: attendants = [] } = useQuery<Attendant[]>({
@@ -72,37 +66,46 @@ export default function ProfitLossPage() {
     enabled: !!effectiveShopId && !!effectiveAdminId && !!user,
   });
 
-  const queryUrl = (() => {
-    const p = new URLSearchParams({ shopId: effectiveShopId || "", fromDate, toDate });
+  const buildUrl = () => {
+    const p = new URLSearchParams({ shopId: effectiveShopId || "", from, to });
     if (selectedAttendant && selectedAttendant !== "all") p.append("attendant", selectedAttendant);
     return `${ENDPOINTS.analytics.netProfit}?${p}`;
-  })();
+  };
 
-  const { data: d, isLoading, error, refetch } = useQuery<ProfitLossData>({
-    queryKey: [queryUrl, effectiveShopId, fromDate, toDate, selectedAttendant],
+  const { data: raw, isLoading, error, refetch } = useQuery<any>({
+    queryKey: ["profit-loss", effectiveShopId, from, to, selectedAttendant],
+    queryFn: async () => {
+      const res = await apiRequest("GET", buildUrl());
+      const json = await res.json();
+      return json?.data ?? json;
+    },
     enabled: !!effectiveShopId,
     staleTime: 0,
     refetchOnMount: "always",
   });
 
-  const totalCosts = d
-    ? d.totalProfitAndSalesValue.totalPurchases +
-      d.totalExpenses.totalExpenses +
-      d.badStockValue.badStockValue +
-      d.totalTaxes
-    : 0;
+  const d: ProfitLossData | null = raw
+    ? {
+        revenue: Number(raw.revenue ?? 0),
+        cost: Number(raw.cost ?? 0),
+        expenses: Number(raw.expenses ?? 0),
+        profit: Number(raw.profit ?? 0),
+      }
+    : null;
 
-  const profitMargin = d && d.totalProfitAndSalesValue.totalSales > 0
-    ? ((d.net / d.totalProfitAndSalesValue.totalSales) * 100).toFixed(1)
-    : "0.0";
+  const gross = d ? d.revenue - d.cost : 0;
 
   return (
     <DashboardLayout>
       <div className="p-4 space-y-3">
 
-        {/* Header row */}
+        {/* Header + filters */}
         <div className="flex items-center gap-3 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={() => setLocation(attendant ? "/attendant/dashboard" : "/dashboard")} className="gap-1 px-2">
+          <Button
+            variant="ghost" size="sm"
+            onClick={() => setLocation(attendant ? "/attendant/dashboard" : "/dashboard")}
+            className="gap-1 px-2"
+          >
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
           <div className="flex items-center gap-2">
@@ -110,11 +113,10 @@ export default function ProfitLossPage() {
             <h1 className="text-lg font-bold text-gray-900">Profit & Loss</h1>
           </div>
 
-          {/* Inline filters */}
           <div className="flex items-center gap-2 ml-auto flex-wrap">
-            <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="h-8 text-sm w-36" />
+            <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="h-8 text-sm w-36" />
             <span className="text-gray-400 text-sm">to</span>
-            <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="h-8 text-sm w-36" />
+            <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="h-8 text-sm w-36" />
             {user && (
               <Select value={selectedAttendant} onValueChange={setSelectedAttendant}>
                 <SelectTrigger className="h-8 text-sm w-40">
@@ -128,22 +130,24 @@ export default function ProfitLossPage() {
                 </SelectContent>
               </Select>
             )}
-            <Button size="sm" onClick={() => refetch()} className="h-8 gap-1 bg-purple-600 hover:bg-purple-700">
-              <RefreshCw className="h-3.5 w-3.5" /> Apply
+            <Button size="sm" onClick={() => refetch()} disabled={isLoading} className="h-8 gap-1 bg-purple-600 hover:bg-purple-700">
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Apply
             </Button>
           </div>
         </div>
 
-        {/* Loading / error */}
-        {isLoading && (
-          <div className="grid grid-cols-4 gap-3">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-20 bg-gray-100 rounded-lg animate-pulse" />
-            ))}
+        {/* Error */}
+        {error && (
+          <div className="text-center py-6 text-red-500 text-sm">
+            Failed to load data. <button onClick={() => refetch()} className="underline">Retry</button>
           </div>
         )}
-        {error && (
-          <div className="text-center py-8 text-red-500 text-sm">Failed to load data. <button onClick={() => refetch()} className="underline">Retry</button></div>
+
+        {/* Skeleton */}
+        {isLoading && !d && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-gray-100 rounded-lg animate-pulse" />)}
+          </div>
         )}
 
         {d && (
@@ -151,10 +155,15 @@ export default function ProfitLossPage() {
             {/* 4 stat cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: "Total Sales", value: fmt(d.totalProfitAndSalesValue.totalSales), color: "blue", Icon: ShoppingCart },
-                { label: "Gross Profit", value: fmt(d.gross), color: "green", Icon: TrendingUp },
-                { label: "Net Profit", value: fmt(d.net), color: d.net >= 0 ? "green" : "red", Icon: d.net >= 0 ? TrendingUp : TrendingDown },
-                { label: "Expenses", value: fmt(d.totalExpenses.totalExpenses), color: "orange", Icon: Receipt },
+                { label: "Revenue", value: fmt(d.revenue), color: "blue", Icon: ShoppingCart },
+                { label: "Cost of Goods", value: fmt(d.cost), color: "orange", Icon: Package },
+                { label: "Expenses", value: fmt(d.expenses), color: "red", Icon: Receipt },
+                {
+                  label: "Net Profit",
+                  value: fmt(d.profit),
+                  color: d.profit >= 0 ? "green" : "red",
+                  Icon: d.profit >= 0 ? TrendingUp : TrendingDown,
+                },
               ].map(({ label, value, color, Icon }) => (
                 <Card key={label} className="border-0 shadow-sm">
                   <CardContent className="p-3 flex items-center gap-3">
@@ -170,94 +179,72 @@ export default function ProfitLossPage() {
               ))}
             </div>
 
-            {/* Breakdown table + summary side by side */}
-            <div className="grid md:grid-cols-3 gap-3">
+            {/* Breakdown + summary */}
+            <div className="grid md:grid-cols-2 gap-3">
 
-              {/* Revenue */}
+              {/* P&L Statement */}
               <Card className="border-0 shadow-sm">
-                <CardContent className="p-3">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Revenue</p>
-                  <div className="space-y-1.5 text-sm">
-                    {[
-                      ["Total Sales", fmt(d.totalProfitAndSalesValue.totalSales)],
-                      ["Cash Sales", fmt(d.totalProfitAndSalesValue.totalCashSales)],
-                      ["Credit Sales", fmt(d.creditTotals)],
-                      ["Debt Collected", fmt(d.debtPaid)],
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex justify-between">
-                        <span className="text-gray-500">{k}</span>
-                        <span className="font-medium">{v}</span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between pt-1.5 border-t font-semibold text-green-700">
-                      <span>Total Revenue</span>
-                      <span>{fmt(d.totalProfitAndSalesValue.totalSales + d.debtPaid)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Costs */}
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-3">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Costs</p>
-                  <div className="space-y-1.5 text-sm">
-                    {[
-                      ["Purchases", fmt(d.totalProfitAndSalesValue.totalPurchases)],
-                      ["Expenses", fmt(d.totalExpenses.totalExpenses)],
-                      ["Bad Stock", fmt(d.badStockValue.badStockValue)],
-                      ["Taxes", fmt(d.totalTaxes)],
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex justify-between">
-                        <span className="text-gray-500">{k}</span>
-                        <span className="font-medium">{v}</span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between pt-1.5 border-t font-semibold text-orange-700">
-                      <span>Total Costs</span>
-                      <span>{fmt(totalCosts)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Summary */}
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-3">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Summary</p>
+                <CardContent className="p-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">P&L Statement</p>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Gross Profit</span>
-                      <span className="font-medium text-green-700">{fmt(d.gross)}</span>
+                      <span className="text-gray-600">Revenue</span>
+                      <span className="font-medium text-blue-700">{fmt(d.revenue)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Profit Margin</span>
-                      <span className="font-medium">
-                        {d.totalProfitAndSalesValue.totalSales > 0
-                          ? `${((d.totalProfitAndSalesValue.totalProfit / d.totalProfitAndSalesValue.totalSales) * 100).toFixed(1)}%`
-                          : "0.0%"}
-                      </span>
+                      <span className="text-gray-600">Cost of Goods Sold</span>
+                      <span className="font-medium text-orange-600">- {fmt(d.cost)}</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-t border-b font-semibold text-green-700">
+                      <span>Gross Profit</span>
+                      <span>{fmt(gross)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Tax Rate</span>
-                      <span className="font-medium">
-                        {d.totalProfitAndSalesValue.totalSales > 0
-                          ? `${((d.totalTaxes / d.totalProfitAndSalesValue.totalSales) * 100).toFixed(1)}%`
-                          : "0.0%"}
-                      </span>
+                      <span className="text-gray-600">Operating Expenses</span>
+                      <span className="font-medium text-red-600">- {fmt(d.expenses)}</span>
                     </div>
-                    <div className={`flex justify-between pt-2 border-t font-bold text-base ${d.net >= 0 ? "text-green-700" : "text-red-600"}`}>
+                    <div className={`flex justify-between pt-2 border-t font-bold text-base ${d.profit >= 0 ? "text-green-700" : "text-red-600"}`}>
                       <span>Net Profit</span>
-                      <span>{fmt(d.net)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-400">
-                      <span>Net Margin</span>
-                      <span className={d.net >= 0 ? "text-green-600" : "text-red-500"}>{profitMargin}%</span>
+                      <span>{fmt(d.profit)}</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Margin summary */}
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Margins & Ratios</p>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Gross Margin</span>
+                      <span className="font-semibold text-green-700">{pct(gross, d.revenue)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Net Margin</span>
+                      <span className={`font-semibold ${d.profit >= 0 ? "text-green-700" : "text-red-600"}`}>
+                        {pct(d.profit, d.revenue)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Expense Ratio</span>
+                      <span className="font-semibold text-orange-600">{pct(d.expenses, d.revenue)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">COGS Ratio</span>
+                      <span className="font-semibold text-gray-700">{pct(d.cost, d.revenue)}</span>
+                    </div>
+                    <div className="mt-2 pt-3 border-t">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className={`h-4 w-4 ${d.profit >= 0 ? "text-green-600" : "text-red-500"}`} />
+                        <span className={`font-bold text-base ${d.profit >= 0 ? "text-green-700" : "text-red-600"}`}>
+                          {d.profit >= 0 ? "Profitable" : "Operating at a loss"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </>
         )}
