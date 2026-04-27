@@ -93,6 +93,8 @@ export default function ProductGrid({
   const [showPriceDialog, setShowPriceDialog] = useState(false);
   const [selectedPriceItem, setSelectedPriceItem] = useState<CartItem | null>(null);
   const [newPrice, setNewPrice] = useState("");
+  const [showMinPriceWarning, setShowMinPriceWarning] = useState(false);
+  const [minPriceWarningData, setMinPriceWarningData] = useState<{ attempted: number; minimum: number } | null>(null);
   const [showDiscountDialog, setShowDiscountDialog] = useState(false);
   const [selectedDiscountItem, setSelectedDiscountItem] = useState<CartItem | null>(null);
   const [discountAmount, setDiscountAmount] = useState("");
@@ -505,13 +507,20 @@ export default function ProductGrid({
 
   const handlePriceUpdate = () => {
     if (!selectedPriceItem) return;
-    
+
     const price = parseFloat(newPrice);
-    const productData = allProducts.find(p => p._id === selectedPriceItem.id || p.id === selectedPriceItem.id);
+    const productData = allProducts.find(p => (p as any)._id === selectedPriceItem.id || p.id === selectedPriceItem.id);
     const buyingPrice = (productData as any)?.buyingPrice;
-    
+    const minSellingPrice = parseFloat(String((productData as any)?.minSellingPrice || 0)) || 0;
+
+    if (minSellingPrice > 0 && price < minSellingPrice) {
+      setMinPriceWarningData({ attempted: price, minimum: minSellingPrice });
+      setShowMinPriceWarning(true);
+      return;
+    }
+
     onUpdatePrice(selectedPriceItem.id, price, buyingPrice);
-    
+
     setShowPriceDialog(false);
     setSelectedPriceItem(null);
     setNewPrice("");
@@ -2175,15 +2184,22 @@ export default function ProductGrid({
           <DialogHeader>
             <DialogTitle>Change Price</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
-            {selectedPriceItem && (
-              <div className="text-center">
-                <p className="text-lg font-semibold">{selectedPriceItem.name}</p>
-                <p className="text-sm text-gray-500">Current price: Ksh {(+selectedPriceItem.price).toFixed(2)}</p>
-              </div>
-            )}
-            
+            {selectedPriceItem && (() => {
+              const productData = allProducts.find(p => (p as any)._id === selectedPriceItem.id || p.id === selectedPriceItem.id);
+              const minSp = parseFloat(String((productData as any)?.minSellingPrice || 0)) || 0;
+              return (
+                <div className="text-center">
+                  <p className="text-lg font-semibold">{selectedPriceItem.name}</p>
+                  <p className="text-sm text-gray-500">Current price: Ksh {(+selectedPriceItem.price).toFixed(2)}</p>
+                  {minSp > 0 && (
+                    <p className="text-xs text-amber-600 mt-1">Minimum allowed price: Ksh {minSp.toFixed(2)}</p>
+                  )}
+                </div>
+              );
+            })()}
+
             <div className="space-y-2">
               <label htmlFor="newPrice" className="text-sm font-medium">New Price (Ksh)</label>
               <Input
@@ -2197,13 +2213,43 @@ export default function ProductGrid({
               />
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={handlePriceDialogClose}>
               Cancel
             </Button>
             <Button onClick={handlePriceUpdate}>
               Update Price
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Min Selling Price Warning Dialog */}
+      <Dialog open={showMinPriceWarning} onOpenChange={() => setShowMinPriceWarning(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Price Too Low</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            <p className="text-sm text-gray-700">
+              The entered price of{" "}
+              <span className="font-semibold text-red-600">
+                Ksh {minPriceWarningData?.attempted.toFixed(2)}
+              </span>{" "}
+              is below the minimum allowed selling price.
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-center">
+              <p className="text-xs text-amber-700 mb-1">Minimum selling price</p>
+              <p className="text-xl font-bold text-amber-800">
+                Ksh {minPriceWarningData?.minimum.toFixed(2)}
+              </p>
+            </div>
+            <p className="text-xs text-gray-500">Please enter a price equal to or above the minimum.</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowMinPriceWarning(false)}>
+              OK, go back
             </Button>
           </DialogFooter>
         </DialogContent>
