@@ -2,21 +2,17 @@ import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Calendar, Search, Download, FileText, Eye, ChevronDown, ChevronUp, ArrowLeft, AlertTriangle, RotateCcw, BarChart3 } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowLeft, Download, RefreshCw, Search } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiRequest } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { useAuth } from "@/features/auth/useAuth";
-import { useLocation } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { useCurrency } from "@/utils";
 
 interface StockCountItem {
@@ -37,611 +33,253 @@ interface StockCountHistory {
   stockCountItems: StockCountItem[];
 }
 
+const fmt = (n: string | number) => parseFloat(String(n ?? 0));
+
 export default function StockCountHistoryPage() {
-  const [fromDate, setFromDate] = useState(new Date().toISOString().split('T')[0]);
-  const [toDate, setToDate] = useState(new Date().toISOString().split('T')[0]);
+  const today = new Date().toISOString().split("T")[0];
+  const [fromDate, setFromDate] = useState(today);
+  const [toDate, setToDate] = useState(today);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [expandedSession, setExpandedSession] = useState<string | null>(null);
-  
-  // Stock analysis dialog state
-  const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false);
-  const [analysisFromDate, setAnalysisFromDate] = useState(new Date().toISOString().split('T')[0]);
-  const [analysisToDate, setAnalysisToDate] = useState(new Date().toISOString().split('T')[0]);
-  const [analysisData, setAnalysisData] = useState<any>(null);
-  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const itemsPerPage = 15;
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  // Get authentication and shop data using proper hooks
   const { attendant } = useAttendantAuth();
   const { admin } = useAuth();
   const { shopId, adminId, attendantId } = usePrimaryShop();
-  const [, setLocation] = useLocation();
   const goBack = useGoBack("/stock/count");
-  
-  const currency = useCurrency()
+  const currency = useCurrency();
 
-  // Fetch stock count history with proper authentication context
-  const { data: historyData, isLoading, error } = useQuery({
-    queryKey: [ENDPOINTS.stockCounts.getAll, shopId, adminId, attendantId, fromDate, toDate, currentPage, itemsPerPage],
+  const { data: historyData, isLoading, refetch } = useQuery({
+    queryKey: [ENDPOINTS.stockCounts.getAll, shopId, adminId, attendantId, fromDate, toDate],
     queryFn: async () => {
       const params = new URLSearchParams({ fromDate, toDate });
-      if (shopId) params.append('shopId', String(shopId));
-      if (attendant) params.append('attendantId', String(attendant._id));
-      const response = await apiRequest("GET", `${ENDPOINTS.stockCounts.getAll}?${params.toString()}`);
-      const json = await response.json();
-      return json;
+      if (shopId) params.append("shopId", String(shopId));
+      if (attendant) params.append("attendantId", String(attendant._id));
+      const res = await apiRequest("GET", `${ENDPOINTS.stockCounts.getAll}?${params}`);
+      return res.json();
     },
     enabled: !!shopId && !!adminId,
-    staleTime: 0, // Always consider data stale
-    refetchOnMount: 'always' // Always refetch when component mounts
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
-  const stockCounts: StockCountHistory[] = Array.isArray(historyData?.data) ? historyData.data : Array.isArray(historyData) ? historyData : [];
+  const allCounts: StockCountHistory[] = Array.isArray(historyData?.data) ? historyData.data : Array.isArray(historyData) ? historyData : [];
 
-  // Function to fetch stock analysis data
-  const fetchStockAnalysis = async () => {
-    if (!shopId) return;
-    
-    setIsLoadingAnalysis(true);
-    try {
-      const params = new URLSearchParams({
-        fromDate: analysisFromDate,
-        toDate: analysisToDate,
-        shopId: shopId
-      });
-      
-      const response = await apiRequest("GET", `${ENDPOINTS.stockCounts.countAnalysis}?${params.toString()}`);
-      const data = await response.json();
-      setAnalysisData(data);
-    } catch (error) {
-      console.error('Stock analysis error:', error);
-      setAnalysisData({ error: 'Failed to fetch stock analysis data' });
-    } finally {
-      setIsLoadingAnalysis(false);
-    }
-  };
-
-  // Filter stock counts based on search query
-  const filteredCounts = stockCounts.filter((count) =>
-    String(count.conductedBy ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    String(count.id).includes(searchQuery.toLowerCase())
+  const filtered = allCounts.filter((c) =>
+    String(c.id).includes(searchQuery) ||
+    String(c.conductedBy ?? "").includes(searchQuery)
   );
 
-  // Pagination
-  const totalItems = filteredCounts.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedCounts = filteredCounts.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+  // Aggregate stats
+  const totalSessions = allCounts.length;
+  const totalItems = allCounts.reduce((s, c) => s + c.stockCountItems.length, 0);
+  const totalVariance = allCounts.reduce((s, c) =>
+    s + c.stockCountItems.reduce((ss, i) => ss + fmt(i.variance), 0), 0);
 
-
-  const handleExport = (format: 'pdf' | 'csv') => {
-    if (format === 'pdf') {
-      exportToPDF();
-    } else {
-      console.log(`Exporting stock count history as ${format}`);
-    }
-  };
-
-  const exportToPDF = () => {
-    console.log("Exporting stock count history as pdf");
-    
+  const exportPDF = () => {
     const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.width;
-    
-    // Header
-    doc.setFontSize(20);
-    doc.text('Stock Count History Report', pageWidth / 2, 20, { align: 'center' });
-    
-    doc.setFontSize(12);
-    doc.text(`Period: ${fromDate} to ${toDate}`, pageWidth / 2, 30, { align: 'center' });
-    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, 40, { align: 'center' });
-    
-    // Add detailed product counts table
-    if (filteredCounts && filteredCounts.length > 0) {
-      const tableData: any[] = [];
-      
-      filteredCounts.forEach((count) => {
-        const dateTime = `${new Date(count.createdAt).toLocaleDateString()} ${new Date(count.createdAt).toLocaleTimeString()}`;
-        const attendantLabel = count.conductedBy ? `Attendant #${count.conductedBy}` : 'Unknown';
-
-        if (count.stockCountItems && count.stockCountItems.length > 0) {
-          count.stockCountItems.forEach((item) => {
-            const variance = parseFloat(String(item.variance ?? 0));
-            tableData.push([
-              dateTime,
-              attendantLabel,
-              item.productName,
-              item.systemCount ?? 0,
-              item.physicalCount ?? 0,
-              `${variance > 0 ? '+' : ''}${variance}`
-            ]);
-          });
-        } else {
-          tableData.push([
-            dateTime,
-            attendantLabel,
-            'No products counted',
-            '-',
-            '-',
-            '0'
-          ]);
-        }
-      });
-      
-      autoTable(doc, {
-        startY: 60,
-        head: [['Date & Time', 'Attendant', 'Product', 'System Count', 'Physical Count', 'Variance']],
-        body: tableData,
-        styles: { fontSize: 9 },
-        headStyles: { fillColor: [66, 139, 202] },
-        margin: { left: 15, right: 15 },
-        columnStyles: {
-          0: { cellWidth: 35 }, // Date & Time
-          1: { cellWidth: 25 }, // Attendant
-          2: { cellWidth: 40 }, // Product
-          3: { cellWidth: 20 }, // System Count
-          4: { cellWidth: 25 }, // Physical Count
-          5: { cellWidth: 20 }  // Variance
-        }
-      });
-    } else {
-      doc.setFontSize(12);
-      doc.text('No stock count sessions found for the selected period.', 20, 60);
-    }
-    
-    // Save the PDF
-    const fileName = `stock-count-history-${fromDate}-to-${toDate}.pdf`;
-    doc.save(fileName);
+    const pw = doc.internal.pageSize.width;
+    doc.setFontSize(16);
+    doc.text("Stock Count History", pw / 2, 16, { align: "center" });
+    doc.setFontSize(10);
+    doc.text(`${fromDate} → ${toDate}`, pw / 2, 23, { align: "center" });
+    const rows: any[] = [];
+    filtered.forEach((c) => {
+      const date = new Date(c.createdAt).toLocaleString();
+      const by = c.conductedBy ? `#${c.conductedBy}` : "—";
+      if (c.stockCountItems.length) {
+        c.stockCountItems.forEach((i) => {
+          const v = fmt(i.variance);
+          rows.push([date, by, i.productName, i.systemCount, i.physicalCount, v > 0 ? `+${v}` : String(v)]);
+        });
+      } else {
+        rows.push([date, by, "—", "—", "—", "0"]);
+      }
+    });
+    autoTable(doc, {
+      startY: 30,
+      head: [["Date", "By", "Product", "System", "Physical", "Variance"]],
+      body: rows,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [79, 70, 229] },
+    });
+    doc.save(`stock-count-${fromDate}-${toDate}.pdf`);
   };
-
-  if (error) {
-    return (
-      <DashboardLayout>
-        <div className="p-6">
-          <div className="text-center py-8">
-            <div className="text-red-600">Error loading stock count history</div>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="space-y-4">
-          {/* Back Button */}
-          <div className="flex items-center">
-            <Button 
-              variant="outline" 
-              onClick={goBack}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              {attendant ? "Back to Dashboard" : "Back to Stock Count"}
+      <div className="flex flex-col h-full">
+        {/* ── Top bar ── */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b bg-white flex-wrap">
+          <Button variant="ghost" size="sm" onClick={goBack} className="h-8 px-2 gap-1 text-xs">
+            <ArrowLeft className="h-3.5 w-3.5" /> Back
+          </Button>
+          <span className="font-semibold text-sm">Stock Count History</span>
+
+          {/* Date range */}
+          <div className="flex items-center gap-1.5 ml-2">
+            <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setCurrentPage(1); }} className="h-8 text-xs w-36" />
+            <span className="text-gray-400 text-xs">→</span>
+            <Input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setCurrentPage(1); }} className="h-8 text-xs w-36" />
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => refetch()} title="Refresh">
+              <RefreshCw className="h-3.5 w-3.5" />
             </Button>
           </div>
-          
-          {/* Header with Title and Action Buttons */}
-          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Stock Count History</h1>
-              <p className="text-gray-600">View and manage past stock count sessions</p>
-            </div>
-            
-            <div className="flex flex-wrap gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setIsAnalysisDialogOpen(true)}
-                className="flex items-center gap-2"
-              >
-                <BarChart3 className="h-4 w-4" />
-                View Count Analysis
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => handleExport('csv')}
-                className="flex items-center gap-2"
-              >
-                <FileText className="h-4 w-4" />
-                Export CSV
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => handleExport('pdf')}
-                className="flex items-center gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Export PDF
-              </Button>
-            </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Input placeholder="Search…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 text-xs w-40" />
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={exportPDF}>
+              <Download className="h-3.5 w-3.5" /> Export PDF
+            </Button>
           </div>
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-wrap gap-4 items-center">
-              {/* Custom Date Range */}
-              <div className="flex gap-2 items-center">
-                <Calendar className="h-4 w-4 text-gray-400" />
-                <Input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="w-40"
-                />
-                <span className="text-gray-500">to</span>
-                <Input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="w-40"
-                />
-              </div>
+        {/* ── Summary strip ── */}
+        <div className="flex items-center gap-6 px-4 py-2 bg-gray-50 border-b text-xs text-gray-600">
+          <span><span className="font-semibold text-gray-900">{totalSessions}</span> sessions</span>
+          <span><span className="font-semibold text-gray-900">{totalItems}</span> items counted</span>
+          <span>
+            Net variance:{" "}
+            <span className={`font-semibold ${totalVariance === 0 ? "text-gray-700" : totalVariance > 0 ? "text-blue-600" : "text-red-500"}`}>
+              {totalVariance > 0 ? `+${totalVariance.toFixed(0)}` : totalVariance.toFixed(0)}
+            </span>
+          </span>
+        </div>
 
-              {/* Search */}
-              <div className="relative flex-1 min-w-64">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by attendant or count ID..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-
-              {/* Clear Filters Button */}
-              <Button 
-                onClick={() => {
-                  const today = new Date().toISOString().split('T')[0];
-                  setFromDate(today);
-                  setToDate(today);
-                  setSearchQuery('');
-                }}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Clear Filters
-              </Button>
+        {/* ── Table ── */}
+        <div className="flex-1 overflow-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-40 text-gray-400 text-sm gap-2">
+              <RefreshCw className="h-4 w-4 animate-spin" /> Loading…
             </div>
-          </CardContent>
-        </Card>
+          ) : paginated.length === 0 ? (
+            <div className="flex items-center justify-center h-40 text-gray-400 text-sm">
+              No sessions found for selected period
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
+                  <th className="text-left px-4 py-2 font-medium">Date & Time</th>
+                  <th className="text-left px-3 py-2 font-medium">Conducted By</th>
+                  <th className="text-center px-3 py-2 font-medium">Items</th>
+                  <th className="text-center px-3 py-2 font-medium">Net Variance</th>
+                  <th className="w-10 px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {paginated.map((count) => {
+                  const isExpanded = expandedId === count.id;
+                  const netVariance = count.stockCountItems.reduce((s, i) => s + fmt(i.variance), 0);
 
+                  return (
+                    <React.Fragment key={count.id}>
+                      <tr
+                        className={`hover:bg-gray-50 cursor-pointer transition-colors ${isExpanded ? "bg-indigo-50/50" : ""}`}
+                        onClick={() => setExpandedId(isExpanded ? null : count.id)}
+                      >
+                        <td className="px-4 py-2.5">
+                          <div className="font-medium text-gray-900 leading-tight">
+                            {new Date(count.createdAt).toLocaleDateString()}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {new Date(count.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-600 text-xs">
+                          {count.conductedBy ? `Attendant #${count.conductedBy}` : "Admin"}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
+                            {count.stockCountItems.length}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {count.stockCountItems.length > 0 ? (
+                            <span className={`text-xs font-semibold ${netVariance === 0 ? "text-green-600" : netVariance > 0 ? "text-blue-600" : "text-red-500"}`}>
+                              {netVariance > 0 ? `+${netVariance.toFixed(0)}` : netVariance.toFixed(0)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-300">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-400">
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </td>
+                      </tr>
 
-
-        {/* History Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Stock Count Sessions</CardTitle>
-            <CardDescription>
-              Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems} sessions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center py-8">
-                <div className="text-gray-600">Loading stock count history...</div>
-              </div>
-            ) : paginatedCounts.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-gray-600">No stock count sessions found for the selected period.</div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-4 font-medium">Date & Time</th>
-                      <th className="text-left p-4 font-medium">Attendant</th>
-                      <th className="text-left p-4 font-medium">Products</th>
-                      <th className="text-left p-4 font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedCounts.map((count) => (
-                      <React.Fragment key={count.id}>
-                        <tr 
-                          className="border-b hover:bg-gray-50 cursor-pointer"
-                          onClick={() => setExpandedSession(expandedSession === String(count.id) ? null : String(count.id))}
-                        >
-                          <td className="p-4">
-                            <div className="text-sm">
-                              <div className="font-medium">
-                                {new Date(count.createdAt).toLocaleDateString()}
-                              </div>
-                              <div className="text-gray-500">
-                                {new Date(count.createdAt).toLocaleTimeString()}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <div className="text-sm">
-                              {count.conductedBy ? `Attendant #${count.conductedBy}` : 'Unknown'}
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <div className="text-sm font-medium">
-                              {count.stockCountItems?.length || 0} items
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <Button variant="ghost" size="sm">
-                              {expandedSession === String(count.id) ? (
-                                <ChevronUp className="h-4 w-4" />
+                      {/* Expanded items */}
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={5} className="px-0 py-0 bg-indigo-50/30">
+                            <div className="border-l-4 border-indigo-400 mx-4 my-2 rounded overflow-hidden">
+                              {count.stockCountItems.length === 0 ? (
+                                <div className="px-4 py-3 text-xs text-gray-400">No items in this session</div>
                               ) : (
-                                <ChevronDown className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </td>
-                        </tr>
-                        
-                        {/* Expanded Product Details Row */}
-                        {expandedSession === String(count.id) && (
-                          <tr className="bg-gray-50">
-                            <td colSpan={4} className="p-0">
-                              <div className="p-4 border-l-4 border-blue-500">
-                                <h4 className="font-medium text-sm mb-3">Individual Product Counts</h4>
-                                <div className="overflow-x-auto">
-                                  <table className="w-full text-sm">
-                                    <thead>
-                                      <tr className="border-b border-gray-200">
-                                        <th className="text-left py-2 font-medium">Product Name</th>
-                                        <th className="text-left py-2 font-medium">System Qty</th>
-                                        <th className="text-left py-2 font-medium">Physical Count</th>
-                                        <th className="text-left py-2 font-medium">Variance</th>
-                                        <th className="text-left py-2 font-medium">Date & Time</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {count.stockCountItems && count.stockCountItems.length > 0 ? (
-                                        count.stockCountItems.map((item) => {
-                                          const variance = parseFloat(String(item.variance ?? 0));
-                                          return (
-                                          <tr key={item.id} className="border-b border-gray-100">
-                                            <td className="py-2">
-                                              <div className="font-medium">{item.productName}</div>
-                                            </td>
-                                            <td className="py-2">{item.systemCount ?? 0}</td>
-                                            <td className="py-2">{item.physicalCount ?? 0}</td>
-                                            <td className="py-2">
-                                              <span className={`font-medium ${
-                                                variance === 0 ? 'text-green-600' :
-                                                variance > 0 ? 'text-blue-600' : 'text-red-600'
-                                              }`}>
-                                                {variance > 0 ? '+' : ''}{variance}
-                                              </span>
-                                            </td>
-                                            <td className="py-2">
-                                              <div className="text-xs text-gray-600">
-                                                <div>{new Date(count.createdAt).toLocaleDateString()}</div>
-                                                <div>{new Date(count.createdAt).toLocaleTimeString()}</div>
-                                              </div>
-                                            </td>
-                                          </tr>
-                                          );
-                                        })
-                                      ) : (
-                                        <tr>
-                                          <td colSpan={5} className="py-4 text-center text-gray-500">
-                                            No product details available
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="bg-indigo-50 border-b border-indigo-100 text-indigo-700">
+                                      <th className="text-left px-4 py-1.5 font-medium">Product</th>
+                                      <th className="text-center px-3 py-1.5 font-medium">System</th>
+                                      <th className="text-center px-3 py-1.5 font-medium">Physical</th>
+                                      <th className="text-center px-3 py-1.5 font-medium">Variance</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-indigo-50">
+                                    {count.stockCountItems.map((item) => {
+                                      const v = fmt(item.variance);
+                                      return (
+                                        <tr key={item.id} className="bg-white">
+                                          <td className="px-4 py-1.5 font-medium text-gray-800">{item.productName}</td>
+                                          <td className="text-center px-3 py-1.5 text-gray-500">{item.systemCount}</td>
+                                          <td className="text-center px-3 py-1.5 text-gray-700">{item.physicalCount}</td>
+                                          <td className="text-center px-3 py-1.5">
+                                            <span className={`font-semibold ${v === 0 ? "text-green-600" : v > 0 ? "text-blue-600" : "text-red-500"}`}>
+                                              {v > 0 ? `+${v}` : v}
+                                            </span>
                                           </td>
                                         </tr>
-                                      )}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Items per page:</span>
-                  <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(Number(value))}>
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  
-                  <span className="text-sm text-gray-600">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Stock Analysis Dialog */}
-        <Dialog open={isAnalysisDialogOpen} onOpenChange={setIsAnalysisDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Stock Count Analysis</DialogTitle>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              {/* Date Filters */}
-              <div className="flex gap-4 items-end">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">From Date</label>
-                  <Input
-                    type="date"
-                    value={analysisFromDate}
-                    onChange={(e) => setAnalysisFromDate(e.target.value)}
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">To Date</label>
-                  <Input
-                    type="date"
-                    value={analysisToDate}
-                    onChange={(e) => setAnalysisToDate(e.target.value)}
-                  />
-                </div>
-                <Button 
-                  onClick={fetchStockAnalysis}
-                  disabled={isLoadingAnalysis}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  {isLoadingAnalysis ? "Loading..." : "Get Analysis"}
-                </Button>
-              </div>
-
-              {/* Analysis Results */}
-              <div className="mt-6">
-                {isLoadingAnalysis && (
-                  <div className="text-center py-8">
-                    <div className="text-gray-600">Loading stock analysis...</div>
-                  </div>
-                )}
-                
-                {analysisData && !isLoadingAnalysis && (
-                  <div className="space-y-4">
-                    {analysisData.error ? (
-                      <div className="text-red-600 text-center py-4">
-                        {analysisData.error}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Recovery Analysis */}
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              <Eye className="h-5 w-5 text-green-600" />
-                              Stock Recovery
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">Total Recovered Quantity:</span>
-                              <span className="font-semibold text-green-600">
-                                {analysisData.totalRecoveredQty || 0} items
-                              </span>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              )}
                             </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">Total Recovered Value:</span>
-                              <span className="font-semibold text-green-600">
-                                {currency} {analysisData.totalRecoveredCost || 0}
-                              </span>
-                            </div>
-                          </CardContent>
-                        </Card>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
 
-                        {/* Loss Analysis */}
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              <AlertTriangle className="h-5 w-5 text-red-600" />
-                              Stock Loss
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">Total Lost Quantity:</span>
-                              <span className="font-semibold text-red-600">
-                                {analysisData.totalLostQty || 0} items
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">Total Lost Value:</span>
-                              <span className="font-semibold text-red-600">
-                                {currency} {analysisData.totalLostCost || 0}
-                              </span>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        {/* Summary Card */}
-                        <Card className="md:col-span-2">
-                          <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              <BarChart3 className="h-5 w-5 text-blue-600" />
-                              Analysis Summary
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                              <div className="text-center p-4 bg-green-50 rounded-lg">
-                                <div className="text-2xl font-bold text-green-600">
-                                  {analysisData.totalRecoveredQty || 0}
-                                </div>
-                                <div className="text-sm text-gray-600">Items Recovered</div>
-                              </div>
-                              <div className="text-center p-4 bg-red-50 rounded-lg">
-                                <div className="text-2xl font-bold text-red-600">
-                                  {analysisData.totalLostQty || 0}
-                                </div>
-                                <div className="text-sm text-gray-600">Items Lost</div>
-                              </div>
-                              <div className="text-center p-4 bg-green-50 rounded-lg">
-                                <div className="text-lg font-bold text-green-600">
-                                  {currency} {analysisData.totalRecoveredCost || 0}
-                                </div>
-                                <div className="text-sm text-gray-600">Value Recovered</div>
-                              </div>
-                              <div className="text-center p-4 bg-red-50 rounded-lg">
-                                <div className="text-lg font-bold text-red-600">
-                                  {currency} {analysisData.totalLostCost || 0}
-                                </div>
-                                <div className="text-sm text-gray-600">Value Lost</div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {!analysisData && !isLoadingAnalysis && (
-                  <div className="text-center py-8 text-gray-500">
-                    Select dates and click "Get Analysis" to view stock count analysis
-                  </div>
-                )}
-              </div>
+        {/* ── Pagination ── */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-2 border-t bg-white text-xs text-gray-500">
+            <span>{filtered.length} sessions</span>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>
+                ‹ Prev
+              </Button>
+              <span className="px-2">Page {currentPage} of {totalPages}</span>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
+                Next ›
+              </Button>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
