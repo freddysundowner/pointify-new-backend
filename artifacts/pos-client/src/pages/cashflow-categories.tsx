@@ -94,7 +94,7 @@ export default function CashflowCategories() {
       return await apiRequest('POST', ENDPOINTS.cashflow.createCategory, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow-categories-page", effectiveShopId] });
       toast({
         title: "Success",
         description: "Category created successfully",
@@ -117,7 +117,7 @@ export default function CashflowCategories() {
       return await apiRequest('PUT', ENDPOINTS.cashflow.updateCategory(data.id), { name: data.name, type: data.type });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow-categories-page", effectiveShopId] });
       toast({
         title: "Success",
         description: "Category updated successfully",
@@ -139,7 +139,7 @@ export default function CashflowCategories() {
       return await apiRequest('DELETE', ENDPOINTS.cashflow.deleteCategory(id));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId] });
+      queryClient.invalidateQueries({ queryKey: ["cashflow-categories-page", effectiveShopId] });
       toast({
         title: "Success",
         description: "Category deleted successfully",
