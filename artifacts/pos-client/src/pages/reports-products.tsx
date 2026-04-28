@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import {
   TrendingUp, ArrowLeft, RefreshCw, Package, AlertTriangle,
-  BarChart2, Layers, Tag,
+  BarChart2, Layers, Tag, Download,
 } from "lucide-react";
 import { RootState } from "@/store";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
@@ -25,6 +25,28 @@ const qty = (v: any) => {
   return isNaN(num) ? "0" : num.toLocaleString(undefined, { maximumFractionDigits: 2 });
 };
 const pct = (v: any) => `${Math.round(n(v))}%`;
+
+const downloadCSV = (rows: any[], filename: string) => {
+  if (!rows.length) return;
+  const headers = Object.keys(rows[0]);
+  const lines = [
+    headers.join(","),
+    ...rows.map(r =>
+      headers.map(h => {
+        const val = r[h] ?? "";
+        const str = String(val).replace(/"/g, '""');
+        return str.includes(",") || str.includes("\n") || str.includes('"') ? `"${str}"` : str;
+      }).join(",")
+    ),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
 const QUICK = [
   { label: "Today", days: 1 },
@@ -408,9 +430,27 @@ export default function ProductsReportPage() {
                 {outOfStock.length > 0 && (
                   <Card className="border-0 shadow-sm border-l-4 border-l-red-400">
                     <CardContent className="p-4">
-                      <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-3 flex items-center gap-1">
-                        <AlertTriangle className="h-3.5 w-3.5" /> Out of Stock ({outOfStock.length})
-                      </p>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-semibold text-red-500 uppercase tracking-wide flex items-center gap-1">
+                          <AlertTriangle className="h-3.5 w-3.5" /> Out of Stock ({outOfStock.length})
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                          onClick={() => downloadCSV(
+                            outOfStock.map(r => ({
+                              Product: r.productName ?? "",
+                              Quantity: n(r.quantity),
+                              "Buy Price (KES)": n(r.buyingPrice),
+                              "Sell Price (KES)": n(r.sellingPrice),
+                            })),
+                            "out-of-stock-products.csv"
+                          )}
+                        >
+                          <Download className="h-3 w-3" /> Export CSV
+                        </Button>
+                      </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
@@ -441,9 +481,27 @@ export default function ProductsReportPage() {
                 {lowStock.length > 0 && (
                   <Card className="border-0 shadow-sm border-l-4 border-l-amber-400">
                     <CardContent className="p-4">
-                      <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-3 flex items-center gap-1">
-                        <AlertTriangle className="h-3.5 w-3.5" /> Low Stock — under 10 units ({lowStock.length})
-                      </p>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide flex items-center gap-1">
+                          <AlertTriangle className="h-3.5 w-3.5" /> Low Stock — under 10 units ({lowStock.length})
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs gap-1 text-amber-600 border-amber-200 hover:bg-amber-50"
+                          onClick={() => downloadCSV(
+                            lowStock.map(r => ({
+                              Product: r.productName ?? "",
+                              "Qty Left": n(r.quantity),
+                              "Stock Value (KES)": n(r.stockValueAtCost),
+                              "Retail Value (KES)": n(r.stockValueAtSale),
+                            })),
+                            "low-stock-products.csv"
+                          )}
+                        >
+                          <Download className="h-3 w-3" /> Export CSV
+                        </Button>
+                      </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
