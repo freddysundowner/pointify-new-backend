@@ -1,6 +1,8 @@
 import { useLocation, useParams } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
 import { extractId } from "@/lib/utils";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/store";
 import { useNavigationRoute } from "@/lib/navigation-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,9 +44,10 @@ export default function PurchaseEditPage() {
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Get admin data for suppliers API
+  // Get shop ID — prefer Redux selected shop so it respects shop switching
+  const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const adminData = JSON.parse(localStorage.getItem('adminData') || '{}');
-  const shopId = extractId(adminData?.primaryShop);
+  const shopId = selectedShopId || String(extractId(adminData?.primaryShop) ?? '');
 
   // Load suppliers with shopId parameter
   const { data: suppliers = [] } = useQuery({

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizeId, normalizeIds, extractId } from "@/lib/utils";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/store";
 import { Search, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./dialog";
 import { Input } from "./input";
@@ -34,14 +36,15 @@ export default function SupplierSelector({
   const { admin } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { selectedShopId } = useSelector((state: RootState) => state.shop);
 
-  // Get shop ID from auth context
+  // Get shop ID — prefer Redux selected shop over primary shop
   const getShopId = (primaryShop: any) => {
     if (!primaryShop) return "";
     return String(extractId(primaryShop) ?? "");
   };
 
-  const shopId = getShopId(admin?.primaryShop);
+  const shopId = selectedShopId || getShopId(admin?.primaryShop);
 
   // Fetch suppliers from API
   const { data: suppliersResponse, isLoading, error } = useQuery({

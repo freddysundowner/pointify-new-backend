@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -162,6 +164,7 @@ export default function BulkCreateProducts() {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { selectedShopId } = useSelector((state: RootState) => state.shop);
 
   const createProductMutation = useMutation({
     mutationFn: async (product: any) => {
@@ -191,7 +194,7 @@ export default function BulkCreateProducts() {
 
     const adminData = JSON.parse(adminDataStr);
     const attendantId = adminData.attendantId?._id || adminData._id;
-    const shopId = extractId(adminData?.primaryShop);
+    const shopId = selectedShopId || String(extractId(adminData?.primaryShop) ?? '');
 
     for (let i = 0; i < productTemplates.length; i++) {
       const template = productTemplates[i];
