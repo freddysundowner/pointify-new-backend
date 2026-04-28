@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ArrowLeft, Trash2, Store, CreditCard, Receipt, Settings2, Shield, Save,
+  ArrowLeft, Trash2, Store, Receipt, Settings2, Shield, Save, Star,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
@@ -44,25 +44,45 @@ export default function ShopDetails() {
   });
 
   const [formData, setFormData] = useState({
+    // General
     name: "",
-    receiptEmail: "",
-    taxRate: 0,
     categoryId: "",
     address: "",
     currency: "KES",
-    allowNegativeSelling: false,
-    trackBatches: false,
-    allowOnlineSelling: true,
-    showStockOnline: false,
-    showPriceOnline: false,
-    backupInterval: "end_of_month",
-    allowBackup: true,
-    useWarehouse: false,
-    contact: "",
+    taxRate: 0,
+
+    // Receipt
+    receiptEmail: "",
+    phone: "",                   // API field: phone → DB column: contact
     paybillTill: "",
     paybillAccount: "",
     receiptAddress: "",
+    receiptFooter: "",
+    receiptShowTax: true,
+    receiptShowDiscount: true,
+
+    // Operations
+    allowNegativeSelling: false,
+    trackBatches: false,
+    isWarehouse: false,          // API field: isWarehouse (was useWarehouse — bug fixed)
+    allowOnlineSelling: true,
+    showStockOnline: false,
+    showPriceOnline: false,
+
+    // Backup
+    allowBackup: true,
+    backupInterval: "end_of_month",
+    backupEmail: "",
+    warehouseEmail: "",
+
+    // Loyalty
+    loyaltyEnabled: false,
+    pointsPerAmount: "0",
+    pointsValue: "0",
   });
+
+  const set = <K extends keyof typeof formData>(key: K, value: typeof formData[K]) =>
+    setFormData(prev => ({ ...prev, [key]: value }));
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
@@ -85,28 +105,45 @@ export default function ShopDetails() {
   });
 
   useEffect(() => {
-    if (shop) {
-      setFormData({
-        name: shop.name || "",
-        receiptEmail: shop.receiptEmail || shop.email_receipt || "",
-        taxRate: shop.taxRate ?? shop.tax ?? 0,
-        categoryId: String((shop.categoryId?._id ?? shop.categoryId) ?? (shop.shopCategoryId?._id ?? shop.shopCategoryId) ?? ""),
-        address: shop.address || "",
-        currency: shop.currency || "KES",
-        allowNegativeSelling: shop.allowNegativeSelling ?? false,
-        trackBatches: shop.trackBatches ?? false,
-        allowOnlineSelling: shop.allowOnlineSelling ?? true,
-        showStockOnline: shop.showStockOnline ?? false,
-        showPriceOnline: shop.showPriceOnline ?? false,
-        backupInterval: shop.backupInterval || "end_of_month",
-        allowBackup: shop.allowBackup ?? true,
-        useWarehouse: shop.useWarehouse ?? false,
-        contact: shop.contact || "",
-        paybillTill: shop.paybillTill || shop.paybill_till || "",
-        paybillAccount: shop.paybillAccount || shop.paybill_account || "",
-        receiptAddress: shop.receiptAddress || shop.address_receipt || "",
-      });
-    }
+    if (!shop) return;
+    setFormData({
+      // General
+      name: shop.name || "",
+      // API GET returns `category` (integer), not `categoryId`
+      categoryId: shop.category != null ? String(shop.category) : "",
+      address: shop.address || "",
+      currency: shop.currency || "KES",
+      taxRate: parseFloat(shop.taxRate ?? shop.tax ?? "0") || 0,
+
+      // Receipt — DB column is `contact`, API GET returns `contact`
+      receiptEmail: shop.receiptEmail || "",
+      phone: shop.contact || "",
+      paybillTill: shop.paybillTill || "",
+      paybillAccount: shop.paybillAccount || "",
+      receiptAddress: shop.receiptAddress || "",
+      receiptFooter: shop.receiptFooter || "",
+      receiptShowTax: shop.receiptShowTax ?? true,
+      receiptShowDiscount: shop.receiptShowDiscount ?? true,
+
+      // Operations — API GET returns `isWarehouse`, not `useWarehouse`
+      allowNegativeSelling: shop.allowNegativeSelling ?? false,
+      trackBatches: shop.trackBatches ?? false,
+      isWarehouse: shop.isWarehouse ?? false,
+      allowOnlineSelling: shop.allowOnlineSelling ?? true,
+      showStockOnline: shop.showStockOnline ?? false,
+      showPriceOnline: shop.showPriceOnline ?? false,
+
+      // Backup
+      allowBackup: shop.allowBackup ?? true,
+      backupInterval: shop.backupInterval || "end_of_month",
+      backupEmail: shop.backupEmail || "",
+      warehouseEmail: shop.warehouseEmail || "",
+
+      // Loyalty
+      loyaltyEnabled: shop.loyaltyEnabled ?? false,
+      pointsPerAmount: shop.pointsPerAmount ?? "0",
+      pointsValue: shop.pointsValue ?? "0",
+    });
   }, [shop]);
 
   const updateShopMutation = useMutation({
@@ -129,24 +166,41 @@ export default function ShopDetails() {
 
   const handleSave = () => {
     updateShopMutation.mutate({
+      // General
       name: formData.name,
-      receiptEmail: formData.receiptEmail,
       categoryId: formData.categoryId || undefined,
       address: formData.address,
-      taxRate: formData.taxRate,
       currency: formData.currency,
-      allowNegativeSelling: formData.allowNegativeSelling,
-      trackBatches: formData.trackBatches,
-      allowOnlineSelling: formData.allowOnlineSelling,
-      showStockOnline: formData.showStockOnline,
-      showPriceOnline: formData.showPriceOnline,
-      backupInterval: formData.backupInterval,
-      allowBackup: formData.allowBackup,
-      useWarehouse: formData.useWarehouse,
-      contact: formData.contact,
+      taxRate: formData.taxRate,
+
+      // Receipt — API PUT reads `phone` for the contact field
+      receiptEmail: formData.receiptEmail,
+      phone: formData.phone,
       paybillTill: formData.paybillTill,
       paybillAccount: formData.paybillAccount,
       receiptAddress: formData.receiptAddress,
+      receiptFooter: formData.receiptFooter,
+      receiptShowTax: formData.receiptShowTax,
+      receiptShowDiscount: formData.receiptShowDiscount,
+
+      // Operations — API PUT reads `isWarehouse`
+      allowNegativeSelling: formData.allowNegativeSelling,
+      trackBatches: formData.trackBatches,
+      isWarehouse: formData.isWarehouse,
+      allowOnlineSelling: formData.allowOnlineSelling,
+      showStockOnline: formData.showStockOnline,
+      showPriceOnline: formData.showPriceOnline,
+
+      // Backup
+      allowBackup: formData.allowBackup,
+      backupInterval: formData.backupInterval,
+      backupEmail: formData.backupEmail,
+      warehouseEmail: formData.warehouseEmail,
+
+      // Loyalty
+      loyaltyEnabled: formData.loyaltyEnabled,
+      pointsPerAmount: formData.pointsPerAmount,
+      pointsValue: formData.pointsValue,
     });
   };
 
@@ -155,7 +209,7 @@ export default function ShopDetails() {
       isOpen: true,
       type: "input",
       title: "Delete Shop Data",
-      description: "This will permanently remove all products, transactions, and sales data. Type 'DELETE' to confirm.",
+      description: "Permanently removes all products, transactions and sales for this shop. Type 'DELETE' to confirm.",
       confirmText: "Delete Data",
       requiredInput: "DELETE",
       inputPlaceholder: "Type DELETE to confirm",
@@ -176,7 +230,7 @@ export default function ShopDetails() {
       isOpen: true,
       type: "input",
       title: "Delete Entire Shop",
-      description: "This will permanently delete this shop and ALL associated data. Type 'DELETE SHOP' to confirm.",
+      description: "Permanently deletes this shop and ALL associated data. Type 'DELETE SHOP' to confirm.",
       confirmText: "Delete Shop",
       requiredInput: "DELETE SHOP",
       inputPlaceholder: "Type DELETE SHOP to confirm",
@@ -193,17 +247,6 @@ export default function ShopDetails() {
       },
     });
   };
-
-  const field = (key: keyof typeof formData) => ({
-    value: formData[key] as string,
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-      setFormData(prev => ({ ...prev, [key]: e.target.value })),
-  });
-
-  const toggle = (key: keyof typeof formData) => ({
-    checked: formData[key] as boolean,
-    onCheckedChange: (v: boolean) => setFormData(prev => ({ ...prev, [key]: v })),
-  });
 
   if (isLoading) {
     return (
@@ -273,32 +316,34 @@ export default function ShopDetails() {
               <TabsTrigger value="operations" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
                 <Settings2 className="w-4 h-4" /> Operations
               </TabsTrigger>
+              <TabsTrigger value="loyalty" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
+                <Star className="w-4 h-4" /> Loyalty
+              </TabsTrigger>
               <TabsTrigger value="backup" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
-                <CreditCard className="w-4 h-4" /> Backup
+                <Shield className="w-4 h-4" /> Backup
               </TabsTrigger>
               <TabsTrigger value="danger" className="gap-2 data-[state=active]:bg-red-600 data-[state=active]:text-white rounded text-red-600">
-                <Shield className="w-4 h-4" /> Danger
+                <Trash2 className="w-4 h-4" /> Danger
               </TabsTrigger>
             </TabsList>
 
             {/* ── GENERAL ── */}
             <TabsContent value="general" className="space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Shop Information</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-base">Shop Information</CardTitle></CardHeader>
                 <CardContent className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div className="space-y-1.5">
                       <Label>Shop Name</Label>
-                      <Input placeholder="Your shop name" {...field("name")} />
+                      <Input
+                        placeholder="Your shop name"
+                        value={formData.name}
+                        onChange={e => set("name", e.target.value)}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Business Category</Label>
-                      <Select
-                        value={formData.categoryId}
-                        onValueChange={(v) => setFormData(prev => ({ ...prev, categoryId: v }))}
-                      >
+                      <Select value={formData.categoryId} onValueChange={v => set("categoryId", v)}>
                         <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                         <SelectContent>
                           {(categories as any[]).map((cat: any) => {
@@ -310,24 +355,23 @@ export default function ShopDetails() {
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label>Address</Label>
-                      <Input placeholder="Physical address" {...field("address")} />
+                      <Input
+                        placeholder="Physical address"
+                        value={formData.address}
+                        onChange={e => set("address", e.target.value)}
+                      />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Financial</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-base">Financial</CardTitle></CardHeader>
                 <CardContent className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div className="space-y-1.5">
                       <Label>Currency</Label>
-                      <Select
-                        value={formData.currency}
-                        onValueChange={(v) => setFormData(prev => ({ ...prev, currency: v }))}
-                      >
+                      <Select value={formData.currency} onValueChange={v => set("currency", v)}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="KES">KES — Kenyan Shilling</SelectItem>
@@ -351,7 +395,7 @@ export default function ShopDetails() {
                         max="100"
                         placeholder="0"
                         value={formData.taxRate}
-                        onChange={(e) => setFormData(prev => ({ ...prev, taxRate: parseFloat(e.target.value) || 0 }))}
+                        onChange={e => set("taxRate", parseFloat(e.target.value) || 0)}
                       />
                     </div>
                   </div>
@@ -362,32 +406,85 @@ export default function ShopDetails() {
             {/* ── RECEIPT ── */}
             <TabsContent value="receipt" className="space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Receipt & Contact Details</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-base">Contact & Payment Details</CardTitle></CardHeader>
                 <CardContent className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div className="space-y-1.5">
                       <Label>Receipt Email</Label>
-                      <Input type="email" placeholder="email@yourshop.com" {...field("receiptEmail")} />
+                      <Input
+                        type="email"
+                        placeholder="email@yourshop.com"
+                        value={formData.receiptEmail}
+                        onChange={e => set("receiptEmail", e.target.value)}
+                      />
                       <p className="text-xs text-gray-400">Shown on printed receipts</p>
                     </div>
                     <div className="space-y-1.5">
                       <Label>Contact / Phone</Label>
-                      <Input placeholder="+254 7xx xxx xxx" {...field("contact")} />
+                      <Input
+                        placeholder="+254 7xx xxx xxx"
+                        value={formData.phone}
+                        onChange={e => set("phone", e.target.value)}
+                      />
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label>Receipt Address</Label>
-                      <Input placeholder="Address shown on receipts" {...field("receiptAddress")} />
+                      <Input
+                        placeholder="Address shown on receipts"
+                        value={formData.receiptAddress}
+                        onChange={e => set("receiptAddress", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label>Receipt Footer</Label>
+                      <Input
+                        placeholder="e.g. Thank you for shopping with us!"
+                        value={formData.receiptFooter}
+                        onChange={e => set("receiptFooter", e.target.value)}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label>M-Pesa Paybill / Till</Label>
-                      <Input placeholder="e.g. 522522 or 0123456" {...field("paybillTill")} />
+                      <Input
+                        placeholder="e.g. 522522 or 0123456"
+                        value={formData.paybillTill}
+                        onChange={e => set("paybillTill", e.target.value)}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Paybill Account</Label>
-                      <Input placeholder="Account number" {...field("paybillAccount")} />
+                      <Input
+                        placeholder="Account number"
+                        value={formData.paybillAccount}
+                        onChange={e => set("paybillAccount", e.target.value)}
+                      />
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle className="text-base">Receipt Display Options</CardTitle></CardHeader>
+                <CardContent className="divide-y">
+                  <div className="flex items-center justify-between py-4 first:pt-0">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Show Tax on Receipt</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Display the tax line on printed and digital receipts</p>
+                    </div>
+                    <Switch
+                      checked={formData.receiptShowTax}
+                      onCheckedChange={v => set("receiptShowTax", v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between py-4 last:pb-0">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Show Discount on Receipt</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Display the discount line on printed and digital receipts</p>
+                    </div>
+                    <Switch
+                      checked={formData.receiptShowDiscount}
+                      onCheckedChange={v => set("receiptShowDiscount", v)}
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -396,50 +493,73 @@ export default function ShopDetails() {
             {/* ── OPERATIONS ── */}
             <TabsContent value="operations" className="space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Operational Settings</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-base">Operational Settings</CardTitle></CardHeader>
                 <CardContent className="divide-y">
                   {[
-                    {
-                      key: "allowNegativeSelling",
-                      label: "Negative Selling",
-                      desc: "Allow sales even when stock is at zero",
-                    },
-                    {
-                      key: "trackBatches",
-                      label: "Batch Tracking",
-                      desc: "Track product batches and expiry dates",
-                    },
-                    {
-                      key: "useWarehouse",
-                      label: "Warehouse Mode",
-                      desc: "Enable warehouse-based inventory management",
-                    },
-                    {
-                      key: "allowOnlineSelling",
-                      label: "Online Selling",
-                      desc: "List products on your online storefront",
-                    },
-                    {
-                      key: "showStockOnline",
-                      label: "Show Stock Levels Online",
-                      desc: "Display available quantity to online customers",
-                    },
-                    {
-                      key: "showPriceOnline",
-                      label: "Show Prices Online",
-                      desc: "Display product prices on your online store",
-                    },
+                    { key: "allowNegativeSelling", label: "Negative Selling", desc: "Allow sales even when stock is at zero" },
+                    { key: "trackBatches",          label: "Batch Tracking",    desc: "Track product batches and expiry dates" },
+                    { key: "isWarehouse",            label: "Warehouse Mode",    desc: "Enable warehouse-based inventory management" },
+                    { key: "allowOnlineSelling",     label: "Online Selling",    desc: "List products on your online storefront" },
+                    { key: "showStockOnline",        label: "Show Stock Online", desc: "Display available quantity to online customers" },
+                    { key: "showPriceOnline",        label: "Show Prices Online",desc: "Display product prices on your online store" },
                   ].map(({ key, label, desc }) => (
                     <div key={key} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
                       <div>
                         <p className="text-sm font-medium text-gray-800">{label}</p>
                         <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
                       </div>
-                      <Switch {...toggle(key as keyof typeof formData)} />
+                      <Switch
+                        checked={formData[key as keyof typeof formData] as boolean}
+                        onCheckedChange={v => set(key as keyof typeof formData, v as any)}
+                      />
                     </div>
                   ))}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ── LOYALTY ── */}
+            <TabsContent value="loyalty" className="space-y-6">
+              <Card>
+                <CardHeader><CardTitle className="text-base">Loyalty Programme</CardTitle></CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="flex items-center justify-between pb-4 border-b">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Enable Loyalty Programme</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Reward customers with points on every purchase</p>
+                    </div>
+                    <Switch
+                      checked={formData.loyaltyEnabled}
+                      onCheckedChange={v => set("loyaltyEnabled", v)}
+                    />
+                  </div>
+
+                  <div className={`grid grid-cols-1 sm:grid-cols-2 gap-5 transition-opacity ${formData.loyaltyEnabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+                    <div className="space-y-1.5">
+                      <Label>Points per Amount Spent</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="e.g. 1"
+                        value={formData.pointsPerAmount}
+                        onChange={e => set("pointsPerAmount", e.target.value)}
+                      />
+                      <p className="text-xs text-gray-400">Points earned per 1 unit of currency spent</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Point Value</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="e.g. 0.01"
+                        value={formData.pointsValue}
+                        onChange={e => set("pointsValue", e.target.value)}
+                      />
+                      <p className="text-xs text-gray-400">Cash value of 1 loyalty point</p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -447,38 +567,51 @@ export default function ShopDetails() {
             {/* ── BACKUP ── */}
             <TabsContent value="backup" className="space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Backup Settings</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-base">Backup Settings</CardTitle></CardHeader>
                 <CardContent className="space-y-5">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between pb-4 border-b">
                     <div>
                       <p className="text-sm font-medium text-gray-800">Auto Backup</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Automatically email shop data backups</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Automatically email shop data backups on schedule</p>
                     </div>
-                    <Switch {...toggle("allowBackup")} />
+                    <Switch
+                      checked={formData.allowBackup}
+                      onCheckedChange={v => set("allowBackup", v)}
+                    />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label>Backup Email</Label>
-                    <Input value={admin?.email || ""} readOnly className="bg-gray-50 text-gray-500 cursor-not-allowed" />
-                    <p className="text-xs text-gray-400">Uses your admin account email</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label>Backup Frequency</Label>
-                    <Select
-                      value={formData.backupInterval}
-                      onValueChange={(v) => setFormData(prev => ({ ...prev, backupInterval: v }))}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="end_of_month">Monthly (end of month)</SelectItem>
-                        <SelectItem value="yearly">Yearly</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="space-y-1.5">
+                      <Label>Backup Frequency</Label>
+                      <Select value={formData.backupInterval} onValueChange={v => set("backupInterval", v)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="daily">Daily</SelectItem>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="end_of_month">Monthly (end of month)</SelectItem>
+                          <SelectItem value="yearly">Yearly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Backup Email</Label>
+                      <Input
+                        type="email"
+                        placeholder="backup@yourshop.com"
+                        value={formData.backupEmail}
+                        onChange={e => set("backupEmail", e.target.value)}
+                      />
+                      <p className="text-xs text-gray-400">Leave blank to use your admin email</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Warehouse Email</Label>
+                      <Input
+                        type="email"
+                        placeholder="warehouse@yourshop.com"
+                        value={formData.warehouseEmail}
+                        onChange={e => set("warehouseEmail", e.target.value)}
+                      />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
