@@ -95,8 +95,8 @@ export default function SuppliersPage() {
     queryFn: async () => {
       if (!shopId) return [];
       const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
-      const data = await response.json();
-      return data || [];
+      const json = await response.json();
+      return Array.isArray(json) ? json : (json.data ?? []);
     },
     enabled: !!shopId
   });
@@ -145,7 +145,7 @@ export default function SuppliersPage() {
         address: data.address || '',
         shopId,
       };
-      const response = await apiRequest('PUT', ENDPOINTS.suppliers.update(selectedSupplier._id), payload);
+      const response = await apiRequest('PUT', ENDPOINTS.suppliers.update(selectedSupplier._id ?? selectedSupplier.id), payload);
       return await response.json();
     },
     onSuccess: () => {
@@ -250,7 +250,7 @@ export default function SuppliersPage() {
 
   const handleViewHistory = (supplier: Supplier) => {
     const route = isAttendantRoute ? '/attendant/supplier-history' : '/supplier-history';
-    navigate(`${route}?supplierId=${supplier._id}&supplierName=${encodeURIComponent(supplier.name)}`);
+    navigate(`${route}?supplierId=${supplier._id ?? supplier.id}&supplierName=${encodeURIComponent(supplier.name)}`);
   };
 
   const handlePayDebt = (supplier: Supplier) => {
@@ -263,7 +263,7 @@ export default function SuppliersPage() {
   const handlePaymentSubmit = () => {
     if (!selectedSupplier || paymentAmount <= 0) return;
     payDebtMutation.mutate({
-      supplierId: selectedSupplier._id,
+      supplierId: selectedSupplier._id ?? selectedSupplier.id,
       amount: paymentAmount
     });
   };
@@ -434,7 +434,7 @@ export default function SuppliersPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredSuppliers.map((supplier: Supplier) => (
-                    <TableRow key={supplier._id}>
+                    <TableRow key={supplier._id ?? supplier.id}>
                       <TableCell>
                         <div>
                           <p className="font-medium">{supplier.name}</p>
@@ -639,7 +639,7 @@ export default function SuppliersPage() {
         <AlertModal
           isOpen={isDeleteModalOpen}
           onClose={() => setIsDeleteModalOpen(false)}
-          onConfirm={() => selectedSupplier && deleteMutation.mutate(selectedSupplier._id)}
+          onConfirm={() => selectedSupplier && deleteMutation.mutate(selectedSupplier._id ?? selectedSupplier.id)}
           title="Delete Supplier"
           description={`Are you sure you want to delete ${selectedSupplier?.name}? This action cannot be undone.`}
           type="danger"
