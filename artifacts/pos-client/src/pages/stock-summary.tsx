@@ -2,9 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Package, AlertTriangle, DollarSign, BarChart3, ArrowLeft, Download, MousePointer } from "lucide-react";
+import { TrendingUp, Package, AlertTriangle, DollarSign, BarChart3, ArrowLeft, Download } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { apiRequest } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { usePermissions } from "@/hooks/usePermissions";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
@@ -174,213 +173,145 @@ export default function StockSummary() {
     }
   };
 
+  const totalProducts = Number(stockData?.totalProducts) || 0;
+  const lowstock = Number(stockData?.lowstock) || 0;
+  const outofstock = Number(stockData?.outofstock) || 0;
+  const healthyStock = totalProducts - lowstock - outofstock;
+  const totalStockValue = parseFloat(String(stockData?.totalStockValue ?? 0));
+  const profitEstimate = parseFloat(String(stockData?.profitEstimate ?? 0));
+  const totalQty = parseFloat(String(stockData?.totalstock ?? 0));
+  const profitMargin = totalStockValue > 0 ? ((profitEstimate / totalStockValue) * 100).toFixed(1) : "0.0";
+  const avgValue = totalQty > 0 ? Math.round(totalStockValue / totalQty) : 0;
+
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-4 space-y-4 max-w-5xl">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goBack}
-            className="flex items-center gap-2"
-          >
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={goBack} className="h-8 px-2">
             <ArrowLeft className="h-4 w-4" />
-            Back
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Stock Summary</h1>
-            <p className="text-gray-600">Overview of your inventory status and value</p>
+            <h1 className="text-lg font-bold leading-tight">Stock Summary</h1>
+            <p className="text-xs text-gray-500">Inventory status & value</p>
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-          {/* Total Stock Value */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Stock Value</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(stockData?.totalStockValue || 0)}
+        {/* Top stat cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <Card className="col-span-1">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-500">Stock Value</span>
+                <DollarSign className="h-3 w-3 text-green-600" />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Current inventory value
-              </p>
+              <div className="text-base font-bold text-green-600 truncate">{formatCurrency(totalStockValue)}</div>
             </CardContent>
           </Card>
 
-          {/* Profit Estimate */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Profit Estimate</CardTitle>
-              <TrendingUp className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {formatCurrency(stockData?.profitEstimate || 0)}
+          <Card className="col-span-1">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-500">Est. Profit</span>
+                <TrendingUp className="h-3 w-3 text-blue-600" />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Estimated profit margin
-              </p>
+              <div className="text-base font-bold text-blue-600 truncate">{formatCurrency(profitEstimate)}</div>
+              <div className="text-xs text-gray-400">margin {profitMargin}%</div>
             </CardContent>
           </Card>
 
-          {/* Total Products */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-              <Package className="h-4 w-4 text-gray-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {Number(stockData?.totalProducts) || 0}
+          <Card className="col-span-1">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-500">Products</span>
+                <Package className="h-3 w-3 text-gray-500" />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Products in inventory
-              </p>
+              <div className="text-base font-bold">{totalProducts}</div>
+              <div className="text-xs text-gray-400">{healthyStock} healthy</div>
             </CardContent>
           </Card>
 
-          {/* Low Stock */}
-          <Card 
-            className="cursor-pointer hover:shadow-md transition-shadow"
+          <Card
+            className="col-span-1 cursor-pointer hover:shadow-md transition-shadow"
             onClick={() => navigateToProducts('lowstock')}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                Low Stock 
-                <MousePointer className="h-3 w-3 text-orange-600" />
-              </CardTitle>
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {stockData?.lowstock || 0}
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-500">Low Stock</span>
+                <AlertTriangle className="h-3 w-3 text-orange-500" />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Products running low · Click to view
-              </p>
+              <div className="text-base font-bold text-orange-600">{lowstock}</div>
+              <div className="text-xs text-gray-400">tap to view</div>
             </CardContent>
           </Card>
 
-          {/* Out of Stock */}
-          <Card 
-            className="cursor-pointer hover:shadow-md transition-shadow"
+          <Card
+            className="col-span-1 cursor-pointer hover:shadow-md transition-shadow"
             onClick={() => navigateToProducts('outofstock')}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                Out of Stock 
-                <MousePointer className="h-3 w-3 text-red-600" />
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    downloadStockData('outofstock');
-                  }}
-                  className="h-7 px-2 text-xs hover:bg-red-50 border-red-200 text-red-600"
-                >
-                  <Download className="h-3 w-3 mr-1" />
-                  Download
-                </Button>
-                <AlertTriangle className="h-4 w-4 text-red-600" />
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-500 flex items-center gap-1">
+                  Out of Stock
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => { e.stopPropagation(); downloadStockData('outofstock'); }}
+                    className="h-4 w-4 p-0 ml-1 text-red-500 hover:text-red-700"
+                    title="Download"
+                  >
+                    <Download className="h-3 w-3" />
+                  </Button>
+                </span>
+                <AlertTriangle className="h-3 w-3 text-red-500" />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {stockData?.outofstock || 0}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Products out of stock · Click to view
-              </p>
+              <div className="text-base font-bold text-red-600">{outofstock}</div>
+              <div className="text-xs text-gray-400">tap to view</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Additional Insights */}
+        {/* Health + Financials combined */}
         {stockData && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Stock Health */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Stock Health Overview
+              <CardHeader className="px-4 pt-3 pb-1">
+                <CardTitle className="text-sm flex items-center gap-1.5">
+                  <BarChart3 className="h-4 w-4" /> Stock Health
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Healthy Stock</span>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-green-600 border-green-600">
-                      {Number(stockData.totalProducts) - Number(stockData.lowstock) - Number(stockData.outofstock)} products
-                    </Badge>
+              <CardContent className="px-4 pb-3 space-y-2">
+                {[
+                  { label: "Healthy", value: healthyStock, color: "text-green-600 border-green-300" },
+                  { label: "Low Stock", value: lowstock, color: "text-orange-600 border-orange-300" },
+                  { label: "Out of Stock", value: outofstock, color: "text-red-600 border-red-300" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex justify-between items-center">
+                    <span className="text-xs text-gray-600">{label}</span>
+                    <Badge variant="outline" className={`text-xs py-0 ${color}`}>{value} products</Badge>
                   </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Low Stock Alert</span>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-orange-600 border-orange-600">
-                      {stockData.lowstock} products
-                    </Badge>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Critical (Out of Stock)</span>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-red-600 border-red-600">
-                      {stockData.outofstock} products
-                    </Badge>
-                  </div>
-                </div>
+                ))}
               </CardContent>
             </Card>
 
-            {/* Financial Insights */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Financial Insights
+              <CardHeader className="px-4 pt-3 pb-1">
+                <CardTitle className="text-sm flex items-center gap-1.5">
+                  <DollarSign className="h-4 w-4" /> Financials
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Total Investment</span>
-                  <span className="font-semibold">
-                    {formatCurrency(stockData.totalStockValue)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Expected Profit</span>
-                  <span className="font-semibold text-green-600">
-                    {formatCurrency(stockData.profitEstimate)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Profit Margin</span>
-                  <span className="font-semibold text-blue-600">
-                    {parseFloat(String(stockData.totalStockValue ?? 0)) > 0
-                      ? `${((parseFloat(String(stockData.profitEstimate ?? 0)) / parseFloat(String(stockData.totalStockValue ?? 1))) * 100).toFixed(1)}%`
-                      : '0%'
-                    }
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Average Value per Product</span>
-                  <span className="font-semibold">
-                    {parseFloat(String(stockData.totalstock ?? 0)) > 0
-                      ? formatCurrency(Math.round(parseFloat(String(stockData.totalStockValue ?? 0)) / parseFloat(String(stockData.totalstock ?? 1))))
-                      : formatCurrency(0)
-                    }
-                  </span>
-                </div>
+              <CardContent className="px-4 pb-3 space-y-2">
+                {[
+                  { label: "Total Investment", value: formatCurrency(totalStockValue), color: "" },
+                  { label: "Expected Profit", value: formatCurrency(profitEstimate), color: "text-green-600" },
+                  { label: "Profit Margin", value: `${profitMargin}%`, color: "text-blue-600" },
+                  { label: "Avg Value / Product", value: formatCurrency(avgValue), color: "" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex justify-between items-center">
+                    <span className="text-xs text-gray-600">{label}</span>
+                    <span className={`text-xs font-semibold ${color}`}>{value}</span>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </div>
