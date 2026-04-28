@@ -69,10 +69,12 @@ import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
+import { useProducts } from "@/contexts/ProductsContext";
 
 function SalesList() {
   const { hasPermission, user, hasAttendantPermission } = usePermissions();
   const { admin } = useAuth();
+  const { refreshProducts } = useProducts();
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const [location, setLocation] = useLocation();
   const salesRoute = useNavigationRoute("sales");
@@ -371,9 +373,10 @@ function SalesList() {
       });
 
       if (response.ok) {
-        // Refresh sales data and stats
+        // Refresh sales data, stats, and product quantities
         refetch();
         refetchReport();
+        refreshProducts();
         toast({
           title: "Sale Deleted",
           description: `Sale #${saleToDelete.receiptNo} has been successfully deleted.`,

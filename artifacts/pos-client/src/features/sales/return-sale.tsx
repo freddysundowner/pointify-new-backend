@@ -16,6 +16,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useCurrency } from "@/utils";
+import { useProducts } from "@/contexts/ProductsContext";
 
 interface ReturnItem {
   id: number;
@@ -33,6 +34,7 @@ export default function ReturnSale() {
   const [attendantMatch, attendantParams] = useRoute("/attendant/sales/return/:id");
   const [, setLocation] = useLocation();
   const currency = useCurrency();
+  const { refreshProducts } = useProducts();
 
   const params = adminParams || attendantParams;
   const saleId = params?.id;
@@ -122,6 +124,7 @@ export default function ReturnSale() {
         queryClient.invalidateQueries({ queryKey: ["sale-detail", saleId] });
         queryClient.invalidateQueries({ queryKey: [ENDPOINTS.analytics.netProfit] });
         queryClient.invalidateQueries({ queryKey: [ENDPOINTS.analytics.profitLoss] });
+        refreshProducts();
         setAlertConfig({ title: "Return Successful", description: "The return has been processed successfully.", type: "success" });
         setShowAlert(true);
       } else {
