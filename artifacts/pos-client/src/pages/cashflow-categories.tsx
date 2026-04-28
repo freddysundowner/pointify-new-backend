@@ -78,8 +78,9 @@ export default function CashflowCategories() {
   const { data: categories = [], isLoading, error } = useQuery({
     queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId],
     queryFn: async () => {
-      const response = await apiRequest('GET', `${ENDPOINTS.cashflow.categories}?shop=${effectiveShopId}`);
-      return response.json();
+      const response = await apiRequest('GET', `${ENDPOINTS.cashflow.categories}?shopId=${effectiveShopId}`);
+      const json = await response.json();
+      return Array.isArray(json) ? json : (json?.data ?? []);
     },
     enabled: !!effectiveShopId,
     staleTime: 1 * 60 * 1000, // 1 minute - shorter stale time for more frequent updates
