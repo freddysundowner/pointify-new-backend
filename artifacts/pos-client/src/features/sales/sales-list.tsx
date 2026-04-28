@@ -914,7 +914,7 @@ function SalesList() {
         return "secondary";
       case "wallet":
         return "outline";
-      case "hold":
+      case "held":
         return "secondary";
       case "pending":
         return "outline";
@@ -996,7 +996,7 @@ function SalesList() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="hold">Hold</SelectItem>
+                    <SelectItem value="held">Hold</SelectItem>
                     <SelectItem value="cash">Cash</SelectItem>
                     <SelectItem value="mpesa">M-Pesa</SelectItem>
                     <SelectItem value="credit">Credit</SelectItem>
@@ -1250,8 +1250,8 @@ function SalesList() {
                                   Print Quotation
                                 </DropdownMenuItem>
 
-                                {/* Invoice + Complete Sale - only for hold status */}
-                                {sale.status === "hold" && (
+                                {/* Invoice + Complete Sale - only for held status */}
+                                {sale.status === "held" && (
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
@@ -1275,7 +1275,7 @@ function SalesList() {
                                 )}
 
                                 {/* Return Sale - Show for completed sales, for all admins or attendants with return permission */}
-                                {sale.status !== "hold" && (userType === 'admin' || hasAttendantPermission('sales', 'return')) && (
+                                {sale.status !== "held" && (userType === 'admin' || hasAttendantPermission('sales', 'return')) && (
                                   <DropdownMenuItem
                                     onClick={() => handleReturnSale(sale)}
                                   >
