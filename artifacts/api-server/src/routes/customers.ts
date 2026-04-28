@@ -393,7 +393,8 @@ router.post("/:id/wallet/payment", requireAdminOrAttendant, async (req, res, nex
         ...(isFullyPaid ? { status: "cashed" } : {}),
       }).where(eq(sales.id, sale.id));
 
-      // Record a salePayments entry for traceability
+      // Record a salePayments entry for traceability — tagged DEBT so the
+      // collected-debt report can identify it reliably.
       await db.insert(salePayments).values({
         sale: sale.id,
         amount: String(applied.toFixed(2)),
@@ -401,6 +402,7 @@ router.post("/:id/wallet/payment", requireAdminOrAttendant, async (req, res, nex
         paymentType: paymentType ?? "cash",
         paymentReference: paymentReference ?? null,
         receivedBy: req.attendant?.id ?? undefined,
+        paymentNo: "DEBT",
       });
 
       // Record a wallet transaction per sale — linked via saleId so it is cleaned up if the sale is deleted
