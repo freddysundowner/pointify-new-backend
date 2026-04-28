@@ -102,20 +102,50 @@ router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
 
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
 
-    const [result] = await db.select({
-      totalSales: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} NOT IN ('voided','refunded','returned') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
-      totalCount: sql<number>`COUNT(CASE WHEN ${sales.status} NOT IN ('voided','refunded','returned') THEN 1 END)`,
-      cash: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) IN ('cash') AND ${sales.status} = 'cashed' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
-      mpesa: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) SIMILAR TO '%(mpesa|m-pesa)%' AND ${sales.status} = 'cashed' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
-      credit: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'credit' AND ${sales.outstandingBalance}::numeric > 0 THEN ${sales.outstandingBalance}::numeric ELSE 0 END), 0)`,
-      wallet: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) = 'wallet' AND ${sales.status} = 'cashed' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
-      hold: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'held' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
-      bank: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) = 'bank' AND ${sales.status} = 'cashed' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
-    }).from(sales).where(where ?? sql`1=1`);
+    // Build parallel returns-subtraction query for the same shop/period
+    const returnsConditions: any[] = [];
+    if (req.attendant) {
+      returnsConditions.push(eq(saleReturns.shop, req.attendant.shopId));
+    } else {
+      if (shopId) returnsConditions.push(eq(saleReturns.shop, shopId));
+    }
+    if (from) returnsConditions.push(gte(saleReturns.createdAt, from));
+    if (to) {
+      const endOfDay2 = new Date(to);
+      endOfDay2.setHours(23, 59, 59, 999);
+      returnsConditions.push(lte(saleReturns.createdAt, endOfDay2));
+    }
+    const returnsWhere = returnsConditions.length > 1 ? and(...returnsConditions) : (returnsConditions[0] ?? sql`1=1`);
+
+    const [[result], [returnsResult]] = await Promise.all([
+      db.select({
+        grossSales: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} NOT IN ('voided','refunded','returned') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+        totalCount: sql<number>`COUNT(CASE WHEN ${sales.status} NOT IN ('voided','refunded','returned') THEN 1 END)`,
+        cash: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) IN ('cash') AND ${sales.status} = 'cashed' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+        mpesa: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) SIMILAR TO '%(mpesa|m-pesa)%' AND ${sales.status} = 'cashed' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+        credit: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'credit' AND ${sales.outstandingBalance}::numeric > 0 THEN ${sales.outstandingBalance}::numeric ELSE 0 END), 0)`,
+        wallet: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) = 'wallet' AND ${sales.status} = 'cashed' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+        hold: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'held' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+        bank: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) = 'bank' AND ${sales.status} = 'cashed' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+      }).from(sales).where(where ?? sql`1=1`),
+      db.select({
+        totalReturns: sql<string>`COALESCE(SUM(${saleReturns.refundAmount}::numeric), 0)`,
+      }).from(saleReturns)
+        .innerJoin(sales, and(
+          eq(saleReturns.sale, sales.id),
+          sql`${sales.status} NOT IN ('voided', 'held', 'refunded', 'returned')`,
+        ))
+        .where(returnsWhere),
+    ]);
+
+    const grossSales = Number(result.grossSales);
+    const totalReturns = Number(returnsResult.totalReturns);
 
     return ok(res, {
-      totalSales: Number(result.totalSales),
+      totalSales: Math.max(0, grossSales - totalReturns),
       totalCount: Number(result.totalCount),
+      returns: totalReturns,
+      grossSales,
       cashtransactions: Number(result.cash),
       mpesa: Number(result.mpesa),
       credit: Number(result.credit),

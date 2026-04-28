@@ -100,17 +100,16 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         note: saleReturn.returnNo,
       }))
     );
-    // Update the original sale's totals to reflect the returned amount
-    const newTotal = Math.max(0, parseFloat(sale.totalWithDiscount) - refundAmount);
-    const newAmountPaid = Math.max(0, parseFloat(sale.amountPaid) - refundAmount);
-    const newOutstanding = Math.max(0, parseFloat(sale.outstandingBalance ?? "0") - refundAmount);
-    const allReturned = newTotal <= 0;
-    await db.update(sales).set({
-      totalWithDiscount: String(newTotal.toFixed(2)),
-      amountPaid: String(newAmountPaid.toFixed(2)),
-      outstandingBalance: String(newOutstanding.toFixed(2)),
-      ...(allReturned ? { status: "returned" } : {}),
-    }).where(eq(sales.id, Number(saleId)));
+    // Mark the sale as returned if the full amount was refunded
+    const alreadyReturned = await db.$count(saleReturns, eq(saleReturns.sale, Number(saleId)));
+    const totalRefunded = (alreadyReturned > 0
+      ? (await db.select({ t: sql<string>`COALESCE(SUM(refundAmount::numeric),0)` })
+          .from(saleReturns).where(eq(saleReturns.sale, Number(saleId))))[0]?.t ?? "0"
+      : "0");
+    const totalRefundedSoFar = parseFloat(totalRefunded);
+    if (totalRefundedSoFar >= parseFloat(sale.totalWithDiscount)) {
+      await db.update(sales).set({ status: "returned" }).where(eq(sales.id, Number(saleId)));
+    }
 
     void notifySaleRefund(saleReturn.id);
     return created(res, { ...saleReturn, items: itemRows });

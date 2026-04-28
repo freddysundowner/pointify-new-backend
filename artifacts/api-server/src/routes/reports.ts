@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq, and, gte, lte, sql, desc, asc, ilike, notInArray } from "drizzle-orm";
 import {
-  sales, saleItems, salePayments, purchases, purchaseItems, expenses,
+  sales, saleItems, salePayments, saleReturns, purchases, purchaseItems, expenses,
   customers, suppliers, products, inventory, cashflows, admins,
   badStocks, stockCounts, stockCountItems, adjustments,
   expenseCategories, banks, shops, productCategories,
@@ -157,7 +157,10 @@ router.get("/profit-loss", requireAdmin, async (req, res, next) => {
       : sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`;
     const expensesWhere = shopDate(shopId, from, to, expenses);
 
-    const [[revenueSummary], [costSummary], [expensesSummary]] = await Promise.all([
+    // Returns subquery: only subtract returns for active (non-voided/returned) sales in the same period
+    const returnsWhere = shopDate(shopId, from, to, saleReturns);
+
+    const [[revenueSummary], [costSummary], [expensesSummary], [returnsSummary]] = await Promise.all([
       db.select({
         revenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
       }).from(sales).where(salesWhere),
@@ -169,14 +172,25 @@ router.get("/profit-loss", requireAdmin, async (req, res, next) => {
       db.select({
         totalExpenses: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)`,
       }).from(expenses).where(expensesWhere),
+      // Subtract only returns whose original sale is active (not voided/held/refunded/returned)
+      db.select({
+        totalReturns: sql<string>`COALESCE(SUM(${saleReturns.refundAmount}::numeric), 0)`,
+      }).from(saleReturns)
+        .innerJoin(sales, and(
+          eq(saleReturns.sale, sales.id),
+          sql`${sales.status} NOT IN ('voided', 'held', 'refunded', 'returned')`,
+        ))
+        .where(returnsWhere),
     ]);
 
-    const revenue = parseFloat(revenueSummary?.revenue ?? "0");
+    const grossRevenue = parseFloat(revenueSummary?.revenue ?? "0");
+    const totalReturns = parseFloat(returnsSummary?.totalReturns ?? "0");
+    const revenue = Math.max(0, grossRevenue - totalReturns);
     const cost = parseFloat(costSummary?.cost ?? "0");
     const expensesTotal = parseFloat(expensesSummary?.totalExpenses ?? "0");
     const profit = revenue - cost - expensesTotal;
 
-    return ok(res, { revenue, cost, expenses: expensesTotal, profit });
+    return ok(res, { revenue, cost, expenses: expensesTotal, profit, returns: totalReturns, grossRevenue });
   } catch (e) { next(e); }
 });
 
