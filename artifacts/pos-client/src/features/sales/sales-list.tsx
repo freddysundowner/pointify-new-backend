@@ -27,10 +27,15 @@ import {
   ArrowLeft,
   FileText,
   CheckCircle,
+  Mail,
+  Send,
+  Download,
 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -117,6 +122,10 @@ function SalesList() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [saleToDelete, setSaleToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [quotationDialogSale, setQuotationDialogSale] = useState<any>(null);
+  const [quotationMode, setQuotationMode] = useState<"options" | "email">("options");
+  const [quotationEmail, setQuotationEmail] = useState<string>("");
+  const [quotationEmailSending, setQuotationEmailSending] = useState(false);
 
   // Complete Sale (hold → cashed) state
   const [completeSaleOpen, setCompleteSaleOpen] = useState(false);
@@ -449,133 +458,174 @@ function SalesList() {
     }
   };
 
-  // Quotation PDF generator
-  const generateQuotationPDF = (sale: any) => {
-    try {
-      const originalSale = salesData.find((s: any) => (s.id ?? s._id) === sale.id);
-      const shop = currentShop || {};
-      const currency = shopCurrency || primaryShopCurrency;
-      const items: any[] = originalSale?.saleItems || sale.items || [];
+  // Builds the quotation jsPDF document and returns it
+  const buildQuotationDoc = (sale: any): jsPDF => {
+    const originalSale = salesData.find((s: any) => (s.id ?? s._id) === sale.id);
+    const shop = currentShop || {};
+    const currency = shopCurrency || primaryShopCurrency;
+    const items: any[] = originalSale?.saleItems || sale.items || [];
 
-      const doc = new jsPDF();
-      let y = 20;
+    const doc = new jsPDF();
+    let y = 20;
 
-      // Shop header
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text((shop.name || "Shop").toUpperCase(), 20, y);
-      y += 7;
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      if (shop.location || shop.address) {
-        doc.text(shop.location || shop.address, 20, y);
-        y += 6;
-      }
-      if (shop.contact || shop.phone) {
-        doc.text(`Tel: ${shop.contact || shop.phone}`, 20, y);
-        y += 6;
-      }
-      if ((shop as any).receiptEmail || (shop as any).email) {
-        doc.text(`Email: ${(shop as any).receiptEmail || (shop as any).email}`, 20, y);
-        y += 6;
-      }
-      if (shop.paybillTill || shop.paybill_till) {
-        doc.text(`PayBill/Till: ${shop.paybillTill || shop.paybill_till}`, 20, y);
-        y += 6;
-      }
-
-      y += 4;
-      // Title
-      doc.setFontSize(22);
-      doc.setFont("helvetica", "bold");
-      doc.text("QUOTATION", 105, y, { align: "center" });
-      y += 10;
-
-      // Date and number row
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Date: ${new Date(sale.saleDate).toLocaleDateString()}`, 20, y);
-      doc.text(`No: ${sale.receiptNo}`, 190, y, { align: "right" });
-      y += 8;
-
-      // Customer
-      if (sale.customerName && sale.customerName !== "Walk-in") {
-        doc.text(`Customer: ${sale.customerName}`, 20, y);
-        y += 7;
-      }
-
-      y += 4;
-
-      // Table header
-      doc.setFillColor(240, 240, 240);
-      doc.rect(20, y - 4, 170, 8, "F");
-      doc.setFont("helvetica", "bold");
-      doc.text("Item", 22, y);
-      doc.text("Qty", 110, y, { align: "right" });
-      doc.text("Unit Price", 145, y, { align: "right" });
-      doc.text("Total", 188, y, { align: "right" });
-      y += 10;
-      doc.line(20, y - 4, 190, y - 4);
-      doc.setFont("helvetica", "normal");
-
-      // Items
-      items.forEach((item: any) => {
-        const name = item.productName || item.product?.name || item.name || "Item";
-        const qty = item.quantity || 1;
-        const unitPrice = item.unitPrice || item.sellingPrice || 0;
-        const total = item.totalPrice || qty * unitPrice;
-
-        const lines = doc.splitTextToSize(name, 82);
-        doc.text(lines, 22, y);
-        doc.text(String(qty), 110, y, { align: "right" });
-        doc.text(`${currency} ${Number(unitPrice).toFixed(2)}`, 145, y, { align: "right" });
-        doc.text(`${currency} ${Number(total).toFixed(2)}`, 188, y, { align: "right" });
-        y += lines.length > 1 ? lines.length * 6 : 8;
-        if (y > 250) {
-          doc.addPage();
-          y = 20;
-        }
-      });
-
+    // Shop header
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text((shop.name || "Shop").toUpperCase(), 20, y);
+    y += 7;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    if (shop.location || shop.address) {
+      doc.text(shop.location || shop.address, 20, y);
       y += 6;
-      doc.line(20, y, 190, y);
-      y += 10;
+    }
+    if (shop.contact || shop.phone) {
+      doc.text(`Tel: ${shop.contact || shop.phone}`, 20, y);
+      y += 6;
+    }
+    if ((shop as any).receiptEmail || (shop as any).email) {
+      doc.text(`Email: ${(shop as any).receiptEmail || (shop as any).email}`, 20, y);
+      y += 6;
+    }
+    if (shop.paybillTill || shop.paybill_till) {
+      doc.text(`PayBill/Till: ${shop.paybillTill || shop.paybill_till}`, 20, y);
+      y += 6;
+    }
 
-      // Subtotal
-      const subtotal = originalSale?.totalAmount || sale.totalAmount || 0;
-      const tax = originalSale?.totaltax || 0;
-      const discount = originalSale?.discount || 0;
-      const grandTotal = originalSale?.totalWithDiscount || subtotal;
+    y += 4;
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text("QUOTATION", 105, y, { align: "center" });
+    y += 10;
 
-      doc.text("Subtotal:", 145, y, { align: "right" });
-      doc.text(`${currency} ${Number(subtotal).toFixed(2)}`, 188, y, { align: "right" });
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Date: ${new Date(sale.saleDate).toLocaleDateString()}`, 20, y);
+    doc.text(`No: ${sale.receiptNo}`, 190, y, { align: "right" });
+    y += 8;
+
+    if (sale.customerName && sale.customerName !== "Walk-in") {
+      doc.text(`Customer: ${sale.customerName}`, 20, y);
       y += 7;
+    }
 
-      if (tax > 0) {
-        doc.text("Tax:", 145, y, { align: "right" });
-        doc.text(`${currency} ${Number(tax).toFixed(2)}`, 188, y, { align: "right" });
-        y += 7;
+    y += 4;
+
+    // Table header
+    doc.setFillColor(240, 240, 240);
+    doc.rect(20, y - 4, 170, 8, "F");
+    doc.setFont("helvetica", "bold");
+    doc.text("Item", 22, y);
+    doc.text("Qty", 110, y, { align: "right" });
+    doc.text("Unit Price", 145, y, { align: "right" });
+    doc.text("Total", 188, y, { align: "right" });
+    y += 10;
+    doc.line(20, y - 4, 190, y - 4);
+    doc.setFont("helvetica", "normal");
+
+    items.forEach((item: any) => {
+      const name = item.productName || item.product?.name || item.name || "Item";
+      const qty = item.quantity || 1;
+      const unitPrice = item.unitPrice || item.sellingPrice || 0;
+      const total = item.totalPrice || qty * unitPrice;
+
+      const lines = doc.splitTextToSize(name, 82);
+      doc.text(lines, 22, y);
+      doc.text(String(qty), 110, y, { align: "right" });
+      doc.text(`${currency} ${Number(unitPrice).toFixed(2)}`, 145, y, { align: "right" });
+      doc.text(`${currency} ${Number(total).toFixed(2)}`, 188, y, { align: "right" });
+      y += lines.length > 1 ? lines.length * 6 : 8;
+      if (y > 250) {
+        doc.addPage();
+        y = 20;
       }
-      if (discount > 0) {
-        doc.text("Discount:", 145, y, { align: "right" });
-        doc.text(`- ${currency} ${Number(discount).toFixed(2)}`, 188, y, { align: "right" });
-        y += 7;
-      }
+    });
 
-      doc.setFont("helvetica", "bold");
-      doc.text("TOTAL:", 145, y, { align: "right" });
-      doc.text(`${currency} ${Number(grandTotal).toFixed(2)}`, 188, y, { align: "right" });
+    y += 6;
+    doc.line(20, y, 190, y);
+    y += 10;
 
-      y += 12;
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(9);
-      doc.text("Thank you for your business!", 105, y, { align: "center" });
+    const subtotal = originalSale?.totalAmount || sale.totalAmount || 0;
+    const tax = originalSale?.totaltax || 0;
+    const discount = originalSale?.discount || 0;
+    const grandTotal = originalSale?.totalWithDiscount || subtotal;
 
+    doc.text("Subtotal:", 145, y, { align: "right" });
+    doc.text(`${currency} ${Number(subtotal).toFixed(2)}`, 188, y, { align: "right" });
+    y += 7;
+
+    if (tax > 0) {
+      doc.text("Tax:", 145, y, { align: "right" });
+      doc.text(`${currency} ${Number(tax).toFixed(2)}`, 188, y, { align: "right" });
+      y += 7;
+    }
+    if (discount > 0) {
+      doc.text("Discount:", 145, y, { align: "right" });
+      doc.text(`- ${currency} ${Number(discount).toFixed(2)}`, 188, y, { align: "right" });
+      y += 7;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.text("TOTAL:", 145, y, { align: "right" });
+    doc.text(`${currency} ${Number(grandTotal).toFixed(2)}`, 188, y, { align: "right" });
+
+    y += 12;
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(9);
+    doc.text("Thank you for your business!", 105, y, { align: "center" });
+
+    return doc;
+  };
+
+  // Download the quotation as a PDF file
+  const downloadQuotationPDF = (sale: any) => {
+    try {
+      const doc = buildQuotationDoc(sale);
       doc.save(`quotation-${sale.receiptNo}.pdf`);
-      toast({ title: "Quotation Generated", description: `Quotation #${sale.receiptNo} downloaded.` });
+      toast({ title: "Quotation Downloaded", description: `Quotation #${sale.receiptNo} saved.` });
+      setQuotationDialogSale(null);
     } catch (err) {
       console.error("Quotation PDF error:", err);
       toast({ title: "PDF Error", description: "Failed to generate quotation.", variant: "destructive" });
+    }
+  };
+
+  // Email the quotation as a PDF attachment
+  const emailQuotationPDF = async (sale: any, email: string) => {
+    if (!email || !email.includes("@")) {
+      toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+      return;
+    }
+    setQuotationEmailSending(true);
+    try {
+      const doc = buildQuotationDoc(sale);
+      const pdfBase64 = doc.output("datauristring").split(",")[1];
+      const shopName = (currentShop as any)?.name || "";
+      const response = await fetch("/api/sales/email-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          toEmail: email,
+          receiptHtml: `<p>Please find your quotation <strong>#${sale.receiptNo}</strong> attached.</p>`,
+          receiptNo: sale.receiptNo,
+          shopName,
+          customerName: sale.customerName !== "Walk-in" ? sale.customerName : undefined,
+          pdfBase64,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast({ title: "Quotation Sent", description: `Quotation #${sale.receiptNo} emailed to ${email}.` });
+        setQuotationDialogSale(null);
+      } else {
+        throw new Error(data.error || "Failed to send");
+      }
+    } catch (err: any) {
+      console.error("Email quotation error:", err);
+      toast({ title: "Email Failed", description: err.message || "Could not send the quotation email.", variant: "destructive" });
+    } finally {
+      setQuotationEmailSending(false);
     }
   };
 
@@ -1015,7 +1065,11 @@ function SalesList() {
 
                                 {/* Print Quotation - available for all sales */}
                                 <DropdownMenuItem
-                                  onClick={() => generateQuotationPDF(sale)}
+                                  onClick={() => {
+                                    setQuotationDialogSale(sale);
+                                    setQuotationMode("options");
+                                    setQuotationEmail("");
+                                  }}
                                 >
                                   <FileText className="mr-2 h-4 w-4" />
                                   Print Quotation
@@ -1142,6 +1196,86 @@ function SalesList() {
           </Card>
         </div>
       </div>
+
+      {/* Quotation Dialog */}
+      <Dialog
+        open={!!quotationDialogSale}
+        onOpenChange={(open) => { if (!open) setQuotationDialogSale(null); }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Quotation #{quotationDialogSale?.receiptNo}
+            </DialogTitle>
+            <DialogDescription>
+              Choose how you'd like to deliver this quotation.
+            </DialogDescription>
+          </DialogHeader>
+
+          {quotationMode === "options" && (
+            <div className="flex flex-col gap-3 pt-2">
+              <Button
+                className="w-full justify-start gap-2"
+                onClick={() => downloadQuotationPDF(quotationDialogSale)}
+              >
+                <Download className="h-4 w-4" />
+                Download PDF
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => setQuotationMode("email")}
+              >
+                <Mail className="h-4 w-4" />
+                Email Quotation
+              </Button>
+            </div>
+          )}
+
+          {quotationMode === "email" && (
+            <div className="flex flex-col gap-3 pt-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="quotation-email">Recipient email address</Label>
+                <Input
+                  id="quotation-email"
+                  type="email"
+                  placeholder="customer@example.com"
+                  value={quotationEmail}
+                  onChange={(e) => setQuotationEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") emailQuotationPDF(quotationDialogSale, quotationEmail);
+                  }}
+                  autoFocus
+                />
+              </div>
+              <DialogFooter className="flex-row gap-2 sm:justify-start">
+                <Button
+                  variant="outline"
+                  onClick={() => setQuotationMode("options")}
+                  disabled={quotationEmailSending}
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={() => emailQuotationPDF(quotationDialogSale, quotationEmail)}
+                  disabled={quotationEmailSending || !quotationEmail}
+                  className="gap-2"
+                >
+                  {quotationEmailSending ? (
+                    <>Sending…</>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      Send Email
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Complete Sale Dialog */}
       <Dialog open={completeSaleOpen} onOpenChange={setCompleteSaleOpen}>
