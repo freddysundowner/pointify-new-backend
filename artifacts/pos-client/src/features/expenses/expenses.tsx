@@ -10,6 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -248,6 +252,28 @@ export default function Expenses() {
     },
   });
 
+  // On-the-fly category combobox state
+  const [catOpen, setCatOpen] = useState(false);
+  const [catSearch, setCatSearch] = useState('');
+
+  const createCategoryMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await apiRequest('POST', ENDPOINTS.expenseCategories.create, { name, shopId: effectiveShopId });
+      const data = await res.json();
+      return data?.data ?? data;
+    },
+    onSuccess: (newCat: any) => {
+      queryClient.invalidateQueries({ queryKey: ['expense-categories'] });
+      const id = newCat?._id ?? newCat?.id;
+      if (id) setFormData(fd => ({ ...fd, category: String(id) }));
+      setCatSearch('');
+      setCatOpen(false);
+    },
+    onError: (err: any) => {
+      toast({ title: 'Error', description: err.message || 'Failed to create category', variant: 'destructive' });
+    },
+  });
+
   const getCategoryName = (categoryId: string) => {
     const category = categories.find((cat: ExpenseCategory) => cat._id === categoryId);
     return category?.name || categoryId;
@@ -411,7 +437,7 @@ export default function Expenses() {
               <Settings className="h-3.5 w-3.5" /> Categories
             </Button>
           </Link>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setCatOpen(false); setCatSearch(''); } }}>
             <DialogTrigger asChild>
               <Button size="sm" className="h-8 gap-1 text-xs" onClick={handleAddNew}>
                 <Plus className="h-3.5 w-3.5" /> Add Expense
@@ -444,17 +470,65 @@ export default function Expenses() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="category">Category</Label>
-                    <Select value={formData.category} onValueChange={(value) => setFormData({...formData, category: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((category: ExpenseCategory) => (
-                          <SelectItem key={category._id} value={category._id}>{category.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>Category</Label>
+                    <Popover open={catOpen} onOpenChange={setCatOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between font-normal h-9 text-sm"
+                        >
+                          {formData.category
+                            ? (categories.find((c: ExpenseCategory) => c._id === formData.category)?.name ?? 'Select category')
+                            : 'Select category'}
+                          <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[260px] p-0" align="start">
+                        <Command>
+                          <CommandInput
+                            placeholder="Search or create..."
+                            value={catSearch}
+                            onValueChange={setCatSearch}
+                          />
+                          <CommandList>
+                            <CommandGroup>
+                              {categories
+                                .filter((c: ExpenseCategory) => c.name.toLowerCase().includes(catSearch.toLowerCase()))
+                                .map((c: ExpenseCategory) => (
+                                  <CommandItem
+                                    key={c._id}
+                                    value={c.name}
+                                    onSelect={() => {
+                                      setFormData(fd => ({ ...fd, category: c._id }));
+                                      setCatOpen(false);
+                                      setCatSearch('');
+                                    }}
+                                  >
+                                    <Check className={cn("mr-2 h-3.5 w-3.5", formData.category === c._id ? "opacity-100" : "opacity-0")} />
+                                    {c.name}
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                            {catSearch.trim() && !categories.some((c: ExpenseCategory) => c.name.toLowerCase() === catSearch.trim().toLowerCase()) && (
+                              <CommandGroup>
+                                <CommandItem
+                                  value={`__create__${catSearch}`}
+                                  onSelect={() => createCategoryMutation.mutate(catSearch.trim())}
+                                  className="text-green-700 font-medium"
+                                >
+                                  <Plus className="mr-2 h-3.5 w-3.5" />
+                                  Create "{catSearch.trim()}"
+                                </CommandItem>
+                              </CommandGroup>
+                            )}
+                            {!catSearch && categories.length === 0 && (
+                              <CommandEmpty>Type a name to create a category</CommandEmpty>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div>
                     <Label htmlFor="date">Date</Label>
