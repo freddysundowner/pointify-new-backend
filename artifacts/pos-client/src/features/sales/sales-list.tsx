@@ -69,6 +69,7 @@ import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
+import { useShop } from "@/features/shop/useShop";
 import { useProducts } from "@/contexts/ProductsContext";
 
 function SalesList() {
@@ -82,6 +83,7 @@ function SalesList() {
   // Add attendant authentication hooks
   const { attendant, isAuthenticated: isAttendantAuth } = useAttendantAuth();
   const { userType, adminId } = usePrimaryShop();
+  const { shop: currentShop, currency: shopCurrency } = useShop();
 
   // Check if user is admin (has all permissions)
   const isAdmin = userType === "admin" || user?.role === "admin";
@@ -450,10 +452,10 @@ function SalesList() {
   // Quotation PDF generator
   const generateQuotationPDF = (sale: any) => {
     try {
-      const originalSale = salesData.find((s: any) => s._id === sale.id);
-      const shop = originalSale?.shopId || {};
-      const currency = shop.currency || primaryShopCurrency;
-      const items: any[] = originalSale?.items || sale.items || [];
+      const originalSale = salesData.find((s: any) => (s.id ?? s._id) === sale.id);
+      const shop = currentShop || {};
+      const currency = shopCurrency || primaryShopCurrency;
+      const items: any[] = originalSale?.saleItems || sale.items || [];
 
       const doc = new jsPDF();
       let y = 20;
@@ -473,8 +475,8 @@ function SalesList() {
         doc.text(`Tel: ${shop.contact || shop.phone}`, 20, y);
         y += 6;
       }
-      if (shop.receiptemail || shop.email) {
-        doc.text(`Email: ${shop.receiptemail || shop.email}`, 20, y);
+      if ((shop as any).receiptEmail || (shop as any).email) {
+        doc.text(`Email: ${(shop as any).receiptEmail || (shop as any).email}`, 20, y);
         y += 6;
       }
       if (shop.paybillTill || shop.paybill_till) {
@@ -518,7 +520,7 @@ function SalesList() {
 
       // Items
       items.forEach((item: any) => {
-        const name = item.productName || item.name || "Item";
+        const name = item.productName || item.product?.name || item.name || "Item";
         const qty = item.quantity || 1;
         const unitPrice = item.unitPrice || item.sellingPrice || 0;
         const total = item.totalPrice || qty * unitPrice;
