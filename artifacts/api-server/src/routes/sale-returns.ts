@@ -102,7 +102,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     );
     // Mark the sale as fully returned if cumulative refunds cover the original total
     const [{ cumulativeRefunds }] = await db.select({
-      cumulativeRefunds: sql<string>`COALESCE(SUM(refundAmount::numeric), 0)`,
+      cumulativeRefunds: sql<string>`COALESCE(SUM(${saleReturns.refundAmount}::numeric), 0)`,
     }).from(saleReturns).where(eq(saleReturns.sale, Number(saleId)));
     if (parseFloat(cumulativeRefunds) >= parseFloat(sale.totalWithDiscount)) {
       await db.update(sales).set({ status: "returned" }).where(eq(sales.id, Number(saleId)));
