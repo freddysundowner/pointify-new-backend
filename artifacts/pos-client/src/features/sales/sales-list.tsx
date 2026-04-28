@@ -126,6 +126,10 @@ function SalesList() {
   const [quotationMode, setQuotationMode] = useState<"options" | "email">("options");
   const [quotationEmail, setQuotationEmail] = useState<string>("");
   const [quotationEmailSending, setQuotationEmailSending] = useState(false);
+  const [invoiceDialogSale, setInvoiceDialogSale] = useState<any>(null);
+  const [invoiceMode, setInvoiceMode] = useState<"options" | "email">("options");
+  const [invoiceEmail, setInvoiceEmail] = useState<string>("");
+  const [invoiceEmailSending, setInvoiceEmailSending] = useState(false);
 
   // Complete Sale (hold → cashed) state
   const [completeSaleOpen, setCompleteSaleOpen] = useState(false);
@@ -629,6 +633,177 @@ function SalesList() {
     }
   };
 
+  // Builds the invoice jsPDF document and returns it
+  const buildInvoiceDoc = (sale: any): jsPDF => {
+    const originalSale = salesData.find((s: any) => (s.id ?? s._id) === sale.id);
+    const shop = currentShop || {};
+    const currency = shopCurrency || primaryShopCurrency;
+    const items: any[] = originalSale?.saleItems || sale.items || [];
+
+    const doc = new jsPDF();
+    let y = 20;
+
+    // Shop header
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text((shop.name || "Shop").toUpperCase(), 20, y);
+    y += 7;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    if (shop.location || shop.address) {
+      doc.text(shop.location || shop.address, 20, y);
+      y += 6;
+    }
+    if (shop.contact || shop.phone) {
+      doc.text(`Tel: ${shop.contact || shop.phone}`, 20, y);
+      y += 6;
+    }
+    if ((shop as any).receiptEmail || (shop as any).email) {
+      doc.text(`Email: ${(shop as any).receiptEmail || (shop as any).email}`, 20, y);
+      y += 6;
+    }
+    if (shop.paybillTill || shop.paybill_till) {
+      doc.text(`PayBill/Till: ${shop.paybillTill || shop.paybill_till}`, 20, y);
+      y += 6;
+    }
+
+    y += 4;
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text("INVOICE", 105, y, { align: "center" });
+    y += 10;
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Date: ${new Date(sale.saleDate).toLocaleDateString()}`, 20, y);
+    doc.text(`No: ${sale.receiptNo}`, 190, y, { align: "right" });
+    y += 6;
+    doc.text("Status: PENDING PAYMENT", 20, y);
+    y += 8;
+
+    if (sale.customerName && sale.customerName !== "Walk-in") {
+      doc.text(`Bill To: ${sale.customerName}`, 20, y);
+      y += 7;
+    }
+
+    y += 4;
+
+    // Table header
+    doc.setFillColor(240, 240, 240);
+    doc.rect(20, y - 4, 170, 8, "F");
+    doc.setFont("helvetica", "bold");
+    doc.text("Item", 22, y);
+    doc.text("Qty", 110, y, { align: "right" });
+    doc.text("Unit Price", 145, y, { align: "right" });
+    doc.text("Total", 188, y, { align: "right" });
+    y += 10;
+    doc.line(20, y - 4, 190, y - 4);
+    doc.setFont("helvetica", "normal");
+
+    items.forEach((item: any) => {
+      const name = item.productName || item.product?.name || item.name || "Item";
+      const qty = item.quantity || 1;
+      const unitPrice = item.unitPrice || item.sellingPrice || 0;
+      const total = item.totalPrice || qty * unitPrice;
+
+      const lines = doc.splitTextToSize(name, 82);
+      doc.text(lines, 22, y);
+      doc.text(String(qty), 110, y, { align: "right" });
+      doc.text(`${currency} ${Number(unitPrice).toFixed(2)}`, 145, y, { align: "right" });
+      doc.text(`${currency} ${Number(total).toFixed(2)}`, 188, y, { align: "right" });
+      y += lines.length > 1 ? lines.length * 6 : 8;
+      if (y > 250) {
+        doc.addPage();
+        y = 20;
+      }
+    });
+
+    y += 6;
+    doc.line(20, y, 190, y);
+    y += 10;
+
+    const subtotal = originalSale?.totalAmount || sale.totalAmount || 0;
+    const tax = originalSale?.totaltax || 0;
+    const discount = originalSale?.discount || 0;
+    const grandTotal = originalSale?.totalWithDiscount || subtotal;
+
+    doc.text("Subtotal:", 145, y, { align: "right" });
+    doc.text(`${currency} ${Number(subtotal).toFixed(2)}`, 188, y, { align: "right" });
+    y += 7;
+
+    if (tax > 0) {
+      doc.text("Tax:", 145, y, { align: "right" });
+      doc.text(`${currency} ${Number(tax).toFixed(2)}`, 188, y, { align: "right" });
+      y += 7;
+    }
+    if (discount > 0) {
+      doc.text("Discount:", 145, y, { align: "right" });
+      doc.text(`- ${currency} ${Number(discount).toFixed(2)}`, 188, y, { align: "right" });
+      y += 7;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.text("AMOUNT DUE:", 145, y, { align: "right" });
+    doc.text(`${currency} ${Number(grandTotal).toFixed(2)}`, 188, y, { align: "right" });
+
+    y += 12;
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(9);
+    doc.text("Please make payment at your earliest convenience. Thank you!", 105, y, { align: "center" });
+
+    return doc;
+  };
+
+  const downloadInvoicePDF = (sale: any) => {
+    try {
+      const doc = buildInvoiceDoc(sale);
+      doc.save(`invoice-${sale.receiptNo}.pdf`);
+      toast({ title: "Invoice Downloaded", description: `Invoice #${sale.receiptNo} saved.` });
+      setInvoiceDialogSale(null);
+    } catch (err) {
+      console.error("Invoice PDF error:", err);
+      toast({ title: "PDF Error", description: "Failed to generate invoice.", variant: "destructive" });
+    }
+  };
+
+  const emailInvoicePDF = async (sale: any, email: string) => {
+    if (!email || !email.includes("@")) {
+      toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+      return;
+    }
+    setInvoiceEmailSending(true);
+    try {
+      const doc = buildInvoiceDoc(sale);
+      const pdfBase64 = doc.output("datauristring").split(",")[1];
+      const shopName = (currentShop as any)?.name || "";
+      const response = await fetch("/api/sales/email-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          toEmail: email,
+          receiptHtml: `<p>Please find your invoice <strong>#${sale.receiptNo}</strong> attached. Payment is due at your earliest convenience.</p>`,
+          receiptNo: sale.receiptNo,
+          shopName,
+          customerName: sale.customerName !== "Walk-in" ? sale.customerName : undefined,
+          pdfBase64,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast({ title: "Invoice Sent", description: `Invoice #${sale.receiptNo} emailed to ${email}.` });
+        setInvoiceDialogSale(null);
+      } else {
+        throw new Error(data.error || "Failed to send");
+      }
+    } catch (err: any) {
+      console.error("Email invoice error:", err);
+      toast({ title: "Email Failed", description: err.message || "Could not send the invoice email.", variant: "destructive" });
+    } finally {
+      setInvoiceEmailSending(false);
+    }
+  };
+
   // PDF Export function
   const exportToPDF = () => {
     try {
@@ -1075,10 +1250,20 @@ function SalesList() {
                                   Print Quotation
                                 </DropdownMenuItem>
 
-                                {/* Complete Sale - only for hold status */}
+                                {/* Invoice + Complete Sale - only for hold status */}
                                 {sale.status === "hold" && (
                                   <>
                                     <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setInvoiceDialogSale(sale);
+                                        setInvoiceMode("options");
+                                        setInvoiceEmail("");
+                                      }}
+                                    >
+                                      <FileText className="mr-2 h-4 w-4" />
+                                      Invoice
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem
                                       onClick={() => handleCompleteSale(sale)}
                                       className="text-green-600 focus:text-green-600"
@@ -1263,6 +1448,86 @@ function SalesList() {
                   className="gap-2"
                 >
                   {quotationEmailSending ? (
+                    <>Sending…</>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      Send Email
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoice Dialog */}
+      <Dialog
+        open={!!invoiceDialogSale}
+        onOpenChange={(open) => { if (!open) setInvoiceDialogSale(null); }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Invoice #{invoiceDialogSale?.receiptNo}
+            </DialogTitle>
+            <DialogDescription>
+              Choose how you'd like to deliver this invoice.
+            </DialogDescription>
+          </DialogHeader>
+
+          {invoiceMode === "options" && (
+            <div className="flex flex-col gap-3 pt-2">
+              <Button
+                className="w-full justify-start gap-2"
+                onClick={() => downloadInvoicePDF(invoiceDialogSale)}
+              >
+                <Download className="h-4 w-4" />
+                Download PDF
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => setInvoiceMode("email")}
+              >
+                <Mail className="h-4 w-4" />
+                Email Invoice
+              </Button>
+            </div>
+          )}
+
+          {invoiceMode === "email" && (
+            <div className="flex flex-col gap-3 pt-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="invoice-email">Recipient email address</Label>
+                <Input
+                  id="invoice-email"
+                  type="email"
+                  placeholder="customer@example.com"
+                  value={invoiceEmail}
+                  onChange={(e) => setInvoiceEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") emailInvoicePDF(invoiceDialogSale, invoiceEmail);
+                  }}
+                  autoFocus
+                />
+              </div>
+              <DialogFooter className="flex-row gap-2 sm:justify-start">
+                <Button
+                  variant="outline"
+                  onClick={() => setInvoiceMode("options")}
+                  disabled={invoiceEmailSending}
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={() => emailInvoicePDF(invoiceDialogSale, invoiceEmail)}
+                  disabled={invoiceEmailSending || !invoiceEmail}
+                  className="gap-2"
+                >
+                  {invoiceEmailSending ? (
                     <>Sending…</>
                   ) : (
                     <>
