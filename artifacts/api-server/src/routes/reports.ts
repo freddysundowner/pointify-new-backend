@@ -971,14 +971,14 @@ router.get("/income", requireAdmin, async (req, res, next) => {
       }).from(sales).where(where),
 
       db.select({
-        paymentType: salePayments.paymentType,
+        paymentType: sql<string>`LOWER(${salePayments.paymentType})`,
         totalAmount: sql<string>`COALESCE(SUM(${salePayments.amount}::numeric), 0)`,
         saleCount: sql<number>`COUNT(DISTINCT ${salePayments.sale})`,
       })
       .from(salePayments)
       .innerJoin(sales, eq(salePayments.sale, sales.id))
       .where(where)
-      .groupBy(salePayments.paymentType)
+      .groupBy(sql`LOWER(${salePayments.paymentType})`)
       .orderBy(sql`COALESCE(SUM(${salePayments.amount}::numeric), 0) DESC`),
 
       db.select({
@@ -1426,13 +1426,13 @@ router.get("/profit-loss/detail", requireAdmin, async (req, res, next) => {
       .orderBy(sql`COALESCE(SUM(${expenses.amount}::numeric), 0) DESC`),
 
       db.select({
-        paymentType: salePayments.paymentType,
+        paymentType: sql<string>`LOWER(${salePayments.paymentType})`,
         total: sql<string>`COALESCE(SUM(${salePayments.amount}::numeric), 0)`,
       })
       .from(salePayments)
       .innerJoin(sales, eq(salePayments.sale, sales.id))
       .where(salesWhere)
-      .groupBy(salePayments.paymentType)
+      .groupBy(sql`LOWER(${salePayments.paymentType})`)
       .orderBy(sql`COALESCE(SUM(${salePayments.amount}::numeric), 0) DESC`),
     ]);
 
