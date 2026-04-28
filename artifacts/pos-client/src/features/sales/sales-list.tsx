@@ -465,7 +465,9 @@ function SalesList() {
   // Builds the quotation jsPDF document and returns it
   const buildQuotationDoc = (sale: any): jsPDF => {
     const originalSale = salesData.find((s: any) => (s.id ?? s._id) === sale.id);
-    const shop = currentShop || {};
+    // Unwrap API envelope if the cached value is still { success, data: {...} }
+    const rawShop: any = currentShop || {};
+    const shop: any = rawShop?.data ?? rawShop;
     const currency = shopCurrency || primaryShopCurrency;
     const items: any[] = originalSale?.saleItems || sale.items || [];
 
@@ -636,7 +638,9 @@ function SalesList() {
   // Builds the invoice jsPDF document and returns it
   const buildInvoiceDoc = (sale: any): jsPDF => {
     const originalSale = salesData.find((s: any) => (s.id ?? s._id) === sale.id);
-    const shop = currentShop || {};
+    // Unwrap API envelope if the cached value is still { success, data: {...} }
+    const rawShop: any = currentShop || {};
+    const shop: any = rawShop?.data ?? rawShop;
     const currency = shopCurrency || primaryShopCurrency;
     const items: any[] = originalSale?.saleItems || sale.items || [];
 
