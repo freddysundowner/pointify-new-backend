@@ -1,940 +1,474 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
-import { Trash2, Plus, Package, ArrowRight, Eye, Download, ArrowLeft } from 'lucide-react';
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowRight, Plus, Trash2, Search, ArrowLeft, RefreshCw, Download, ChevronDown, ChevronUp, X } from "lucide-react";
+import DashboardLayout from "@/components/layout/dashboard-layout";
+import { apiRequest } from "@/lib/queryClient";
+import { ENDPOINTS } from "@/lib/api-endpoints";
+import { useToast } from "@/hooks/use-toast";
+import { usePrimaryShop } from "@/hooks/usePrimaryShop";
+import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { useGoBack } from "@/hooks/useGoBack";
-import DashboardLayout from '@/components/layout/dashboard-layout';
-import { apiCall } from '@/lib/api-config';
-import { apiRequest } from '@/lib/queryClient';
-import { ENDPOINTS } from '@/lib/api-endpoints';
-import { useToast } from '@/hooks/use-toast';
-import { useProducts } from '@/contexts/ProductsContext';
-import { usePrimaryShop } from '@/hooks/usePrimaryShop';
-import { useAttendantAuth } from '@/contexts/AttendantAuthContext';
-import { useLocation } from 'wouter';
-import type { Product as SharedProduct } from '@shared/schema';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
-interface StockTransfer {
-  _id: string;
-  productId: string;
+interface TransferItem {
+  id: number;
+  product: number;
   productName: string;
-  fromLocation: string;
-  toLocation: string;
-  quantity: number;
-  status: "pending" | "in-transit" | "completed" | "cancelled";
-  requestedBy: string;
-  requestedAt: string;
-  completedAt?: string;
-  notes?: string;
+  quantity: string | number;
+  unitPrice: string | number;
 }
 
-
-
-interface Shop {
-  _id: string;
-  name: string;
-  address?: string;
-  location?: {
-    type: string;
-    coordinates: number[];
-  };
+interface Transfer {
+  id: number;
+  fromShop: number;
+  fromShopName: string;
+  toShop: number;
+  toShopName: string;
+  transferNo: string;
+  transferNote: string | null;
+  initiatedBy: number | null;
+  createdAt: string;
+  transferItems: TransferItem[];
 }
 
-interface TransferProduct {
-  product: string;
-  quantity: number;
-  productName?: string;
-}
+interface ShopOption { id: number; name: string; }
+interface ProductOption { id: number; name: string; quantity?: number; sellingPrice?: string | number; }
+
+interface CartItem { productId: number; productName: string; quantity: number; }
 
 export default function StockTransfer() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [selectedProducts, setSelectedProducts] = useState<TransferProduct[]>([]);
-  const [formData, setFormData] = useState({
-    fromShopId: undefined as string | undefined,
-    toShopId: undefined as string | undefined,
-    notes: ""
-  });
-
-  // Date filter state
-  const [dateFilter, setDateFilter] = useState({
-    startDate: '',
-    endDate: ''
-  });
-  
-  // Product search state
-  const [productSearch, setProductSearch] = useState('');
-
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  // Expandable rows state
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-
-  // Get authentication data
   const { attendant } = useAttendantAuth();
-  const { shopId, adminId, userType, attendantId } = usePrimaryShop();
-  const [, setLocation] = useLocation();
+  const { shopId, adminId, userType } = usePrimaryShop();
   const goBack = useGoBack("/dashboard");
 
-  const { data: transfers = [], isLoading } = useQuery<StockTransfer[]>({
-    queryKey: ["stock-transfers"],
-    queryFn: async () => {
-      try {
-        const response = await apiCall(ENDPOINTS.transfers.filter, {
-          method: "GET",
-        });
-        const data = await response.json();
-        return Array.isArray(data) ? data : [];
-      } catch (error) {
-        return [];
-      }
-    },
-  });
+  // History filters
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const itemsPerPage = 20;
 
-  // Fetch all shops for this admin
-  const { data: shopsResponse = [] } = useQuery({
+  // Create form
+  const [showForm, setShowForm] = useState(false);
+  const [fromShopId, setFromShopId] = useState<number | null>(null);
+  const [toShopId, setToShopId] = useState<number | null>(null);
+  const [note, setNote] = useState("");
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+
+  // ── Shops ──
+  const { data: shopsData } = useQuery({
     queryKey: ["shops", adminId],
     queryFn: async () => {
-      if (!adminId) return [];
-      const response = await apiCall(ENDPOINTS.shop.getAll, {
-        method: "GET",
-      });
-      return response;
+      const res = await apiRequest("GET", ENDPOINTS.shop.getAll);
+      const json = await res.json();
+      return (Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : []) as ShopOption[];
     },
     enabled: !!adminId,
   });
+  const shopOptions: ShopOption[] = shopsData ?? [];
 
-  // Fetch products for the selected source shop - no fallback
-  const { data: products = [], isLoading: isLoadingProducts, error: productsError } = useQuery({
-    queryKey: [`shop-products`, formData.fromShopId],
+  // ── Transfer history ──
+  const { data: historyData, isLoading, refetch } = useQuery({
+    queryKey: ["transfers", shopId, fromDate, toDate, currentPage],
     queryFn: async () => {
-      if (!formData.fromShopId || !adminId) return [];
-      
-      console.log('Fetching products for shop:', formData.fromShopId);
-      
-      try {
-        const token = userType === 'attendant' ? localStorage.getItem('attendantToken') : localStorage.getItem('authToken');
-        const response = await fetch(`${ENDPOINTS.products.getByShop(formData.fromShopId)}?attendantId=${attendantId || adminId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!response.ok) {
-          console.error(`API response error: ${response.status}`);
-          // Return empty array for any API errors to show "no products available"
-          return [];
-        }
-        
-        const data = await response.json();
-        console.log('Shop products response:', data);
-        const shopProducts = Array.isArray(data) ? data : (data?.data || []);
-        console.log(`Shop ${formData.fromShopId} has ${shopProducts.length} products`);
-        
-        return shopProducts;
-      } catch (error) {
-        console.error('Network error fetching products:', error);
-        // Return empty array on network errors
-        return [];
-      }
+      if (!shopId) return null;
+      const params = new URLSearchParams({ shopId: String(shopId), page: String(currentPage), limit: String(itemsPerPage) });
+      if (fromDate) params.append("startDate", fromDate);
+      if (toDate) params.append("endDate", toDate);
+      const res = await apiRequest("GET", `${ENDPOINTS.transfers.filter}?${params}`);
+      return res.json();
     },
-    enabled: !!formData.fromShopId && !!adminId,
-    retry: false, // Don't retry on errors
-  });
-  
-  // Filter products based on search and exclude already selected products
-  const filteredProducts = products.filter((product: any) => 
-    !selectedProducts.find(p => p.product === product._id) &&
-    (product.name || '').toLowerCase().includes(productSearch.toLowerCase())
-  );
-  
-  const shops: Shop[] = (() => {
-    if (Array.isArray(shopsResponse)) return shopsResponse;
-    if (shopsResponse && typeof shopsResponse === 'object' && 'data' in shopsResponse && Array.isArray(shopsResponse.data)) {
-      return shopsResponse.data;
-    }
-    return [];
-  })();
-
-
-
-  // Fetch transfer history
-  const { data: transferHistoryResponse = { data: [], pagination: { total: 0, totalPages: 0 } }, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ["transfer-history", shops.map(shop => shop._id).join(','), dateFilter.startDate, dateFilter.endDate, currentPage, itemsPerPage],
-    queryFn: async () => {
-      const shopIds = shops.map(shop => shop._id);
-      
-      // Create URL with shops array as repeated query parameters
-      const params = new URLSearchParams();
-      
-      // Add pagination parameters
-      params.append('limit', itemsPerPage.toString());
-      params.append('page', currentPage.toString());
-      
-      // Add date filters if provided
-      if (dateFilter.startDate) params.append('startDate', dateFilter.startDate);
-      if (dateFilter.endDate) params.append('endDate', dateFilter.endDate);
-      
-      // Add attendantId if user is attendant
-      if (userType === 'attendant' && attendantId) {
-        params.append('attendantId', attendantId);
-      }
-      
-      // Add each shop ID as separate 'shops' parameter to create array
-      shopIds.forEach(shopId => {
-        params.append('shops', shopId);
-      });
-      
-      const url = `${ENDPOINTS.transfers.filter}?${params.toString()}`;
-      
-      const token = userType === 'attendant' ? localStorage.getItem('attendantToken') : localStorage.getItem('authToken');
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch transfer history: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    },
-    enabled: shops.length > 0,
+    enabled: !!shopId,
     refetchOnMount: true,
-    refetchOnWindowFocus: false,
   });
 
-  // Extract transfer history data and pagination info
-  const transferHistory = Array.isArray(transferHistoryResponse) ? transferHistoryResponse : (transferHistoryResponse?.data || []);
-  const pagination = transferHistoryResponse?.pagination || { total: 0, totalPages: 0 };
+  const transfers: Transfer[] = Array.isArray(historyData?.data) ? historyData.data : [];
+  const totalPages = historyData?.meta?.totalPages ?? 1;
+  const totalCount = historyData?.meta?.total ?? transfers.length;
 
-  // Handle pagination change
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
+  // ── Product search (for create form) ──
+  const { data: productResults } = useQuery({
+    queryKey: ["transfer-product-search", fromShopId, productSearch],
+    queryFn: async () => {
+      if (!fromShopId || productSearch.length < 1) return [];
+      const params = new URLSearchParams({ shopId: String(fromShopId), q: productSearch });
+      const res = await apiRequest("GET", `${ENDPOINTS.stockCounts.productSearch}?${params}`);
+      const json = await res.json();
+      return (Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : []) as ProductOption[];
+    },
+    enabled: !!fromShopId && productSearch.length >= 1,
+  });
 
-  // Handle items per page change
-  const handleItemsPerPageChange = (items: number) => {
-    setItemsPerPage(items);
-    setCurrentPage(1); // Reset to first page when changing items per page
-  };
-
-  // Toggle row expansion for product details
-  const toggleRowExpansion = (transferId: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(transferId)) {
-      newExpanded.delete(transferId);
-    } else {
-      newExpanded.add(transferId);
-    }
-    setExpandedRows(newExpanded);
-  };
-
-  // Handle source shop change - clear selected products and search
-  const handleSourceShopChange = (shopId: string) => {
-    setFormData({...formData, fromShopId: shopId});
-    setSelectedProducts([]);
-    setProductSearch(''); // Clear search when changing shops
-  };
-
-  // Add product to transfer
-  const addProduct = (product: SharedProduct) => {
-    const existingProduct = selectedProducts.find(p => p.product === product._id);
-    if (existingProduct) {
-      setSelectedProducts(selectedProducts.map(p => 
-        p.product === product._id 
-          ? {...p, quantity: p.quantity + 1}
-          : p
-      ));
-    } else {
-      const productId = product._id || product.id?.toString();
-      const productName = product.name || product.title;
-      
-      if (productId && productName) {
-        setSelectedProducts([...selectedProducts, {
-          product: productId,
-          quantity: 1,
-          productName: productName
-        }]);
+  // ── Create transfer ──
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      if (!fromShopId || !toShopId || !cart.length) throw new Error("Missing fields");
+      const res = await apiRequest("POST", ENDPOINTS.transfers.shopTransfer, {
+        fromShopId: Number(fromShopId),
+        toShopId: Number(toShopId),
+        note: note || undefined,
+        items: cart.map(c => ({ productId: c.productId, quantity: c.quantity })),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || `Error ${res.status}`);
       }
-    }
-  };
-
-  // Remove product from transfer
-  const removeProduct = (productId: string) => {
-    setSelectedProducts(selectedProducts.filter(p => p.product !== productId));
-  };
-
-  // Update product quantity
-  const updateQuantity = (productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeProduct(productId);
-      return;
-    }
-    setSelectedProducts(selectedProducts.map(p => 
-      p.product === productId ? {...p, quantity} : p
-    ));
-  };
-
-  // Create transfer mutation
-  const transferMutation = useMutation({
-    mutationFn: async (transferData: any) => {
-      const response = await apiRequest('POST', ENDPOINTS.transfers.shopTransfer, transferData);
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Transfer failed: ${response.status} - ${errorText}`);
-      }
-      return response.json();
+      return res.json();
     },
     onSuccess: () => {
-      toast({
-        title: "Transfer Created",
-        description: "Product transfer has been successfully created",
-      });
-      queryClient.invalidateQueries({ queryKey: ["transfer-history"] });
-      setShowCreateForm(false);
-      setSelectedProducts([]);
-      setFormData({ fromShopId: undefined, toShopId: undefined, notes: "" });
+      toast({ title: "Transfer created", description: "Inventory has been moved between shops" });
+      queryClient.invalidateQueries({ queryKey: ["transfers"] });
+      resetForm();
     },
-    onError: (error: any) => {
-      toast({
-        title: "Transfer Failed",
-        description: error.message || "Failed to create product transfer",
-        variant: "destructive",
-      });
-    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
 
-  // Handle create transfer
-  const handleCreateTransfer = () => {
-    if (!formData.fromShopId || !formData.toShopId || selectedProducts.length === 0) {
-      toast({
-        title: "Missing Information",
-        description: "Please select source shop, destination shop, and at least one product",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const transferData = {
-      fromShopId: formData.fromShopId,
-      toShopId: formData.toShopId,
-      items: selectedProducts.map(p => ({
-        productId: p.product,
-        quantity: p.quantity
-      }))
-    };
-
-    transferMutation.mutate(transferData);
+  const resetForm = () => {
+    setShowForm(false);
+    setFromShopId(null);
+    setToShopId(null);
+    setNote("");
+    setCart([]);
+    setProductSearch("");
   };
 
-  const filteredTransfers = transfers.filter((transfer: StockTransfer) => {
-    return true; // No additional filtering for now
-  });
+  const addToCart = (p: ProductOption) => {
+    setCart(prev => {
+      const existing = prev.find(c => c.productId === p.id);
+      if (existing) return prev.map(c => c.productId === p.id ? { ...c, quantity: c.quantity + 1 } : c);
+      return [...prev, { productId: p.id, productName: p.name, quantity: 1 }];
+    });
+    setProductSearch("");
+  };
 
-  const downloadTransferReport = async () => {
-    const reportDate = new Date().toLocaleDateString();
-    const dateRange = dateFilter.startDate && dateFilter.endDate 
-      ? `${dateFilter.startDate} to ${dateFilter.endDate}`
-      : dateFilter.startDate 
-        ? `From ${dateFilter.startDate}`
-        : dateFilter.endDate
-          ? `Until ${dateFilter.endDate}`
-          : 'All Dates';
+  const updateCartQty = (productId: number, qty: number) => {
+    if (qty <= 0) { setCart(prev => prev.filter(c => c.productId !== productId)); return; }
+    setCart(prev => prev.map(c => c.productId === productId ? { ...c, quantity: qty } : c));
+  };
 
-    // Generate transfer rows for the report - each product as separate row
-    const transferRows = Array.isArray(transferHistory) 
-      ? transferHistory.flatMap(transfer => {
-          if (!transfer.productId || transfer.productId.length === 0) {
-            return `
-              <tr>
-                <td>No products</td>
-                <td>0</td>
-                <td>${transfer.fromShopId?.name || 'Unknown Shop'}<br><small>${transfer.fromShopId?.address || ''}</small></td>
-                <td>${transfer.toShopId?.name || 'Unknown Shop'}<br><small>${transfer.toShopId?.address || ''}</small></td>
-                <td>${transfer.attendantId?.username || 'Unknown'}</td>
-                <td>${new Date(transfer.createdAt).toLocaleDateString()}<br><small>${new Date(transfer.createdAt).toLocaleTimeString()}</small></td>
-                <td><span style="background: #4ade80; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px;">Completed</span></td>
-              </tr>
-            `;
-          }
-          
-          return transfer.productId.map((product: any) => `
-            <tr>
-              <td>${product.productName || 'Unknown Product'}</td>
-              <td>${product.quantity || 0}</td>
-              <td>${transfer.fromShopId?.name || 'Unknown Shop'}<br><small>${transfer.fromShopId?.address || ''}</small></td>
-              <td>${transfer.toShopId?.name || 'Unknown Shop'}<br><small>${transfer.toShopId?.address || ''}</small></td>
-              <td>${transfer.attendantId?.username || 'Unknown'}</td>
-              <td>${new Date(transfer.createdAt).toLocaleDateString()}<br><small>${new Date(transfer.createdAt).toLocaleTimeString()}</small></td>
-              <td><span style="background: #4ade80; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px;">Completed</span></td>
-            </tr>
-          `).join('');
-        }).join('')
-      : '<tr><td colspan="7" style="text-align: center; padding: 20px;">No transfers available</td></tr>';
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Transfer Report</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-          .header h1 { margin: 0; color: #333; font-size: 24px; }
-          .header p { margin: 5px 0; color: #666; }
-          .summary { margin-bottom: 20px; background: #e8f4f8; padding: 15px; border-radius: 5px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-          th { background-color: #f8f9fa; font-weight: bold; color: #333; }
-          tr:nth-child(even) { background-color: #f9f9f9; }
-          .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Shop Transfer Report</h1>
-          <p>Generated on: ${reportDate}</p>
-          <p>Report Period: ${dateRange}</p>
-        </div>
-
-        <div class="summary">
-          <h3>Report Summary</h3>
-          <p><strong>Total Transfers:</strong> ${Array.isArray(transferHistory) ? transferHistory.length : 0}</p>
-          <p><strong>Date Range:</strong> ${dateRange}</p>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Product Name</th>
-              <th>Quantity</th>
-              <th>From Shop</th>
-              <th>To Shop</th>
-              <th>Done By</th>
-              <th>Date</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${transferRows}
-          </tbody>
-        </table>
-
-        <div class="footer">
-          <p>This report was generated automatically from the inventory management system.</p>
-          <p>For questions about this report, please contact your system administrator.</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    // Import required libraries dynamically
-    const jsPDF = (await import('jspdf')).jsPDF;
-    const autoTable = (await import('jspdf-autotable')).default;
-    
-    // Create new PDF document
+  // ── PDF export ──
+  const exportPDF = () => {
     const doc = new jsPDF();
-    
-    // Add title
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Shop Transfer Report', 20, 20);
-    
-    // Add report details
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated on: ${reportDate}`, 20, 35);
-    doc.text(`Report Period: ${dateRange}`, 20, 45);
-    doc.text(`Total Transfers: ${Array.isArray(transferHistory) ? transferHistory.length : 0}`, 20, 55);
-    
-    // Prepare table data
-    const tableData: any[] = [];
-    
-    if (Array.isArray(transferHistory)) {
-      transferHistory.forEach(transfer => {
-        if (transfer.productId && transfer.productId.length > 0) {
-          transfer.productId.forEach((item: any) => {
-            tableData.push([
-              item.product?.name || item.productName || 'Product',
-              item.quantity || 0,
-              transfer.fromShopId?.name || 'Unknown Shop',
-              transfer.toShopId?.name || 'Unknown Shop',
-              transfer.attendantId?.username || 'Unknown',
-              new Date(transfer.createdAt).toLocaleDateString()
-            ]);
-          });
-        }
-      });
-    }
-    
-    // Add table
+    const pw = doc.internal.pageSize.width;
+    doc.setFontSize(16); doc.text("Stock Transfer Report", pw / 2, 16, { align: "center" });
+    doc.setFontSize(10); doc.text(`Generated: ${new Date().toLocaleString()}`, pw / 2, 23, { align: "center" });
+    const rows: any[] = [];
+    transfers.forEach(t => {
+      const date = new Date(t.createdAt).toLocaleDateString();
+      if (t.transferItems.length) {
+        t.transferItems.forEach(i => rows.push([t.transferNo, i.productName, i.quantity, t.fromShopName, t.toShopName, date]));
+      } else {
+        rows.push([t.transferNo, "—", 0, t.fromShopName, t.toShopName, date]);
+      }
+    });
     autoTable(doc, {
-      head: [['Product Name', 'Quantity', 'From Shop', 'To Shop', 'Done By', 'Date']],
-      body: tableData,
-      startY: 70,
-      styles: { 
-        fontSize: 9,
-        cellPadding: 3
-      },
-      headStyles: { 
-        fillColor: [66, 139, 202],
-        textColor: 255,
-        fontStyle: 'bold'
-      },
-      alternateRowStyles: {
-        fillColor: [245, 245, 245]
-      },
-      margin: { top: 70 }
+      startY: 30,
+      head: [["Transfer #", "Product", "Qty", "From", "To", "Date"]],
+      body: rows,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [124, 58, 237] },
     });
-    
-    // Save the PDF
-    doc.save(`transfer-report-${new Date().toISOString().split('T')[0]}.pdf`);
-    
-    toast({
-      title: "PDF Downloaded",
-      description: "Transfer report has been downloaded as PDF file.",
-    });
+    doc.save(`transfers-${new Date().toISOString().split("T")[0]}.pdf`);
   };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            {userType === 'attendant' && (
-              <Button
-                variant="outline"
-                onClick={goBack}
-                className="flex items-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Dashboard
+      <div className="flex flex-col h-full">
+        {/* ── Top bar ── */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b bg-white flex-wrap">
+          {(attendant || userType === "attendant") && (
+            <Button variant="ghost" size="sm" onClick={goBack} className="h-8 px-2 gap-1 text-xs">
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
+            </Button>
+          )}
+          <span className="font-semibold text-sm">Stock Transfer</span>
+
+          {/* Date range */}
+          <div className="flex items-center gap-1.5 ml-2">
+            <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setCurrentPage(1); }} className="h-8 text-xs w-36" />
+            <span className="text-gray-400 text-xs">→</span>
+            <Input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setCurrentPage(1); }} className="h-8 text-xs w-36" />
+            {(fromDate || toDate) && (
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => { setFromDate(""); setToDate(""); }}>
+                <X className="h-3.5 w-3.5" />
               </Button>
             )}
-            <h1 className="text-3xl font-bold tracking-tight">Stock Transfer</h1>
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => refetch()} title="Refresh">
+              <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
           </div>
-          <Button onClick={() => setShowCreateForm(true)} className="bg-purple-600 hover:bg-purple-700">
-            <Plus className="h-4 w-4 mr-2" />
-            New Transfer
-          </Button>
+
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={exportPDF} disabled={!transfers.length}>
+              <Download className="h-3.5 w-3.5" /> PDF
+            </Button>
+            <Button size="sm" className="h-8 text-xs gap-1 bg-purple-600 hover:bg-purple-700" onClick={() => setShowForm(true)}>
+              <Plus className="h-3.5 w-3.5" /> New Transfer
+            </Button>
+          </div>
         </div>
 
+        {/* ── Summary strip ── */}
+        <div className="flex items-center gap-6 px-4 py-2 bg-gray-50 border-b text-xs text-gray-600">
+          <span><span className="font-semibold text-gray-900">{totalCount}</span> transfers</span>
+          <span><span className="font-semibold text-gray-900">
+            {transfers.reduce((s, t) => s + t.transferItems.length, 0)}
+          </span> items moved</span>
+        </div>
 
-
-        {/* Create Transfer Form */}
-        {showCreateForm && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Create New Transfer</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Shop Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Source Shop</label>
-                    <Select value={formData.fromShopId} onValueChange={handleSourceShopChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select source shop" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {shops.map((shop) => (
-                          <SelectItem key={shop._id} value={shop._id}>
-                            {shop.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Destination Shop</label>
-                    <Select 
-                      value={formData.toShopId} 
-                      onValueChange={(value) => setFormData({...formData, toShopId: value})}
-                      disabled={!formData.fromShopId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select destination shop" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {shops
-                          .filter(shop => shop._id !== formData.fromShopId)
-                          .map((shop) => (
-                            <SelectItem key={shop._id} value={shop._id}>
-                              {shop.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Product Selection - Searchable Dropdown */}
-                {formData.fromShopId && (
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">
-                      Add Products ({isLoadingProducts ? 'Loading...' : `${filteredProducts.length} available`})
-                    </label>
-                    
-                    {/* Search Input */}
-                    <div className="relative mb-3">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                      <Input
-                        type="text"
-                        placeholder="Search products..."
-                        value={productSearch}
-                        onChange={(e) => setProductSearch(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-
-                    {/* Product Dropdown - Only show if we have data from API */}
-                    {productSearch && (
-                      <>
-                        {isLoadingProducts && (
-                          <div className="p-3 text-sm text-gray-500 text-center border rounded-md mb-3">
-                            Loading products...
+        {/* ── Table ── */}
+        <div className="flex-1 overflow-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-40 text-gray-400 text-sm gap-2">
+              <RefreshCw className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : transfers.length === 0 ? (
+            <div className="flex items-center justify-center h-40 text-gray-400 text-sm">No transfers found</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
+                  <th className="text-left px-4 py-2 font-medium">Transfer #</th>
+                  <th className="text-left px-3 py-2 font-medium">From</th>
+                  <th className="text-left px-3 py-2 font-medium">To</th>
+                  <th className="text-center px-3 py-2 font-medium">Items</th>
+                  <th className="text-left px-3 py-2 font-medium">Date</th>
+                  <th className="w-8 px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {transfers.map((t) => {
+                  const isExpanded = expandedId === t.id;
+                  return (
+                    <React.Fragment key={t.id}>
+                      <tr
+                        className={`hover:bg-gray-50 cursor-pointer transition-colors ${isExpanded ? "bg-purple-50/40" : ""}`}
+                        onClick={() => setExpandedId(isExpanded ? null : t.id)}
+                      >
+                        <td className="px-4 py-2.5">
+                          <span className="font-mono text-xs text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">
+                            {t.transferNo}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-700">{t.fromShopName}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-1 text-gray-700">
+                            <ArrowRight className="h-3 w-3 text-gray-400" />
+                            {t.toShopName}
                           </div>
-                        )}
-                        
-                        {!isLoadingProducts && products.length > 0 && filteredProducts.length > 0 && (
-                          <div className="border rounded-md bg-white shadow-lg max-h-48 overflow-y-auto mb-3">
-                            {filteredProducts.slice(0, 10).map((product: SharedProduct) => (
-                              <div 
-                                key={product._id} 
-                                className="flex items-center justify-between p-3 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer"
-                                onClick={() => {
-                                  addProduct(product);
-                                  setProductSearch('');
-                                }}
-                              >
-                                <div>
-                                  <div className="font-medium">{product.name}</div>
-                                  <div className="text-sm text-gray-500">Stock: {(product as any).quantity || (product as any).stock || 0}</div>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
+                            {t.transferItems.length}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-xs text-gray-400">
+                          <div>{new Date(t.createdAt).toLocaleDateString()}</div>
+                          <div>{new Date(t.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-400">
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={6} className="px-0 py-0 bg-purple-50/20">
+                            <div className="border-l-4 border-purple-400 mx-4 my-2 rounded overflow-hidden">
+                              {t.transferItems.length === 0 ? (
+                                <div className="px-4 py-3 text-xs text-gray-400">No items</div>
+                              ) : (
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="bg-purple-50 border-b border-purple-100 text-purple-700">
+                                      <th className="text-left px-4 py-1.5 font-medium">Product</th>
+                                      <th className="text-center px-3 py-1.5 font-medium">Quantity</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-purple-50">
+                                    {t.transferItems.map((item) => (
+                                      <tr key={item.id} className="bg-white">
+                                        <td className="px-4 py-1.5 font-medium text-gray-800">{item.productName}</td>
+                                        <td className="text-center px-3 py-1.5 text-gray-700 font-semibold">
+                                          {parseFloat(String(item.quantity))}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                              {t.transferNote && (
+                                <div className="px-4 py-2 text-xs text-gray-500 border-t border-purple-50">
+                                  Note: {t.transferNote}
                                 </div>
-                                <Button size="sm" variant="outline">
-                                  <Plus className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ))}
-                            {filteredProducts.length > 10 && (
-                              <div className="p-3 text-sm text-gray-500 text-center border-t">
-                                Showing first 10 results. Keep typing to narrow down...
-                              </div>
-                            )}
-                          </div>
-                        )}
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
 
-                        {!isLoadingProducts && products.length > 0 && filteredProducts.length === 0 && (
-                          <div className="p-3 text-sm text-gray-500 text-center border rounded-md mb-3">
-                            No products found matching "{productSearch}"
-                          </div>
-                        )}
+        {/* ── Pagination ── */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-2 border-t bg-white text-xs text-gray-500">
+            <span>{totalCount} transfers</span>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>‹ Prev</Button>
+              <span className="px-2">Page {currentPage} of {totalPages}</span>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>Next ›</Button>
+            </div>
+          </div>
+        )}
+      </div>
 
-                        {!isLoadingProducts && products.length === 0 && (
-                          <div className="p-3 text-sm text-gray-500 text-center border rounded-md mb-3">
-                            {productsError ? 'Unable to load products (API timeout)' : 'No products available for this shop'}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
+      {/* ── Create Transfer Dialog ── */}
+      <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ArrowRight className="h-4 w-4 text-purple-600" />
+              New Stock Transfer
+            </DialogTitle>
+          </DialogHeader>
 
-                {/* Selected Products */}
-                {selectedProducts.length > 0 && (
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Selected Products</label>
-                    <div className="space-y-2">
-                      {selectedProducts.map((item) => (
-                        <div key={item.product} className="flex items-center justify-between p-3 border rounded-md">
-                          <div className="flex-1">
-                            <div className="font-medium">{item.productName}</div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="number"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) => updateQuantity(item.product, parseInt(e.target.value) || 1)}
-                              className="w-20 px-2 py-1 border rounded text-center"
-                            />
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => removeProduct(item.product)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
+          <div className="space-y-4 pt-1">
+            {/* Shop selectors */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1.5 block">From Shop</label>
+                <Select
+                  value={fromShopId ? String(fromShopId) : ""}
+                  onValueChange={(v) => { setFromShopId(Number(v)); setCart([]); setProductSearch(""); }}
+                >
+                  <SelectTrigger className="text-sm h-9">
+                    <SelectValue placeholder="Select source…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shopOptions.map(s => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1.5 block">To Shop</label>
+                <Select
+                  value={toShopId ? String(toShopId) : ""}
+                  onValueChange={(v) => setToShopId(Number(v))}
+                  disabled={!fromShopId}
+                >
+                  <SelectTrigger className="text-sm h-9">
+                    <SelectValue placeholder="Select destination…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shopOptions.filter(s => s.id !== fromShopId).map(s => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Product search */}
+            {fromShopId && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1.5 block">Add Products</label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <Input
+                    placeholder="Search product name…"
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    className="pl-8 text-sm h-9"
+                  />
+                  {productResults && productResults.length > 0 && (
+                    <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border rounded shadow-lg max-h-48 overflow-auto">
+                      {productResults.map((p) => (
+                        <button
+                          key={p.id}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
+                          onClick={() => addToCart(p)}
+                        >
+                          <span>{p.name}</span>
+                          {p.quantity !== undefined && (
+                            <span className="text-xs text-gray-400">Stock: {p.quantity}</span>
+                          )}
+                        </button>
                       ))}
                     </div>
-                  </div>
-                )}
-
-                {/* Notes */}
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Transfer Notes</label>
-                  <Textarea 
-                    placeholder="Optional transfer notes or special instructions" 
-                    value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                  />
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex space-x-2">
-                  <Button 
-                    onClick={handleCreateTransfer} 
-                    disabled={transferMutation.isPending || selectedProducts.length === 0 || !formData.fromShopId || !formData.toShopId}
-                    className="bg-purple-600 hover:bg-purple-700"
-                  >
-                    {transferMutation.isPending ? "Processing..." : "Transfer Products"}
-                  </Button>
-                  <Button variant="outline" onClick={() => {
-                    setShowCreateForm(false);
-                    setSelectedProducts([]);
-                    setFormData({ fromShopId: undefined, toShopId: undefined, notes: "" });
-                  }}>
-                    Cancel
-                  </Button>
+                  )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
 
-        {/* Date Filter Controls */}
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-lg font-semibold">Transfer History</CardTitle>
-              <Button 
-                variant="outline" 
-                onClick={downloadTransferReport}
-                disabled={isLoadingHistory || transferHistory.length === 0}
-                className="flex items-center space-x-2"
+            {/* Cart */}
+            {cart.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1.5 block">
+                  Items to Transfer ({cart.length})
+                </label>
+                <div className="space-y-1.5">
+                  {cart.map((item) => (
+                    <div key={item.productId} className="flex items-center gap-2 bg-gray-50 rounded px-3 py-2">
+                      <span className="flex-1 text-sm font-medium">{item.productName}</span>
+                      <Input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => updateCartQty(item.productId, parseInt(e.target.value) || 1)}
+                        className="w-16 h-7 text-center text-xs"
+                        min="1"
+                      />
+                      <button className="text-gray-300 hover:text-red-500" onClick={() => setCart(prev => prev.filter(c => c.productId !== item.productId))}>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Note */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1.5 block">Note (optional)</label>
+              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Transfer reason or notes…" className="text-sm h-9" />
+            </div>
+
+            {/* Summary */}
+            {fromShopId && toShopId && cart.length > 0 && (
+              <div className="bg-purple-50 border border-purple-100 rounded px-3 py-2 text-xs text-purple-700">
+                Transfer <strong>{cart.reduce((s, c) => s + c.quantity, 0)}</strong> unit(s) across <strong>{cart.length}</strong> product(s) from{" "}
+                <strong>{shopOptions.find(s => s.id === fromShopId)?.name}</strong> →{" "}
+                <strong>{shopOptions.find(s => s.id === toShopId)?.name}</strong>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1 text-sm" onClick={resetForm}>Cancel</Button>
+              <Button
+                className="flex-1 text-sm bg-purple-600 hover:bg-purple-700"
+                onClick={() => createMutation.mutate()}
+                disabled={createMutation.isPending || !fromShopId || !toShopId || !cart.length}
               >
-                <Download className="h-4 w-4" />
-                <span>Download PDF</span>
+                {createMutation.isPending ? "Transferring…" : "Transfer Stock"}
               </Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-4 mb-6">
-              <div className="flex-1 min-w-[200px]">
-                <label className="text-sm font-medium mb-2 block">Start Date</label>
-                <input
-                  type="date"
-                  value={dateFilter.startDate}
-                  onChange={(e) => setDateFilter({...dateFilter, startDate: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
-              </div>
-              <div className="flex-1 min-w-[200px]">
-                <label className="text-sm font-medium mb-2 block">End Date</label>
-                <input
-                  type="date"
-                  value={dateFilter.endDate}
-                  onChange={(e) => setDateFilter({...dateFilter, endDate: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
-              </div>
-              <div className="flex items-end">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setDateFilter({ startDate: '', endDate: '' })}
-                  className="mb-0"
-                >
-                  Clear Dates
-                </Button>
-              </div>
-            </div>
-
-            <div className="rounded-md border">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="border-b bg-gray-50">
-                    <tr>
-                      <th className="text-left p-4 font-medium">Items</th>
-                      <th className="text-left p-4 font-medium">From</th>
-                      <th className="text-left p-4 font-medium">To</th>
-                      <th className="text-left p-4 font-medium">Done By</th>
-                      <th className="text-left p-4 font-medium">Date</th>
-                      <th className="text-left p-4 font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {isLoadingHistory ? (
-                      <tr>
-                        <td colSpan={6} className="text-center p-8 text-gray-500">
-                          Loading transfers...
-                        </td>
-                      </tr>
-                    ) : transferHistory.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="text-center p-8 text-gray-500">
-                          No transfer records found
-                        </td>
-                      </tr>
-                    ) : (
-                      transferHistory.map((transfer: any) => (
-                        <React.Fragment key={transfer._id}>
-                          <tr 
-                            className="border-b hover:bg-gray-50 cursor-pointer" 
-                            onClick={() => toggleRowExpansion(transfer._id)}
-                          >
-                            <td className="p-4">
-                              <div className="flex items-center space-x-2">
-                                <span className="text-sm font-medium">
-                                  {transfer.productId?.length || 0} items
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  {expandedRows.has(transfer._id) ? '▼' : '▶'}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div>
-                                <div className="font-medium text-sm">{transfer.fromShopId?.name || 'Unknown'}</div>
-                                <div className="text-xs text-gray-500">{transfer.fromShopId?.address}</div>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div>
-                                <div className="font-medium text-sm">{transfer.toShopId?.name || 'Unknown'}</div>
-                                <div className="text-xs text-gray-500">{transfer.toShopId?.address}</div>
-                              </div>
-                            </td>
-                            <td className="p-4">{transfer.attendantId?.username || 'Unknown'}</td>
-                            <td className="p-4">{new Date(transfer.createdAt).toLocaleDateString()}</td>
-                            <td className="p-4">
-                              <div className="flex items-center space-x-2">
-                                <Button variant="ghost" size="sm">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                          {expandedRows.has(transfer._id) && (
-                            <tr className="bg-gray-50">
-                              <td colSpan={6} className="p-4">
-                                <div className="bg-white rounded-md p-4 border">
-                                  <h4 className="font-medium text-sm mb-3">Transfer Items:</h4>
-                                  <div className="space-y-2">
-                                    {transfer.productId?.map((item: any, index: number) => (
-                                      <div key={index} className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded">
-                                        <div>
-                                          <span className="font-medium text-sm">
-                                            {item.product?.name || 'Product'}
-                                          </span>
-                                          {item.product?.measure && (
-                                            <span className="text-xs text-gray-500 ml-2">
-                                              ({item.product.measure})
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="text-sm">
-                                          <span className="font-medium">Qty: {item.quantity}</span>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              
-              {/* Pagination Controls */}
-              <div className="flex items-center justify-between p-4 border-t">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600">Items per page:</span>
-                  <Select value={itemsPerPage.toString()} onValueChange={(value) => handleItemsPerPageChange(Number(value))}>
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600">
-                    Showing {Math.min((currentPage - 1) * itemsPerPage + 1, transferHistory.length)} to {Math.min(currentPage * itemsPerPage, transferHistory.length)} of {pagination.total || transferHistory.length} transfers
-                  </span>
-                  
-                  <div className="flex space-x-1">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage <= 1}
-                    >
-                      Previous
-                    </Button>
-                    
-                    {Array.from({ length: Math.min(5, pagination.totalPages || Math.ceil(transferHistory.length / itemsPerPage)) }, (_, i) => {
-                      const page = currentPage <= 3 ? i + 1 : currentPage - 2 + i;
-                      const totalPages = pagination.totalPages || Math.ceil(transferHistory.length / itemsPerPage);
-                      
-                      if (page > totalPages) return null;
-                      
-                      return (
-                        <Button
-                          key={page}
-                          variant={currentPage === page ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handlePageChange(page)}
-                        >
-                          {page}
-                        </Button>
-                      );
-                    })}
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={currentPage >= (pagination.totalPages || Math.ceil(transferHistory.length / itemsPerPage))}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

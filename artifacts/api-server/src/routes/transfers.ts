@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, or, and, sql } from "drizzle-orm";
-import { productTransfers, transferItems, inventory } from "@workspace/db";
+import { eq, or, and, sql, inArray } from "drizzle-orm";
+import { productTransfers, transferItems, inventory, products, shops } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -28,7 +28,33 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
       with: { transferItems: true },
     });
     const total = await db.$count(productTransfers, where);
-    return paginated(res, rows, { total, page, limit });
+
+    // Enrich with product names and shop names
+    const allProductIds = [...new Set(rows.flatMap(r => r.transferItems.map(i => i.product)))];
+    const allShopIds = [...new Set(rows.flatMap(r => [r.fromShop, r.toShop]))];
+
+    const [productNames, shopNames] = await Promise.all([
+      allProductIds.length
+        ? db.select({ id: products.id, name: products.name }).from(products).where(inArray(products.id, allProductIds))
+        : Promise.resolve([]),
+      allShopIds.length
+        ? db.select({ id: shops.id, name: shops.name }).from(shops).where(inArray(shops.id, allShopIds))
+        : Promise.resolve([]),
+    ]);
+
+    const pMap: Record<number, string> = {};
+    productNames.forEach(p => { pMap[p.id] = p.name; });
+    const sMap: Record<number, string> = {};
+    shopNames.forEach(s => { sMap[s.id] = s.name; });
+
+    const enriched = rows.map(r => ({
+      ...r,
+      fromShopName: sMap[r.fromShop] ?? `Shop #${r.fromShop}`,
+      toShopName: sMap[r.toShop] ?? `Shop #${r.toShop}`,
+      transferItems: r.transferItems.map(i => ({ ...i, productName: pMap[i.product] ?? `Product #${i.product}` })),
+    }));
+
+    return paginated(res, enriched, { total, page, limit });
   } catch (e) { next(e); }
 });
 
