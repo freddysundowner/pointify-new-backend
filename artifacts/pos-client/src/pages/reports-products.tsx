@@ -111,6 +111,7 @@ export default function ProductsReportPage() {
       return json?.data ?? json;
     },
     enabled: !!shopId,
+    staleTime: 0,
   });
 
   const { data: stockValueData, isLoading: svLoading } = useQuery<any>({
@@ -121,6 +122,7 @@ export default function ProductsReportPage() {
       return json?.data ?? json;
     },
     enabled: !!shopId,
+    staleTime: 0,
   });
 
   const { data: discountData, isLoading: discLoading } = useQuery<any>({
