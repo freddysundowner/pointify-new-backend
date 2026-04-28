@@ -34,7 +34,7 @@ export default function StockSummary() {
       const attendantToken = localStorage.getItem("attendantToken");
       const token = attendantToken || adminToken;
       
-      const response = await fetch(`${ENDPOINTS.analytics.stockAnalysis}?shopid=${shopId}`, {
+      const response = await fetch(`${ENDPOINTS.analytics.stockAnalysis}?shopId=${shopId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -47,7 +47,8 @@ export default function StockSummary() {
         throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }
 
-      return await response.json() as StockAnalysisData;
+      const json = await response.json();
+      return (json.data ?? json) as StockAnalysisData;
     },
     enabled: !!shopId,
   });
@@ -107,9 +108,10 @@ export default function StockSummary() {
     );
   }
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | string | undefined | null) => {
     const currency = shopData?.currency || "KES";
-    return `${currency} ${amount.toLocaleString()}`;
+    const num = parseFloat(String(amount ?? 0)) || 0;
+    return `${currency} ${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Navigation functions
@@ -364,8 +366,8 @@ export default function StockSummary() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Profit Margin</span>
                   <span className="font-semibold text-blue-600">
-                    {stockData.totalStockValue > 0 
-                      ? `${((stockData.profitEstimate / stockData.totalStockValue) * 100).toFixed(1)}%`
+                    {parseFloat(String(stockData.totalStockValue ?? 0)) > 0
+                      ? `${((parseFloat(String(stockData.profitEstimate ?? 0)) / parseFloat(String(stockData.totalStockValue ?? 1))) * 100).toFixed(1)}%`
                       : '0%'
                     }
                   </span>
@@ -373,8 +375,8 @@ export default function StockSummary() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Average Value per Product</span>
                   <span className="font-semibold">
-                    {stockData.totalstock > 0 
-                      ? formatCurrency(Math.round(stockData.totalStockValue / stockData.totalstock))
+                    {parseFloat(String(stockData.totalstock ?? 0)) > 0
+                      ? formatCurrency(Math.round(parseFloat(String(stockData.totalStockValue ?? 0)) / parseFloat(String(stockData.totalstock ?? 1))))
                       : formatCurrency(0)
                     }
                   </span>
