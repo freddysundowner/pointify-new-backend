@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { ArrowLeft, DollarSign, ChevronLeft, ChevronRight, RefreshCw, User, CheckCircle2, Clock } from "lucide-react";
+import { ArrowLeft, DollarSign, ChevronLeft, ChevronRight, RefreshCw, User, CheckCircle2, Clock, Download } from "lucide-react";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
@@ -36,6 +36,101 @@ function methodColor(m: string) {
   return "bg-gray-100 text-gray-600";
 }
 
+function buildReceiptHtml(row: any, currency: string, shopName: string) {
+  const cleared = Number(row.balance ?? 0) <= 0;
+  const amount = fmt(row.amount, currency);
+  const saleTotal = fmt(row.total_with_discount, currency);
+  const balance = cleared ? "Cleared" : fmt(row.balance, currency);
+  const receiptNo = row.receipt_no || `#${row.sale_id}`;
+  const dateStr = `${fmtDate(row.paid_at)} · ${fmtTime(row.paid_at)}`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Payment Receipt – ${receiptNo}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1a1a1a; }
+    .page { width: 80mm; margin: 0 auto; padding: 6mm; }
+    .header { text-align: center; padding-bottom: 5mm; border-bottom: 1px dashed #ccc; }
+    .shop { font-size: 13pt; font-weight: 700; margin-bottom: 1mm; }
+    .label { font-size: 7pt; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+    .amount-big { font-size: 22pt; font-weight: 800; margin: 2mm 0 1mm; }
+    .sub { font-size: 7.5pt; color: #555; }
+    .section { padding: 4mm 0; border-bottom: 1px dashed #e0e0e0; }
+    .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5mm; }
+    .row-label { font-size: 8pt; color: #666; }
+    .row-val { font-size: 8.5pt; font-weight: 600; }
+    .row-val.mono { font-family: 'Courier New', monospace; }
+    .row-val.teal { color: #0d9488; }
+    .row-val.green { color: #16a34a; }
+    .row-val.orange { color: #ea580c; }
+    .box { background: #f5f5f5; border-radius: 3mm; padding: 3mm; margin-top: 3mm; }
+    .box-title { font-size: 7pt; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2mm; }
+    .divider { border: none; border-top: 1px solid #e0e0e0; margin: 1.5mm 0; }
+    .footer { text-align: center; font-size: 7pt; color: #aaa; padding-top: 4mm; }
+    @media print {
+      @page { size: 80mm auto; margin: 0; }
+      body { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="shop">${shopName}</div>
+    <div class="label" style="margin-top:2mm;">Payment Receipt</div>
+    <div class="amount-big">${amount}</div>
+    <div class="sub">${dateStr}</div>
+  </div>
+
+  ${row.customer_name ? `
+  <div class="section">
+    <div class="box-title">Customer</div>
+    <div class="row">
+      <span class="row-label">Name</span>
+      <span class="row-val">${row.customer_name}</span>
+    </div>
+    ${row.customer_phone ? `<div class="row"><span class="row-label">Phone</span><span class="row-val">${row.customer_phone}</span></div>` : ""}
+  </div>` : ""}
+
+  <div class="section">
+    <div class="row">
+      <span class="row-label">Payment Method</span>
+      <span class="row-val" style="text-transform:capitalize;">${row.payment_type ?? "—"}</span>
+    </div>
+    ${row.payment_reference ? `<div class="row"><span class="row-label">Reference</span><span class="row-val mono">${row.payment_reference}</span></div>` : ""}
+  </div>
+
+  <div class="box">
+    <div class="box-title">Original Sale</div>
+    <div class="row">
+      <span class="row-label">Receipt No</span>
+      <span class="row-val mono">${receiptNo}</span>
+    </div>
+    <div class="row">
+      <span class="row-label">Sale Total</span>
+      <span class="row-val">${saleTotal}</span>
+    </div>
+    <div class="row">
+      <span class="row-label">This Payment</span>
+      <span class="row-val teal">${amount}</span>
+    </div>
+    <hr class="divider"/>
+    <div class="row">
+      <span class="row-label">Remaining Balance</span>
+      <span class="row-val ${cleared ? "green" : "orange"}">${balance}</span>
+    </div>
+  </div>
+
+  <div class="footer">Thank you for your payment</div>
+</div>
+<script>window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; };</script>
+</body>
+</html>`;
+}
+
 function PaymentReceiptModal({ row, currency, shopName, onClose }: {
   row: any;
   currency: string;
@@ -43,6 +138,14 @@ function PaymentReceiptModal({ row, currency, shopName, onClose }: {
   onClose: () => void;
 }) {
   const cleared = Number(row.balance ?? 0) <= 0;
+
+  function handlePrint() {
+    const html = buildReceiptHtml(row, currency, shopName);
+    const win = window.open("", "_blank", "width=400,height=600");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+  }
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
@@ -127,9 +230,14 @@ function PaymentReceiptModal({ row, currency, shopName, onClose }: {
             </div>
           </div>
 
-          <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white" onClick={onClose}>
-            Close
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={onClose}>
+              Close
+            </Button>
+            <Button className="flex-1 bg-teal-600 hover:bg-teal-700 text-white gap-1.5" onClick={handlePrint}>
+              <Download className="h-4 w-4" /> Download PDF
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
