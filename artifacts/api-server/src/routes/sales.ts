@@ -574,6 +574,49 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// List debt collection payments — payments tagged payment_no = 'DEBT'
+router.get("/collected-payments", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const start = req.query["start"] ? new Date(String(req.query["start"])) : null;
+    const end   = req.query["end"]   ? new Date(String(req.query["end"]))   : null;
+    if (end) end.setHours(23, 59, 59, 999);
+    const effectiveShopId = req.attendant ? req.attendant.shopId : shopId;
+
+    const shopClause  = effectiveShopId ? `AND s.shop_id = ${Number(effectiveShopId)}` : "";
+    const startClause = start ? `AND sp.paid_at >= '${start.toISOString()}'` : "";
+    const endClause   = end   ? `AND sp.paid_at <= '${end.toISOString()}'`   : "";
+    const baseWhere   = `sp.payment_no = 'DEBT' ${shopClause} ${startClause} ${endClause}`;
+
+    const [rows, countRows] = await Promise.all([
+      db.execute(sql.raw(`
+        SELECT
+          sp.id, sp.paid_at, sp.amount, sp.balance, sp.payment_type,
+          sp.payment_reference, sp.payment_no,
+          s.id AS sale_id, s.receipt_no, s.total_with_discount,
+          s.outstanding_balance, s.status AS sale_status,
+          c.id AS customer_id, c.name AS customer_name, c.phone_number AS customer_phone
+        FROM sale_payments sp
+        INNER JOIN sales s ON sp.sale_id = s.id
+        LEFT JOIN customers c ON s.customer_id = c.id
+        WHERE ${baseWhere}
+        ORDER BY sp.paid_at DESC
+        LIMIT ${Number(limit)} OFFSET ${Number(offset)}
+      `)),
+      db.execute(sql.raw(`
+        SELECT COUNT(*) AS total
+        FROM sale_payments sp
+        INNER JOIN sales s ON sp.sale_id = s.id
+        WHERE ${baseWhere}
+      `)),
+    ]);
+
+    const total = Number((countRows.rows[0] as any)?.total ?? 0);
+    return paginated(res, rows.rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
 router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const sale = await db.query.sales.findFirst({
@@ -995,50 +1038,6 @@ router.post("/:id/refund", requireAdmin, async (req, res, next) => {
       });
     }
     return ok(res, updated);
-  } catch (e) { next(e); }
-});
-
-// List debt collection payments — payments tagged payment_no = 'DEBT'
-router.get("/collected-payments", requireAdminOrAttendant, async (req, res, next) => {
-  try {
-    const { page, limit, offset } = getPagination(req);
-    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
-    const start = req.query["start"] ? new Date(String(req.query["start"])) : null;
-    const end   = req.query["end"]   ? new Date(String(req.query["end"]))   : null;
-    if (end) end.setHours(23, 59, 59, 999);
-    const effectiveShopId = req.attendant ? req.attendant.shopId : shopId;
-
-    // Build fully-literal SQL — no Drizzle parameters, all values are server-controlled.
-    const shopClause  = effectiveShopId ? `AND s.shop_id = ${Number(effectiveShopId)}` : "";
-    const startClause = start ? `AND sp.paid_at >= '${start.toISOString()}'` : "";
-    const endClause   = end   ? `AND sp.paid_at <= '${end.toISOString()}'`   : "";
-    const baseWhere   = `sp.payment_no = 'DEBT' ${shopClause} ${startClause} ${endClause}`;
-
-    const [rows, countRows] = await Promise.all([
-      db.execute(sql.raw(`
-        SELECT
-          sp.id, sp.paid_at, sp.amount, sp.balance, sp.payment_type,
-          sp.payment_reference, sp.payment_no,
-          s.id AS sale_id, s.receipt_no, s.total_with_discount,
-          s.outstanding_balance, s.status AS sale_status,
-          c.id AS customer_id, c.name AS customer_name, c.phone_number AS customer_phone
-        FROM sale_payments sp
-        INNER JOIN sales s ON sp.sale_id = s.id
-        LEFT JOIN customers c ON s.customer_id = c.id
-        WHERE ${baseWhere}
-        ORDER BY sp.paid_at DESC
-        LIMIT ${Number(limit)} OFFSET ${Number(offset)}
-      `)),
-      db.execute(sql.raw(`
-        SELECT COUNT(*) AS total
-        FROM sale_payments sp
-        INNER JOIN sales s ON sp.sale_id = s.id
-        WHERE ${baseWhere}
-      `)),
-    ]);
-
-    const total = Number((countRows.rows[0] as any)?.total ?? 0);
-    return paginated(res, rows.rows, total, page, limit);
   } catch (e) { next(e); }
 });
 
