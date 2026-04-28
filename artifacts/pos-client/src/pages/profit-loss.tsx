@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import {
   ArrowLeft, RefreshCw, FileText, TrendingUp, TrendingDown,
-  ShoppingCart, Package, Banknote, CreditCard, AlertTriangle
+  ShoppingCart, Package, Banknote, CreditCard, AlertTriangle, Download,
 } from "lucide-react";
 import { RootState } from "@/store";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
@@ -96,6 +96,170 @@ export default function ProfitLossPage() {
   const avgOrder = saleCount > 0 ? Math.round(revenue / saleCount) : 0;
 
   const isProfit = netProfit >= 0;
+  const shopName = (primaryShop as any)?.name ?? (primaryShop as any)?.shopName ?? "My Shop";
+  const grossMarginPct = revenue > 0 ? ((grossProfit / revenue) * 100).toFixed(1) : "0.0";
+  const netMarginPct = revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : "0.0";
+
+  const handleDownload = () => {
+    if (!raw) return;
+    const generatedAt = new Date().toLocaleString("en-KE", { dateStyle: "long", timeStyle: "short" });
+    const periodLabel = `${new Date(from).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })} – ${new Date(to).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })}`;
+
+    const expCategoryRows = (exp.byCategory ?? []).map((c: any) =>
+      `<tr><td class="label indent">— ${c.categoryName ?? "Other"}</td><td class="num debit">(${fmt(c.total)})</td></tr>`
+    ).join("");
+
+    const paymentRows = byPayment.map(row =>
+      `<tr><td class="label indent">— ${METHOD_LABELS[row.paymentType] ?? row.paymentType}</td><td class="num">${fmt(n(row.total))}</td></tr>`
+    ).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Profit & Loss — ${shopName}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; padding: 48px 56px; max-width: 680px; margin: 0 auto; }
+
+  .header { text-align: center; margin-bottom: 32px; }
+  .header .shop { font-size: 22px; font-weight: 700; color: #111; letter-spacing: -0.3px; }
+  .header .title { font-size: 14px; font-weight: 600; color: #6b21a8; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .header .period { font-size: 12px; color: #555; margin-top: 6px; }
+  .header .generated { font-size: 11px; color: #999; margin-top: 2px; }
+  .divider { border: none; border-top: 2px solid #6b21a8; margin: 20px 0 24px; }
+
+  .section-title { font-size: 10px; font-weight: 700; color: #6b21a8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #e9d5ff; }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  tr td { padding: 5px 2px; vertical-align: top; }
+  td.label { color: #374151; }
+  td.label.bold { font-weight: 600; color: #111; }
+  td.label.indent { padding-left: 18px; color: #6b7280; font-size: 12px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.num.credit { color: #15803d; font-weight: 600; }
+  td.num.debit { color: #b45309; }
+  td.num.bold { font-weight: 700; color: #111; }
+
+  .subtotal td { border-top: 1px solid #e5e7eb; font-weight: 600; padding-top: 7px; }
+  .total-row td { background: ${isProfit ? "#f0fdf4" : "#fef2f2"}; padding: 10px 6px; font-weight: 700; font-size: 14px; color: ${isProfit ? "#15803d" : "#dc2626"}; border-radius: 4px; }
+  .gross-row td { background: #f0fdf4; padding: 8px 6px; font-weight: 700; color: #15803d; border-radius: 4px; }
+
+  .kpi-strip { display: flex; gap: 16px; margin-bottom: 28px; }
+  .kpi { flex: 1; background: #faf5ff; border-radius: 8px; padding: 12px 14px; }
+  .kpi .kpi-label { font-size: 10px; font-weight: 700; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.6px; }
+  .kpi .kpi-value { font-size: 18px; font-weight: 800; color: #111; margin-top: 2px; }
+  .kpi .kpi-sub { font-size: 11px; color: #888; margin-top: 1px; }
+
+  .note { font-size: 11px; color: #888; background: #f9fafb; border-radius: 6px; padding: 10px 12px; margin-top: 8px; }
+  .note.warn { background: #fff7ed; color: #92400e; border: 1px solid #fed7aa; }
+
+  .footer { margin-top: 36px; text-align: center; font-size: 10px; color: #bbb; border-top: 1px solid #f3f4f6; padding-top: 14px; }
+  @media print {
+    body { padding: 24px 32px; }
+    @page { margin: 16mm; size: A4 portrait; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="shop">${shopName}</div>
+  <div class="title">Profit &amp; Loss Statement</div>
+  <div class="period">${periodLabel}</div>
+  <div class="generated">Generated ${generatedAt}</div>
+</div>
+<hr class="divider"/>
+
+<div class="kpi-strip">
+  <div class="kpi">
+    <div class="kpi-label">Net ${isProfit ? "Profit" : "Loss"}</div>
+    <div class="kpi-value" style="color:${isProfit ? "#15803d" : "#dc2626"}">${fmt(Math.abs(netProfit))}</div>
+    <div class="kpi-sub">${netMarginPct}% of revenue</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Gross Profit</div>
+    <div class="kpi-value">${fmt(grossProfit)}</div>
+    <div class="kpi-sub">${grossMarginPct}% margin</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Transactions</div>
+    <div class="kpi-value">${saleCount}</div>
+    <div class="kpi-sub">avg ${fmt(avgOrder)} per sale</div>
+  </div>
+</div>
+
+<div class="section-title">Income</div>
+<table>
+  <tr>
+    <td class="label bold">Revenue from Sales</td>
+    <td class="num credit">${fmt(revenue)}</td>
+  </tr>
+  ${totalDiscount > 0 ? `<tr><td class="label indent">— Discounts given</td><td class="num debit">(${fmt(totalDiscount)})</td></tr>` : ""}
+  ${(voidedAmount + refundedAmount) > 0 ? `<tr><td class="label indent">— Voided / Refunded</td><td class="num debit">(${fmt(voidedAmount + refundedAmount)})</td></tr>` : ""}
+</table>
+
+<div class="section-title">Cost of Goods Sold</div>
+<table>
+  <tr>
+    <td class="label bold">Cost of stock sold</td>
+    <td class="num debit">(${fmt(cost)})</td>
+  </tr>
+  <tr class="gross-row">
+    <td class="label">Gross Profit &nbsp;<span style="font-size:11px;font-weight:400;color:#4ade80">${grossMarginPct}% margin</span></td>
+    <td class="num">${fmt(grossProfit)}</td>
+  </tr>
+</table>
+
+<div class="section-title">Operating Expenses</div>
+<table>
+  ${expCategoryRows || `<tr><td class="label indent">No expenses recorded</td><td class="num">—</td></tr>`}
+  <tr class="subtotal">
+    <td class="label bold">Total Expenses</td>
+    <td class="num debit bold">(${fmt(expTotal)})</td>
+  </tr>
+</table>
+
+${n(purchases.total) > 0 ? `
+<div class="section-title">Stock Purchases (Cash Out)</div>
+<table>
+  <tr>
+    <td class="label bold">Stock restocked this period</td>
+    <td class="num debit">${fmt(purchases.total)}</td>
+  </tr>
+</table>` : ""}
+
+<table>
+  <tr class="total-row">
+    <td class="label">Net ${isProfit ? "Profit" : "Loss"}</td>
+    <td class="num">${isProfit ? "" : "("}${fmt(Math.abs(netProfit))}${isProfit ? "" : ")"}</td>
+  </tr>
+</table>
+
+${byPayment.length > 0 ? `
+<div class="section-title" style="margin-top:8px">Payment Breakdown</div>
+<table>
+  ${paymentRows}
+  <tr class="subtotal">
+    <td class="label bold">Total Collected</td>
+    <td class="num bold">${fmt(revenue)}</td>
+  </tr>
+</table>` : ""}
+
+${!isProfit ? `<p class="note warn">&#9888; Expenses exceeded gross profit this period. Consider reviewing recurring costs.</p>` : ""}
+
+<div class="footer">Prepared by Pointify &nbsp;·&nbsp; Confidential &nbsp;·&nbsp; ${generatedAt}</div>
+
+<script>window.onload = function(){ window.print(); }</script>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=760,height=900");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -132,6 +296,16 @@ export default function ProfitLossPage() {
           <Button size="sm" onClick={() => refetch()} disabled={isLoading} className="h-8 gap-1 bg-purple-600 hover:bg-purple-700">
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Apply
           </Button>
+          {raw && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1 border-purple-200 text-purple-700 hover:bg-purple-50"
+              onClick={handleDownload}
+            >
+              <Download className="h-3.5 w-3.5" /> Download PDF
+            </Button>
+          )}
         </div>
 
         {error && (
