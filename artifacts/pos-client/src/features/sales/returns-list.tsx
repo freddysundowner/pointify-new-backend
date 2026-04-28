@@ -162,18 +162,18 @@ function ReturnsList() {
 
   // Transform API data to match expected format
   const transformedReturns = returnsData.map((returnItem: any) => ({
-    id: returnItem._id,
-    receiptNo: returnItem.saleReturnNo || returnItem._id,
-    customerName: returnItem.customerId?.name || 'Walk-in',
+    id: returnItem.id || returnItem._id,
+    receiptNo: returnItem.returnNo || returnItem.saleReturnNo || `#${returnItem.id}`,
+    customerName: returnItem.customer?.name || returnItem.customerId?.name || 'Walk-in',
     totalAmount: returnItem.refundAmount || 0,
     returnDate: returnItem.createdAt,
-    status: 'completed', // Returns are always completed
-    paymentTag: 'cash', // Default payment tag
+    status: 'completed',
+    paymentTag: returnItem.refundMethod || 'cash',
     saleType: 'Retail',
-    items: returnItem.items || [],
-    attendantName: returnItem.attendantId?.username || 'Unknown',
-    attendantId: returnItem.attendantId?._id || returnItem.attendantId,
-    shopId: returnItem.shopId,
+    items: returnItem.saleReturnItems || returnItem.items || [],
+    attendantName: returnItem.processedBy?.username || returnItem.attendantId?.username || 'Unknown',
+    attendantId: returnItem.processedBy?.id || returnItem.attendantId?._id || returnItem.processedBy,
+    shopId: returnItem.shop || returnItem.shopId,
     reason: returnItem.reason || 'Return processed'
   }));
 
