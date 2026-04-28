@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import {
-  TrendingUp, ArrowLeft, RefreshCw, Package, AlertTriangle,
-  BarChart2, Layers, Tag, Download, Search, ArrowUpDown,
+  TrendingUp, ArrowLeft, RefreshCw, Package,
+  BarChart2, Tag, Download, Search, ArrowUpDown,
   TrendingDown, Filter, X,
 } from "lucide-react";
 import { RootState } from "@/store";
@@ -57,7 +57,6 @@ const QUICK = [
 
 const TABS = [
   { id: "sales", label: "Sales Performance", icon: BarChart2 },
-  { id: "stock", label: "Stock Health", icon: Layers },
   { id: "slow", label: "Slow Movers", icon: TrendingDown },
 ];
 
@@ -82,11 +81,6 @@ export default function ProductsReportPage() {
   const [salesCategory, setSalesCategory] = useState("");
   const [salesSearch, setSalesSearch] = useState("");
   const [salesSearchInput, setSalesSearchInput] = useState("");
-
-  // Stock tab state
-  const [stockPage, setStockPage] = useState(1);
-  const [stockSearch, setStockSearch] = useState("");
-  const [stockSearchInput, setStockSearchInput] = useState("");
 
   // Slow movers tab state
   const [slowPage, setSlowPage] = useState(1);
@@ -115,9 +109,7 @@ export default function ProductsReportPage() {
   const handleQuickDays = (days: number) => { setQuickDays(days); setSalesPage(1); setSlowPage(1); };
 
   const handleSalesSearch = () => { setSalesSearch(salesSearchInput); setSalesPage(1); };
-  const handleStockSearch = () => { setStockSearch(stockSearchInput); setStockPage(1); };
   const clearSalesSearch = () => { setSalesSearch(""); setSalesSearchInput(""); setSalesPage(1); };
-  const clearStockSearch = () => { setStockSearch(""); setStockSearchInput(""); setStockPage(1); };
 
   // Categories
   const { data: categoriesData } = useQuery<any>({
@@ -137,32 +129,6 @@ export default function ProductsReportPage() {
     queryKey: ["products-report", shopId, effectiveFrom, effectiveTo, salesPage, salesSort, salesCategory, salesSearch],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/reports/sales/by-product/detail?${buildSalesParams(salesPage)}`);
-      const json = await res.json();
-      return json?.data ?? json;
-    },
-    enabled: !!shopId,
-    staleTime: 0,
-  });
-
-  // Inventory summary
-  const { data: inventoryData, isLoading: invLoading } = useQuery<any>({
-    queryKey: ["inventory-report", shopId],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/reports/inventory?shopId=${shopId}`);
-      const json = await res.json();
-      return json?.data ?? json;
-    },
-    enabled: !!shopId,
-    staleTime: 0,
-  });
-
-  // Stock value (paginated + searchable)
-  const { data: stockValueData, isLoading: svLoading } = useQuery<any>({
-    queryKey: ["stock-value-report", shopId, stockPage, stockSearch],
-    queryFn: async () => {
-      const p = new URLSearchParams({ shopId: shopId || "", page: String(stockPage), limit: String(PAGE_SIZE) });
-      if (stockSearch) p.set("search", stockSearch);
-      const res = await apiRequest("GET", `/api/reports/stock-value?${p}`);
       const json = await res.json();
       return json?.data ?? json;
     },
@@ -206,19 +172,12 @@ export default function ProductsReportPage() {
   const rows: any[] = raw?.rows ?? [];
   const summary = raw?.summary ?? {};
   const salesPagination = raw?.pagination ?? { page: 1, totalPages: 1, total: 0 };
-  const inv = inventoryData ?? {};
-  const stockRows: any[] = stockValueData?.rows ?? [];
-  const stockPagination = stockValueData?.pagination ?? { page: 1, totalPages: 1, total: 0 };
   const discSummary = discountData?.summary ?? {};
   const slowRows: any[] = slowData?.rows ?? [];
   const slowSummary = slowData?.summary ?? {};
   const slowPagination = slowData?.pagination ?? { page: 1, totalPages: 1, total: 0 };
 
-  const outOfStock = stockRows.filter(r => n(r.quantity) <= 0);
-  const lowStock = stockRows.filter(r => n(r.reorderLevel) > 0 && n(r.quantity) > 0 && n(r.quantity) <= n(r.reorderLevel)).sort((a, b) => n(a.quantity) - n(b.quantity));
-
   const isLoading = salesLoading;
-  const stockLoading = invLoading || svLoading;
 
   // Pagination controls component
   const PaginationBar = ({ pg, onPrev, onNext }: { pg: any; onPrev: () => void; onNext: () => void }) =>
@@ -504,280 +463,6 @@ export default function ProductsReportPage() {
                           pg={salesPagination}
                           onPrev={() => setSalesPage(p => Math.max(1, p - 1))}
                           onNext={() => setSalesPage(p => Math.min(salesPagination.totalPages, p + 1))}
-                        />
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </>
-        )}
-
-        {/* ── STOCK TAB ────────────────────────────────────────────── */}
-        {activeTab === "stock" && (
-          <>
-            {stockLoading && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {[...Array(6)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
-              </div>
-            )}
-
-            {!stockLoading && (
-              <>
-                {/* Inventory health cards */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
-                  <Card className="border-0 shadow-sm bg-blue-50">
-                    <CardContent className="p-3">
-                      <p className="text-xs text-blue-500 font-medium">Total Products</p>
-                      <p className="text-xl font-bold text-blue-700 leading-tight">{n(inv.totalProducts)}</p>
-                    </CardContent>
-                  </Card>
-                  <Card className={`border-0 shadow-sm ${n(inv.outofstock) > 0 ? "bg-red-50" : "bg-gray-50"}`}>
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-1 mb-0.5">
-                        {n(inv.outofstock) > 0 && <AlertTriangle className="h-3 w-3 text-red-500" />}
-                        <p className={`text-xs font-medium ${n(inv.outofstock) > 0 ? "text-red-500" : "text-gray-400"}`}>Out of Stock</p>
-                      </div>
-                      <p className={`text-xl font-bold leading-tight ${n(inv.outofstock) > 0 ? "text-red-600" : "text-gray-400"}`}>
-                        {n(inv.outofstock)}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className={`border-0 shadow-sm ${n(inv.lowstock) > 0 ? "bg-amber-50" : "bg-gray-50"}`}>
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-1 mb-0.5">
-                        {n(inv.lowstock) > 0 && <AlertTriangle className="h-3 w-3 text-amber-500" />}
-                        <p className={`text-xs font-medium ${n(inv.lowstock) > 0 ? "text-amber-500" : "text-gray-400"}`}>Low Stock</p>
-                      </div>
-                      <p className={`text-xl font-bold leading-tight ${n(inv.lowstock) > 0 ? "text-amber-600" : "text-gray-400"}`}>
-                        {n(inv.lowstock)}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-0 shadow-sm bg-purple-50">
-                    <CardContent className="p-3">
-                      <p className="text-xs text-purple-500 font-medium">Stock Value (Cost)</p>
-                      <p className="text-xl font-bold text-purple-700 leading-tight">{fmt(stockValueData?.summary?.totalAtCost)}</p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-0 shadow-sm bg-indigo-50">
-                    <CardContent className="p-3">
-                      <p className="text-xs text-indigo-500 font-medium">Stock Value (Retail)</p>
-                      <p className="text-xl font-bold text-indigo-700 leading-tight">{fmt(stockValueData?.summary?.totalAtSale)}</p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-0 shadow-sm bg-green-50">
-                    <CardContent className="p-3">
-                      <p className="text-xs text-green-500 font-medium">Potential Profit</p>
-                      <p className="text-xl font-bold text-green-700 leading-tight">
-                        {fmt((stockValueData?.summary?.totalAtSale ?? 0) - (stockValueData?.summary?.totalAtCost ?? 0))}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Out of stock list */}
-                {outOfStock.length > 0 && (
-                  <Card className="border-0 shadow-sm border-l-4 border-l-red-400">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-xs font-semibold text-red-500 uppercase tracking-wide flex items-center gap-1">
-                          <AlertTriangle className="h-3.5 w-3.5" /> Out of Stock ({outOfStock.length})
-                        </p>
-                        <Button
-                          size="sm" variant="outline"
-                          className="h-7 px-2 text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                          onClick={() => downloadCSV(
-                            outOfStock.map(r => ({
-                              Product: r.productName ?? "",
-                              Quantity: n(r.quantity),
-                              "Buy Price (KES)": n(r.buyingPrice),
-                              "Sell Price (KES)": n(r.sellingPrice),
-                            })),
-                            "out-of-stock-products.csv"
-                          )}
-                        >
-                          <Download className="h-3 w-3" /> Export CSV
-                        </Button>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-xs text-gray-400 border-b">
-                              <th className="text-left pb-2 font-medium">Product</th>
-                              <th className="text-right pb-2 font-medium">Qty</th>
-                              <th className="text-right pb-2 font-medium">Buy Price</th>
-                              <th className="text-right pb-2 font-medium">Sell Price</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {outOfStock.map((r: any) => (
-                              <tr key={r.productId} className="hover:bg-red-50/50">
-                                <td className="py-2 font-medium text-gray-800">{r.productName ?? "—"}</td>
-                                <td className="py-2 text-right text-red-600 font-semibold">{qty(r.quantity)}</td>
-                                <td className="py-2 text-right text-gray-500">{fmt(r.buyingPrice)}</td>
-                                <td className="py-2 text-right text-gray-700">{fmt(r.sellingPrice)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Low stock list */}
-                {lowStock.length > 0 && (
-                  <Card className="border-0 shadow-sm border-l-4 border-l-amber-400">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide flex items-center gap-1">
-                          <AlertTriangle className="h-3.5 w-3.5" /> Low Stock — at or below reorder level ({lowStock.length})
-                        </p>
-                        <Button
-                          size="sm" variant="outline"
-                          className="h-7 px-2 text-xs gap-1 text-amber-600 border-amber-200 hover:bg-amber-50"
-                          onClick={() => downloadCSV(
-                            lowStock.map(r => ({
-                              Product: r.productName ?? "",
-                              "Qty Left": n(r.quantity),
-                              "Reorder Level": n(r.reorderLevel),
-                              "Stock Value (KES)": n(r.stockValueAtCost),
-                              "Retail Value (KES)": n(r.stockValueAtSale),
-                            })),
-                            "low-stock-products.csv"
-                          )}
-                        >
-                          <Download className="h-3 w-3" /> Export CSV
-                        </Button>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-xs text-gray-400 border-b">
-                              <th className="text-left pb-2 font-medium">Product</th>
-                              <th className="text-right pb-2 font-medium">Qty Left</th>
-                              <th className="text-right pb-2 font-medium">Stock Value</th>
-                              <th className="text-right pb-2 font-medium">Retail Value</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {lowStock.map((r: any) => (
-                              <tr key={r.productId} className="hover:bg-amber-50/50">
-                                <td className="py-2 font-medium text-gray-800">{r.productName ?? "—"}</td>
-                                <td className="py-2 text-right">
-                                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
-                                    n(r.quantity) <= 3 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-700"
-                                  }`}>
-                                    {qty(r.quantity)}
-                                  </span>
-                                </td>
-                                <td className="py-2 text-right text-gray-500">{fmt(r.stockValueAtCost)}</td>
-                                <td className="py-2 text-right text-gray-700">{fmt(r.stockValueAtSale)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Full stock value table */}
-                <Card className="border-0 shadow-sm">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-3 gap-2">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">All Products — Stock Value</p>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <div className="relative">
-                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
-                            <Input
-                              placeholder="Search…"
-                              value={stockSearchInput}
-                              onChange={e => setStockSearchInput(e.target.value)}
-                              onKeyDown={e => e.key === "Enter" && handleStockSearch()}
-                              className="h-7 pl-6 pr-6 text-xs w-36"
-                            />
-                            {stockSearchInput && (
-                              <button onClick={clearStockSearch} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                <X className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                          <Button size="sm" variant="outline" className="h-7 px-2" onClick={handleStockSearch}>
-                            <Search className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        {stockRows.length > 0 && (
-                          <Button
-                            size="sm" variant="outline"
-                            className="h-7 px-2 text-xs gap-1"
-                            onClick={() => downloadCSV(
-                              stockRows.map(r => ({
-                                Product: r.productName ?? "",
-                                Quantity: n(r.quantity),
-                                "Reorder Level": n(r.reorderLevel),
-                                "Buy Price (KES)": n(r.buyingPrice),
-                                "Sell Price (KES)": n(r.sellingPrice),
-                                "Stock Value Cost (KES)": n(r.stockValueAtCost),
-                                "Stock Value Retail (KES)": n(r.stockValueAtSale),
-                              })),
-                              "stock-value.csv"
-                            )}
-                          >
-                            <Download className="h-3 w-3" /> Export CSV
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {stockRows.length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-6">No inventory data</p>
-                    ) : (
-                      <>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="text-xs text-gray-400 border-b">
-                                <th className="text-left pb-2 font-medium">Product</th>
-                                <th className="text-right pb-2 font-medium">Qty</th>
-                                <th className="text-right pb-2 font-medium">Reorder</th>
-                                <th className="text-right pb-2 font-medium">Buy Price</th>
-                                <th className="text-right pb-2 font-medium">Sell Price</th>
-                                <th className="text-right pb-2 font-medium">Cost Value</th>
-                                <th className="text-right pb-2 font-medium">Retail Value</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                              {stockRows.map((r: any) => (
-                                <tr key={r.productId} className="hover:bg-gray-50">
-                                  <td className="py-2 font-medium text-gray-800">{r.productName ?? "—"}</td>
-                                  <td className={`py-2 text-right font-semibold ${n(r.quantity) <= 0 ? "text-red-500" : (n(r.reorderLevel) > 0 && n(r.quantity) <= n(r.reorderLevel)) ? "text-amber-600" : "text-gray-700"}`}>
-                                    {qty(r.quantity)}
-                                  </td>
-                                  <td className="py-2 text-right text-gray-400 text-xs">{n(r.reorderLevel) > 0 ? qty(r.reorderLevel) : "—"}</td>
-                                  <td className="py-2 text-right text-gray-500">{fmt(r.buyingPrice)}</td>
-                                  <td className="py-2 text-right text-gray-500">{fmt(r.sellingPrice)}</td>
-                                  <td className="py-2 text-right text-gray-700">{fmt(r.stockValueAtCost)}</td>
-                                  <td className="py-2 text-right font-medium text-gray-900">{fmt(r.stockValueAtSale)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                            <tfoot>
-                              <tr className="border-t font-bold">
-                                <td colSpan={5} className="pt-2 text-gray-700">Total ({stockPagination.total} products)</td>
-                                <td className="pt-2 text-right text-purple-700">{fmt(stockValueData?.summary?.totalAtCost)}</td>
-                                <td className="pt-2 text-right text-indigo-700">{fmt(stockValueData?.summary?.totalAtSale)}</td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                        <PaginationBar
-                          pg={stockPagination}
-                          onPrev={() => setStockPage(p => Math.max(1, p - 1))}
-                          onNext={() => setStockPage(p => Math.min(stockPagination.totalPages, p + 1))}
                         />
                       </>
                     )}
