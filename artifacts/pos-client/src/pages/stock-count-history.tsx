@@ -19,23 +19,22 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useCurrency } from "@/utils";
 
-interface StockCountHistory {
-  _id: string;
+interface StockCountItem {
+  id: number;
+  product: number;
+  productName: string;
+  physicalCount: string | number;
+  systemCount: string | number;
+  variance: string | number;
   createdAt: string;
-  attendantId: {
-    _id: string;
-    username: string;
-  };
-  shopId: string;
-  products: Array<{
-    productId: string;
-    physicalCount: number;
-    systemCount: number;
-    variance: number;
-    productName?: string;
-  }>;
-  totalVariance: number;
-  status: string;
+}
+
+interface StockCountHistory {
+  id: number;
+  createdAt: string;
+  conductedBy: number | null;
+  shop: number;
+  stockCountItems: StockCountItem[];
 }
 
 export default function StockCountHistoryPage() {
@@ -66,26 +65,19 @@ export default function StockCountHistoryPage() {
   const { data: historyData, isLoading, error } = useQuery({
     queryKey: [ENDPOINTS.stockCounts.getAll, shopId, adminId, attendantId, fromDate, toDate, currentPage, itemsPerPage],
     queryFn: async () => {
-      // Build query parameters
-      const params = new URLSearchParams({
-        fromDate,
-        toDate
-      });
-      
-      // Add attendantId parameter for attendant requests
-      if (attendant) {
-        params.append('attendantId', attendant._id);
-      }
-      
+      const params = new URLSearchParams({ fromDate, toDate });
+      if (shopId) params.append('shopId', String(shopId));
+      if (attendant) params.append('attendantId', String(attendant._id));
       const response = await apiRequest("GET", `${ENDPOINTS.stockCounts.getAll}?${params.toString()}`);
-      return await response.json();
+      const json = await response.json();
+      return json;
     },
     enabled: !!shopId && !!adminId,
     staleTime: 0, // Always consider data stale
     refetchOnMount: 'always' // Always refetch when component mounts
   });
 
-  const stockCounts: StockCountHistory[] = historyData || [];
+  const stockCounts: StockCountHistory[] = Array.isArray(historyData?.data) ? historyData.data : Array.isArray(historyData) ? historyData : [];
 
   // Function to fetch stock analysis data
   const fetchStockAnalysis = async () => {
@@ -112,8 +104,8 @@ export default function StockCountHistoryPage() {
 
   // Filter stock counts based on search query
   const filteredCounts = stockCounts.filter((count) =>
-    count.attendantId?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (count._id || count.id || '').toString().toLowerCase().includes(searchQuery.toLowerCase())
+    String(count.conductedBy ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    String(count.id).includes(searchQuery.toLowerCase())
   );
 
   // Pagination
@@ -152,24 +144,24 @@ export default function StockCountHistoryPage() {
       
       filteredCounts.forEach((count) => {
         const dateTime = `${new Date(count.createdAt).toLocaleDateString()} ${new Date(count.createdAt).toLocaleTimeString()}`;
-        const attendant = count.attendantId?.username || 'Unknown';
-        
-        if (count.products && count.products.length > 0) {
-          count.products.forEach((product: any) => {
-            const productName = typeof product.productId === 'object' ? product.productId.name : (product.productName || product.productId);
+        const attendantLabel = count.conductedBy ? `Attendant #${count.conductedBy}` : 'Unknown';
+
+        if (count.stockCountItems && count.stockCountItems.length > 0) {
+          count.stockCountItems.forEach((item) => {
+            const variance = parseFloat(String(item.variance ?? 0));
             tableData.push([
               dateTime,
-              attendant,
-              productName,
-              product.initialCount || product.systemCount || 0,
-              product.physicalCount || 0,
-              `${product.variance > 0 ? '+' : ''}${product.variance || 0}`
+              attendantLabel,
+              item.productName,
+              item.systemCount ?? 0,
+              item.physicalCount ?? 0,
+              `${variance > 0 ? '+' : ''}${variance}`
             ]);
           });
         } else {
           tableData.push([
             dateTime,
-            attendant,
+            attendantLabel,
             'No products counted',
             '-',
             '-',
@@ -352,10 +344,10 @@ export default function StockCountHistoryPage() {
                   </thead>
                   <tbody>
                     {paginatedCounts.map((count) => (
-                      <React.Fragment key={count._id}>
+                      <React.Fragment key={count.id}>
                         <tr 
                           className="border-b hover:bg-gray-50 cursor-pointer"
-                          onClick={() => setExpandedSession(expandedSession === count._id ? null : count._id)}
+                          onClick={() => setExpandedSession(expandedSession === String(count.id) ? null : String(count.id))}
                         >
                           <td className="p-4">
                             <div className="text-sm">
@@ -369,17 +361,17 @@ export default function StockCountHistoryPage() {
                           </td>
                           <td className="p-4">
                             <div className="text-sm">
-                              {count.attendantId?.username || 'Unknown'}
+                              {count.conductedBy ? `Attendant #${count.conductedBy}` : 'Unknown'}
                             </div>
                           </td>
                           <td className="p-4">
                             <div className="text-sm font-medium">
-                              {count.products?.length || 0} items
+                              {count.stockCountItems?.length || 0} items
                             </div>
                           </td>
                           <td className="p-4">
                             <Button variant="ghost" size="sm">
-                              {expandedSession === count._id ? (
+                              {expandedSession === String(count.id) ? (
                                 <ChevronUp className="h-4 w-4" />
                               ) : (
                                 <ChevronDown className="h-4 w-4" />
@@ -389,7 +381,7 @@ export default function StockCountHistoryPage() {
                         </tr>
                         
                         {/* Expanded Product Details Row */}
-                        {expandedSession === count._id && (
+                        {expandedSession === String(count.id) && (
                           <tr className="bg-gray-50">
                             <td colSpan={4} className="p-0">
                               <div className="p-4 border-l-4 border-blue-500">
@@ -406,22 +398,22 @@ export default function StockCountHistoryPage() {
                                       </tr>
                                     </thead>
                                     <tbody>
-                                      {count.products && count.products.length > 0 ? (
-                                        count.products.map((product: any, index: number) => (
-                                          <tr key={index} className="border-b border-gray-100">
+                                      {count.stockCountItems && count.stockCountItems.length > 0 ? (
+                                        count.stockCountItems.map((item) => {
+                                          const variance = parseFloat(String(item.variance ?? 0));
+                                          return (
+                                          <tr key={item.id} className="border-b border-gray-100">
                                             <td className="py-2">
-                                              <div className="font-medium">
-                                                {typeof product.productId === 'object' ? product.productId.name : product.productName || product.productId}
-                                              </div>
+                                              <div className="font-medium">{item.productName}</div>
                                             </td>
-                                            <td className="py-2">{product.initialCount || 0}</td>
-                                            <td className="py-2">{product.physicalCount || 0}</td>
+                                            <td className="py-2">{item.systemCount ?? 0}</td>
+                                            <td className="py-2">{item.physicalCount ?? 0}</td>
                                             <td className="py-2">
                                               <span className={`font-medium ${
-                                                product.variance === 0 ? 'text-green-600' :
-                                                product.variance > 0 ? 'text-blue-600' : 'text-red-600'
+                                                variance === 0 ? 'text-green-600' :
+                                                variance > 0 ? 'text-blue-600' : 'text-red-600'
                                               }`}>
-                                                {product.variance > 0 ? '+' : ''}{product.variance || 0}
+                                                {variance > 0 ? '+' : ''}{variance}
                                               </span>
                                             </td>
                                             <td className="py-2">
@@ -431,7 +423,8 @@ export default function StockCountHistoryPage() {
                                               </div>
                                             </td>
                                           </tr>
-                                        ))
+                                          );
+                                        })
                                       ) : (
                                         <tr>
                                           <td colSpan={5} className="py-4 text-center text-gray-500">

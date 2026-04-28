@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, ilike, or, inArray, notInArray, sql, gte } from "drizzle-orm";
+import { eq, and, ilike, or, inArray, notInArray, sql, gte, lte } from "drizzle-orm";
 import {
   inventory, batches, adjustments, badStocks,
   stockCounts, stockCountItems, stockRequests, stockRequestItems,
@@ -347,7 +347,14 @@ router.get("/stock-counts", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
-    const where = shopId ? eq(stockCounts.shop, shopId) : undefined;
+    const fromDate = req.query["fromDate"] ? new Date(String(req.query["fromDate"])) : null;
+    const toDate = req.query["toDate"] ? new Date(String(req.query["toDate"]) + "T23:59:59") : null;
+
+    const conditions = [];
+    if (shopId) conditions.push(eq(stockCounts.shop, shopId));
+    if (fromDate) conditions.push(gte(stockCounts.createdAt, fromDate));
+    if (toDate) conditions.push(lte(stockCounts.createdAt, toDate));
+    const where = conditions.length ? and(...conditions) : undefined;
 
     const rows = await db.query.stockCounts.findMany({
       where,
@@ -356,8 +363,22 @@ router.get("/stock-counts", requireAdminOrAttendant, async (req, res, next) => {
       orderBy: (sc, { desc }) => [desc(sc.createdAt)],
       with: { stockCountItems: true },
     });
+
+    // Enrich stockCountItems with product names
+    const allProductIds = [...new Set(rows.flatMap(r => r.stockCountItems.map(i => i.product)))];
+    const productNames: Record<number, string> = {};
+    if (allProductIds.length) {
+      const prods = await db.select({ id: products.id, name: products.name }).from(products).where(inArray(products.id, allProductIds));
+      prods.forEach(p => { productNames[p.id] = p.name; });
+    }
+
+    const enriched = rows.map(r => ({
+      ...r,
+      stockCountItems: r.stockCountItems.map(i => ({ ...i, productName: productNames[i.product] ?? `Product #${i.product}` })),
+    }));
+
     const total = await db.$count(stockCounts, where);
-    return paginated(res, rows, { total, page, limit });
+    return paginated(res, enriched, { total, page, limit });
   } catch (e) { next(e); }
 });
 
