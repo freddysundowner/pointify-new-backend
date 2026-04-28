@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import {
   DollarSign, ArrowLeft, RefreshCw, CreditCard, Smartphone,
-  Banknote, Building, Clock, ShoppingCart, ExternalLink,
+  Banknote, Building, ShoppingCart, ExternalLink,
   RotateCcw, Pause, ChevronRight,
 } from "lucide-react";
 import { RootState } from "@/store";
@@ -117,7 +117,6 @@ export default function SalesReportPage() {
     {
       key: "cash",
       label: "Cash Sales",
-      subtitle: "Paid in cash",
       amount: n(statsData?.cashtransactions),
       icon: Banknote,
       bg: "bg-green-50 hover:bg-green-100",
@@ -128,8 +127,7 @@ export default function SalesReportPage() {
     },
     {
       key: "mpesa",
-      label: "M-Pesa Collected",
-      subtitle: "Mobile money",
+      label: "M-Pesa",
       amount: n(statsData?.mpesa),
       icon: Smartphone,
       bg: "bg-emerald-50 hover:bg-emerald-100",
@@ -140,8 +138,7 @@ export default function SalesReportPage() {
     },
     {
       key: "wallet",
-      label: "Wallet Sales",
-      subtitle: "Paid from wallet",
+      label: "Wallet",
       amount: n(statsData?.wallet),
       icon: CreditCard,
       bg: "bg-purple-50 hover:bg-purple-100",
@@ -153,7 +150,6 @@ export default function SalesReportPage() {
     {
       key: "bank",
       label: "Bank Transfer",
-      subtitle: "Bank payments",
       amount: n(statsData?.bank),
       icon: Building,
       bg: "bg-blue-50 hover:bg-blue-100",
@@ -163,21 +159,19 @@ export default function SalesReportPage() {
       status: "bank",
     },
     {
-      key: "credit",
-      label: "Credit Sales",
-      subtitle: "Outstanding balance",
-      amount: n(statsData?.credit),
-      icon: Clock,
-      bg: "bg-orange-50 hover:bg-orange-100",
-      text: "text-orange-700",
-      iconBg: "bg-orange-100",
-      border: "border-orange-200",
+      key: "creditCollected",
+      label: "Collected Debt",
+      amount: n(statsData?.creditCollected),
+      icon: DollarSign,
+      bg: "bg-teal-50 hover:bg-teal-100",
+      text: "text-teal-700",
+      iconBg: "bg-teal-100",
+      border: "border-teal-200",
       status: "credit",
     },
     {
       key: "hold",
       label: "On Hold",
-      subtitle: "Parked, not yet paid",
       amount: n(statsData?.hold),
       icon: Pause,
       bg: "bg-yellow-50 hover:bg-yellow-100",
@@ -189,7 +183,6 @@ export default function SalesReportPage() {
     {
       key: "returns",
       label: "Returns",
-      subtitle: "Refunds issued",
       amount: n(statsData?.returns),
       icon: RotateCcw,
       bg: "bg-red-50 hover:bg-red-100",
@@ -263,9 +256,9 @@ export default function SalesReportPage() {
               </Card>
               <Card className="border-0 shadow-sm bg-green-50">
                 <CardContent className="p-3">
-                  <p className="text-xs text-green-500 font-medium">Money Received</p>
+                  <p className="text-xs text-green-500 font-medium">Total Received</p>
                   <p className="text-xl font-bold text-green-700 leading-tight mt-0.5">{fmt(cashCollected)}</p>
-                  <p className="text-xs text-green-400 mt-0.5">cash + mpesa + bank</p>
+                  <p className="text-xs text-green-400 mt-0.5">all methods combined</p>
                 </CardContent>
               </Card>
               <Card className={`border-0 shadow-sm ${totalOnCredit > 0 ? "bg-orange-50" : "bg-gray-50"}`}>
