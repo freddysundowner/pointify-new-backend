@@ -675,11 +675,7 @@ export default function ProductGrid({
       
       if (selectedPaymentMethod === "wallet") {
         if (!selectedCustomerId) {
-          toast({
-            title: "Customer Required",
-            description: "Please select a customer to pay with wallet.",
-            variant: "destructive",
-          });
+          setShowWalletCustomerDialog(true);
           return;
         }
         const walletBalance = parseFloat(selectedCustomer?.wallet || "0");
@@ -841,6 +837,8 @@ export default function ProductGrid({
   const [isHoldProcessing, setIsHoldProcessing] = useState(false);
   const [showHoldSuccessDialog, setShowHoldSuccessDialog] = useState(false);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
+  const [showWalletCustomerDialog, setShowWalletCustomerDialog] = useState(false);
+  const [walletCustomerSearch, setWalletCustomerSearch] = useState('');
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', email: '', address: '' });
 
   const createCustomerMutation = useMutation({
@@ -900,6 +898,16 @@ export default function ProductGrid({
     await processTransaction(true);
     setIsHoldProcessing(false);
     setShowHoldCustomerDialog(false);
+  };
+
+  const handleConfirmWalletCustomer = async () => {
+    if (!selectedCustomerId) {
+      toast({ title: "Customer Required", description: "Please select a customer.", variant: "destructive" });
+      return;
+    }
+    setShowWalletCustomerDialog(false);
+    setWalletCustomerSearch('');
+    await processTransaction();
   };
 
   const resetPaymentDialog = () => {
@@ -2562,6 +2570,115 @@ export default function ProductGrid({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Wallet Customer Picker Dialog */}
+      <Dialog open={showWalletCustomerDialog} onOpenChange={(open) => { if (!open) { setShowWalletCustomerDialog(false); setWalletCustomerSearch(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-gray-900 flex items-center space-x-2">
+              <Wallet className="h-5 w-5 text-purple-500" />
+              <span>Select Customer for Wallet Payment</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-gray-600">
+              A customer with sufficient wallet balance is required to complete this sale ({currency}{totals.total.toFixed(2)}).
+            </p>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-gray-700">Customer *</label>
+                <button
+                  type="button"
+                  onClick={() => setShowAddCustomerDialog(true)}
+                  className="flex items-center space-x-1 text-xs text-purple-600 hover:text-purple-800 font-medium"
+                >
+                  <Plus className="h-3 w-3" />
+                  <span>Add new customer</span>
+                </button>
+              </div>
+
+              <div className="relative mb-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search by name or phone..."
+                  value={walletCustomerSearch}
+                  onChange={(e) => { setWalletCustomerSearch(e.target.value); setSelectedCustomerId(''); }}
+                  className="pl-9 text-sm"
+                  autoFocus
+                />
+              </div>
+
+              {selectedCustomer && !walletCustomerSearch && (
+                <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 mb-2">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{selectedCustomer.name}</p>
+                    <p className="text-xs text-gray-500">Wallet: {currency}{parseFloat(selectedCustomer.wallet || '0').toFixed(2)}</p>
+                  </div>
+                  <button type="button" onClick={() => setSelectedCustomerId('')} className="text-gray-400 hover:text-gray-600">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              {walletCustomerSearch && (
+                <div className="border border-gray-200 rounded-lg max-h-52 overflow-y-auto">
+                  {customers
+                    .filter((c: any) => {
+                      const term = walletCustomerSearch.toLowerCase();
+                      return (
+                        (c.name || '').toLowerCase().includes(term) ||
+                        (c.phone || '').toLowerCase().includes(term) ||
+                        (c.phonenumber || '').toLowerCase().includes(term)
+                      );
+                    })
+                    .map((customer: any) => {
+                      const cId = customer._id || customer.id;
+                      const balance = parseFloat(customer.wallet || '0');
+                      const sufficient = balance >= totals.total;
+                      return (
+                        <div
+                          key={cId}
+                          onClick={() => sufficient ? (setSelectedCustomerId(String(cId)), setWalletCustomerSearch('')) : undefined}
+                          className={`flex items-center justify-between px-3 py-2 border-b border-gray-100 last:border-b-0 ${sufficient ? 'hover:bg-purple-50 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{customer.name}</p>
+                            <p className={`text-xs ${sufficient ? 'text-green-600' : 'text-red-500'}`}>
+                              Wallet: {currency}{balance.toFixed(2)}
+                              {!sufficient && ' — insufficient'}
+                            </p>
+                          </div>
+                          <Wallet className="h-4 w-4 text-gray-300" />
+                        </div>
+                      );
+                    })}
+                  {customers.filter((c: any) => {
+                    const term = walletCustomerSearch.toLowerCase();
+                    return (c.name || '').toLowerCase().includes(term) || (c.phone || '').toLowerCase().includes(term) || (c.phonenumber || '').toLowerCase().includes(term);
+                  }).length === 0 && (
+                    <p className="text-sm text-gray-500 text-center py-4">No customers found</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowWalletCustomerDialog(false); setWalletCustomerSearch(''); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmWalletCustomer}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+              disabled={!selectedCustomerId || parseFloat(selectedCustomer?.wallet || '0') < totals.total}
+            >
+              Confirm &amp; Pay
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Hold Ready Date Dialog - shown when customer already selected in laundry shop */}
       <Dialog open={showHoldReadyDateDialog} onOpenChange={(open) => { if (!open) { setShowHoldReadyDateDialog(false); setReadyDate(""); } }}>
         <DialogContent className="max-w-sm">
