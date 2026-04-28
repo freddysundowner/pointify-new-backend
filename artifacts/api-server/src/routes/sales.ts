@@ -510,6 +510,13 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
 
       void notifySaleReceipt(sale.id);
       void notifySaleReceiptSms(sale.id);
+      void autoRecordCashflow({
+        shopId: Number(shopId),
+        amount: paid,
+        description: `Sale ${receiptNo}`,
+        categoryKey: "sales",
+        recordedBy: req.attendant?.id,
+      });
     }
 
     return created(res, { ...sale, items: itemRows });
