@@ -387,21 +387,47 @@ router.post("/stock-counts", requireAdminOrAttendant, async (req, res, next) => 
     const { shopId, items } = req.body;
     if (!shopId || !items?.length) throw badRequest("shopId and items required");
     await assertShopOwnership(req, Number(shopId));
+    const shop = Number(shopId);
+
+    // Look up current inventory quantities to use as systemCount
+    const productIds = items.map((i: any) => Number(i.productId));
+    const invRows = await db.select({ product: inventory.product, quantity: inventory.quantity, reorderLevel: inventory.reorderLevel })
+      .from(inventory)
+      .where(and(inArray(inventory.product, productIds), eq(inventory.shop, shop)));
+    const invMap = new Map(invRows.map(r => [r.product, r]));
 
     const [count] = await db.insert(stockCounts).values({
-      shop: Number(shopId),
+      shop,
       conductedBy: req.attendant?.id ?? undefined,
     }).returning();
 
     const itemRows = await db.insert(stockCountItems).values(
-      items.map((item: any) => ({
-        stockCount: count.id,
-        product: Number(item.productId),
-        physicalCount: String(item.physicalCount ?? 0),
-        systemCount: String(item.systemCount ?? 0),
-        variance: String((parseFloat(String(item.physicalCount ?? 0)) - parseFloat(String(item.systemCount ?? 0))).toFixed(4)),
-      }))
+      items.map((item: any) => {
+        const pid = Number(item.productId);
+        const sysQty = parseFloat(String(invMap.get(pid)?.quantity ?? 0));
+        const physQty = parseFloat(String(item.physicalCount ?? 0));
+        return {
+          stockCount: count.id,
+          product: pid,
+          physicalCount: String(physQty),
+          systemCount: String(sysQty),
+          variance: String((physQty - sysQty).toFixed(4)),
+        };
+      })
     ).returning();
+
+    // Update inventory quantities to match the physical count
+    await Promise.all(itemRows.map(async (itemRow) => {
+      const physQty = parseFloat(String(itemRow.physicalCount));
+      const reorderLevel = parseFloat(String(invMap.get(itemRow.product)?.reorderLevel ?? 0));
+      const newStatus = physQty === 0 ? "out_of_stock" : physQty <= reorderLevel ? "low" : "active";
+      await db.insert(inventory)
+        .values({ product: itemRow.product, shop, quantity: String(physQty), lastCount: String(physQty), lastCountDate: new Date(), status: newStatus })
+        .onConflictDoUpdate({
+          target: [inventory.product, inventory.shop],
+          set: { quantity: String(physQty), lastCount: String(physQty), lastCountDate: new Date(), status: newStatus },
+        });
+    }));
 
     await recordProductHistory(
       itemRows.map((itemRow) => ({

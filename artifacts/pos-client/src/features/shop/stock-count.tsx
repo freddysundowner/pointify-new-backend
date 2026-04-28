@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Save, RefreshCw, Plus, Minus, History, ArrowLeft, Hash, CheckCircle2, Clock } from "lucide-react";
+import { Search, Save, RefreshCw, Plus, Minus, History, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import DashboardLayout from "@/components/layout/dashboard-layout";
@@ -253,13 +253,9 @@ export default function StockCount() {
                         )}
                       </td>
                       <td className="text-center px-3 py-2">
-                        {isCounted ? (
+                        {isCounted && (
                           <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
                             <CheckCircle2 className="h-3 w-3" /> Counted
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                            <Clock className="h-3 w-3" /> Pending
                           </span>
                         )}
                       </td>
