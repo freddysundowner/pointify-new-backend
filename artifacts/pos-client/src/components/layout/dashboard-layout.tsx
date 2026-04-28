@@ -8,7 +8,7 @@ import {
   ArrowRightLeft, AlertTriangle, Banknote, ClipboardList, Building2, CreditCard,
   Printer, MessageSquare, ShoppingCart, Box, Layers
 } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { useAuth } from "@/features/auth/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigationRoute } from "@/lib/navigation-utils";
@@ -31,21 +31,26 @@ interface SidebarContentProps {
 }
 
 function SidebarContent({ location, navSections, isSubscriptionExpired, onNav }: SidebarContentProps) {
+  const [, navigate] = useLocation();
+
+  function go(href: string) {
+    navigate(href);
+    onNav?.();
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="flex-shrink-0 px-4 pt-5 pb-4 border-b border-white/10">
-        <Link href="/dashboard">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={onNav}>
-            <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
-              <Store className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-base font-bold text-white leading-none">Pointify</p>
-              <p className="text-xs text-purple-300 mt-0.5">Business Suite</p>
-            </div>
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => go("/dashboard")}>
+          <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+            <Store className="h-5 w-5 text-white" />
           </div>
-        </Link>
+          <div>
+            <p className="text-base font-bold text-white leading-none">Pointify</p>
+            <p className="text-xs text-purple-300 mt-0.5">Business Suite</p>
+          </div>
+        </div>
       </div>
 
       {/* Nav */}
@@ -55,12 +60,13 @@ function SidebarContent({ location, navSections, isSubscriptionExpired, onNav }:
             <div className="bg-red-500/20 border border-red-400/30 rounded-xl p-3 text-xs text-red-200">
               Subscription expired — renew to use Pointify features.
             </div>
-            <Link href="/subscription">
-              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-purple-100 hover:bg-white/10 cursor-pointer" onClick={onNav}>
-                <Crown className="h-4 w-4 text-purple-300 shrink-0" />
-                Manage Subscription
-              </div>
-            </Link>
+            <div
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-purple-100 hover:bg-white/10 cursor-pointer"
+              onClick={() => go("/subscription")}
+            >
+              <Crown className="h-4 w-4 text-purple-300 shrink-0" />
+              Manage Subscription
+            </div>
           </div>
         ) : (
           navSections.map(section => (
@@ -73,19 +79,18 @@ function SidebarContent({ location, navSections, isSubscriptionExpired, onNav }:
                   const isActive = location === item.href ||
                     (item.href !== '/reports' && location.startsWith(item.href) && item.href.length > 2);
                   return (
-                    <Link key={item.href} href={item.href}>
-                      <div
-                        onClick={onNav}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm ${
-                          isActive
-                            ? "bg-white text-purple-800 font-semibold shadow-sm"
-                            : "text-purple-100 hover:bg-white/10 hover:text-white"
-                        }`}
-                      >
-                        <item.icon className={`h-4 w-4 shrink-0 ${isActive ? "text-purple-700" : "text-purple-300"}`} />
-                        {item.label}
-                      </div>
-                    </Link>
+                    <div
+                      key={item.href}
+                      onClick={() => go(item.href)}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm ${
+                        isActive
+                          ? "bg-white text-purple-800 font-semibold shadow-sm"
+                          : "text-purple-100 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <item.icon className={`h-4 w-4 shrink-0 ${isActive ? "text-purple-700" : "text-purple-300"}`} />
+                      {item.label}
+                    </div>
                   );
                 })}
               </div>
