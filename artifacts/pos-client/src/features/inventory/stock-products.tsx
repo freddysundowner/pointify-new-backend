@@ -3,13 +3,7 @@ import { extractId } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -26,24 +20,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Search,
-  Plus,
-  Package,
-  AlertTriangle,
-  TrendingUp,
-  Edit,
-  Eye,
-  MoreVertical,
-  History,
-  Trash2,
-  X,
-  ArrowLeft,
-  FileText,
-  Download,
-} from "lucide-react";
+import { Search, Plus, Package, AlertTriangle, TrendingUp, Edit, MoreVertical, History, Trash2, ArrowLeft, FileText } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiCall } from "@/lib/api-config";
 import { ENDPOINTS } from "@/lib/api-endpoints";
@@ -461,140 +439,99 @@ export default function StockProducts() {
 
   return (
     <DashboardLayout title="Stock Products">
-      <div className="space-y-6">
-        {/* Back button */}
-        <div className="flex items-center space-x-4 mb-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              // Check if we came from stock summary by looking at URL parameters
-              const urlParams = new URLSearchParams(window.location.search);
-              const hasFilter = urlParams.has('filter');
-              
-              if (hasFilter) {
-                // If we came from stock summary with a filter, go back there
-                const backRoute = isAttendant ? '/attendant/stock/summary' : '/stock/summary';
-                setLocation(backRoute);
-              } else {
-                // Otherwise go to dashboard
-                const backRoute = isAttendant ? '/attendant/dashboard' : '/dashboard';
-                setLocation(backRoute);
-              }
-            }}
-            className="flex items-center space-x-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back</span>
-          </Button>
+      <div className="space-y-3">
+
+        {/* Page header: back + title + add button */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const hasFilter = urlParams.has('filter');
+                if (hasFilter) {
+                  setLocation(isAttendant ? '/attendant/stock/summary' : '/stock/summary');
+                } else {
+                  setLocation(isAttendant ? '/attendant/dashboard' : '/dashboard');
+                }
+              }}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-base font-semibold">Products</h1>
+          </div>
+          {(hasPermission("inventory_add") ||
+            hasAttendantPermission("stocks", "add_products") ||
+            hasAttendantPermission("products", "add")) && (
+            <Link href={addProductRoute}>
+              <Button size="sm" className="h-8 bg-purple-600 hover:bg-purple-700 text-xs px-3">
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add Product
+              </Button>
+            </Link>
+          )}
         </div>
-        {/* Stats Cards - Show for admins always, attendants only if they have stock_summary permission */}
+
+        {/* Stats strip */}
         {(hasPermission('inventory_view') || hasAttendantPermission("stocks", "stock_summary")) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <AlertTriangle className="h-5 w-5 text-orange-600" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">
-                        Low Quantity
-                      </p>
-                      <p className="text-2xl font-bold text-orange-600">
-                        {lowQuantityProducts}
-                      </p>
-                    </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            <Card className="cursor-pointer" onClick={() => setStockFilter(stockFilter === "lowstock" ? "all" : "lowstock")}>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500 truncate">Low Qty</p>
+                    <p className={`text-lg font-bold leading-tight ${stockFilter === "lowstock" ? "text-orange-600" : "text-orange-500"}`}>{lowQuantityProducts}</p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setStockFilter(
-                        stockFilter === "lowstock" ? "all" : "lowstock",
-                      )
-                    }
-                    className={`text-xs ${stockFilter === "lowstock" ? "bg-orange-100 text-orange-700" : "text-gray-500 hover:text-orange-600"}`}
-                  >
-                    {stockFilter === "lowstock" ? "Show All" : "View"}
-                  </Button>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">
-                        Out of Stock
-                      </p>
-                      <p className="text-2xl font-bold text-red-600">
-                        {outOfStockProducts}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setStockFilter(
-                        stockFilter === "outofstock" ? "all" : "outofstock",
-                      )
-                    }
-                    className={`text-xs ${stockFilter === "outofstock" ? "bg-red-100 text-red-700" : "text-gray-500 hover:text-red-600"}`}
-                  >
-                    {stockFilter === "outofstock" ? "Show All" : "View"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">
-                      Total Stock Value
-                    </p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {currency} {totalStockValue.toLocaleString()}
-                    </p>
+            <Card className="cursor-pointer" onClick={() => setStockFilter(stockFilter === "outofstock" ? "all" : "outofstock")}>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500 truncate">Out of Stock</p>
+                    <p className={`text-lg font-bold leading-tight ${stockFilter === "outofstock" ? "text-red-700" : "text-red-500"}`}>{outOfStockProducts}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="h-5 w-5 text-purple-600" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">
-                      Profit Estimate
-                    </p>
-                    <p className="text-2xl font-bold text-purple-600">
-                      {currency} {profitEstimate.toLocaleString()}
-                    </p>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-green-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500 truncate">Stock Value</p>
+                    <p className="text-sm font-bold text-green-600 leading-tight truncate">{currency} {totalStockValue.toLocaleString()}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-2">
-                  <Package className="h-5 w-5 text-indigo-600" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">
-                      Total Stock
-                    </p>
-                    <p className="text-2xl font-bold text-indigo-600">
-                      {totalStockCount}
-                    </p>
-                    <p className="text-xs text-gray-500">warehouse included</p>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-purple-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500 truncate">Profit Est.</p>
+                    <p className="text-sm font-bold text-purple-600 leading-tight truncate">{currency} {profitEstimate.toLocaleString()}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-indigo-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500 truncate">Total Stock</p>
+                    <p className="text-lg font-bold text-indigo-600 leading-tight">{totalStockCount}</p>
                   </div>
                 </div>
               </CardContent>
@@ -602,30 +539,23 @@ export default function StockProducts() {
           </div>
         )}
 
-        {/* Filters and Search */}
+        {/* Filter bar + table */}
         <Card>
-          <CardHeader>
-            <CardTitle>Product Inventory</CardTitle>
-            <CardDescription>
-              Manage your product stock levels and information
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <CardContent className="p-3">
+            {/* Single-row filter bar */}
+            <div className="flex flex-col sm:flex-row gap-2 mb-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-gray-400" />
                 <Input
-                  placeholder="Search products by name, serial number or barcode..."
+                  placeholder="Search by name, SKU or barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-8 h-8 text-xs"
                 />
               </div>
-              
-              {/* Stock Status Filter */}
               <Select value={stockFilter} onValueChange={(value: "all" | "outofstock" | "lowstock") => setStockFilter(value)}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filter by stock status" />
+                <SelectTrigger className="h-8 text-xs w-full sm:w-36">
+                  <SelectValue placeholder="All Products" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Products</SelectItem>
@@ -633,56 +563,33 @@ export default function StockProducts() {
                   <SelectItem value="lowstock">Running Low</SelectItem>
                 </SelectContent>
               </Select>
-              
-              {(hasPermission("inventory_add") ||
-                hasAttendantPermission("stocks", "add_products") ||
-                hasAttendantPermission("products", "add")) && (
-                <Link href={addProductRoute}>
-                  <Button className="bg-purple-600 hover:bg-purple-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Product
-                  </Button>
-                </Link>
-              )}
             </div>
 
             {/* Products Table */}
             <div className="rounded-md border">
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-sm">
                   <thead className="border-b bg-gray-50">
                     <tr>
-                      <th className="text-left p-4 font-medium">Product</th>
-                      <th className="text-left p-4 font-medium">SKU</th>
-                      <th className="text-left p-4 font-medium">Selling Price</th>
-                      {(hasPermission("inventory_view") ||
-                        hasAttendantPermission(
-                          "stocks",
-                          "view_buying_price",
-                        )) && <th className="text-left p-4 font-medium">Buying Price</th>}
-                      <th className="text-left p-4 font-medium">Quantity</th>
-                      <th className="text-left p-4 font-medium">Status</th>
-                      <th className="text-left p-4 font-medium">Actions</th>
+                      <th className="text-left px-3 py-2 font-medium text-xs text-gray-600">Product</th>
+                      <th className="text-left px-3 py-2 font-medium text-xs text-gray-600 hidden sm:table-cell">SKU / Barcode</th>
+                      <th className="text-left px-3 py-2 font-medium text-xs text-gray-600">Sell Price</th>
+                      {(hasPermission("inventory_view") || hasAttendantPermission("stocks", "view_buying_price")) && (
+                        <th className="text-left px-3 py-2 font-medium text-xs text-gray-600 hidden md:table-cell">Buy Price</th>
+                      )}
+                      <th className="text-left px-3 py-2 font-medium text-xs text-gray-600">Qty</th>
+                      <th className="text-left px-3 py-2 font-medium text-xs text-gray-600 hidden sm:table-cell">Status</th>
+                      <th className="px-3 py-2 font-medium text-xs text-gray-600 w-10"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {isLoading ? (
                       <tr>
-                        <td
-                          colSpan={7}
-                          className="text-center p-8 text-gray-500"
-                        >
-                          Loading products...
-                        </td>
+                        <td colSpan={7} className="text-center py-8 text-gray-500 text-sm">Loading products...</td>
                       </tr>
                     ) : filteredProducts.length === 0 ? (
                       <tr>
-                        <td
-                          colSpan={7}
-                          className="text-center p-8 text-gray-500"
-                        >
-                          No products found
-                        </td>
+                        <td colSpan={7} className="text-center py-8 text-gray-500 text-sm">No products found</td>
                       </tr>
                     ) : (
                       filteredProducts.map((product: Product) => {
@@ -690,189 +597,86 @@ export default function StockProducts() {
                         const quantity = (product as any).quantity || 0;
                         const reorderLevel = (product as any).reorderLevel || 0;
                         const isVirtual = (product as any).type === "virtual" || (product as any).type === "service";
-                        const isLowStock =
-                          !isVirtual &&
-                          quantity > 0 &&
-                          reorderLevel > 0 &&
-                          quantity <= reorderLevel;
+                        const isLowStock = !isVirtual && quantity > 0 && reorderLevel > 0 && quantity <= reorderLevel;
                         const isOutOfStock = !isVirtual && quantity === 0;
 
-                        // No background styling for services (virtual products)
                         let rowBgClass = "";
                         if (!isVirtual) {
-                          if (isOutOfStock) {
-                            rowBgClass = "bg-red-50 hover:bg-red-100";
-                          } else if (isLowStock) {
-                            rowBgClass = "bg-amber-50 hover:bg-amber-100";
-                          }
+                          if (isOutOfStock) rowBgClass = "bg-red-50 hover:bg-red-100";
+                          else if (isLowStock) rowBgClass = "bg-amber-50 hover:bg-amber-100";
                         }
 
                         return (
-                          <tr
-                            key={(product as any).id ?? product._id}
-                            className={`border-b hover:bg-gray-50 ${rowBgClass}`}
-                          >
-                            <td className="p-4">
-                              <div>
-                                <p className="font-medium">{product.name}</p>
-                                <p className="text-sm text-gray-500">
-                                  {(product as any).category?.name || "No Category"}
-                                </p>
-                              </div>
+                          <tr key={(product as any).id ?? product._id} className={`border-b hover:bg-gray-50 ${rowBgClass}`}>
+                            <td className="px-3 py-2">
+                              <p className="font-medium text-xs leading-tight">{product.name}</p>
+                              <p className="text-xs text-gray-500 leading-tight">{(product as any).category?.name || "No Category"}</p>
                             </td>
-                            <td className="p-4 text-sm text-gray-600">
+                            <td className="px-3 py-2 text-xs text-gray-500 hidden sm:table-cell">
                               {(product as any).barcode || "-"}
                             </td>
-                            <td className="p-4 font-medium">
-                              {currency}{" "}
-                              {(
-                                (product as any).sellingPrice ||
-                                product.price ||
-                                0
-                              ).toLocaleString()}
+                            <td className="px-3 py-2 text-xs font-medium">
+                              {currency} {((product as any).sellingPrice || product.price || 0).toLocaleString()}
                             </td>
-                            {(hasPermission("inventory_view") ||
-                              hasAttendantPermission(
-                                "stocks",
-                                "view_buying_price",
-                              )) && (
-                              <td className="p-4 font-medium">
-                                {currency}{" "}
-                                {(
-                                  (product as any).buyingPrice ||
-                                  0
-                                ).toLocaleString()}
+                            {(hasPermission("inventory_view") || hasAttendantPermission("stocks", "view_buying_price")) && (
+                              <td className="px-3 py-2 text-xs font-medium hidden md:table-cell">
+                                {currency} {((product as any).buyingPrice || 0).toLocaleString()}
                               </td>
                             )}
-                            <td className="p-4">
+                            <td className="px-3 py-2">
                               {isVirtual ? (
-                                <span className="text-gray-500 font-medium">
-                                  N/A
-                                </span>
+                                <span className="text-xs text-gray-400">N/A</span>
                               ) : (
-                                <span
-                                  className={`font-medium ${
-                                    quantity === 0
-                                      ? "text-red-600"
-                                      : isLowStock
-                                        ? "text-amber-600"
-                                        : "text-green-600"
-                                  }`}
-                                >
+                                <span className={`text-xs font-semibold ${quantity === 0 ? "text-red-600" : isLowStock ? "text-amber-600" : "text-green-600"}`}>
                                   {quantity}
                                 </span>
                               )}
                             </td>
-                            <td className="p-4">
-                              <Badge variant={stockStatus.variant}>
+                            <td className="px-3 py-2 hidden sm:table-cell">
+                              <Badge variant={stockStatus.variant} className="text-xs px-1.5 py-0">
                                 {stockStatus.label}
                               </Badge>
                             </td>
-                            <td className="p-4">
+                            <td className="px-3 py-2">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <MoreVertical className="h-4 w-4" />
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                    <MoreVertical className="h-3.5 w-3.5" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                  align="end"
-                                  className="w-48"
-                                >
-                                  {(hasPermission("inventory_history") ||
-                                    hasAttendantPermission(
-                                      "products",
-                                      "view_history",
-                                    )) && (
-                                    <DropdownMenuItem
-                                      className="flex items-center space-x-2"
-                                      onClick={() =>
-                                        setLocation(
-                                          `${productHistoryRoute}/${(product as any).id ?? product._id}/history`,
-                                        )
-                                      }
-                                    >
-                                      <History className="h-4 w-4" />
-                                      <span>Product History</span>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  {(hasPermission("inventory_history") || hasAttendantPermission("products", "view_history")) && (
+                                    <DropdownMenuItem className="flex items-center gap-2 text-xs" onClick={() => setLocation(`${productHistoryRoute}/${(product as any).id ?? product._id}/history`)}>
+                                      <History className="h-3.5 w-3.5" />
+                                      Product History
                                     </DropdownMenuItem>
                                   )}
-                                  {(hasPermission("inventory_edit") ||
-                                    hasAttendantPermission(
-                                      "products",
-                                      "edit",
-                                    )) && (
-                                    <DropdownMenuItem
-                                      className="flex items-center space-x-2"
-                                      onClick={() => {
-                                        const bundleItems =
-                                          (product as any).bundleItems ||
-                                          (product as any).items ||
-                                          [];
-
-                                        // Pass data through navigation state instead of sessionStorage
-                                        console.log(
-                                          "Passing product data to edit form:",
-                                          product,
-                                        );
-                                        (window as any).productEditData = {
-                                          bundleItems: bundleItems,
-                                          productData: product,
-                                          passedBundleItems: true,
-                                        };
-
-                                        // Use client-side navigation without page reload
-                                        setLocation(
-                                          `${editProductRoute}/${(product as any).id ?? product._id}`,
-                                        );
-                                      }}
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                      <span>Edit</span>
+                                  {(hasPermission("inventory_edit") || hasAttendantPermission("products", "edit")) && (
+                                    <DropdownMenuItem className="flex items-center gap-2 text-xs" onClick={() => {
+                                      const bundleItems = (product as any).bundleItems || (product as any).items || [];
+                                      (window as any).productEditData = { bundleItems, productData: product, passedBundleItems: true };
+                                      setLocation(`${editProductRoute}/${(product as any).id ?? product._id}`);
+                                    }}>
+                                      <Edit className="h-3.5 w-3.5" />
+                                      Edit
                                     </DropdownMenuItem>
                                   )}
-
-                                  {/* Hide stock adjustment options for services (virtual products) */}
-                                  {!(product as any).virtual && (hasPermission("inventory_adjust") ||
-                                    hasAttendantPermission(
-                                      "products",
-                                      "adjust_stock",
-                                    )) && (
-                                    <DropdownMenuItem 
-                                      className="flex items-center space-x-2"
-                                      onClick={() => openAdjustDialog(product)}
-                                    >
-                                      <TrendingUp className="h-4 w-4" />
-                                      <span>Adjust Stock</span>
+                                  {!(product as any).virtual && (hasPermission("inventory_adjust") || hasAttendantPermission("products", "adjust_stock")) && (
+                                    <DropdownMenuItem className="flex items-center gap-2 text-xs" onClick={() => openAdjustDialog(product)}>
+                                      <TrendingUp className="h-3.5 w-3.5" />
+                                      Adjust Stock
                                     </DropdownMenuItem>
                                   )}
-
-                                  {/* Hide adjustment history for services (virtual products) */}
-                                  {!(product as any).virtual && (hasPermission("inventory_history") ||
-                                    hasAttendantPermission(
-                                      "products",
-                                      "view_adjustment_history",
-                                    )) && (
-                                    <DropdownMenuItem 
-                                      className="flex items-center space-x-2"
-                                      onClick={() => openHistoryDialog(product)}
-                                    >
-                                      <FileText className="h-4 w-4" />
-                                      <span>Adjustment History</span>
+                                  {!(product as any).virtual && (hasPermission("inventory_history") || hasAttendantPermission("products", "view_adjustment_history")) && (
+                                    <DropdownMenuItem className="flex items-center gap-2 text-xs" onClick={() => openHistoryDialog(product)}>
+                                      <FileText className="h-3.5 w-3.5" />
+                                      Adjustment History
                                     </DropdownMenuItem>
                                   )}
-
-                                  {(hasPermission("inventory_delete") ||
-                                    hasAttendantPermission(
-                                      "products",
-                                      "delete",
-                                    )) && (
-                                    <DropdownMenuItem className="flex items-center space-x-2 text-red-600 focus:text-red-600">
-                                      <Trash2 className="h-4 w-4" />
-                                      <span>Delete</span>
+                                  {(hasPermission("inventory_delete") || hasAttendantPermission("products", "delete")) && (
+                                    <DropdownMenuItem className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600">
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      Delete
                                     </DropdownMenuItem>
                                   )}
                                 </DropdownMenuContent>
@@ -887,71 +691,33 @@ export default function StockProducts() {
               </div>
             </div>
 
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-between px-6 py-4 border-t">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Items per page:</span>
+            {/* Pagination */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-3 mt-1">
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span>Rows:</span>
                 <select
                   value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(Number(e.target.value));
-                    setPage(1); // Reset to first page when changing items per page
-                  }}
-                  className="border rounded px-2 py-1 text-sm"
+                  onChange={(e) => { setItemsPerPage(Number(e.target.value)); setPage(1); }}
+                  className="border rounded px-1.5 py-0.5 text-xs"
                 >
-                  <option value={5}>5</option>
                   <option value={10}>10</option>
                   <option value={20}>20</option>
                   <option value={50}>50</option>
                 </select>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                  {Math.min(currentPage * itemsPerPage, totalProducts)} of{" "}
-                  {totalProducts} products
+                <span className="hidden sm:inline">
+                  {totalProducts > 0 ? `${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, totalProducts)} of ${totalProducts}` : "0 products"}
                 </span>
               </div>
-
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage <= 1}
-                >
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setPage(Math.max(1, currentPage - 1))} disabled={currentPage <= 1}>
                   Previous
                 </Button>
-
-                <div className="flex items-center space-x-1">
-                  {(() => {
-                    const pages = [];
-
-                    for (let i = 1; i <= Math.min(totalPages, 5); i++) {
-                      pages.push(
-                        <Button
-                          key={i}
-                          variant={currentPage === i ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setPage(i)}
-                          className="w-8 h-8 p-0"
-                        >
-                          {i}
-                        </Button>,
-                      );
-                    }
-
-                    return pages;
-                  })()}
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage >= totalPages}
-                >
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map(i => (
+                  <Button key={i} variant={currentPage === i ? "default" : "outline"} size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setPage(i)}>
+                    {i}
+                  </Button>
+                ))}
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage >= totalPages}>
                   Next
                 </Button>
               </div>
