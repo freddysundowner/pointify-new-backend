@@ -425,11 +425,11 @@ export default function StockTransfer() {
                   {cart.map((item) => (
                     <div key={item.productId} className="flex items-center gap-2 bg-gray-50 rounded px-3 py-2">
                       <span className="flex-1 text-sm font-medium">{item.productName}</span>
-                      <Input
+                      <input
                         type="number"
                         value={item.quantity}
                         onChange={(e) => updateCartQty(item.productId, parseInt(e.target.value) || 1)}
-                        className="w-16 h-7 text-center text-xs"
+                        className="w-16 h-7 text-center text-xs border border-gray-300 rounded-md bg-white outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         min="1"
                       />
                       <button className="text-gray-300 hover:text-red-500" onClick={() => setCart(prev => prev.filter(c => c.productId !== item.productId))}>

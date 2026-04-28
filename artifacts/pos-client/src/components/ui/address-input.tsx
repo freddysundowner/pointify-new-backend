@@ -102,7 +102,7 @@ export default function AddressInput({
       autoComplete="off"
       onChange={(e) => onChange(e.target.value)}
       className={cn(
-        "w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:ring-offset-0 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        "w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
     />
