@@ -38,7 +38,7 @@ function methodColor(m: string) {
 }
 
 export default function CollectedPaymentsPage() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const goBack = useGoBack("/reports/sales");
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const { shop } = usePrimaryShop();
@@ -160,7 +160,11 @@ export default function CollectedPaymentsPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {rows.map((row: any) => (
-                      <tr key={row.id} className="hover:bg-gray-50">
+                      <tr
+                        key={row.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => navigate(`/receipt/${row.sale_id}`)}
+                      >
                         <td className="px-4 py-3">
                           <p className="font-medium text-gray-800">{fmtDate(row.paid_at)}</p>
                           <p className="text-xs text-gray-400">{fmtTime(row.paid_at)}</p>
