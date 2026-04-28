@@ -319,7 +319,7 @@ export default function StockSummary() {
                   <span className="text-sm">Healthy Stock</span>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-green-600 border-green-600">
-                      {stockData.totalstock - stockData.lowstock - stockData.outofstock} products
+                      {Number(stockData.totalProducts) - Number(stockData.lowstock) - Number(stockData.outofstock)} products
                     </Badge>
                   </div>
                 </div>
