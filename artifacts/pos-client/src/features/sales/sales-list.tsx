@@ -491,8 +491,13 @@ function SalesList() {
       doc.text(`Email: ${(shop as any).receiptEmail || (shop as any).email}`, 20, y);
       y += 6;
     }
-    if (shop.paybillTill || shop.paybill_till) {
-      doc.text(`PayBill/Till: ${shop.paybillTill || shop.paybill_till}`, 20, y);
+    if ((shop as any).paybillAccount || (shop as any).paybill_account) {
+      const acct = (shop as any).paybillAccount || (shop as any).paybill_account;
+      const till = shop.paybillTill || shop.paybill_till;
+      doc.text(`Paybill: ${acct}${till ? ` / Acc: ${till}` : ""}`, 20, y);
+      y += 6;
+    } else if (shop.paybillTill || shop.paybill_till) {
+      doc.text(`Buy Goods Till: ${shop.paybillTill || shop.paybill_till}`, 20, y);
       y += 6;
     }
 
@@ -657,8 +662,13 @@ function SalesList() {
       doc.text(`Email: ${(shop as any).receiptEmail || (shop as any).email}`, 20, y);
       y += 6;
     }
-    if (shop.paybillTill || shop.paybill_till) {
-      doc.text(`PayBill/Till: ${shop.paybillTill || shop.paybill_till}`, 20, y);
+    if ((shop as any).paybillAccount || (shop as any).paybill_account) {
+      const acct = (shop as any).paybillAccount || (shop as any).paybill_account;
+      const till = shop.paybillTill || shop.paybill_till;
+      doc.text(`Paybill: ${acct}${till ? ` / Acc: ${till}` : ""}`, 20, y);
+      y += 6;
+    } else if (shop.paybillTill || shop.paybill_till) {
+      doc.text(`Buy Goods Till: ${shop.paybillTill || shop.paybill_till}`, 20, y);
       y += 6;
     }
 
