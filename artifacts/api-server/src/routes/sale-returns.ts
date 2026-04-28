@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, sql } from "drizzle-orm";
-import { saleReturns, saleReturnItems, sales, inventory } from "@workspace/db";
+import { saleReturns, saleReturnItems, sales, inventory, admins, attendants } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -28,10 +28,20 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
         saleReturnItems: true,
         processedBy: { columns: { id: true, username: true } },
         customer: { columns: { id: true, name: true } },
+        shop: { columns: { id: true }, with: { admin: { columns: { id: true, username: true, attendant: true } } } },
       },
     });
+
+    // For returns where processedBy is null, inject the shop admin's username as fallback
+    const enriched = rows.map((r: any) => {
+      if (!r.processedBy && r.shop?.admin) {
+        return { ...r, processedBy: { id: null, username: r.shop.admin.username ?? "Admin" } };
+      }
+      return r;
+    });
+
     const total = await db.$count(saleReturns, where);
-    return paginated(res, rows, { total, page, limit });
+    return paginated(res, enriched, { total, page, limit });
   } catch (e) { next(e); }
 });
 
@@ -47,13 +57,34 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     let refundAmount = 0;
     for (const item of items) refundAmount += (item.unitPrice ?? 0) * (item.quantity ?? 1);
 
+    // Resolve who processed this return — attendant or admin's auto-attendant
+    let processedById: number | undefined = req.attendant?.id;
+    if (!processedById && req.admin) {
+      const adminRecord = await db.query.admins.findFirst({
+        where: eq(admins.id, req.admin.id),
+        columns: { id: true, attendant: true, username: true },
+      });
+      if (adminRecord?.attendant) {
+        processedById = adminRecord.attendant;
+      } else if (adminRecord) {
+        // Auto-create an attribution attendant for this admin
+        const [newAtt] = await db.insert(attendants).values({
+          username: adminRecord.username ?? "Admin",
+          admin: adminRecord.id,
+          shop: Number(shopId),
+        }).returning({ id: attendants.id });
+        await db.update(admins).set({ attendant: newAtt.id }).where(eq(admins.id, adminRecord.id));
+        processedById = newAtt.id;
+      }
+    }
+
     const [saleReturn] = await db.insert(saleReturns).values({
       sale: Number(saleId),
       shop: Number(shopId),
       refundAmount: String(refundAmount),
       reason,
       refundMethod: refundMethod ?? "cash",
-      processedBy: req.attendant?.id ?? undefined,
+      processedBy: processedById,
       returnNo: `RET${Date.now()}`,
     }).returning();
 
