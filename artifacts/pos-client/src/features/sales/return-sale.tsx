@@ -185,7 +185,7 @@ export default function ReturnSale() {
 
   return (
     <DashboardLayout title={`Return — ${originalSale.receiptNo ?? `Sale #${saleId}`}`}>
-      <div className="p-3 max-w-3xl mx-auto space-y-3">
+      <div className="py-3 space-y-3">
 
         {/* Header */}
         <div className="flex items-center justify-between">
