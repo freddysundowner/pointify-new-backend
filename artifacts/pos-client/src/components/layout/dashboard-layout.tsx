@@ -54,6 +54,10 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
   const purchaseReturnsRoute = useNavigationRoute('purchaseReturns');
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [location]);
+
+  useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
