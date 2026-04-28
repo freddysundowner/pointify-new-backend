@@ -284,27 +284,26 @@ export default function SalesReportPage() {
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2 px-1">
                 Sales Tallies — click to view
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
                 {TALLIES.map(t => {
                   const Icon = t.icon;
                   return (
                     <button
                       key={t.key}
                       onClick={() => goToSales(t.status)}
-                      className={`text-left rounded-xl border p-3 transition-colors cursor-pointer ${t.bg} ${t.border}`}
+                      className={`text-left rounded-lg border p-2.5 transition-colors cursor-pointer ${t.bg} ${t.border}`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className={`h-7 w-7 rounded-lg ${t.iconBg} flex items-center justify-center`}>
-                          <Icon className={`h-3.5 w-3.5 ${t.text}`} />
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className={`h-6 w-6 rounded-md ${t.iconBg} flex items-center justify-center`}>
+                          <Icon className={`h-3 w-3 ${t.text}`} />
+                        </div>
+                        <div className={`flex items-center gap-0.5 text-xs font-medium ${t.text} opacity-60`}>
+                          <span>View all</span>
+                          <ChevronRight className="h-3 w-3" />
                         </div>
                       </div>
-                      <p className={`text-base font-bold leading-tight ${t.text}`}>{fmt(t.amount)}</p>
-                      <p className={`text-xs font-semibold mt-0.5 ${t.text}`}>{t.label}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{t.subtitle}</p>
-                      <div className={`flex items-center gap-0.5 mt-2 text-xs font-medium ${t.text} opacity-70`}>
-                        <span>View all</span>
-                        <ChevronRight className="h-3 w-3" />
-                      </div>
+                      <p className={`text-sm font-bold leading-tight ${t.text}`}>{fmt(t.amount)}</p>
+                      <p className={`text-xs font-medium mt-0.5 ${t.text}`}>{t.label}</p>
                     </button>
                   );
                 })}
