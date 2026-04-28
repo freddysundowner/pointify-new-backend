@@ -216,7 +216,6 @@ export default function ProductsReportPage() {
 
   const outOfStock = stockRows.filter(r => n(r.quantity) <= 0);
   const lowStock = stockRows.filter(r => n(r.reorderLevel) > 0 && n(r.quantity) > 0 && n(r.quantity) <= n(r.reorderLevel)).sort((a, b) => n(a.quantity) - n(b.quantity));
-  const belowReorder = stockRows.filter(r => n(r.reorderLevel) > 0 && n(r.quantity) > 0 && n(r.quantity) < n(r.reorderLevel));
 
   const isLoading = salesLoading;
   const stockLoading = invLoading || svLoading;
@@ -676,59 +675,6 @@ export default function ProductsReportPage() {
                                 </td>
                                 <td className="py-2 text-right text-gray-500">{fmt(r.stockValueAtCost)}</td>
                                 <td className="py-2 text-right text-gray-700">{fmt(r.stockValueAtSale)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Below reorder level */}
-                {belowReorder.length > 0 && (
-                  <Card className="border-0 shadow-sm border-l-4 border-l-orange-400">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide flex items-center gap-1">
-                          <AlertTriangle className="h-3.5 w-3.5" /> Below Reorder Level ({belowReorder.length})
-                        </p>
-                        <Button
-                          size="sm" variant="outline"
-                          className="h-7 px-2 text-xs gap-1 text-orange-600 border-orange-200 hover:bg-orange-50"
-                          onClick={() => downloadCSV(
-                            belowReorder.map(r => ({
-                              Product: r.productName ?? "",
-                              "Qty On Hand": n(r.quantity),
-                              "Reorder Level": n(r.reorderLevel),
-                              "Units Short": Math.max(0, n(r.reorderLevel) - n(r.quantity)),
-                              "Stock Value (KES)": n(r.stockValueAtCost),
-                            })),
-                            "below-reorder-level.csv"
-                          )}
-                        >
-                          <Download className="h-3 w-3" /> Export CSV
-                        </Button>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-xs text-gray-400 border-b">
-                              <th className="text-left pb-2 font-medium">Product</th>
-                              <th className="text-right pb-2 font-medium">On Hand</th>
-                              <th className="text-right pb-2 font-medium">Reorder At</th>
-                              <th className="text-right pb-2 font-medium">Units Short</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {belowReorder.map((r: any) => (
-                              <tr key={r.productId} className="hover:bg-orange-50/50">
-                                <td className="py-2 font-medium text-gray-800">{r.productName ?? "—"}</td>
-                                <td className="py-2 text-right text-orange-700 font-semibold">{qty(r.quantity)}</td>
-                                <td className="py-2 text-right text-gray-500">{qty(r.reorderLevel)}</td>
-                                <td className="py-2 text-right text-red-600 font-semibold">
-                                  {qty(Math.max(0, n(r.reorderLevel) - n(r.quantity)))}
-                                </td>
                               </tr>
                             ))}
                           </tbody>
