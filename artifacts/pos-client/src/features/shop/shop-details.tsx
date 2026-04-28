@@ -4,10 +4,13 @@ import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ChevronRight, ChevronDown, Trash2, Download, Settings, Shield, FileText, AlertTriangle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  ArrowLeft, Trash2, Store, CreditCard, Receipt, Settings2, Shield, Save,
+} from "lucide-react";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
 import { ENDPOINTS } from "@/lib/api-endpoints";
@@ -16,42 +19,13 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Link } from "wouter";
 import AlertModal from "@/components/ui/alert-modal";
 
-interface Shop {
-  _id: string;
-  name: string;
-  category: string;
-  address: string;
-  phone?: string;
-  email?: string;
-  currency: string;
-  allowOnlineSelling: boolean;
-  adminId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface ShopCategory {
-  _id: string;
-  name: string;
-}
-
 export default function ShopDetails() {
   const { id } = useParams();
   const { admin } = useAuth();
   const queryClient = useQueryClient();
-  
-  // Debug admin data to check primary shop status
-  useEffect(() => {
-    console.log('Current admin:', admin);
-    console.log('Primary shop ID:', admin?.primaryShop);
-    console.log('Current shop ID:', id);
-    console.log('Has primary shop:', !!admin?.primaryShop);
-  }, [admin, id]);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-  
-  // Alert modal state
+
   const [alertModal, setAlertModal] = useState<{
     isOpen: boolean;
     type: "warning" | "danger" | "input";
@@ -69,7 +43,6 @@ export default function ShopDetails() {
     onConfirm: () => {},
   });
 
-  // Shop settings form state (internal keys kept as camelCase matching API)
   const [formData, setFormData] = useState({
     name: "",
     receiptEmail: "",
@@ -85,68 +58,49 @@ export default function ShopDetails() {
     backupInterval: "end_of_month",
     allowBackup: true,
     useWarehouse: false,
-    // Receipt customization fields
     contact: "",
     paybillTill: "",
     paybillAccount: "",
     receiptAddress: "",
   });
 
-  // Fetch categories from API
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      const response = await apiCall(ENDPOINTS.shop.getCategories, {
-        method: "GET",
-      });
+      const response = await apiCall(ENDPOINTS.shop.getCategories, { method: "GET" });
       const data = await response.json();
-      console.log('Categories loaded from API:', data);
-      const rows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-      return rows;
+      return Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
     },
   });
 
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
-  };
-
-  // Fetch shop details from /shop/:id
   const { data: shop, isLoading } = useQuery({
     queryKey: ["shop", id],
     queryFn: async () => {
       if (!id) return null;
-      const response = await apiCall(ENDPOINTS.shop.getById(id), {
-        method: "GET",
-      });
-      const shop = await response.json();
-      console.log('Shop data loaded:', shop);
-      return shop;
+      const response = await apiCall(ENDPOINTS.shop.getById(id), { method: "GET" });
+      const json = await response.json();
+      return json?.data ?? json;
     },
     enabled: !!id,
   });
 
-  // Update form data when shop loads
   useEffect(() => {
     if (shop) {
-      console.log('Shop data loaded:', shop);
-      console.log('Shop category:', shop.shopCategoryId?.name);
       setFormData({
         name: shop.name || "",
         receiptEmail: shop.receiptEmail || shop.email_receipt || "",
         taxRate: shop.taxRate ?? shop.tax ?? 0,
-        categoryId: (shop.categoryId?._id || shop.categoryId) || (shop.shopCategoryId?._id || shop.shopCategoryId) || "",
+        categoryId: String((shop.categoryId?._id ?? shop.categoryId) ?? (shop.shopCategoryId?._id ?? shop.shopCategoryId) ?? ""),
         address: shop.address || "",
         currency: shop.currency || "KES",
-        allowNegativeSelling: shop.allowNegativeSelling ?? shop.allownegativeselling ?? false,
-        trackBatches: shop.trackBatches ?? shop.trackbatches ?? false,
+        allowNegativeSelling: shop.allowNegativeSelling ?? false,
+        trackBatches: shop.trackBatches ?? false,
         allowOnlineSelling: shop.allowOnlineSelling ?? true,
-        showStockOnline: shop.showStockOnline ?? shop.showstockonline ?? false,
-        showPriceOnline: shop.showPriceOnline ?? shop.showpriceonline ?? false,
+        showStockOnline: shop.showStockOnline ?? false,
+        showPriceOnline: shop.showPriceOnline ?? false,
         backupInterval: shop.backupInterval || "end_of_month",
         allowBackup: shop.allowBackup ?? true,
+        useWarehouse: shop.useWarehouse ?? false,
         contact: shop.contact || "",
         paybillTill: shop.paybillTill || shop.paybill_till || "",
         paybillAccount: shop.paybillAccount || shop.paybill_account || "",
@@ -155,41 +109,26 @@ export default function ShopDetails() {
     }
   }, [shop]);
 
-  // Debug: Log form data changes
-  useEffect(() => {
-    console.log('Form data updated:', formData);
-  }, [formData]);
-
-  // Update shop mutation
   const updateShopMutation = useMutation({
     mutationFn: async (data: any) => {
       const response = await apiCall(ENDPOINTS.shop.getById(id), {
         method: "PUT",
         body: JSON.stringify(data),
       });
-      return await response.json();
+      return response.json();
     },
     onSuccess: () => {
-      // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["shop", id] });
       queryClient.invalidateQueries({ queryKey: ["shops"] });
-      
-      toast({
-        title: "Shop Updated",
-        description: "Shop settings have been updated successfully.",
-      });
+      toast({ title: "Shop Updated", description: "Settings saved successfully." });
     },
     onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to update shop settings.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to save settings.", variant: "destructive" });
     },
   });
 
-  const handleSaveSettings = () => {
-    const updateData = {
+  const handleSave = () => {
+    updateShopMutation.mutate({
       name: formData.name,
       receiptEmail: formData.receiptEmail,
       categoryId: formData.categoryId || undefined,
@@ -203,14 +142,12 @@ export default function ShopDetails() {
       showPriceOnline: formData.showPriceOnline,
       backupInterval: formData.backupInterval,
       allowBackup: formData.allowBackup,
+      useWarehouse: formData.useWarehouse,
       contact: formData.contact,
       paybillTill: formData.paybillTill,
       paybillAccount: formData.paybillAccount,
       receiptAddress: formData.receiptAddress,
-    };
-    
-    console.log('Saving shop data:', updateData);
-    updateShopMutation.mutate(updateData);
+    });
   };
 
   const handleDeleteShopData = () => {
@@ -218,106 +155,63 @@ export default function ShopDetails() {
       isOpen: true,
       type: "input",
       title: "Delete Shop Data",
-      description: "This will permanently remove all products, transactions, and sales data for this shop. This action cannot be undone. Type 'DELETE' to confirm.",
+      description: "This will permanently remove all products, transactions, and sales data. Type 'DELETE' to confirm.",
       confirmText: "Delete Data",
       requiredInput: "DELETE",
       inputPlaceholder: "Type DELETE to confirm",
       onConfirm: () => {
-        // Call the delete shop data API
-        apiCall(ENDPOINTS.shop.getData(id), {
-          method: 'DELETE',
-        }).then(() => {
-          toast({
-            title: "Shop data deleted",
-            description: "All shop data has been permanently deleted.",
-            variant: "default",
-          });
-        }).catch((error) => {
-          console.error('Error deleting shop data:', error);
-          toast({
-            title: "Error",
-            description: "Failed to delete shop data. Please try again.",
-            variant: "destructive",
-          });
-        });
+        apiCall(ENDPOINTS.shop.getData(id), { method: "DELETE" })
+          .then(() => toast({ title: "Shop data deleted", description: "All data permanently removed." }))
+          .catch(() => toast({ title: "Error", description: "Failed to delete shop data.", variant: "destructive" }));
       },
     });
   };
 
   const handleDeleteShop = () => {
-    console.log('=== DELETE SHOP DEBUG ===');
-    console.log('Admin data:', admin);
-    console.log('Primary shop:', admin?.primaryShop);
-    console.log('Current shop ID:', id);
-    console.log('Admin exists:', !!admin);
-    console.log('Primary shop exists:', !!admin?.primaryShop);
-    console.log('========================');
-    
-    // Check if this is the primary shop
-    if (admin?.primaryShop === id) {
-      toast({
-        title: "Cannot Delete Primary Shop",
-        description: "This is your primary shop and cannot be deleted. Please set another shop as primary first, or contact support if this is your only shop.",
-        variant: "destructive",
-      });
+    if (String(admin?.primaryShop) === String(id)) {
+      toast({ title: "Cannot Delete Primary Shop", description: "Set another shop as primary first.", variant: "destructive" });
       return;
     }
-
-    // Check if user has no primary shop - redirect to onboarding
-    if (!admin?.primaryShop) {
-      toast({
-        title: "No Primary Shop",
-        description: "You need to create a primary shop first.",
-        variant: "destructive",
-      });
-      setLocation('/onboarding');
-      return;
-    }
-
     setAlertModal({
       isOpen: true,
       type: "input",
       title: "Delete Entire Shop",
-      description: "This will permanently delete the entire shop and ALL associated data including products, sales, customers, and settings. This action is irreversible. Type 'DELETE SHOP' to confirm.",
+      description: "This will permanently delete this shop and ALL associated data. Type 'DELETE SHOP' to confirm.",
       confirmText: "Delete Shop",
       requiredInput: "DELETE SHOP",
       inputPlaceholder: "Type DELETE SHOP to confirm",
       onConfirm: () => {
-        // Call the delete shop API
-        apiCall(ENDPOINTS.shop.getById(id), {
-          method: 'DELETE',
-        }).then(() => {
-          toast({
-            title: "Shop deleted",
-            description: "The shop has been permanently deleted.",
-            variant: "default",
-          });
-          // Invalidate cache and redirect to homepage
-          setTimeout(() => {
-            queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getAll] });
-            setLocation('/');
-          }, 1000);
-        }).catch((error) => {
-          console.error('Error deleting shop:', error);
-          toast({
-            title: "Error",
-            description: "Failed to delete shop. Please try again.",
-            variant: "destructive",
-          });
-        });
+        apiCall(ENDPOINTS.shop.getById(id), { method: "DELETE" })
+          .then(() => {
+            toast({ title: "Shop deleted", description: "The shop has been permanently deleted." });
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getAll] });
+              setLocation("/");
+            }, 1000);
+          })
+          .catch(() => toast({ title: "Error", description: "Failed to delete shop.", variant: "destructive" }));
       },
     });
   };
+
+  const field = (key: keyof typeof formData) => ({
+    value: formData[key] as string,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+      setFormData(prev => ({ ...prev, [key]: e.target.value })),
+  });
+
+  const toggle = (key: keyof typeof formData) => ({
+    checked: formData[key] as boolean,
+    onCheckedChange: (v: boolean) => setFormData(prev => ({ ...prev, [key]: v })),
+  });
 
   if (isLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <div className="w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-            </div>
-            <p className="text-gray-600">Loading shop details...</p>
+            <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-gray-500 text-sm">Loading shop…</p>
           </div>
         </div>
       </DashboardLayout>
@@ -330,437 +224,315 @@ export default function ShopDetails() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Shop Not Found</h3>
-            <p className="text-gray-600 mb-4">The shop you're looking for doesn't exist.</p>
-            <Link href="/shops">
-              <Button>Back to Shops</Button>
-            </Link>
+            <Link href="/shops"><Button>Back to Shops</Button></Link>
           </div>
         </div>
       </DashboardLayout>
     );
   }
 
-
-
   return (
     <DashboardLayout>
-      <div className="h-full bg-gray-50">
-        {/* Header */}
-        <div className="bg-white border-b shadow-sm">
-          <div className="px-8 py-6">
-            <div className="flex items-center gap-4">
+      <div className="min-h-full bg-gray-50">
+
+        {/* Sticky header */}
+        <div className="sticky top-0 z-10 bg-white border-b">
+          <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
               <Link href="/shops">
-                <Button variant="ghost" size="sm" className="p-2">
+                <Button variant="ghost" size="icon" className="shrink-0">
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
               </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{shop.name}</h1>
-                <p className="text-gray-600">Manage your shop settings and configuration</p>
+              <div className="min-w-0">
+                <h1 className="text-lg font-semibold text-gray-900 truncate">{shop.name}</h1>
+                <p className="text-xs text-gray-500">Shop settings</p>
               </div>
             </div>
+            <Button
+              onClick={handleSave}
+              disabled={updateShopMutation.isPending}
+              className="shrink-0 bg-purple-600 hover:bg-purple-700 gap-2"
+            >
+              <Save className="w-4 h-4" />
+              {updateShopMutation.isPending ? "Saving…" : "Save Changes"}
+            </Button>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="px-8 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            {/* Quick Actions Sidebar */}
-            <div className="lg:col-span-1 space-y-6">
-              <Card className="shadow-sm">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg">Quick Actions</CardTitle>
-                  <CardDescription>Manage shop settings efficiently</CardDescription>
+        {/* Body */}
+        <div className="max-w-4xl mx-auto px-6 py-8">
+          <Tabs defaultValue="general">
+            <TabsList className="mb-6 bg-white border shadow-sm w-full justify-start h-auto p-1 gap-1 rounded-lg">
+              <TabsTrigger value="general" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
+                <Store className="w-4 h-4" /> General
+              </TabsTrigger>
+              <TabsTrigger value="receipt" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
+                <Receipt className="w-4 h-4" /> Receipt
+              </TabsTrigger>
+              <TabsTrigger value="operations" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
+                <Settings2 className="w-4 h-4" /> Operations
+              </TabsTrigger>
+              <TabsTrigger value="backup" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
+                <CreditCard className="w-4 h-4" /> Backup
+              </TabsTrigger>
+              <TabsTrigger value="danger" className="gap-2 data-[state=active]:bg-red-600 data-[state=active]:text-white rounded text-red-600">
+                <Shield className="w-4 h-4" /> Danger
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ── GENERAL ── */}
+            <TabsContent value="general" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Shop Information</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button 
-                    className="w-full justify-start h-10 bg-yellow-500 hover:bg-yellow-600 text-white"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Backup
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start h-10"
-                    onClick={() => setExpandedSections(prev => ({ ...prev, backup: !prev.backup }))}
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Backup Settings
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start h-10"
-                    onClick={() => setExpandedSections(prev => ({ ...prev, receipt: !prev.receipt }))}
-                  >
-                    <FileText className="w-4 h-4 mr-2" />
-                    Receipt Settings
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Conditional Settings Panels */}
-              {expandedSections.backup && (
-                <Card className="shadow-sm">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="text-lg">Backup Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm">Auto Backup</Label>
-                      <Switch
-                        checked={formData.allowBackup}
-                        onCheckedChange={(checked) => 
-                          setFormData(prev => ({ ...prev, allowBackup: checked }))
-                        }
-                      />
+                <CardContent className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="space-y-1.5">
+                      <Label>Shop Name</Label>
+                      <Input placeholder="Your shop name" {...field("name")} />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm">Backup Email</Label>
-                      <Input
-                        type="email"
-                        value={admin?.email || ''}
-                        readOnly
-                        className="h-9 bg-gray-50"
-                      />
-                      <p className="text-xs text-gray-500">Uses your admin email address</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm">Interval</Label>
-                      <Select
-                        value={formData.backupInterval}
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, backupInterval: value }))}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="daily">Every day</SelectItem>
-                          <SelectItem value="end_of_month">Every End of Month</SelectItem>
-                          <SelectItem value="weekly">Every End of Week</SelectItem>
-                          <SelectItem value="yearly">Every End of Year</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {expandedSections.receipt && (
-                <Card className="shadow-sm">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="text-lg">Receipt Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="space-y-2">
-                      <Label className="text-sm">Receipt Email</Label>
-                      <Input
-                        value={formData.receiptEmail}
-                        onChange={(e) => setFormData(prev => ({ ...prev, receiptEmail: e.target.value }))}
-                        placeholder="email@company.com"
-                        type="email"
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm">Contact</Label>
-                      <Input
-                        value={formData.contact}
-                        onChange={(e) => setFormData(prev => ({ ...prev, contact: e.target.value }))}
-                        placeholder="Contact info"
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm">M-Pesa Paybill/Till</Label>
-                      <Input
-                        value={formData.paybillTill}
-                        onChange={(e) => setFormData(prev => ({ ...prev, paybillTill: e.target.value }))}
-                        placeholder="Paybill or Till number"
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm">Paybill Account</Label>
-                      <Input
-                        value={formData.paybillAccount}
-                        onChange={(e) => setFormData(prev => ({ ...prev, paybillAccount: e.target.value }))}
-                        placeholder="Account number"
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm">Receipt Address</Label>
-                      <Input
-                        value={formData.receiptAddress}
-                        onChange={(e) => setFormData(prev => ({ ...prev, receiptAddress: e.target.value }))}
-                        placeholder="Address to show on receipts"
-                        className="h-9"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            {/* Main Settings Form */}
-            <div className="lg:col-span-3 space-y-6">
-              <Card className="shadow-sm">
-                <CardHeader className="pb-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <Settings className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-xl">Shop Information</CardTitle>
-                        <CardDescription>Basic shop details and configuration</CardDescription>
-                      </div>
-                    </div>
-                    <Button 
-                      onClick={handleSaveSettings}
-                      disabled={updateShopMutation.isPending}
-                      className="bg-purple-600 hover:bg-purple-700"
-                    >
-                      {updateShopMutation.isPending ? "Saving..." : "Save Settings"}
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Basic Information Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="shopName" className="text-sm font-medium">Shop Name</Label>
-                      <Input
-                        id="shopName"
-                        value={formData.name}
-                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Enter your shop name"
-                        className="h-10"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="tax" className="text-sm font-medium">Tax Rate (%)</Label>
-                      <Input
-                        id="tax"
-                        type="number"
-                        step="0.01"
-                        value={formData.taxRate}
-                        onChange={(e) => setFormData(prev => ({ ...prev, tax: parseFloat(e.target.value) || 0 }))}
-                        placeholder="0.0"
-                        className="h-10"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="businessType" className="text-sm font-medium">Business Category</Label>
+                    <div className="space-y-1.5">
+                      <Label>Business Category</Label>
                       <Select
                         value={formData.categoryId}
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, categoryId: value }))}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, categoryId: v }))}
                       >
-                        <SelectTrigger className="h-10">
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                         <SelectContent>
-                          {(categories as any[]).map((category: any) => {
-                            const catId = String(category.id ?? category._id);
-                            return (
-                              <SelectItem key={catId} value={catId}>
-                                {category.name}
-                              </SelectItem>
-                            );
+                          {(categories as any[]).map((cat: any) => {
+                            const catId = String(cat.id ?? cat._id);
+                            return <SelectItem key={catId} value={catId}>{cat.name}</SelectItem>;
                           })}
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="location" className="text-sm font-medium">Shop Address</Label>
-                      <Input
-                        id="location"
-                        value={formData.address}
-                        onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                        placeholder="Enter your shop's physical address"
-                        className="h-10"
-                      />
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label>Address</Label>
+                      <Input placeholder="Physical address" {...field("address")} />
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="currency" className="text-sm font-medium">Currency</Label>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Financial</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="space-y-1.5">
+                      <Label>Currency</Label>
                       <Select
                         value={formData.currency}
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, currency: value }))}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, currency: v }))}
                       >
-                        <SelectTrigger className="h-10">
-                          <SelectValue placeholder="Select currency" />
-                        </SelectTrigger>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="KES">KES - Kenyan Shilling</SelectItem>
-                          <SelectItem value="USD">USD - US Dollar</SelectItem>
-                          <SelectItem value="EUR">EUR - Euro</SelectItem>
-                          <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                          <SelectItem value="KES">KES — Kenyan Shilling</SelectItem>
+                          <SelectItem value="USD">USD — US Dollar</SelectItem>
+                          <SelectItem value="EUR">EUR — Euro</SelectItem>
+                          <SelectItem value="GBP">GBP — British Pound</SelectItem>
+                          <SelectItem value="UGX">UGX — Ugandan Shilling</SelectItem>
+                          <SelectItem value="TZS">TZS — Tanzanian Shilling</SelectItem>
+                          <SelectItem value="ZAR">ZAR — South African Rand</SelectItem>
+                          <SelectItem value="NGN">NGN — Nigerian Naira</SelectItem>
+                          <SelectItem value="GHS">GHS — Ghanaian Cedi</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-
-                  {/* Operational Settings */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Operational Settings</h3>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                        <div>
-                          <Label className="text-sm font-medium text-red-800">Negative Selling</Label>
-                          <p className="text-xs text-red-600">Allow out-of-stock sales</p>
-                        </div>
-                        <Switch
-                          checked={formData.allowNegativeSelling}
-                          onCheckedChange={(checked) => 
-                            setFormData(prev => ({ ...prev, allowNegativeSelling: checked }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
-                        <div>
-                          <Label className="text-sm font-medium text-blue-800">Batch Tracking</Label>
-                          <p className="text-xs text-blue-600">Track product batches</p>
-                        </div>
-                        <Switch
-                          checked={formData.trackBatches}
-                          onCheckedChange={(checked) => 
-                            setFormData(prev => ({ ...prev, trackBatches: checked }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200">
-                        <div>
-                          <Label className="text-sm font-medium text-purple-800">Warehouse Mode</Label>
-                          <p className="text-xs text-purple-600">Use warehouse system</p>
-                        </div>
-                        <Switch
-                          checked={formData.useWarehouse}
-                          onCheckedChange={(checked) => 
-                            setFormData(prev => ({ ...prev, useWarehouse: checked }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
-                        <div>
-                          <Label className="text-sm font-medium text-green-800">Online Selling</Label>
-                          <p className="text-xs text-green-600">Enable e-commerce</p>
-                        </div>
-                        <Switch
-                          checked={formData.allowOnlineSelling}
-                          onCheckedChange={(checked) => 
-                            setFormData(prev => ({ ...prev, allowOnlineSelling: checked }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
-                        <div>
-                          <Label className="text-sm font-medium text-orange-800">Show Stock Online</Label>
-                          <p className="text-xs text-orange-600">Display stock levels on online store</p>
-                        </div>
-                        <Switch
-                          checked={formData.showStockOnline}
-                          onCheckedChange={(checked) => 
-                            setFormData(prev => ({ ...prev, showStockOnline: checked }))
-                          }
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 bg-teal-50 rounded-lg border border-teal-200">
-                        <div>
-                          <Label className="text-sm font-medium text-teal-800">Show Prices Online</Label>
-                          <p className="text-xs text-teal-600">Display product prices on online store</p>
-                        </div>
-                        <Switch
-                          checked={formData.showPriceOnline}
-                          onCheckedChange={(checked) => 
-                            setFormData(prev => ({ ...prev, showPriceOnline: checked }))
-                          }
-                        />
-                      </div>
+                    <div className="space-y-1.5">
+                      <Label>Tax Rate (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        placeholder="0"
+                        value={formData.taxRate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, taxRate: parseFloat(e.target.value) || 0 }))}
+                      />
                     </div>
                   </div>
-
-
                 </CardContent>
               </Card>
+            </TabsContent>
 
-              {/* Danger Zone - Delete Shop */}
-              <Card className="shadow-sm border-red-200">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                      <AlertTriangle className="w-5 h-5 text-red-600" />
+            {/* ── RECEIPT ── */}
+            <TabsContent value="receipt" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Receipt & Contact Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="space-y-1.5">
+                      <Label>Receipt Email</Label>
+                      <Input type="email" placeholder="email@yourshop.com" {...field("receiptEmail")} />
+                      <p className="text-xs text-gray-400">Shown on printed receipts</p>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-red-800">Danger Zone</h3>
-                      <p className="text-sm text-red-600">Irreversible actions that will permanently delete data</p>
+                    <div className="space-y-1.5">
+                      <Label>Contact / Phone</Label>
+                      <Input placeholder="+254 7xx xxx xxx" {...field("contact")} />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label>Receipt Address</Label>
+                      <Input placeholder="Address shown on receipts" {...field("receiptAddress")} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>M-Pesa Paybill / Till</Label>
+                      <Input placeholder="e.g. 522522 or 0123456" {...field("paybillTill")} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Paybill Account</Label>
+                      <Input placeholder="Account number" {...field("paybillAccount")} />
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ── OPERATIONS ── */}
+            <TabsContent value="operations" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Operational Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="divide-y">
+                  {[
+                    {
+                      key: "allowNegativeSelling",
+                      label: "Negative Selling",
+                      desc: "Allow sales even when stock is at zero",
+                    },
+                    {
+                      key: "trackBatches",
+                      label: "Batch Tracking",
+                      desc: "Track product batches and expiry dates",
+                    },
+                    {
+                      key: "useWarehouse",
+                      label: "Warehouse Mode",
+                      desc: "Enable warehouse-based inventory management",
+                    },
+                    {
+                      key: "allowOnlineSelling",
+                      label: "Online Selling",
+                      desc: "List products on your online storefront",
+                    },
+                    {
+                      key: "showStockOnline",
+                      label: "Show Stock Levels Online",
+                      desc: "Display available quantity to online customers",
+                    },
+                    {
+                      key: "showPriceOnline",
+                      label: "Show Prices Online",
+                      desc: "Display product prices on your online store",
+                    },
+                  ].map(({ key, label, desc }) => (
+                    <div key={key} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{label}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+                      </div>
+                      <Switch {...toggle(key as keyof typeof formData)} />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ── BACKUP ── */}
+            <TabsContent value="backup" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Backup Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Auto Backup</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Automatically email shop data backups</p>
+                    </div>
+                    <Switch {...toggle("allowBackup")} />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Backup Email</Label>
+                    <Input value={admin?.email || ""} readOnly className="bg-gray-50 text-gray-500 cursor-not-allowed" />
+                    <p className="text-xs text-gray-400">Uses your admin account email</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Backup Frequency</Label>
+                    <Select
+                      value={formData.backupInterval}
+                      onValueChange={(v) => setFormData(prev => ({ ...prev, backupInterval: v }))}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="end_of_month">Monthly (end of month)</SelectItem>
+                        <SelectItem value="yearly">Yearly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ── DANGER ── */}
+            <TabsContent value="danger" className="space-y-4">
+              <Card className="border-red-200">
+                <CardHeader>
+                  <CardTitle className="text-base text-red-700">Danger Zone</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className="text-sm font-medium text-red-800 mb-1">Delete Shop Data</h4>
-                        <p className="text-xs text-red-600 mb-3">
-                          Permanently delete all products, transactions, and sales data for this shop. 
-                          This action cannot be undone.
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-red-300 text-red-700 hover:bg-red-100"
-                          onClick={() => handleDeleteShopData()}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete Shop Data
-                        </Button>
-                      </div>
+                  <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-red-50 border border-red-200">
+                    <div>
+                      <p className="text-sm font-medium text-red-800">Delete Shop Data</p>
+                      <p className="text-xs text-red-600 mt-1">
+                        Permanently delete all products, transactions and sales. The shop itself remains.
+                      </p>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 border-red-300 text-red-700 hover:bg-red-100"
+                      onClick={handleDeleteShopData}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                      Delete Data
+                    </Button>
                   </div>
 
-                  <div className="p-4 bg-red-100 rounded-lg border border-red-300">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className="text-sm font-medium text-red-900 mb-1">Delete Entire Shop</h4>
-                        <p className="text-xs text-red-700 mb-3">
-                          Permanently delete this shop and all associated data including products, 
-                          sales, customers, and settings. This action is irreversible.
-                        </p>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteShop()}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete Shop
-                        </Button>
-                      </div>
+                  <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-red-100 border border-red-300">
+                    <div>
+                      <p className="text-sm font-medium text-red-900">Delete Entire Shop</p>
+                      <p className="text-xs text-red-700 mt-1">
+                        Permanently delete this shop and everything linked to it. This cannot be undone.
+                      </p>
                     </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={handleDeleteShop}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                      Delete Shop
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
-            </div>
-
-
-          </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
 
-      {/* Alert Modal for confirmations */}
       <AlertModal
         isOpen={alertModal.isOpen}
         onClose={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
