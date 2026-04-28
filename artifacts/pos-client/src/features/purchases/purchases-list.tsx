@@ -861,7 +861,7 @@ export default function PurchasesList() {
                     Total Purchases
                   </p>
                   <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                    {currency} {(analyticsData.totalpurchases || 0).toFixed(2)}
+                    {currency} {parseFloat(String(analyticsData.totalpurchases || 0)).toFixed(2)}
                   </p>
                 </div>
                 <TrendingDown className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -875,7 +875,7 @@ export default function PurchasesList() {
                     Cash Purchases
                   </p>
                   <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                    {currency} {(analyticsData.cash || 0).toFixed(2)}
+                    {currency} {parseFloat(String(analyticsData.cash || 0)).toFixed(2)}
                   </p>
                 </div>
                 <TrendingDown className="h-4 w-4 text-green-600 dark:text-green-400" />
@@ -889,7 +889,7 @@ export default function PurchasesList() {
                     Unpaid Purchases
                   </p>
                   <p className="text-xl font-bold text-orange-600 dark:text-orange-400">
-                    {currency} {(analyticsData.credit || 0).toFixed(2)}
+                    {currency} {parseFloat(String(analyticsData.credit || 0)).toFixed(2)}
                   </p>
                 </div>
                 <Package className="h-4 w-4 text-orange-600 dark:text-orange-400" />
@@ -903,7 +903,7 @@ export default function PurchasesList() {
                     Amount Paid
                   </p>
                   <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                    {currency} {(analyticsData.paid || 0).toFixed(2)}
+                    {currency} {parseFloat(String(analyticsData.paid || 0)).toFixed(2)}
                   </p>
                 </div>
                 <Truck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -917,7 +917,7 @@ export default function PurchasesList() {
                     Returns
                   </p>
                   <p className="text-xl font-bold text-red-600 dark:text-red-400">
-                    {currency} {(analyticsData.returns || 0).toFixed(2)}
+                    {currency} {parseFloat(String(analyticsData.returns || 0)).toFixed(2)}
                   </p>
                 </div>
                 <Package className="h-4 w-4 text-red-600 dark:text-red-400" />
@@ -1013,7 +1013,7 @@ export default function PurchasesList() {
                           </td>
                           <td className="py-2 px-3 text-sm font-medium">
                             {purchase.currency}{" "}
-                            {purchase.totalAmount.toFixed(2)}
+                            {parseFloat(String(purchase.totalAmount || 0)).toFixed(2)}
                           </td>
                           <td className="py-2 px-3 text-sm">
                             {new Date(purchase.orderDate).toLocaleString()}
@@ -1054,8 +1054,7 @@ export default function PurchasesList() {
                                   <Edit className="mr-2 h-4 w-4" />
                                   Edit Order
                                 </DropdownMenuItem>
-                                {purchase.outstandingBalance &&
-                                  purchase.outstandingBalance > 0 && (
+                                {parseFloat(String(purchase.outstandingBalance || 0)) > 0 && (
                                     <DropdownMenuItem
                                       onClick={() =>
                                         handlePayPurchase(purchase)
@@ -1109,7 +1108,7 @@ export default function PurchasesList() {
                                         </span>
                                         <span className="text-xs text-muted-foreground">
                                           {purchase.currency}{" "}
-                                          {item.unitCost.toFixed(2)} per unit
+                                          {parseFloat(String(item.unitCost || 0)).toFixed(2)} per unit
                                           {item.received !== undefined && (
                                             <span className="ml-2">
                                               • Received: {item.received}/
@@ -1121,7 +1120,7 @@ export default function PurchasesList() {
                                       <div className="text-right">
                                         <div className="font-medium">
                                           {purchase.currency}{" "}
-                                          {item.totalCost.toFixed(2)}
+                                          {parseFloat(String(item.totalCost || 0)).toFixed(2)}
                                         </div>
                                         <div className="text-xs text-muted-foreground">
                                           Qty: {item.quantity}
@@ -1158,7 +1157,7 @@ export default function PurchasesList() {
                                   </span>
                                   <span className="font-bold text-lg text-blue-600 dark:text-blue-400">
                                     {purchase.currency}{" "}
-                                    {purchase.totalAmount.toFixed(2)}
+                                    {parseFloat(String(purchase.totalAmount || 0)).toFixed(2)}
                                   </span>
                                 </div>
                               </div>

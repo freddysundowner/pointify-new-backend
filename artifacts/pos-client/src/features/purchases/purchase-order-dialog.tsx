@@ -125,13 +125,15 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
     if (existingItemIndex >= 0) {
       updateQuantity(existingItemIndex, orderItems[existingItemIndex].quantity + 1);
     } else {
+      const buyingPrice = parseFloat(String(product.buyingPrice || product.unitPrice || 0));
+      const sellingPrice = parseFloat(String(product.sellingPrice || 0)) || buyingPrice * 1.5;
       const newItem: OrderItem = {
         id: product._id || product.id,
         name: product.name || product.title,
-        unitCost: product.buyingPrice || product.unitPrice || 0,
-        sellingPrice: product.sellingPrice || (product.buyingPrice * 1.5) || 0,
+        unitCost: buyingPrice,
+        sellingPrice,
         quantity: 1,
-        total: product.buyingPrice || product.unitPrice || 0,
+        total: buyingPrice,
         currency: (product.shopId && product.shopId.currency) ? product.shopId.currency : "KES"
       };
       setOrderItems([...orderItems, newItem]);
@@ -351,7 +353,7 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
                               <p className="font-medium">{supplier.name}</p>
                               {supplier.currentBalance && (
                                 <p className="text-xs text-muted-foreground">
-                                  Balance: {currency} {supplier.currentBalance.toFixed(2)}
+                                  Balance: {currency} {parseFloat(String(supplier.currentBalance || 0)).toFixed(2)}
                                 </p>
                               )}
                             </div>
@@ -363,7 +365,7 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
                 </PopoverContent>
               </Popover>
               
-              {selectedSupplier && selectedSupplier.currentBalance && selectedSupplier.currentBalance > 0 && (
+              {selectedSupplier && parseFloat(String(selectedSupplier.currentBalance || 0)) > 0 && (
                 <Card className="bg-orange-50 dark:bg-orange-900/20 border-orange-200">
                   <CardContent className="p-3">
                     <div className="flex items-center gap-2">
@@ -371,7 +373,7 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
                         Outstanding Balance
                       </Badge>
                       <span className="font-medium text-orange-700">
-                        {currency} {selectedSupplier.currentBalance.toFixed(2)}
+                        {currency} {parseFloat(String(selectedSupplier.currentBalance || 0)).toFixed(2)}
                       </span>
                     </div>
                   </CardContent>
