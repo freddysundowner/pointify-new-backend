@@ -185,79 +185,66 @@ export default function ReturnSale() {
 
   return (
     <DashboardLayout title={`Return — ${originalSale.receiptNo ?? `Sale #${saleId}`}`}>
-      <div className="p-6 max-w-4xl mx-auto space-y-5">
+      <div className="p-3 max-w-3xl mx-auto space-y-3">
 
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">Process Return</h1>
-            <p className="text-sm text-gray-500">{originalSale.receiptNo ?? `Sale #${saleId}`}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setLocation(salesRoute)}>
-              <ArrowLeft className="mr-1.5 h-4 w-4" /> Cancel
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setLocation(salesRoute)}>
+              <ArrowLeft className="h-3.5 w-3.5" />
             </Button>
-            <Button
-              size="sm"
-              disabled={selectedCount === 0 || isProcessing}
-              onClick={handleProcessReturn}
-            >
-              {isProcessing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1.5 h-4 w-4" />}
-              {isProcessing ? "Processing…" : `Return ${selectedCount > 0 ? `(${selectedCount})` : ""}`}
-            </Button>
+            <RotateCcw className="h-4 w-4 text-gray-400" />
+            <span className="font-semibold text-sm">Process Return</span>
+            <span className="text-xs text-gray-400">{originalSale.receiptNo ?? `Sale #${saleId}`}</span>
           </div>
+          <Button
+            size="sm"
+            className="h-8 gap-1 text-xs"
+            disabled={selectedCount === 0 || isProcessing}
+            onClick={handleProcessReturn}
+          >
+            {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+            {isProcessing ? "Processing…" : `Return${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
+          </Button>
         </div>
 
-        {/* Sale Info */}
-        <Card>
-          <CardContent className="pt-5">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Customer</p>
-                <p className="font-medium">{originalSale.customer?.name ?? "Walk-in"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Date</p>
-                <p className="font-medium">{originalSale.createdAt ? new Date(originalSale.createdAt).toLocaleDateString() : "—"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Total</p>
-                <p className="font-medium">{currency} {parseFloat(String(originalSale.totalWithDiscount ?? originalSale.totalAmount ?? 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Status</p>
-                <Badge variant="outline" className="capitalize">{originalSale.status}</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Sale Info — compact strip */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-gray-50 border rounded-lg px-3 py-2 text-xs">
+          <span className="text-gray-400">Customer:</span>
+          <span className="font-medium text-gray-700">{originalSale.customer?.name ?? "Walk-in"}</span>
+          <span className="text-gray-300">·</span>
+          <span className="text-gray-400">Date:</span>
+          <span className="font-medium text-gray-700">{originalSale.createdAt ? new Date(originalSale.createdAt).toLocaleDateString() : "—"}</span>
+          <span className="text-gray-300">·</span>
+          <span className="text-gray-400">Total:</span>
+          <span className="font-medium text-gray-700">{currency} {parseFloat(String(originalSale.totalWithDiscount ?? originalSale.totalAmount ?? 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          <span className="text-gray-300">·</span>
+          <Badge variant="outline" className="capitalize text-xs py-0 px-1.5">{originalSale.status}</Badge>
+        </div>
 
         {/* Items */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Select Items to Return</CardTitle>
+          <CardHeader className="py-2 px-3">
+            <CardTitle className="text-sm font-semibold">Select Items to Return</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="px-3 pb-3 space-y-1.5">
             {returnItems.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-4">No items found for this sale.</p>
+              <p className="text-xs text-gray-400 text-center py-4">No items found for this sale.</p>
             )}
             {returnItems.map((item, index) => (
-              <div key={item.id} className={`border rounded-lg p-4 transition-colors ${item.shouldReturn ? "border-blue-200 bg-blue-50/40" : ""}`}>
-                <div className="flex items-start gap-3">
+              <div key={item.id} className={`border rounded-lg px-3 py-2 transition-colors ${item.shouldReturn ? "border-blue-200 bg-blue-50/40" : ""}`}>
+                <div className="flex items-center gap-3">
                   <Checkbox
                     checked={item.shouldReturn}
                     onCheckedChange={checked => updateReturnItem(index, "shouldReturn", !!checked)}
-                    className="mt-0.5"
                   />
-                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-1">
-                      <p className="font-medium text-sm">{item.productName}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {item.quantity} × {currency} {item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </p>
+                  <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-xs truncate">{item.productName}</p>
+                      <p className="text-xs text-gray-400">{item.quantity} × {currency} {item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
-                    <div>
-                      <Label className="text-xs text-gray-500">Return Qty (max {item.quantity})</Label>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-gray-400 hidden sm:inline">Qty:</span>
                       <Input
                         type="number"
                         min={1}
@@ -268,15 +255,14 @@ export default function ReturnSale() {
                           updateReturnItem(index, "returnQuantity", v);
                         }}
                         disabled={!item.shouldReturn}
-                        className="h-8 mt-1 text-sm"
+                        className="h-7 w-16 text-xs text-center"
                       />
+                      <span className="text-xs text-gray-400 w-4 text-center">/</span>
+                      <span className="text-xs text-gray-400">{item.quantity}</span>
                     </div>
-                    <div className="flex flex-col justify-end">
-                      <p className="text-xs text-gray-400">Refund amount</p>
-                      <p className="font-semibold text-sm text-green-700">
-                        {item.shouldReturn
-                          ? `${currency} ${(item.unitPrice * item.returnQuantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-                          : "—"}
+                    <div className="text-right shrink-0 min-w-[80px]">
+                      <p className="text-xs font-semibold text-green-700">
+                        {item.shouldReturn ? `${currency} ${(item.unitPrice * item.returnQuantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "—"}
                       </p>
                     </div>
                   </div>
@@ -289,50 +275,47 @@ export default function ReturnSale() {
         {/* Summary */}
         {selectedCount > 0 && (
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Return Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-xs">Refund Method</Label>
-                  <select
-                    value={refundMethod}
-                    onChange={e => setRefundMethod(e.target.value)}
-                    className="w-full mt-1 h-9 px-3 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="original">Original Payment Method</option>
-                    <option value="store-credit">Store Credit</option>
-                  </select>
+            <CardContent className="px-3 py-3">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs w-28 shrink-0">Refund Method</Label>
+                    <select
+                      value={refundMethod}
+                      onChange={e => setRefundMethod(e.target.value)}
+                      className="flex-1 h-8 px-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="original">Original Payment Method</option>
+                      <option value="store-credit">Store Credit</option>
+                    </select>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Label className="text-xs w-28 shrink-0 pt-1">Notes</Label>
+                    <Textarea
+                      value={returnNotes}
+                      onChange={e => setReturnNotes(e.target.value)}
+                      placeholder="Optional notes…"
+                      className="flex-1 text-xs"
+                      rows={2}
+                    />
+                  </div>
                 </div>
-                <div>
+                <div className="sm:text-right shrink-0">
                   <p className="text-xs text-gray-400">Total Refund</p>
-                  <p className="text-2xl font-bold text-green-600 mt-0.5">
+                  <p className="text-xl font-bold text-green-600">
                     {currency} {calculateRefundAmount().toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
-              </div>
-              <div className="mt-3">
-                <Label className="text-xs">Notes (optional)</Label>
-                <Textarea
-                  value={returnNotes}
-                  onChange={e => setReturnNotes(e.target.value)}
-                  placeholder="Any notes about this return…"
-                  className="mt-1 text-sm"
-                  rows={2}
-                />
               </div>
             </CardContent>
           </Card>
         )}
 
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="text-xs">
-            Processing a return restores inventory and records a refund. This cannot be undone.
-          </AlertDescription>
-        </Alert>
+        <div className="flex items-center gap-1.5 text-xs text-gray-400 px-1">
+          <AlertCircle className="h-3 w-3 shrink-0" />
+          <span>Processing a return restores inventory and records a refund. This cannot be undone.</span>
+        </div>
       </div>
 
       <AlertDialog open={showAlert} onOpenChange={setShowAlert}>
