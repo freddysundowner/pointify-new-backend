@@ -348,12 +348,7 @@ function SalesList() {
 
 
   const handleReturnSale = (sale: any) => {
-    // Pass original sale data from API, not transformed
-    const originalSale = salesData.find((s: any) => s._id === sale.id);
-    const saleId = sale.id;
-    setLocation(`${salesRoute}/return/${saleId}`, {
-      state: { saleData: originalSale },
-    });
+    setLocation(`${salesRoute}/return/${sale.id}`);
   };
 
   const handleDeleteSale = (sale: any) => {
