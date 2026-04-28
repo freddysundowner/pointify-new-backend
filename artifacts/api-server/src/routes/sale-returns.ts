@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { saleReturns, saleReturnItems, sales, inventory, admins, attendants } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -17,7 +17,16 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
-    const where = shopId ? eq(saleReturns.shop, shopId) : undefined;
+    const fromDate = req.query["fromDate"] ? String(req.query["fromDate"]) : null;
+    const toDate = req.query["toDate"] ? String(req.query["toDate"]) : null;
+    const attendantId = req.query["attendantId"] ? Number(req.query["attendantId"]) : null;
+
+    const conditions = [];
+    if (shopId) conditions.push(eq(saleReturns.shop, shopId));
+    if (fromDate) conditions.push(gte(saleReturns.createdAt, new Date(`${fromDate}T00:00:00`)));
+    if (toDate) conditions.push(lte(saleReturns.createdAt, new Date(`${toDate}T23:59:59`)));
+    if (attendantId) conditions.push(eq(saleReturns.processedBy, attendantId));
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     const rows = await db.query.saleReturns.findMany({
       where,

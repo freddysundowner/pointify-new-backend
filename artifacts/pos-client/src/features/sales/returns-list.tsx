@@ -13,6 +13,7 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/features/auth/useAuth";
+import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -22,6 +23,7 @@ import { apiRequest } from "@/lib/queryClient";
 function ReturnsList() {
   const { hasPermission, user } = usePermissions();
   const { admin } = useAuth();
+  const { shopId, shopData } = usePrimaryShop();
   const [location, setLocation] = useLocation();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
@@ -37,11 +39,7 @@ function ReturnsList() {
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
-  // Get shop and admin details
-  const primaryShop = typeof admin?.primaryShop === 'object' ? admin.primaryShop : null;
-  const shopId = (primaryShop as any)?._id;
-  const attendantId = admin?._id;
-  const primaryShopCurrency = (primaryShop as any)?.currency || 'KES';
+  const primaryShopCurrency = (shopData as any)?.currency || 'KES';
 
   // Function to get currency for a return - extract from shopId object
   const getReturnCurrency = (returnItem: any) => {
@@ -303,11 +301,14 @@ function ReturnsList() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Attendants</SelectItem>
-                    {uniqueAttendants.map((attendant: any) => (
-                      <SelectItem key={attendant._id} value={attendant._id}>
-                        {attendant.username}
-                      </SelectItem>
-                    ))}
+                    {uniqueAttendants.map((attendant: any) => {
+                      const id = String(attendant.id ?? attendant._id ?? '');
+                      return (
+                        <SelectItem key={id} value={id}>
+                          {attendant.username}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
 
