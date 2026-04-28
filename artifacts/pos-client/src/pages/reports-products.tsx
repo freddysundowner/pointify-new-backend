@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import {
   TrendingUp, ArrowLeft, RefreshCw, Package, AlertTriangle,
-  BarChart2, Layers, Tag, Download,
+  BarChart2, Layers, Tag, Download, Search, ArrowUpDown,
+  TrendingDown, Filter, X,
 } from "lucide-react";
 import { RootState } from "@/store";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
-import { useLocation } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -58,12 +58,12 @@ const QUICK = [
 const TABS = [
   { id: "sales", label: "Sales Performance", icon: BarChart2 },
   { id: "stock", label: "Stock Health", icon: Layers },
+  { id: "slow", label: "Slow Movers", icon: TrendingDown },
 ];
 
 export default function ProductsReportPage() {
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const { primaryShop } = usePrimaryShop();
-  const [, setLocation] = useLocation();
   const goBack = useGoBack("/reports");
 
   const shopId = selectedShopId || primaryShop?.shopId;
@@ -75,27 +75,68 @@ export default function ProductsReportPage() {
   const [from, setFrom] = useState(firstOfMonth);
   const [to, setTo] = useState(today);
   const [activeTab, setActiveTab] = useState("sales");
+
+  // Sales tab state
   const [salesPage, setSalesPage] = useState(1);
+  const [salesSort, setSalesSort] = useState<"desc" | "asc">("desc");
+  const [salesCategory, setSalesCategory] = useState("");
+  const [salesSearch, setSalesSearch] = useState("");
+  const [salesSearchInput, setSalesSearchInput] = useState("");
+
+  // Stock tab state
   const [stockPage, setStockPage] = useState(1);
+  const [stockSearch, setStockSearch] = useState("");
+  const [stockSearchInput, setStockSearchInput] = useState("");
+
+  // Slow movers tab state
+  const [slowPage, setSlowPage] = useState(1);
+
   const PAGE_SIZE = 50;
   const isCustom = quickDays === 0;
 
-  const buildParams = (page = 1) => {
-    const base = isCustom
-      ? { shopId: shopId || "", from, to }
-      : { shopId: shopId || "", from: new Date(Date.now() - (quickDays - 1) * 86400000).toISOString().split("T")[0], to: today };
-    return new URLSearchParams({ ...base, page: String(page), limit: String(PAGE_SIZE) });
+  const effectiveFrom = isCustom ? from : new Date(Date.now() - (quickDays - 1) * 86400000).toISOString().split("T")[0];
+  const effectiveTo = today;
+
+  const buildSalesParams = (page = 1) => {
+    const p = new URLSearchParams({
+      shopId: shopId || "",
+      from: effectiveFrom,
+      to: effectiveTo,
+      page: String(page),
+      limit: String(PAGE_SIZE),
+      sort: salesSort,
+    });
+    if (salesCategory) p.set("categoryId", salesCategory);
+    if (salesSearch) p.set("search", salesSearch);
+    return p;
   };
 
-  const effectiveFrom = isCustom ? from : new Date(Date.now() - (quickDays - 1) * 86400000).toISOString().split("T")[0];
+  const handleApply = () => { setSalesPage(1); setSlowPage(1); };
+  const handleQuickDays = (days: number) => { setQuickDays(days); setSalesPage(1); setSlowPage(1); };
 
-  const handleApply = () => { setSalesPage(1); refetch(); };
-  const handleQuickDays = (days: number) => { setQuickDays(days); setSalesPage(1); };
+  const handleSalesSearch = () => { setSalesSearch(salesSearchInput); setSalesPage(1); };
+  const handleStockSearch = () => { setStockSearch(stockSearchInput); setStockPage(1); };
+  const clearSalesSearch = () => { setSalesSearch(""); setSalesSearchInput(""); setSalesPage(1); };
+  const clearStockSearch = () => { setStockSearch(""); setStockSearchInput(""); setStockPage(1); };
 
-  const { data: raw, isLoading: salesLoading, refetch } = useQuery<any>({
-    queryKey: ["products-report", shopId, from, to, quickDays, salesPage],
+  // Categories
+  const { data: categoriesData } = useQuery<any>({
+    queryKey: ["categories", shopId],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/reports/sales/by-product/detail?${buildParams(salesPage)}`);
+      const res = await apiRequest("GET", `/api/categories?shopId=${shopId}`);
+      const json = await res.json();
+      return json?.data ?? json;
+    },
+    enabled: !!shopId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const categories: any[] = Array.isArray(categoriesData) ? categoriesData : [];
+
+  // Sales report
+  const { data: raw, isLoading: salesLoading, refetch: refetchSales } = useQuery<any>({
+    queryKey: ["products-report", shopId, effectiveFrom, effectiveTo, salesPage, salesSort, salesCategory, salesSearch],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/reports/sales/by-product/detail?${buildSalesParams(salesPage)}`);
       const json = await res.json();
       return json?.data ?? json;
     },
@@ -103,6 +144,7 @@ export default function ProductsReportPage() {
     staleTime: 0,
   });
 
+  // Inventory summary
   const { data: inventoryData, isLoading: invLoading } = useQuery<any>({
     queryKey: ["inventory-report", shopId],
     queryFn: async () => {
@@ -114,10 +156,13 @@ export default function ProductsReportPage() {
     staleTime: 0,
   });
 
+  // Stock value (paginated + searchable)
   const { data: stockValueData, isLoading: svLoading } = useQuery<any>({
-    queryKey: ["stock-value-report", shopId, stockPage],
+    queryKey: ["stock-value-report", shopId, stockPage, stockSearch],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/reports/stock-value?shopId=${shopId}&page=${stockPage}&limit=${PAGE_SIZE}`);
+      const p = new URLSearchParams({ shopId: shopId || "", page: String(stockPage), limit: String(PAGE_SIZE) });
+      if (stockSearch) p.set("search", stockSearch);
+      const res = await apiRequest("GET", `/api/reports/stock-value?${p}`);
       const json = await res.json();
       return json?.data ?? json;
     },
@@ -125,10 +170,11 @@ export default function ProductsReportPage() {
     staleTime: 0,
   });
 
+  // Discounted sales
   const { data: discountData, isLoading: discLoading } = useQuery<any>({
-    queryKey: ["discounted-sales-report", shopId, from, to, quickDays],
+    queryKey: ["discounted-sales-report", shopId, effectiveFrom, effectiveTo],
     queryFn: async () => {
-      const params = new URLSearchParams({ shopId: shopId || "", from: effectiveFrom, to: today });
+      const params = new URLSearchParams({ shopId: shopId || "", from: effectiveFrom, to: effectiveTo });
       const res = await apiRequest("GET", `/api/reports/discounted-sales?${params}`);
       const json = await res.json();
       return json?.data ?? json;
@@ -137,6 +183,26 @@ export default function ProductsReportPage() {
     staleTime: 0,
   });
 
+  // Slow movers
+  const { data: slowData, isLoading: slowLoading } = useQuery<any>({
+    queryKey: ["slow-movers", shopId, effectiveFrom, effectiveTo, slowPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        shopId: shopId || "",
+        from: effectiveFrom,
+        to: effectiveTo,
+        page: String(slowPage),
+        limit: String(PAGE_SIZE),
+      });
+      const res = await apiRequest("GET", `/api/reports/slow-movers?${params}`);
+      const json = await res.json();
+      return json?.data ?? json;
+    },
+    enabled: !!shopId && activeTab === "slow",
+    staleTime: 0,
+  });
+
+  // Derived data
   const rows: any[] = raw?.rows ?? [];
   const summary = raw?.summary ?? {};
   const salesPagination = raw?.pagination ?? { page: 1, totalPages: 1, total: 0 };
@@ -144,12 +210,30 @@ export default function ProductsReportPage() {
   const stockRows: any[] = stockValueData?.rows ?? [];
   const stockPagination = stockValueData?.pagination ?? { page: 1, totalPages: 1, total: 0 };
   const discSummary = discountData?.summary ?? {};
+  const slowRows: any[] = slowData?.rows ?? [];
+  const slowSummary = slowData?.summary ?? {};
+  const slowPagination = slowData?.pagination ?? { page: 1, totalPages: 1, total: 0 };
 
   const outOfStock = stockRows.filter(r => n(r.quantity) <= 0);
   const lowStock = stockRows.filter(r => n(r.quantity) > 0 && n(r.quantity) <= 10).sort((a, b) => n(a.quantity) - n(b.quantity));
+  const belowReorder = stockRows.filter(r => n(r.reorderLevel) > 0 && n(r.quantity) > 0 && n(r.quantity) < n(r.reorderLevel));
 
   const isLoading = salesLoading;
   const stockLoading = invLoading || svLoading;
+
+  // Pagination controls component
+  const PaginationBar = ({ pg, onPrev, onNext }: { pg: any; onPrev: () => void; onNext: () => void }) =>
+    pg.totalPages > 1 ? (
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+        <p className="text-xs text-gray-400">
+          Page {pg.page} of {pg.totalPages} &nbsp;·&nbsp; {pg.total} products
+        </p>
+        <div className="flex gap-1">
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={pg.page <= 1} onClick={onPrev}>← Prev</Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={pg.page >= pg.totalPages} onClick={onNext}>Next →</Button>
+        </div>
+      </div>
+    ) : null;
 
   return (
     <DashboardLayout>
@@ -190,7 +274,7 @@ export default function ProductsReportPage() {
         {/* ── SALES TAB ────────────────────────────────────────────── */}
         {activeTab === "sales" && (
           <>
-            {/* Period selector */}
+            {/* Period + filter row */}
             <div className="flex items-center gap-2 flex-wrap">
               {QUICK.map(q => (
                 <Button
@@ -213,6 +297,56 @@ export default function ProductsReportPage() {
               <Button size="sm" onClick={handleApply} disabled={isLoading} className="h-8 gap-1 ml-auto bg-blue-600 hover:bg-blue-700">
                 <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
                 Apply
+              </Button>
+            </div>
+
+            {/* Search + Category + Sort bar */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 flex-1 min-w-[180px] max-w-xs">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <Input
+                    placeholder="Search product…"
+                    value={salesSearchInput}
+                    onChange={e => setSalesSearchInput(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleSalesSearch()}
+                    className="h-8 pl-7 pr-7 text-sm"
+                  />
+                  {salesSearchInput && (
+                    <button onClick={clearSalesSearch} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                <Button size="sm" variant="outline" className="h-8 px-2" onClick={handleSalesSearch}>
+                  <Search className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+
+              {categories.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <Filter className="h-3.5 w-3.5 text-gray-400" />
+                  <select
+                    value={salesCategory}
+                    onChange={e => { setSalesCategory(e.target.value); setSalesPage(1); }}
+                    className="h-8 text-sm border border-gray-200 rounded-md px-2 bg-white text-gray-700"
+                  >
+                    <option value="">All categories</option>
+                    {categories.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 px-2 gap-1 text-xs"
+                onClick={() => { setSalesSort(s => s === "desc" ? "asc" : "desc"); setSalesPage(1); }}
+              >
+                <ArrowUpDown className="h-3.5 w-3.5" />
+                {salesSort === "desc" ? "Best first" : "Worst first"}
               </Button>
             </div>
 
@@ -264,7 +398,40 @@ export default function ProductsReportPage() {
                 {/* Products table */}
                 <Card className="border-0 shadow-sm">
                   <CardContent className="p-4">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Products — Best Selling First</p>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Products — {salesSort === "desc" ? "Best Selling First" : "Worst Selling First"}
+                        {salesSearch && <span className="ml-1 normal-case font-normal text-blue-500">· "{salesSearch}"</span>}
+                        {salesCategory && categories.length > 0 && (
+                          <span className="ml-1 normal-case font-normal text-blue-500">
+                            · {categories.find((c: any) => String(c.id) === salesCategory)?.name}
+                          </span>
+                        )}
+                      </p>
+                      {rows.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs gap-1"
+                          onClick={() => downloadCSV(
+                            rows.map((r, i) => ({
+                              "#": (salesPagination.page - 1) * PAGE_SIZE + i + 1,
+                              Product: r.productName ?? "",
+                              Category: r.categoryName ?? "",
+                              Type: r.productType ?? "",
+                              Units: qty(r.totalQty),
+                              "Revenue (KES)": n(r.totalRevenue),
+                              "Cost (KES)": n(r.totalCost),
+                              "Gross Profit (KES)": n(r.grossProfit),
+                              "Margin %": n(r.marginPercent),
+                            })),
+                            "sales-by-product.csv"
+                          )}
+                        >
+                          <Download className="h-3 w-3" /> Export CSV
+                        </Button>
+                      )}
+                    </div>
 
                     {rows.length === 0 ? (
                       <div className="text-center py-10">
@@ -295,8 +462,11 @@ export default function ProductsReportPage() {
                                     <td className="py-2.5 text-gray-400 text-xs">{globalIndex}</td>
                                     <td className="py-2.5">
                                       <span className="font-medium text-gray-800">{row.productName ?? "—"}</span>
+                                      {row.categoryName && (
+                                        <span className="ml-1.5 text-xs text-gray-400">{row.categoryName}</span>
+                                      )}
                                       {row.productType && row.productType !== "product" && (
-                                        <span className="ml-1.5 text-xs text-gray-400 capitalize">{row.productType}</span>
+                                        <span className="ml-1.5 text-xs text-gray-300 capitalize">{row.productType}</span>
                                       )}
                                     </td>
                                     <td className="py-2.5 text-right text-gray-600">{qty(row.totalQty)}</td>
@@ -329,33 +499,11 @@ export default function ProductsReportPage() {
                             </tfoot>
                           </table>
                         </div>
-                        {salesPagination.totalPages > 1 && (
-                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                            <p className="text-xs text-gray-400">
-                              Page {salesPagination.page} of {salesPagination.totalPages} &nbsp;·&nbsp; {salesPagination.total} products
-                            </p>
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs"
-                                disabled={salesPagination.page <= 1}
-                                onClick={() => setSalesPage(p => Math.max(1, p - 1))}
-                              >
-                                ← Prev
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs"
-                                disabled={salesPagination.page >= salesPagination.totalPages}
-                                onClick={() => setSalesPage(p => Math.min(salesPagination.totalPages, p + 1))}
-                              >
-                                Next →
-                              </Button>
-                            </div>
-                          </div>
-                        )}
+                        <PaginationBar
+                          pg={salesPagination}
+                          onPrev={() => setSalesPage(p => Math.max(1, p - 1))}
+                          onNext={() => setSalesPage(p => Math.min(salesPagination.totalPages, p + 1))}
+                        />
                       </>
                     )}
                   </CardContent>
@@ -437,8 +585,7 @@ export default function ProductsReportPage() {
                           <AlertTriangle className="h-3.5 w-3.5" /> Out of Stock ({outOfStock.length})
                         </p>
                         <Button
-                          size="sm"
-                          variant="outline"
+                          size="sm" variant="outline"
                           className="h-7 px-2 text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50"
                           onClick={() => downloadCSV(
                             outOfStock.map(r => ({
@@ -488,13 +635,13 @@ export default function ProductsReportPage() {
                           <AlertTriangle className="h-3.5 w-3.5" /> Low Stock — under 10 units ({lowStock.length})
                         </p>
                         <Button
-                          size="sm"
-                          variant="outline"
+                          size="sm" variant="outline"
                           className="h-7 px-2 text-xs gap-1 text-amber-600 border-amber-200 hover:bg-amber-50"
                           onClick={() => downloadCSV(
                             lowStock.map(r => ({
                               Product: r.productName ?? "",
                               "Qty Left": n(r.quantity),
+                              "Reorder Level": n(r.reorderLevel),
                               "Stock Value (KES)": n(r.stockValueAtCost),
                               "Retail Value (KES)": n(r.stockValueAtSale),
                             })),
@@ -536,10 +683,108 @@ export default function ProductsReportPage() {
                   </Card>
                 )}
 
+                {/* Below reorder level */}
+                {belowReorder.length > 0 && (
+                  <Card className="border-0 shadow-sm border-l-4 border-l-orange-400">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide flex items-center gap-1">
+                          <AlertTriangle className="h-3.5 w-3.5" /> Below Reorder Level ({belowReorder.length})
+                        </p>
+                        <Button
+                          size="sm" variant="outline"
+                          className="h-7 px-2 text-xs gap-1 text-orange-600 border-orange-200 hover:bg-orange-50"
+                          onClick={() => downloadCSV(
+                            belowReorder.map(r => ({
+                              Product: r.productName ?? "",
+                              "Qty On Hand": n(r.quantity),
+                              "Reorder Level": n(r.reorderLevel),
+                              "Units Short": Math.max(0, n(r.reorderLevel) - n(r.quantity)),
+                              "Stock Value (KES)": n(r.stockValueAtCost),
+                            })),
+                            "below-reorder-level.csv"
+                          )}
+                        >
+                          <Download className="h-3 w-3" /> Export CSV
+                        </Button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-xs text-gray-400 border-b">
+                              <th className="text-left pb-2 font-medium">Product</th>
+                              <th className="text-right pb-2 font-medium">On Hand</th>
+                              <th className="text-right pb-2 font-medium">Reorder At</th>
+                              <th className="text-right pb-2 font-medium">Units Short</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {belowReorder.map((r: any) => (
+                              <tr key={r.productId} className="hover:bg-orange-50/50">
+                                <td className="py-2 font-medium text-gray-800">{r.productName ?? "—"}</td>
+                                <td className="py-2 text-right text-orange-700 font-semibold">{qty(r.quantity)}</td>
+                                <td className="py-2 text-right text-gray-500">{qty(r.reorderLevel)}</td>
+                                <td className="py-2 text-right text-red-600 font-semibold">
+                                  {qty(Math.max(0, n(r.reorderLevel) - n(r.quantity)))}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Full stock value table */}
                 <Card className="border-0 shadow-sm">
                   <CardContent className="p-4">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">All Products — Stock Value</p>
+                    <div className="flex items-center justify-between mb-3 gap-2">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">All Products — Stock Value</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
+                            <Input
+                              placeholder="Search…"
+                              value={stockSearchInput}
+                              onChange={e => setStockSearchInput(e.target.value)}
+                              onKeyDown={e => e.key === "Enter" && handleStockSearch()}
+                              className="h-7 pl-6 pr-6 text-xs w-36"
+                            />
+                            {stockSearchInput && (
+                              <button onClick={clearStockSearch} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                          <Button size="sm" variant="outline" className="h-7 px-2" onClick={handleStockSearch}>
+                            <Search className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        {stockRows.length > 0 && (
+                          <Button
+                            size="sm" variant="outline"
+                            className="h-7 px-2 text-xs gap-1"
+                            onClick={() => downloadCSV(
+                              stockRows.map(r => ({
+                                Product: r.productName ?? "",
+                                Quantity: n(r.quantity),
+                                "Reorder Level": n(r.reorderLevel),
+                                "Buy Price (KES)": n(r.buyingPrice),
+                                "Sell Price (KES)": n(r.sellingPrice),
+                                "Stock Value Cost (KES)": n(r.stockValueAtCost),
+                                "Stock Value Retail (KES)": n(r.stockValueAtSale),
+                              })),
+                              "stock-value.csv"
+                            )}
+                          >
+                            <Download className="h-3 w-3" /> Export CSV
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
                     {stockRows.length === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-6">No inventory data</p>
                     ) : (
@@ -550,6 +795,7 @@ export default function ProductsReportPage() {
                               <tr className="text-xs text-gray-400 border-b">
                                 <th className="text-left pb-2 font-medium">Product</th>
                                 <th className="text-right pb-2 font-medium">Qty</th>
+                                <th className="text-right pb-2 font-medium">Reorder</th>
                                 <th className="text-right pb-2 font-medium">Buy Price</th>
                                 <th className="text-right pb-2 font-medium">Sell Price</th>
                                 <th className="text-right pb-2 font-medium">Cost Value</th>
@@ -563,6 +809,7 @@ export default function ProductsReportPage() {
                                   <td className={`py-2 text-right font-semibold ${n(r.quantity) <= 0 ? "text-red-500" : n(r.quantity) <= 10 ? "text-amber-600" : "text-gray-700"}`}>
                                     {qty(r.quantity)}
                                   </td>
+                                  <td className="py-2 text-right text-gray-400 text-xs">{n(r.reorderLevel) > 0 ? qty(r.reorderLevel) : "—"}</td>
                                   <td className="py-2 text-right text-gray-500">{fmt(r.buyingPrice)}</td>
                                   <td className="py-2 text-right text-gray-500">{fmt(r.sellingPrice)}</td>
                                   <td className="py-2 text-right text-gray-700">{fmt(r.stockValueAtCost)}</td>
@@ -572,40 +819,166 @@ export default function ProductsReportPage() {
                             </tbody>
                             <tfoot>
                               <tr className="border-t font-bold">
-                                <td colSpan={4} className="pt-2 text-gray-700">Total ({stockPagination.total} products)</td>
+                                <td colSpan={5} className="pt-2 text-gray-700">Total ({stockPagination.total} products)</td>
                                 <td className="pt-2 text-right text-purple-700">{fmt(stockValueData?.summary?.totalAtCost)}</td>
                                 <td className="pt-2 text-right text-indigo-700">{fmt(stockValueData?.summary?.totalAtSale)}</td>
                               </tr>
                             </tfoot>
                           </table>
                         </div>
-                        {stockPagination.totalPages > 1 && (
-                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                            <p className="text-xs text-gray-400">
-                              Page {stockPagination.page} of {stockPagination.totalPages} &nbsp;·&nbsp; {stockPagination.total} products
-                            </p>
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs"
-                                disabled={stockPagination.page <= 1}
-                                onClick={() => setStockPage(p => Math.max(1, p - 1))}
-                              >
-                                ← Prev
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs"
-                                disabled={stockPagination.page >= stockPagination.totalPages}
-                                onClick={() => setStockPage(p => Math.min(stockPagination.totalPages, p + 1))}
-                              >
-                                Next →
-                              </Button>
-                            </div>
-                          </div>
-                        )}
+                        <PaginationBar
+                          pg={stockPagination}
+                          onPrev={() => setStockPage(p => Math.max(1, p - 1))}
+                          onNext={() => setStockPage(p => Math.min(stockPagination.totalPages, p + 1))}
+                        />
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </>
+        )}
+
+        {/* ── SLOW MOVERS TAB ──────────────────────────────────────── */}
+        {activeTab === "slow" && (
+          <>
+            {/* Period selector */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {QUICK.map(q => (
+                <Button
+                  key={q.days}
+                  variant={quickDays === q.days ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 text-sm"
+                  onClick={() => handleQuickDays(q.days)}
+                >
+                  {q.label}
+                </Button>
+              ))}
+              {isCustom && (
+                <>
+                  <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setSlowPage(1); }} className="h-8 text-sm w-36" />
+                  <span className="text-gray-400 text-sm">to</span>
+                  <Input type="date" value={to} onChange={e => { setTo(e.target.value); setSlowPage(1); }} className="h-8 text-sm w-36" />
+                </>
+              )}
+              <Button size="sm" onClick={handleApply} disabled={slowLoading} className="h-8 gap-1 ml-auto bg-blue-600 hover:bg-blue-700">
+                <RefreshCw className={`h-3.5 w-3.5 ${slowLoading ? "animate-spin" : ""}`} />
+                Apply
+              </Button>
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-xs text-amber-700">
+              Showing products that have stock on hand but <strong>zero sales</strong> between <strong>{effectiveFrom}</strong> and <strong>{effectiveTo}</strong>.
+            </div>
+
+            {slowLoading && (
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-gray-100 rounded-xl animate-pulse" />)}
+              </div>
+            )}
+
+            {!slowLoading && (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+                  <Card className="border-0 shadow-sm bg-amber-50">
+                    <CardContent className="p-3">
+                      <p className="text-xs text-amber-500 font-medium">Slow Mover Products</p>
+                      <p className="text-xl font-bold text-amber-700 leading-tight">{n(slowSummary.total)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-0 shadow-sm bg-purple-50">
+                    <CardContent className="p-3">
+                      <p className="text-xs text-purple-500 font-medium">Stock Tied Up (Cost)</p>
+                      <p className="text-xl font-bold text-purple-700 leading-tight">{fmt(slowSummary.totalAtCost)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-0 shadow-sm bg-indigo-50">
+                    <CardContent className="p-3">
+                      <p className="text-xs text-indigo-500 font-medium">Retail Value (if sold)</p>
+                      <p className="text-xl font-bold text-indigo-700 leading-tight">{fmt(slowSummary.totalAtSale)}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="border-0 shadow-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Products with no sales in period
+                      </p>
+                      {slowRows.length > 0 && (
+                        <Button
+                          size="sm" variant="outline"
+                          className="h-7 px-2 text-xs gap-1"
+                          onClick={() => downloadCSV(
+                            slowRows.map(r => ({
+                              Product: r.productName ?? "",
+                              Type: r.productType ?? "",
+                              "Qty On Hand": n(r.quantity),
+                              "Reorder Level": n(r.reorderLevel),
+                              "Buy Price (KES)": n(r.buyingPrice),
+                              "Sell Price (KES)": n(r.sellingPrice),
+                              "Stock Value Cost (KES)": n(r.stockValueAtCost),
+                              "Stock Value Retail (KES)": n(r.stockValueAtSale),
+                            })),
+                            "slow-movers.csv"
+                          )}
+                        >
+                          <Download className="h-3 w-3" /> Export CSV
+                        </Button>
+                      )}
+                    </div>
+
+                    {slowRows.length === 0 ? (
+                      <div className="text-center py-10">
+                        <TrendingDown className="h-10 w-10 text-gray-200 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-gray-500">No slow movers</p>
+                        <p className="text-xs text-gray-400 mt-1">All stocked products had sales in this period</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-xs text-gray-400 border-b">
+                                <th className="text-left pb-2 font-medium">Product</th>
+                                <th className="text-right pb-2 font-medium">Qty</th>
+                                <th className="text-right pb-2 font-medium">Buy Price</th>
+                                <th className="text-right pb-2 font-medium">Sell Price</th>
+                                <th className="text-right pb-2 font-medium">Stock Value</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {slowRows.map((r: any, i: number) => (
+                                <tr key={r.productId ?? i} className="hover:bg-amber-50/40">
+                                  <td className="py-2.5">
+                                    <span className="font-medium text-gray-800">{r.productName ?? "—"}</span>
+                                    {r.productType && r.productType !== "product" && (
+                                      <span className="ml-1.5 text-xs text-gray-400 capitalize">{r.productType}</span>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 text-right font-semibold text-gray-700">{qty(r.quantity)}</td>
+                                  <td className="py-2.5 text-right text-gray-500">{fmt(r.buyingPrice)}</td>
+                                  <td className="py-2.5 text-right text-gray-500">{fmt(r.sellingPrice)}</td>
+                                  <td className="py-2.5 text-right text-purple-700 font-medium">{fmt(r.stockValueAtCost)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t font-bold">
+                                <td colSpan={4} className="pt-2 text-gray-700">Total ({slowPagination.total} products)</td>
+                                <td className="pt-2 text-right text-purple-700">{fmt(slowSummary.totalAtCost)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                        <PaginationBar
+                          pg={slowPagination}
+                          onPrev={() => setSlowPage(p => Math.max(1, p - 1))}
+                          onNext={() => setSlowPage(p => Math.min(slowPagination.totalPages, p + 1))}
+                        />
                       </>
                     )}
                   </CardContent>

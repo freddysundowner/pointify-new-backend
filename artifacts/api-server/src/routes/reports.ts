@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, asc, ilike, notInArray } from "drizzle-orm";
 import {
   sales, saleItems, salePayments, purchases, purchaseItems, expenses,
   customers, suppliers, products, inventory, cashflows, admins,
   badStocks, stockCounts, stockCountItems, adjustments,
-  expenseCategories, banks, shops,
+  expenseCategories, banks, shops, productCategories,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok } from "../lib/response.js";
@@ -295,7 +295,12 @@ router.get("/stock-value", requireAdmin, async (req, res, next) => {
     const page = req.query["page"] ? Math.max(1, Number(req.query["page"])) : 1;
     const limit = req.query["limit"] ? Math.min(200, Math.max(1, Number(req.query["limit"]))) : 50;
     const offset = (page - 1) * limit;
-    const where = shopId ? eq(inventory.shop, shopId) : undefined;
+    const search = req.query["search"] ? String(req.query["search"]).trim() : null;
+
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (shopId) conditions.push(eq(inventory.shop, shopId));
+    if (search) conditions.push(ilike(products.name, `%${search}%`) as any);
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     const [globalTotals] = await db.select({
       totalAtCost: sql<string>`COALESCE(SUM(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric), 0)`,
@@ -310,6 +315,7 @@ router.get("/stock-value", requireAdmin, async (req, res, next) => {
       productId: inventory.product,
       productName: products.name,
       quantity: inventory.quantity,
+      reorderLevel: inventory.reorderLevel,
       buyingPrice: products.buyingPrice,
       sellingPrice: products.sellingPrice,
       stockValueAtCost: sql<string>`COALESCE(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric, 0)`,
@@ -332,6 +338,71 @@ router.get("/stock-value", requireAdmin, async (req, res, next) => {
         totalAtSale: parseFloat(globalTotals?.totalAtSale ?? "0"),
         productCount: total,
       },
+      pagination: { page, limit, total, totalPages },
+    });
+  } catch (e) { next(e); }
+});
+
+// ── Slow / Dead Movers ────────────────────────────────────────────────────────
+// Products with stock on hand but zero sales in the given period
+
+router.get("/slow-movers", requireAdmin, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+    const page = req.query["page"] ? Math.max(1, Number(req.query["page"])) : 1;
+    const limit = req.query["limit"] ? Math.min(200, Math.max(1, Number(req.query["limit"]))) : 50;
+    const offset = (page - 1) * limit;
+
+    const saleConditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
+    if (shopId) saleConditions.push(eq(saleItems.shop, shopId));
+    if (from) saleConditions.push(gte(sales.createdAt, from));
+    if (to) { const eod = new Date(to); eod.setUTCHours(23, 59, 59, 999); saleConditions.push(lte(sales.createdAt, eod)); }
+
+    const soldProductIds = await db.selectDistinct({ id: saleItems.product })
+      .from(saleItems)
+      .innerJoin(sales, eq(saleItems.sale, sales.id))
+      .where(and(...saleConditions));
+
+    const soldIds = soldProductIds.map(r => r.id).filter(Boolean) as number[];
+
+    const invConditions: any[] = [sql`${inventory.quantity}::numeric > 0`];
+    if (shopId) invConditions.push(eq(inventory.shop, shopId));
+    if (soldIds.length > 0) invConditions.push(notInArray(inventory.product, soldIds));
+
+    const [countRow] = await db.select({ total: sql<number>`COUNT(*)` })
+      .from(inventory)
+      .leftJoin(products, eq(inventory.product, products.id))
+      .where(and(...invConditions));
+
+    const rows = await db.select({
+      productId: inventory.product,
+      productName: products.name,
+      productType: products.type,
+      quantity: inventory.quantity,
+      reorderLevel: inventory.reorderLevel,
+      buyingPrice: products.buyingPrice,
+      sellingPrice: products.sellingPrice,
+      stockValueAtCost: sql<string>`COALESCE(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric, 0)`,
+      stockValueAtSale: sql<string>`COALESCE(${inventory.quantity}::numeric * ${products.sellingPrice}::numeric, 0)`,
+    })
+    .from(inventory)
+    .leftJoin(products, eq(inventory.product, products.id))
+    .where(and(...invConditions))
+    .orderBy(sql`COALESCE(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric, 0) DESC`)
+    .limit(limit)
+    .offset(offset);
+
+    const total = Number(countRow?.total ?? 0);
+    const totalPages = Math.ceil(total / limit);
+
+    const totalAtCost = rows.reduce((s, r) => s + parseFloat(String(r.stockValueAtCost ?? "0")), 0);
+    const totalAtSale = rows.reduce((s, r) => s + parseFloat(String(r.stockValueAtSale ?? "0")), 0);
+
+    return ok(res, {
+      rows,
+      summary: { total, totalAtCost: totalAtCost.toFixed(2), totalAtSale: totalAtSale.toFixed(2) },
       pagination: { page, limit, total, totalPages },
     });
   } catch (e) { next(e); }
@@ -711,11 +782,16 @@ router.get("/sales/by-product/detail", requireAdmin, async (req, res, next) => {
     const page = req.query["page"] ? Math.max(1, Number(req.query["page"])) : 1;
     const limit = req.query["limit"] ? Math.min(200, Math.max(1, Number(req.query["limit"]))) : 50;
     const offset = (page - 1) * limit;
+    const sortDir = req.query["sort"] === "asc" ? "asc" : "desc";
+    const categoryId = req.query["categoryId"] ? Number(req.query["categoryId"]) : null;
+    const search = req.query["search"] ? String(req.query["search"]).trim() : null;
 
     const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
     if (shopId) conditions.push(eq(saleItems.shop, shopId));
     if (from) conditions.push(gte(sales.createdAt, from));
     if (to) { const eod = new Date(to); eod.setUTCHours(23, 59, 59, 999); conditions.push(lte(sales.createdAt, eod)); }
+    if (categoryId) conditions.push(eq(products.category, categoryId));
+    if (search) conditions.push(ilike(products.name, `%${search}%`));
 
     const [globalTotals] = await db.select({
       grandRevenue: sql<string>`COALESCE(SUM(${saleItems.unitPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
@@ -725,13 +801,16 @@ router.get("/sales/by-product/detail", requireAdmin, async (req, res, next) => {
     })
     .from(saleItems)
     .innerJoin(sales, eq(saleItems.sale, sales.id))
+    .leftJoin(products, eq(saleItems.product, products.id))
     .where(and(...conditions));
 
+    const revenueExpr = sql`COALESCE(SUM(${saleItems.unitPrice}::numeric * ${saleItems.quantity}::numeric), 0)`;
     const rows = await db.select({
       productId: saleItems.product,
       productName: products.name,
       productType: products.type,
       categoryId: products.category,
+      categoryName: productCategories.name,
       totalQty: sql<string>`COALESCE(SUM(${saleItems.quantity}::numeric), 0)`,
       totalRevenue: sql<string>`COALESCE(SUM(${saleItems.unitPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
       totalCost: sql<string>`COALESCE(SUM(${saleItems.costPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
@@ -741,9 +820,10 @@ router.get("/sales/by-product/detail", requireAdmin, async (req, res, next) => {
     .from(saleItems)
     .innerJoin(sales, eq(saleItems.sale, sales.id))
     .leftJoin(products, eq(saleItems.product, products.id))
+    .leftJoin(productCategories, eq(products.category, productCategories.id))
     .where(and(...conditions))
-    .groupBy(saleItems.product, products.name, products.type, products.category)
-    .orderBy(sql`COALESCE(SUM(${saleItems.unitPrice}::numeric * ${saleItems.quantity}::numeric), 0) DESC`)
+    .groupBy(saleItems.product, products.name, products.type, products.category, productCategories.name)
+    .orderBy(sortDir === "asc" ? asc(revenueExpr) : desc(revenueExpr))
     .limit(limit)
     .offset(offset);
 
