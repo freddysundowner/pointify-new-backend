@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { ArrowLeft, DollarSign, ChevronLeft, ChevronRight, RefreshCw, User } from "lucide-react";
+import { ArrowLeft, DollarSign, ChevronLeft, ChevronRight, RefreshCw, User, CheckCircle2, Clock } from "lucide-react";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
@@ -37,13 +36,113 @@ function methodColor(m: string) {
   return "bg-gray-100 text-gray-600";
 }
 
+function PaymentReceiptModal({ row, currency, shopName, onClose }: {
+  row: any;
+  currency: string;
+  shopName: string;
+  onClose: () => void;
+}) {
+  const cleared = Number(row.balance ?? 0) <= 0;
+
+  return (
+    <Dialog open onOpenChange={open => !open && onClose()}>
+      <DialogContent className="max-w-sm p-0 gap-0 overflow-hidden rounded-2xl">
+        {/* Receipt header */}
+        <div className="bg-teal-600 px-6 pt-6 pb-5 text-white text-center">
+          <div className="flex justify-center mb-3">
+            <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+              <DollarSign className="h-6 w-6 text-white" />
+            </div>
+          </div>
+          <p className="text-xs font-medium text-teal-200 uppercase tracking-widest mb-1">Payment Receipt</p>
+          <p className="text-3xl font-bold">{fmt(row.amount, currency)}</p>
+          <p className="text-xs text-teal-200 mt-1">Debt collected</p>
+        </div>
+
+        {/* Receipt body */}
+        <div className="bg-white px-6 py-5 space-y-4">
+
+          {/* Shop & date */}
+          <div className="text-center border-b pb-4">
+            <p className="text-sm font-semibold text-gray-800">{shopName}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{fmtDate(row.paid_at)} · {fmtTime(row.paid_at)}</p>
+          </div>
+
+          {/* Customer */}
+          {row.customer_name && (
+            <div className="flex items-start gap-2">
+              <User className="h-4 w-4 text-gray-300 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs text-gray-400">Customer</p>
+                <p className="text-sm font-medium text-gray-800">{row.customer_name}</p>
+                {row.customer_phone && <p className="text-xs text-gray-500">{row.customer_phone}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* Payment method */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-xs text-gray-400">Payment method</span>
+            <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full capitalize ${methodColor(row.payment_type)}`}>
+              {row.payment_type ?? "—"}
+            </span>
+          </div>
+
+          {/* Reference */}
+          {row.payment_reference && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-xs text-gray-400">Reference</span>
+              <span className="text-xs font-mono text-gray-700">{row.payment_reference}</span>
+            </div>
+          )}
+
+          {/* Original sale */}
+          <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Original Sale</p>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Receipt No</span>
+              <span className="font-mono font-medium text-gray-800">{row.receipt_no || `#${row.sale_id}`}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Sale Total</span>
+              <span className="font-medium text-gray-800">{fmt(row.total_with_discount, currency)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">This Payment</span>
+              <span className="font-bold text-teal-700">{fmt(row.amount, currency)}</span>
+            </div>
+            <div className="border-t pt-2 flex justify-between text-sm items-center">
+              <span className="text-gray-500">Remaining Balance</span>
+              {cleared ? (
+                <div className="flex items-center gap-1 text-green-600">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span className="text-xs font-medium">Cleared</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 text-orange-500">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span className="text-xs font-medium">{fmt(row.balance, currency)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function CollectedPaymentsPage() {
-  const [location, navigate] = useLocation();
   const goBack = useGoBack("/reports/sales");
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const { shop } = usePrimaryShop();
   const shopId = selectedShopId || shop?.id;
   const currency = shop?.currency || "KES";
+  const shopName = shop?.name || "Shop";
 
   const params = new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : ""
@@ -51,6 +150,7 @@ export default function CollectedPaymentsPage() {
   const [startDate, setStartDate] = useState(params.get("startDate") || new Date().toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState(params.get("endDate") || new Date().toISOString().slice(0, 10));
   const [page, setPage] = useState(1);
+  const [selectedRow, setSelectedRow] = useState<any>(null);
   const limit = 20;
 
   const { data, isLoading, refetch } = useQuery<any>({
@@ -163,7 +263,7 @@ export default function CollectedPaymentsPage() {
                       <tr
                         key={row.id}
                         className="hover:bg-gray-50 cursor-pointer"
-                        onClick={() => navigate(`/receipt/${row.sale_id}`)}
+                        onClick={() => setSelectedRow(row)}
                       >
                         <td className="px-4 py-3">
                           <p className="font-medium text-gray-800">{fmtDate(row.paid_at)}</p>
@@ -224,6 +324,16 @@ export default function CollectedPaymentsPage() {
           </div>
         )}
       </div>
+
+      {/* Payment receipt modal */}
+      {selectedRow && (
+        <PaymentReceiptModal
+          row={selectedRow}
+          currency={currency}
+          shopName={shopName}
+          onClose={() => setSelectedRow(null)}
+        />
+      )}
     </DashboardLayout>
   );
 }
