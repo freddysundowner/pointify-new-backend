@@ -80,7 +80,7 @@ export default function CollectedPaymentsPage() {
 
   return (
     <DashboardLayout>
-      <div className="w-full max-w-4xl mx-auto space-y-4 pb-10">
+      <div className="w-full space-y-4 pb-10">
 
         {/* Header */}
         <div className="flex items-center gap-3 pt-1">
