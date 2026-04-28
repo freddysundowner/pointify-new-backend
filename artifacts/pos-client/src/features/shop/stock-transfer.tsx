@@ -354,7 +354,7 @@ export default function StockTransfer() {
                   value={fromShopId ? String(fromShopId) : ""}
                   onValueChange={(v) => { setFromShopId(Number(v)); setCart([]); setProductSearch(""); }}
                 >
-                  <SelectTrigger className="text-sm h-9">
+                  <SelectTrigger className="text-sm h-9 border-gray-300">
                     <SelectValue placeholder="Select source…" />
                   </SelectTrigger>
                   <SelectContent>
@@ -371,7 +371,7 @@ export default function StockTransfer() {
                   onValueChange={(v) => setToShopId(Number(v))}
                   disabled={!fromShopId}
                 >
-                  <SelectTrigger className="text-sm h-9">
+                  <SelectTrigger className="text-sm h-9 border-gray-300">
                     <SelectValue placeholder="Select destination…" />
                   </SelectTrigger>
                   <SelectContent>
@@ -393,7 +393,7 @@ export default function StockTransfer() {
                     placeholder="Search product name…"
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
-                    className="pl-8 text-sm h-9"
+                    className="pl-8 text-sm h-9 border-gray-300 focus:border-purple-500 focus:ring-purple-500/20"
                   />
                   {productResults && productResults.length > 0 && (
                     <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border rounded shadow-lg max-h-48 overflow-auto">
@@ -444,7 +444,7 @@ export default function StockTransfer() {
             {/* Note */}
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1.5 block">Note (optional)</label>
-              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Transfer reason or notes…" className="text-sm h-9" />
+              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Transfer reason or notes…" className="text-sm h-9 border-gray-300 focus:border-purple-500 focus:ring-purple-500/20" />
             </div>
 
             {/* Summary */}

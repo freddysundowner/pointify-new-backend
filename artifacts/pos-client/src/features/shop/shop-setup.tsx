@@ -123,14 +123,14 @@ export default function ShopSetup() {
                 value={formData.name}
                 onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
                 placeholder="e.g. Main Branch"
-                className="h-10"
+                className="h-10 border-gray-300 focus:border-purple-500 focus:ring-purple-500/20"
                 required
               />
             </div>
             <div>
               <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Business Type *</Label>
               <Select value={formData.category} onValueChange={(v) => setFormData(p => ({ ...p, category: v }))}>
-                <SelectTrigger className="h-10">
+                <SelectTrigger className="h-10 border-gray-300 focus:border-purple-500 focus:ring-purple-500/20">
                   <SelectValue placeholder={categoriesLoading ? "Loading…" : "Select a category"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -167,7 +167,7 @@ export default function ShopSetup() {
             <div>
               <Label className="text-sm font-medium text-gray-700 mb-1.5 block">Currency</Label>
               <Select value={formData.currency} onValueChange={(v) => setFormData(p => ({ ...p, currency: v }))}>
-                <SelectTrigger className="h-10">
+                <SelectTrigger className="h-10 border-gray-300 focus:border-purple-500 focus:ring-purple-500/20">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
