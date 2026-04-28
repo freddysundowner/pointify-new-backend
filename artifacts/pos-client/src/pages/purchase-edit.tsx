@@ -55,7 +55,8 @@ export default function PurchaseEditPage() {
     queryFn: async () => {
       if (!shopId) return [];
       const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
-      return response.json();
+      const json = await response.json();
+      return Array.isArray(json) ? json : (json.data ?? []);
     },
     enabled: !!shopId,
   });
@@ -251,8 +252,8 @@ export default function PurchaseEditPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="direct">Direct Purchase (No Supplier)</SelectItem>
-                      {(suppliers as any[]).map((supplier: any) => (
-                        <SelectItem key={supplier._id} value={supplier._id}>
+                      {(Array.isArray(suppliers) ? suppliers : []).map((supplier: any) => (
+                        <SelectItem key={supplier._id || supplier.id} value={supplier._id || supplier.id}>
                           {supplier.name}
                         </SelectItem>
                       ))}

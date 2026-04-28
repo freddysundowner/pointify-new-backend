@@ -121,7 +121,8 @@ export default function PurchasesList() {
     queryFn: async () => {
       if (!shopId) return [];
       const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
-      return response.json();
+      const json = await response.json();
+      return Array.isArray(json) ? json : (json.data ?? []);
     },
     enabled: !!shopId,
   });
@@ -133,7 +134,8 @@ export default function PurchasesList() {
     queryFn: async () => {
       if (!shopId || !showAttendantFilter) return [];
       const response = await apiRequest('GET', `${ENDPOINTS.attendants.getByShop}?shopId=${shopId}`);
-      return response.json();
+      const json = await response.json();
+      return Array.isArray(json) ? json : (json.data ?? []);
     },
     enabled: !!shopId && showAttendantFilter,
   });
@@ -202,7 +204,8 @@ export default function PurchasesList() {
       // Add timestamp to force cache busting
       const timestamp = Date.now();
       const response = await apiRequest('GET', `${ENDPOINTS.purchases.getAll}?${queryParams}&_t=${timestamp}`);
-      return response.json();
+      const json = await response.json();
+      return Array.isArray(json) ? json : (json.data ?? []);
     },
     // enabled: !!shopId && canViewPurchases,
     staleTime: 0,
@@ -260,7 +263,8 @@ export default function PurchasesList() {
       // Add timestamp to force cache busting
       const timestamp = Date.now();
       const response = await apiRequest('GET', `${ENDPOINTS.purchases.reportFilter}?${params}&_t=${timestamp}`);
-      return response.json();
+      const json = await response.json();
+      return json.data ?? json;
     },
     enabled: !!shopId,
     staleTime: 0,
@@ -291,8 +295,8 @@ export default function PurchasesList() {
   });
 
   // Create supplier lookup map for ID to name mapping
-  const supplierMap = suppliersData.reduce((acc: any, supplier: any) => {
-    acc[supplier._id] = supplier.name;
+  const supplierMap = (Array.isArray(suppliersData) ? suppliersData : []).reduce((acc: any, supplier: any) => {
+    acc[supplier._id || supplier.id] = supplier.name;
     return acc;
   }, {});
 
@@ -741,8 +745,8 @@ export default function PurchasesList() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Suppliers</SelectItem>
-                      {(suppliersData as any[]).map((supplier: any) => (
-                        <SelectItem key={supplier._id} value={supplier._id}>
+                      {(Array.isArray(suppliersData) ? suppliersData : []).map((supplier: any) => (
+                        <SelectItem key={supplier._id || supplier.id} value={supplier._id || supplier.id}>
                           {supplier.name}
                         </SelectItem>
                       ))}
@@ -765,8 +769,8 @@ export default function PurchasesList() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Attendants</SelectItem>
-                        {(attendantsData as any[]).map((attendant: any) => (
-                          <SelectItem key={attendant._id} value={attendant._id}>
+                        {(Array.isArray(attendantsData) ? attendantsData : []).map((attendant: any) => (
+                          <SelectItem key={attendant._id || attendant.id} value={attendant._id || attendant.id}>
                             {attendant.username || attendant.name}
                           </SelectItem>
                         ))}
@@ -861,7 +865,7 @@ export default function PurchasesList() {
                     Total Purchases
                   </p>
                   <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                    {currency} {parseFloat(String(analyticsData.totalpurchases || 0)).toFixed(2)}
+                    {currency} {parseFloat(String(analyticsData?.totalAmount || 0)).toFixed(2)}
                   </p>
                 </div>
                 <TrendingDown className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -875,7 +879,7 @@ export default function PurchasesList() {
                     Cash Purchases
                   </p>
                   <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                    {currency} {parseFloat(String(analyticsData.cash || 0)).toFixed(2)}
+                    {currency} {parseFloat(String(analyticsData?.totalPaid || 0)).toFixed(2)}
                   </p>
                 </div>
                 <TrendingDown className="h-4 w-4 text-green-600 dark:text-green-400" />
@@ -889,7 +893,7 @@ export default function PurchasesList() {
                     Unpaid Purchases
                   </p>
                   <p className="text-xl font-bold text-orange-600 dark:text-orange-400">
-                    {currency} {parseFloat(String(analyticsData.credit || 0)).toFixed(2)}
+                    {currency} {parseFloat(String(analyticsData?.totalOutstanding || 0)).toFixed(2)}
                   </p>
                 </div>
                 <Package className="h-4 w-4 text-orange-600 dark:text-orange-400" />
@@ -903,7 +907,7 @@ export default function PurchasesList() {
                     Amount Paid
                   </p>
                   <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                    {currency} {parseFloat(String(analyticsData.paid || 0)).toFixed(2)}
+                    {currency} {parseFloat(String(analyticsData?.totalPaid || 0)).toFixed(2)}
                   </p>
                 </div>
                 <Truck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -917,7 +921,7 @@ export default function PurchasesList() {
                     Returns
                   </p>
                   <p className="text-xl font-bold text-red-600 dark:text-red-400">
-                    {currency} {parseFloat(String(analyticsData.returns || 0)).toFixed(2)}
+                    {currency} {parseFloat(String(analyticsData?.totalOutstanding || 0)).toFixed(2)}
                   </p>
                 </div>
                 <Package className="h-4 w-4 text-red-600 dark:text-red-400" />

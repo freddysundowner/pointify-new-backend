@@ -128,7 +128,7 @@ export default function SupplierHistoryPage() {
 
   // Fetch supplier purchase history
   const { data: purchasesData, isLoading, refetch } = useQuery({
-    queryKey: [ENDPOINTS.purchases.getAll, 'supplier-history', supplierId, currentPage, itemsPerPage, searchTerm, statusFilter, dateFrom, dateTo],
+    queryKey: [ENDPOINTS.purchases.getAll, 'supplier-history', supplierId, shopId, currentPage, itemsPerPage, searchTerm, statusFilter, dateFrom, dateTo],
     queryFn: async () => {
       if (!supplierId || !shopId) return { data: [], count: 0, totalPages: 0 };
       

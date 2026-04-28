@@ -71,10 +71,17 @@ export default function PurchaseOrderPage() {
   const [trackBatches, setTrackBatches] = useState(false);
   const [quantityInputs, setQuantityInputs] = useState<{[key: number]: string}>({});
 
-  // Fetch suppliers
+  // Fetch suppliers filtered by selected shop
   const { data: suppliers = [] } = useQuery<Supplier[]>({
-    queryKey: [ENDPOINTS.suppliers.getAll],
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
+    queryFn: async () => {
+      if (!shopId) return [];
+      const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
+      const json = await response.json();
+      return Array.isArray(json) ? json : (json.data ?? []);
+    },
+    enabled: !!shopId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Generate purchase order number
