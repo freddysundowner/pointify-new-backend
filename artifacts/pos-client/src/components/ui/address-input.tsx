@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
 interface PlaceDetails {
   address: string;
@@ -100,10 +101,10 @@ export default function AddressInput({
       required={required}
       autoComplete="off"
       onChange={(e) => onChange(e.target.value)}
-      className={
-        className ||
-        "w-full rounded-lg border border-gray-200 px-4 py-3 text-base outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors bg-white placeholder-gray-400"
-      }
+      className={cn(
+        "w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:ring-offset-0 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
     />
   );
 }
