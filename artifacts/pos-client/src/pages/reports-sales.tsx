@@ -297,11 +297,14 @@ export default function SalesReportPage() {
                         <div className={`h-7 w-7 rounded-lg ${t.iconBg} flex items-center justify-center`}>
                           <Icon className={`h-3.5 w-3.5 ${t.text}`} />
                         </div>
-                        <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
                       </div>
                       <p className={`text-base font-bold leading-tight ${t.text}`}>{fmt(t.amount)}</p>
                       <p className={`text-xs font-semibold mt-0.5 ${t.text}`}>{t.label}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{t.subtitle}</p>
+                      <div className={`flex items-center gap-0.5 mt-2 text-xs font-medium ${t.text} opacity-70`}>
+                        <span>View all</span>
+                        <ChevronRight className="h-3 w-3" />
+                      </div>
                     </button>
                   );
                 })}
