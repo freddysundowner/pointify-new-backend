@@ -72,7 +72,7 @@ export default function StockCount() {
       const products = Array.isArray(data) ? data : (data?.data || []);
       return { data: products, count: data?.total || products.length, totalPages: Math.ceil((data?.total || products.length) / itemsPerPage) };
     },
-    refetchOnMount: false,
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
   });
 
