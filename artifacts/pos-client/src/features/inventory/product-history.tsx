@@ -42,17 +42,26 @@ export default function ProductHistory() {
     setBadStockPage(1);
   }, [activeTab]);
 
+  // Compute month date range for API calls
+  const fromDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+  const toDate = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
+
   // Fetch product details
-  const { data: product, isLoading: productLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.getById(productId || '')],
+  const { data: productResp, isLoading: productLoading } = useQuery({
+    queryKey: [ENDPOINTS.products.getById(productId || ''), productId],
+    queryFn: async () => {
+      const response = await apiCall(ENDPOINTS.products.getById(productId || ''));
+      return await response.json();
+    },
     enabled: !!productId,
   });
+  const product = productResp?.data ?? productResp;
 
-  // Fetch product summary
-  const { data: summary, isLoading: summaryLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.summary(productId || ''), productId, selectedMonth, selectedYear],
+  // Fetch product summary (all-time)
+  const { data: summaryResp, isLoading: summaryLoading } = useQuery({
+    queryKey: [ENDPOINTS.products.summary(productId || ''), productId],
     queryFn: async () => {
-      const response = await apiCall(`${ENDPOINTS.products.summary(productId || '')}?month=${selectedMonth}&year=${selectedYear}`);
+      const response = await apiCall(ENDPOINTS.products.summary(productId || ''));
       return await response.json();
     },
     enabled: !!productId,
@@ -61,12 +70,13 @@ export default function ProductHistory() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   });
+  const summaryData = summaryResp?.data ?? summaryResp;
 
   // Fetch sales history - only when Sales tab is active
   const { data: salesData, isLoading: salesLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.salesHistory(productId || ''), productId, selectedMonth, selectedYear, salesPage],
+    queryKey: [ENDPOINTS.products.salesHistory(productId || ''), productId, fromDate, toDate, salesPage],
     queryFn: async () => {
-      const response = await apiCall(`${ENDPOINTS.products.salesHistory(productId || '')}?month=${selectedMonth}&year=${selectedYear}&page=${salesPage}`);
+      const response = await apiCall(`${ENDPOINTS.products.salesHistory(productId || '')}?from=${fromDate}&to=${toDate}&page=${salesPage}`);
       return await response.json();
     },
     enabled: !!productId && activeTab === "sales",
@@ -78,9 +88,9 @@ export default function ProductHistory() {
 
   // Fetch purchases history - only when Stock In tab is active
   const { data: purchasesData, isLoading: purchasesLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.purchasesHistory(productId || ''), productId, selectedMonth, selectedYear, purchasesPage],
+    queryKey: [ENDPOINTS.products.purchasesHistory(productId || ''), productId, fromDate, toDate, purchasesPage],
     queryFn: async () => {
-      const response = await apiCall(`${ENDPOINTS.products.purchasesHistory(productId || '')}?month=${selectedMonth}&year=${selectedYear}&page=${purchasesPage}`);
+      const response = await apiCall(`${ENDPOINTS.products.purchasesHistory(productId || '')}?from=${fromDate}&to=${toDate}&page=${purchasesPage}`);
       return await response.json();
     },
     enabled: !!productId && activeTab === "stock-in",
@@ -92,9 +102,9 @@ export default function ProductHistory() {
 
   // Fetch bad stock movements - only when Bad Stock tab is active
   const { data: badStockData, isLoading: badStockLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.badStockMovements, productId, selectedMonth, selectedYear, badStockPage],
+    queryKey: [ENDPOINTS.products.badStockMovements, productId, fromDate, toDate, badStockPage],
     queryFn: async () => {
-      const response = await apiCall(`${ENDPOINTS.products.badStockMovements}?productId=${productId}&month=${selectedMonth}&year=${selectedYear}&page=${badStockPage}`);
+      const response = await apiCall(`${ENDPOINTS.products.badStockMovements}?productId=${productId}&from=${fromDate}&to=${toDate}&page=${badStockPage}`);
       return await response.json();
     },
     enabled: !!productId && activeTab === "bad-stock",
@@ -114,22 +124,22 @@ export default function ProductHistory() {
     switch (activeTab) {
       case "sales":
         return {
-          totalPages: salesData?.totalPages || 1,
-          currentPage: salesData?.currentPage || 1,
+          totalPages: salesData?.meta?.totalPages || salesData?.pagination?.totalPages || 1,
+          currentPage: salesData?.meta?.page || salesData?.pagination?.page || 1,
           setPage: setSalesPage,
           page: salesPage
         };
       case "stock-in":
         return {
-          totalPages: purchasesData?.totalPages || 1,
-          currentPage: purchasesData?.currentPage || 1,
+          totalPages: purchasesData?.meta?.totalPages || purchasesData?.pagination?.totalPages || 1,
+          currentPage: purchasesData?.meta?.page || purchasesData?.pagination?.page || 1,
           setPage: setPurchasesPage,
           page: purchasesPage
         };
       case "bad-stock":
         return {
-          totalPages: badStockData?.totalPages || 1,
-          currentPage: badStockData?.currentPage || 1,
+          totalPages: badStockData?.meta?.totalPages || badStockData?.pagination?.totalPages || 1,
+          currentPage: badStockData?.meta?.page || badStockData?.pagination?.page || 1,
           setPage: setBadStockPage,
           page: badStockPage
         };
@@ -188,45 +198,40 @@ export default function ProductHistory() {
         </div>
 
         {/* Summary Cards */}
-        {summary && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {summaryData && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Sales</p>
-                    <p className="text-2xl font-bold">{currency} {summary.totalSales?.toFixed(2) || "0.00"}</p>
-                  </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Sales</p>
+                  <p className="text-2xl font-bold">{currency} {parseFloat(summaryData?.sales?.totalSoldValue ?? "0").toFixed(2)}</p>
+                  <p className="text-xs text-gray-400">{summaryData?.sales?.saleCount ?? 0} transactions</p>
                 </div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Units Sold</p>
-                    <p className="text-2xl font-bold">{summary.totalUnitsSold || 0}</p>
-                  </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Units Sold</p>
+                  <p className="text-2xl font-bold">{parseFloat(summaryData?.sales?.totalSoldQty ?? "0")}</p>
                 </div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Stock In</p>
-                    <p className="text-2xl font-bold text-green-600">+{summary.totalStockIn || 0}</p>
-                  </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Current Stock</p>
+                  <p className="text-2xl font-bold text-green-600">{parseFloat(summaryData?.currentStock ?? "0")}</p>
+                  <p className="text-xs text-gray-400">{currency} {parseFloat(summaryData?.stockValue ?? "0").toFixed(2)} value</p>
                 </div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Stock Out</p>
-                    <p className="text-2xl font-bold text-red-600">-{summary.totalStockOut || 0}</p>
-                  </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Stock Purchased</p>
+                  <p className="text-2xl font-bold text-blue-600">{parseFloat(summaryData?.purchases?.totalPurchasedQty ?? "0")}</p>
+                  <p className="text-xs text-gray-400">{summaryData?.purchases?.purchaseCount ?? 0} orders</p>
                 </div>
               </CardContent>
             </Card>
@@ -293,16 +298,16 @@ export default function ProductHistory() {
                           </thead>
                           <tbody>
                             {purchases.map((purchase: any, index: number) => (
-                              <tr key={purchase.receiptNo || index} className="border-b hover:bg-gray-50">
-                                <td className="p-4 font-mono text-sm">{purchase.receiptNo || 'N/A'}</td>
-                                <td className="p-4">{purchase.supplier || 'Direct'}</td>
+                              <tr key={purchase.id || index} className="border-b hover:bg-gray-50">
+                                <td className="p-4 font-mono text-sm">{purchase.purchaseNo || `#${purchase.purchaseId || purchase.id}`}</td>
+                                <td className="p-4">{purchase.supplierId ? `Supplier #${purchase.supplierId}` : 'Direct'}</td>
                                 <td className="p-4 text-sm">
-                                  {new Date(purchase.date).toLocaleDateString()} {new Date(purchase.date).toLocaleTimeString()}
+                                  {new Date(purchase.purchaseDate || purchase.createdAt).toLocaleDateString()} {new Date(purchase.purchaseDate || purchase.createdAt).toLocaleTimeString()}
                                 </td>
-                                <td className="p-4 capitalize">{purchase.paymentType || 'cash'}</td>
-                                <td className="p-4 text-right">{purchase.units || 1}</td>
-                                <td className="p-4 text-right">{currency} {parseFloat(purchase.unitPrice || purchase.unitCost || 0).toFixed(2)}</td>
-                                <td className="p-4 text-right font-medium">{currency} {parseFloat(purchase.total || 0).toFixed(2)}</td>
+                                <td className="p-4 capitalize">{purchase.batchCode || '—'}</td>
+                                <td className="p-4 text-right">{parseFloat(purchase.quantity ?? 1)}</td>
+                                <td className="p-4 text-right">{currency} {parseFloat(purchase.unitPrice ?? 0).toFixed(2)}</td>
+                                <td className="p-4 text-right font-medium">{currency} {(parseFloat(purchase.quantity ?? 1) * parseFloat(purchase.unitPrice ?? 0)).toFixed(2)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -371,16 +376,16 @@ export default function ProductHistory() {
                           </thead>
                           <tbody>
                             {sales.map((sale: any, index: number) => (
-                              <tr key={sale.receiptNo || index} className="border-b hover:bg-gray-50">
-                                <td className="p-4 font-mono text-sm">{sale.receiptNo}</td>
-                                <td className="p-4">{sale.customer || 'Walk-in'}</td>
+                              <tr key={sale.id || index} className="border-b hover:bg-gray-50">
+                                <td className="p-4 font-mono text-sm">{sale.receiptNo || `#${sale.saleId || sale.id}`}</td>
+                                <td className="p-4">{sale.customerId ? `Customer #${sale.customerId}` : 'Walk-in'}</td>
                                 <td className="p-4 text-sm">
-                                  {new Date(sale.date).toLocaleDateString()} {new Date(sale.date).toLocaleTimeString()}
+                                  {new Date(sale.saleDate || sale.createdAt).toLocaleDateString()} {new Date(sale.saleDate || sale.createdAt).toLocaleTimeString()}
                                 </td>
-                                <td className="p-4 capitalize">{sale.paymentType}</td>
-                                <td className="p-4 text-right">{sale.units}</td>
-                                <td className="p-4 text-right">{currency} {parseFloat(sale.unitPrice).toFixed(2)}</td>
-                                <td className="p-4 text-right font-medium">{currency} {parseFloat(sale.total).toFixed(2)}</td>
+                                <td className="p-4 capitalize">{sale.saleType || '—'}</td>
+                                <td className="p-4 text-right">{parseFloat(sale.quantity ?? 1)}</td>
+                                <td className="p-4 text-right">{currency} {parseFloat(sale.unitPrice ?? 0).toFixed(2)}</td>
+                                <td className="p-4 text-right font-medium">{currency} {(parseFloat(sale.quantity ?? 1) * parseFloat(sale.unitPrice ?? 0)).toFixed(2)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -396,19 +401,15 @@ export default function ProductHistory() {
                                 variant="outline"
                                 size="sm"
                                 disabled={currentPage <= 1}
-                                onClick={() => {
-                                  // Handle previous page
-                                }}
+                                onClick={() => setSalesPage(Math.max(1, salesPage - 1))}
                               >
                                 Previous
                               </Button>
                               <Button
-                                variant="outline" 
+                                variant="outline"
                                 size="sm"
                                 disabled={currentPage >= totalPages}
-                                onClick={() => {
-                                  // Handle next page
-                                }}
+                                onClick={() => setSalesPage(Math.min(totalPages, salesPage + 1))}
                               >
                                 Next
                               </Button>
