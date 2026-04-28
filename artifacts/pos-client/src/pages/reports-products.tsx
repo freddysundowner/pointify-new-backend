@@ -536,16 +536,6 @@ export default function ProductsReportPage() {
                   </Card>
                 )}
 
-                {outOfStock.length === 0 && lowStock.length === 0 && (
-                  <Card className="border-0 shadow-sm">
-                    <CardContent className="py-12 text-center">
-                      <Package className="h-10 w-10 text-gray-200 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-gray-500">All products are well stocked</p>
-                      <p className="text-xs text-gray-400 mt-1">No items at or near zero</p>
-                    </CardContent>
-                  </Card>
-                )}
-
                 {/* Full stock value table */}
                 <Card className="border-0 shadow-sm">
                   <CardContent className="p-4">
