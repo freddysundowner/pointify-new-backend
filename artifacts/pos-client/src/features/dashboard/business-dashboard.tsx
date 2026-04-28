@@ -374,7 +374,7 @@ export default function BusinessDashboard() {
     amount: parseFloat(sale.totalWithDiscount || sale.totalAmount || sale.total || 0),
     items: sale.saleItems?.length || sale.products?.length || sale.items?.length || 1,
     time: timeAgo(sale.createdAt),
-    paymentMethod: (sale.status === "held" || sale.status === "hold" || sale.status === "on_hold")
+    paymentMethod: sale.status === "held"
       ? "Hold"
       : (sale.paymentType || sale.paymentMethod || "Cash"),
     status: sale.status || "completed",
