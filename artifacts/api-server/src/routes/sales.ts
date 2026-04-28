@@ -117,23 +117,14 @@ router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
     }
     const returnsWhere = returnsConditions.length > 1 ? and(...returnsConditions) : (returnsConditions[0] ?? sql`1=1`);
 
-    // Build credit-collected conditions (payments made on credit-status sales, same shop/period)
-    const creditPayConditions: any[] = [];
-    if (req.attendant) {
-      creditPayConditions.push(eq(sales.shop, req.attendant.shopId));
-    } else {
-      if (shopId) creditPayConditions.push(eq(sales.shop, shopId));
-    }
-    if (from) creditPayConditions.push(gte(salePayments.createdAt, from));
-    if (to) {
-      const endOfDay3 = new Date(to);
-      endOfDay3.setHours(23, 59, 59, 999);
-      creditPayConditions.push(lte(salePayments.createdAt, endOfDay3));
-    }
-    creditPayConditions.push(eq(sales.status, "credit"));
-    const creditPayWhere = and(...creditPayConditions);
+    // Debt collection query: salePayments inserted >5 min after the sale was created
+    // (the initial payment is inserted in the same transaction as the sale).
+    // This correctly captures partial + full repayments even after status flips to "cashed".
+    const endOfDay3 = to ? new Date(to) : null;
+    if (endOfDay3) endOfDay3.setHours(23, 59, 59, 999);
+    const effectiveShopId = req.attendant ? req.attendant.shopId : shopId;
 
-    const [[result], [returnsResult], [creditCollectedResult]] = await Promise.all([
+    const [[result], [returnsResult], creditCollectedRows] = await Promise.all([
       db.select({
         grossSales: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} NOT IN ('voided','refunded','returned') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
         totalCount: sql<number>`COUNT(CASE WHEN ${sales.status} NOT IN ('voided','refunded','returned') THEN 1 END)`,
@@ -152,12 +143,18 @@ router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
           sql`${sales.status} NOT IN ('voided', 'held', 'refunded', 'returned')`,
         ))
         .where(returnsWhere),
-      // Sum payments received against credit-status sales = "collected debt"
-      db.select({
-        collected: sql<string>`COALESCE(SUM(${salePayments.amount}::numeric), 0)`,
-      }).from(salePayments)
-        .innerJoin(sales, eq(salePayments.sale, sales.id))
-        .where(creditPayWhere),
+      // Raw SQL for debt collections — avoids Drizzle column-resolution issues.
+      // A "collected debt" payment is one inserted more than 5 minutes after the sale
+      // (the original payment is part of the sale creation transaction).
+      db.execute(sql`
+        SELECT COALESCE(SUM(sp.amount::numeric), 0) AS collected
+        FROM sale_payments sp
+        INNER JOIN sales s ON sp.sale_id = s.id
+        WHERE sp.created_at > s.created_at + INTERVAL '5 minutes'
+        ${effectiveShopId ? sql`AND s.shop_id = ${effectiveShopId}` : sql``}
+        ${from ? sql`AND sp.created_at >= ${from}` : sql``}
+        ${endOfDay3 ? sql`AND sp.created_at <= ${endOfDay3}` : sql``}
+      `),
     ]);
 
     const grossSales = Number(result.grossSales);
@@ -174,7 +171,7 @@ router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
       wallet: Number(result.wallet),
       hold: Number(result.hold),
       bank: Number(result.bank),
-      creditCollected: Number(creditCollectedResult.collected),
+      creditCollected: Number((creditCollectedRows.rows[0] as any)?.collected ?? 0),
     });
   } catch (e) { next(e); }
 });
