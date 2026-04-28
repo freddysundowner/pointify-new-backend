@@ -166,7 +166,7 @@ export default function CollectedPaymentsPage() {
                           <p className="text-xs text-gray-400">{fmtTime(row.paid_at)}</p>
                         </td>
                         <td className="px-4 py-3 hidden sm:table-cell">
-                          <p className="text-gray-700 font-mono text-xs">{row.receipt_no || row.sale_no || `#${row.sale_id}`}</p>
+                          <p className="text-gray-700 font-mono text-xs">{row.receipt_no || `#${row.sale_id}`}</p>
                           <p className="text-xs text-gray-400">{fmt(row.total_with_discount, currency)}</p>
                         </td>
                         <td className="px-4 py-3">

@@ -150,10 +150,10 @@ router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
         SELECT COALESCE(SUM(sp.amount::numeric), 0) AS collected
         FROM sale_payments sp
         INNER JOIN sales s ON sp.sale_id = s.id
-        WHERE sp.created_at > s.created_at + INTERVAL '5 minutes'
+        WHERE sp.paid_at > s.created_at + INTERVAL '5 minutes'
         ${effectiveShopId ? sql`AND s.shop_id = ${effectiveShopId}` : sql``}
-        ${from ? sql`AND sp.created_at >= ${from}` : sql``}
-        ${endOfDay3 ? sql`AND sp.created_at <= ${endOfDay3}` : sql``}
+        ${from ? sql`AND sp.paid_at >= ${from}` : sql``}
+        ${endOfDay3 ? sql`AND sp.paid_at <= ${endOfDay3}` : sql``}
       `),
     ]);
 
@@ -1010,11 +1010,14 @@ router.get("/collected-payments", requireAdminOrAttendant, async (req, res, next
     const effectiveShopId = req.attendant ? req.attendant.shopId : shopId;
 
     const baseWhere = sql`
-      sp.created_at > s.created_at + INTERVAL '5 minutes'
+      sp.paid_at > s.created_at + INTERVAL '5 minutes'
       ${effectiveShopId ? sql`AND s.shop_id = ${effectiveShopId}` : sql``}
-      ${start ? sql`AND sp.created_at >= ${start}` : sql``}
-      ${end ? sql`AND sp.created_at <= ${end}` : sql``}
+      ${start ? sql`AND sp.paid_at >= ${start}` : sql``}
+      ${end ? sql`AND sp.paid_at <= ${end}` : sql``}
     `;
+
+    const limitLit  = sql.raw(String(Number(limit)));
+    const offsetLit = sql.raw(String(Number(offset)));
 
     const [rows, countRows] = await Promise.all([
       db.execute(sql`
@@ -1026,21 +1029,20 @@ router.get("/collected-payments", requireAdminOrAttendant, async (req, res, next
           sp.payment_type,
           sp.payment_reference,
           sp.payment_no,
-          s.id    AS sale_id,
-          s.sale_no,
+          s.id          AS sale_id,
           s.receipt_no,
           s.total_with_discount,
           s.outstanding_balance,
-          s.status AS sale_status,
-          c.id    AS customer_id,
-          c.name  AS customer_name,
+          s.status      AS sale_status,
+          c.id          AS customer_id,
+          c.name        AS customer_name,
           c.phone_number AS customer_phone
         FROM sale_payments sp
         INNER JOIN sales s ON sp.sale_id = s.id
         LEFT JOIN customers c ON s.customer_id = c.id
         WHERE ${baseWhere}
         ORDER BY sp.paid_at DESC
-        LIMIT ${limit} OFFSET ${offset}
+        LIMIT ${limitLit} OFFSET ${offsetLit}
       `),
       db.execute(sql`
         SELECT COUNT(*) AS total
