@@ -66,7 +66,7 @@ export default function CashFlow() {
   const [page, setPage] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({ description: "", amount: "", categoryId: "" });
+  const [formData, setFormData] = useState({ description: "", amount: "", categoryId: "", bankId: "" });
   const PAGE_SIZE = 50;
 
   const isCustom = quickDays === 0;
@@ -87,6 +87,18 @@ export default function CashFlow() {
 
   const cashInCats = categories.filter((c: any) => c.type === "cashin");
   const cashOutCats = categories.filter((c: any) => c.type === "cashout");
+
+  // Banks list for optional bank linking
+  const { data: banks = [] } = useQuery<any[]>({
+    queryKey: ["banks", shopId],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/finance/banks?shopId=${shopId}`);
+      const json = await res.json();
+      return Array.isArray(json) ? json : (json?.data ?? []);
+    },
+    enabled: !!shopId,
+    staleTime: 30 * 1000,
+  });
 
   // Cashflow list
   const { data: raw, isLoading, refetch } = useQuery<any>({
@@ -129,13 +141,15 @@ export default function CashFlow() {
         description: data.description.trim(),
         amount: parseFloat(data.amount),
         categoryId: data.categoryId || undefined,
+        bankId: data.bankId || undefined,
       });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cashflows"] });
+      queryClient.invalidateQueries({ queryKey: ["banks"] });
       setIsDialogOpen(false);
-      setFormData({ description: "", amount: "", categoryId: "" });
+      setFormData({ description: "", amount: "", categoryId: "", bankId: "" });
       toast({ title: "Entry added" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -242,6 +256,29 @@ export default function CashFlow() {
                     </SelectContent>
                   </Select>
                 </div>
+                {banks.length > 0 && (
+                  <div>
+                    <Label className="text-xs">Bank Account <span className="text-gray-400 font-normal">(optional)</span></Label>
+                    <Select value={formData.bankId} onValueChange={v => setFormData(f => ({ ...f, bankId: v === "__none__" ? "" : v }))}>
+                      <SelectTrigger className="h-8 text-sm mt-1">
+                        <SelectValue placeholder="No bank — cash only" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">No bank — cash only</SelectItem>
+                        {banks.map((b: any) => (
+                          <SelectItem key={b.id} value={String(b.id)}>
+                            {b.name} {b.balance !== undefined ? `· ${currency} ${parseFloat(String(b.balance)).toLocaleString()}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {formData.bankId && formData.categoryId && (
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        Balance will be {categories.find((c: any) => String(c.id) === formData.categoryId)?.type === "cashout" ? "decreased" : "increased"} by this amount
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-2 pt-1">
                   <Button type="button" variant="outline" size="sm" className="flex-1 h-8" onClick={() => setIsDialogOpen(false)}>
                     Cancel
@@ -382,6 +419,11 @@ export default function CashFlow() {
                           <span className="font-medium text-gray-800">{row.description}</span>
                           {row.cashflowNo && (
                             <span className="ml-1.5 text-[10px] text-gray-400">{row.cashflowNo}</span>
+                          )}
+                          {row.bank && (
+                            <span className="ml-1.5 text-[10px] text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">
+                              🏦 {banks.find((b: any) => b.id === row.bank)?.name ?? `Bank #${row.bank}`}
+                            </span>
                           )}
                         </td>
                         <td className="px-3 py-2.5">
