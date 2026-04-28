@@ -109,8 +109,16 @@ export default function CashFlow() {
 
   const rows: any[] = raw?.data ?? [];
   const meta = raw?.meta ?? { total: 0, page: 1, totalPages: 1 };
-  const summary = raw?.summary ?? { totalCashIn: 0, totalCashOut: 0 };
-  const net = n(summary.totalCashIn) - n(summary.totalCashOut);
+  const summary = raw?.summary ?? { totalCashIn: 0, totalCashOut: 0, totalUncategorized: 0, net: 0 };
+  // Use server net which includes uncategorized entries; fallback to row-level calculation
+  const net = summary.net !== undefined
+    ? summary.net
+    : rows.reduce((acc: number, r: any) => {
+        const amt = parseFloat(r.amount ?? "0");
+        if (r.category?.type === "cashin") return acc + amt;
+        if (r.category?.type === "cashout") return acc - amt;
+        return acc + amt;
+      }, 0);
   const isPositive = net >= 0;
 
   // Create mutation
@@ -280,7 +288,7 @@ export default function CashFlow() {
                 <ArrowUpRight className="h-3.5 w-3.5 text-green-500" />
                 <p className="text-xs text-green-500 font-medium">Cash In</p>
               </div>
-              <p className="text-xl font-bold text-green-700 leading-tight">{fmt(summary.totalCashIn, currency)}</p>
+              <p className="text-xl font-bold text-green-700 leading-tight">{fmt(n(summary.totalCashIn) + n(summary.totalUncategorized), currency)}</p>
             </CardContent>
           </Card>
           <Card className="border-0 shadow-sm bg-red-50">

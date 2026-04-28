@@ -314,19 +314,25 @@ router.get("/cashflows", requireAdminOrAttendant, async (req, res, next) => {
       db.select({
         totalCashIn: sql<string>`COALESCE(SUM(CASE WHEN ${cashflowCategories.type} = 'cashin' THEN ${cashflows.amount}::numeric ELSE 0 END), 0)`,
         totalCashOut: sql<string>`COALESCE(SUM(CASE WHEN ${cashflowCategories.type} = 'cashout' THEN ${cashflows.amount}::numeric ELSE 0 END), 0)`,
+        totalUncategorized: sql<string>`COALESCE(SUM(CASE WHEN ${cashflows.category} IS NULL THEN ${cashflows.amount}::numeric ELSE 0 END), 0)`,
       }).from(cashflows)
         .leftJoin(cashflowCategories, eq(cashflows.category, cashflowCategories.id))
         .where(where),
     ]);
 
     const s = summaryRows[0];
+    const totalCashIn = parseFloat(s?.totalCashIn ?? "0");
+    const totalCashOut = parseFloat(s?.totalCashOut ?? "0");
+    const totalUncategorized = parseFloat(s?.totalUncategorized ?? "0");
     return res.json({
       success: true,
       data: rows,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
       summary: {
-        totalCashIn: parseFloat(s?.totalCashIn ?? "0"),
-        totalCashOut: parseFloat(s?.totalCashOut ?? "0"),
+        totalCashIn,
+        totalCashOut,
+        totalUncategorized,
+        net: totalCashIn - totalCashOut + totalUncategorized,
       },
     });
   } catch (e) { next(e); }
