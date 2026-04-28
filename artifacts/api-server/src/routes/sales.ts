@@ -1008,15 +1008,11 @@ router.get("/collected-payments", requireAdminOrAttendant, async (req, res, next
     if (end) end.setHours(23, 59, 59, 999);
     const effectiveShopId = req.attendant ? req.attendant.shopId : shopId;
 
-    const baseWhere = sql`
-      sp.payment_no = 'DEBT'
-      ${effectiveShopId ? sql`AND s.shop_id = ${effectiveShopId}` : sql``}
-      ${start ? sql`AND sp.paid_at >= ${start}` : sql``}
-      ${end ? sql`AND sp.paid_at <= ${end}` : sql``}
-    `;
-
     const limitLit  = sql.raw(String(Number(limit)));
     const offsetLit = sql.raw(String(Number(offset)));
+    const shopFilter  = effectiveShopId ? sql.raw(`AND s.shop_id = ${Number(effectiveShopId)}`) : sql.raw("");
+    const startFilter = start  ? sql.raw(`AND sp.paid_at >= '${start.toISOString()}'`) : sql.raw("");
+    const endFilter   = end    ? sql.raw(`AND sp.paid_at <= '${end.toISOString()}'`)   : sql.raw("");
 
     const [rows, countRows] = await Promise.all([
       db.execute(sql`
@@ -1039,7 +1035,8 @@ router.get("/collected-payments", requireAdminOrAttendant, async (req, res, next
         FROM sale_payments sp
         INNER JOIN sales s ON sp.sale_id = s.id
         LEFT JOIN customers c ON s.customer_id = c.id
-        WHERE ${baseWhere}
+        WHERE sp.payment_no = 'DEBT'
+        ${shopFilter} ${startFilter} ${endFilter}
         ORDER BY sp.paid_at DESC
         LIMIT ${limitLit} OFFSET ${offsetLit}
       `),
@@ -1047,7 +1044,8 @@ router.get("/collected-payments", requireAdminOrAttendant, async (req, res, next
         SELECT COUNT(*) AS total
         FROM sale_payments sp
         INNER JOIN sales s ON sp.sale_id = s.id
-        WHERE ${baseWhere}
+        WHERE sp.payment_no = 'DEBT'
+        ${shopFilter} ${startFilter} ${endFilter}
       `),
     ]);
 
