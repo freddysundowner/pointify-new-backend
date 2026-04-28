@@ -195,7 +195,7 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params["id"]);
-    const existing = await db.query.purchases.findFirst({ where: eq(purchases.id, id), columns: { shop: true } });
+    const existing = await db.query.purchases.findFirst({ where: eq(purchases.id, id), columns: { shop: true, totalAmount: true, purchaseNo: true } });
     if (!existing) throw notFound("Purchase not found");
     await assertShopOwnership(req, existing.shop);
 
@@ -234,6 +234,16 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
 
     const [deleted] = await db.delete(purchases).where(eq(purchases.id, id)).returning();
     if (!deleted) throw notFound("Purchase not found");
+
+    const purchTotal = parseFloat(String(existing.totalAmount ?? "0"));
+    void autoRecordCashflow({
+      shopId: existing.shop,
+      amount: purchTotal,
+      description: `Purchase Deleted ${existing.purchaseNo ?? id}`,
+      categoryKey: "purchase_reversal",
+      recordedBy: (req as any).attendant?.id,
+    });
+
     return noContent(res);
   } catch (e) { next(e); }
 });

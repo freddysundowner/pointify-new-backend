@@ -780,7 +780,7 @@ async function restoreSaleInventory(saleId: number): Promise<void> {
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params["id"]);
-    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true, status: true, customer: true, outstandingBalance: true } });
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true, status: true, customer: true, outstandingBalance: true, totalAmount: true, saleNo: true } });
     if (!existing) throw notFound("Sale not found");
     await assertShopOwnership(req, existing.shop);
 
@@ -810,6 +810,17 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
     const [deleted] = await db.delete(sales).where(eq(sales.id, id)).returning();
     if (!deleted) throw notFound("Sale not found");
 
+    if (existing.status !== "voided") {
+      const saleTotal = parseFloat(String(existing.totalAmount ?? "0"));
+      void autoRecordCashflow({
+        shopId: existing.shop,
+        amount: saleTotal,
+        description: `Sale Deleted ${existing.saleNo ?? id}`,
+        categoryKey: "sale_reversal",
+        recordedBy: (req as any).attendant?.id,
+      });
+    }
+
     return noContent(res);
   } catch (e) { next(e); }
 });
@@ -817,7 +828,7 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
 router.post("/:id/void", requireAdmin, async (req, res, next) => {
   try {
     const saleId = Number(req.params["id"]);
-    const existing = await db.query.sales.findFirst({ where: eq(sales.id, saleId), columns: { shop: true, status: true, customer: true, outstandingBalance: true } });
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, saleId), columns: { shop: true, status: true, customer: true, outstandingBalance: true, totalAmount: true, saleNo: true } });
     if (!existing) throw notFound("Sale not found");
     await assertShopOwnership(req, existing.shop);
     if (existing.status !== "voided") await restoreSaleInventory(saleId);
@@ -831,6 +842,16 @@ router.post("/:id/void", requireAdmin, async (req, res, next) => {
       await db.update(customers)
         .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric - ${prev}::numeric)` })
         .where(eq(customers.id, existing.customer));
+    }
+    if (existing.status !== "voided") {
+      const saleTotal = parseFloat(String(existing.totalAmount ?? "0"));
+      void autoRecordCashflow({
+        shopId: existing.shop,
+        amount: saleTotal,
+        description: `Sale Voided ${existing.saleNo ?? saleId}`,
+        categoryKey: "sale_reversal",
+        recordedBy: (req as any).attendant?.id,
+      });
     }
     return ok(res, updated);
   } catch (e) { next(e); }
@@ -853,6 +874,16 @@ router.post("/:id/refund", requireAdmin, async (req, res, next) => {
       await db.update(customers)
         .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric - ${prev}::numeric)` })
         .where(eq(customers.id, sale.customer));
+    }
+    if (sale.status !== "refunded" && sale.status !== "voided") {
+      const saleTotal = parseFloat(String(sale.totalAmount ?? "0"));
+      void autoRecordCashflow({
+        shopId: sale.shop,
+        amount: saleTotal,
+        description: `Sale Refunded ${sale.saleNo ?? saleId}`,
+        categoryKey: "sale_reversal",
+        recordedBy: (req as any).attendant?.id,
+      });
     }
     return ok(res, updated);
   } catch (e) { next(e); }

@@ -8,6 +8,7 @@ import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { recordProductHistory } from "../lib/product-history.js";
+import { autoRecordCashflow } from "../lib/auto-cashflow.js";
 
 const router = Router();
 
@@ -96,6 +97,13 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         note: purchaseReturn.returnNo,
       }))
     );
+    void autoRecordCashflow({
+      shopId: Number(shopId),
+      amount: refundAmount,
+      description: `Purchase Return ${purchaseReturn.returnNo}`,
+      categoryKey: "purchase_return",
+      recordedBy: req.attendant?.id,
+    });
     return created(res, { ...purchaseReturn, items: itemRows });
   } catch (e) { next(e); }
 });

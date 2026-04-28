@@ -3,9 +3,14 @@ import { cashflows, cashflowCategories } from "@workspace/db";
 import { db } from "./db.js";
 
 const SYSTEM_CATEGORIES = {
-  sales:     { name: "Sales",     type: "cashin"  },
-  expense:   { name: "Expenses",  type: "cashout" },
-  purchase:  { name: "Purchases", type: "cashout" },
+  sales:              { name: "Sales",               type: "cashin"  },
+  expense:            { name: "Expenses",             type: "cashout" },
+  purchase:           { name: "Purchases",            type: "cashout" },
+  sale_return:        { name: "Sale Returns",         type: "cashout" },
+  purchase_return:    { name: "Purchase Returns",     type: "cashin"  },
+  sale_reversal:      { name: "Sale Reversals",       type: "cashout" },
+  purchase_reversal:  { name: "Purchase Reversals",   type: "cashin"  },
+  expense_reversal:   { name: "Expense Reversals",    type: "cashin"  },
 } as const;
 
 type CategoryKey = keyof typeof SYSTEM_CATEGORIES;

@@ -187,10 +187,18 @@ router.put("/expenses/:id", requireAdmin, async (req, res, next) => {
 router.delete("/expenses/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params["id"]);
-    const existing = await db.query.expenses.findFirst({ where: eq(expenses.id, id), columns: { shop: true } });
+    const existing = await db.query.expenses.findFirst({ where: eq(expenses.id, id), columns: { shop: true, amount: true, description: true, expenseNo: true } });
     if (!existing) throw notFound("Expense not found");
     await assertShopOwnership(req, existing.shop);
     await db.delete(expenses).where(eq(expenses.id, id));
+    const amt = parseFloat(String(existing.amount ?? "0"));
+    void autoRecordCashflow({
+      shopId: existing.shop,
+      amount: amt,
+      description: `Expense Deleted ${existing.description ?? existing.expenseNo ?? id}`,
+      categoryKey: "expense_reversal",
+      recordedBy: (req as any).attendant?.id,
+    });
     return noContent(res);
   } catch (e) { next(e); }
 });
