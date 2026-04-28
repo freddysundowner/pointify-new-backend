@@ -20,7 +20,8 @@ import { ArrowLeft } from "lucide-react";
 import { useGoBack } from "@/hooks/useGoBack";
 
 interface Product {
-  _id: string;
+  id: number;
+  _id?: string;
   name: string;
   quantity: number;
   category?: string;
@@ -400,14 +401,15 @@ export default function StockCount() {
                 </TableHeader>
                 <TableBody>
                   {filteredProducts.map((product) => {
-                    const countValue = preservedCounts[product._id] ?? countData[product._id];
+                    const pid = product._id ?? String(product.id);
+                    const countValue = preservedCounts[pid] ?? countData[pid];
                     const currentStock = product.quantity || 0;
                     const physicalCount = countValue ?? 0;
                     const variance = countValue !== undefined ? physicalCount - currentStock : 0;
                     const isCounted = countValue !== undefined;
 
                     return (
-                      <TableRow key={product._id}>
+                      <TableRow key={pid}>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>{currentStock}</TableCell>
                         <TableCell>
@@ -415,7 +417,7 @@ export default function StockCount() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleCountChange(product._id, Math.max(0, physicalCount - 1))}
+                              onClick={() => handleCountChange(pid, Math.max(0, physicalCount - 1))}
                             >
                               <Minus className="h-3 w-3" />
                             </Button>
@@ -425,7 +427,7 @@ export default function StockCount() {
                               onChange={(e) => {
                                 const value = e.target.value === "" ? 0 : parseInt(e.target.value);
                                 if (!isNaN(value)) {
-                                  handleCountChange(product._id, value);
+                                  handleCountChange(pid, value);
                                 }
                               }}
                               className="w-20 text-center"
@@ -434,7 +436,7 @@ export default function StockCount() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleCountChange(product._id, physicalCount + 1)}
+                              onClick={() => handleCountChange(pid, physicalCount + 1)}
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
