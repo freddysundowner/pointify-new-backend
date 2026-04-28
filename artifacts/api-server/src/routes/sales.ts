@@ -143,14 +143,13 @@ router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
           sql`${sales.status} NOT IN ('voided', 'held', 'refunded', 'returned')`,
         ))
         .where(returnsWhere),
-      // Raw SQL for debt collections — avoids Drizzle column-resolution issues.
-      // A "collected debt" payment is one inserted more than 5 minutes after the sale
-      // (the original payment is part of the sale creation transaction).
+      // Raw SQL for debt collections — payments recorded via POST /:id/payments are
+      // tagged with payment_no = 'DEBT' to distinguish them from initial sale payments.
       db.execute(sql`
         SELECT COALESCE(SUM(sp.amount::numeric), 0) AS collected
         FROM sale_payments sp
         INNER JOIN sales s ON sp.sale_id = s.id
-        WHERE sp.paid_at > s.created_at + INTERVAL '5 minutes'
+        WHERE sp.payment_no = 'DEBT'
         ${effectiveShopId ? sql`AND s.shop_id = ${effectiveShopId}` : sql``}
         ${from ? sql`AND sp.paid_at >= ${from}` : sql``}
         ${endOfDay3 ? sql`AND sp.paid_at <= ${endOfDay3}` : sql``}
@@ -1010,7 +1009,7 @@ router.get("/collected-payments", requireAdminOrAttendant, async (req, res, next
     const effectiveShopId = req.attendant ? req.attendant.shopId : shopId;
 
     const baseWhere = sql`
-      sp.paid_at > s.created_at + INTERVAL '5 minutes'
+      sp.payment_no = 'DEBT'
       ${effectiveShopId ? sql`AND s.shop_id = ${effectiveShopId}` : sql``}
       ${start ? sql`AND sp.paid_at >= ${start}` : sql``}
       ${end ? sql`AND sp.paid_at <= ${end}` : sql``}
@@ -1080,6 +1079,7 @@ router.post("/:id/payments", requireAdminOrAttendant, async (req, res, next) => 
       balance: String(newOutstanding.toFixed(2)),
       paymentType: methodName,
       paymentReference: reference,
+      paymentNo: "DEBT",
     }).returning();
 
     await db.update(sales).set({
