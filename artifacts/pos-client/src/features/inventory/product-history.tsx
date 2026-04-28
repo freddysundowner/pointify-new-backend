@@ -154,12 +154,15 @@ export default function ProductHistory() {
   const isAdmin = !!admin && !localStorage.getItem("attendantData");
 
   const handleGoBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
     if (isAdmin) {
       navigate("/products");
     } else {
       navigate("/attendant/products");
     }
-    // setLocation("/attendant/stock-summary");
   };
 
   if (!productId) {

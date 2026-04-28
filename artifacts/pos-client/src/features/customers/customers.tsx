@@ -260,12 +260,10 @@ export default function Customers() {
       <div className="p-4 md:p-6 space-y-4 md:space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="space-y-2">
-            <Link href={dashboardRoute}>
-              <Button variant="outline" size="sm" className="w-full sm:w-auto">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            </Link>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign(dashboardRoute)}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
             <h1 className="text-xl md:text-2xl font-bold text-gray-900">Customer Management</h1>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>

@@ -180,16 +180,16 @@ export default function CreatePurchase() {
             variant="outline"
             size="sm"
             onClick={() => {
-              // Check if we came from stock summary by looking at URL parameters
+              if (window.history.length > 1) {
+                window.history.back();
+                return;
+              }
               const urlParams = new URLSearchParams(window.location.search);
               const hasFilter = urlParams.has('filter');
-              
               if (hasFilter) {
-                // If we came from stock summary with a filter, go back there
                 const backRoute = isAttendant ? '/attendant/stock/summary' : '/stock/summary';
                 setLocation(backRoute);
               } else {
-                // Otherwise go to dashboard
                 const backRoute = isAttendant ? '/attendant/dashboard' : '/dashboard';
                 setLocation(backRoute);
               }

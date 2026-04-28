@@ -67,7 +67,7 @@ export default function ViewPurchase() {
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               The purchase order you're looking for doesn't exist.
             </p>
-            <Button onClick={() => setLocation(purchasesRoute)}>
+            <Button onClick={() => window.history.length > 1 ? window.history.back() : setLocation(purchasesRoute)}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Purchases
             </Button>
@@ -124,7 +124,7 @@ export default function ViewPurchase() {
       <div className="p-6 w-full">
         {/* Action Buttons */}
         <div className="flex justify-between items-center mb-6">
-          <Button variant="outline" onClick={() => setLocation(purchasesRoute)}>
+          <Button variant="outline" onClick={() => window.history.length > 1 ? window.history.back() : setLocation(purchasesRoute)}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Purchases
           </Button>

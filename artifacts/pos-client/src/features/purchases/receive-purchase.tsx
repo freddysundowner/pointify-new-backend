@@ -59,7 +59,7 @@ export default function ReceivePurchase() {
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               The purchase order you're trying to receive doesn't exist.
             </p>
-            <Button onClick={() => setLocation("/purchases")}>
+            <Button onClick={() => window.history.length > 1 ? window.history.back() : setLocation("/purchases")}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Purchases
             </Button>

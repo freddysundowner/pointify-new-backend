@@ -184,12 +184,10 @@ export default function DiscountReports() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/reports">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Reports
-              </Button>
-            </Link>
+            <Button variant="outline" size="sm" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign("/reports")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Reports
+            </Button>
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <ArrowDownRight className="h-8 w-8 text-orange-600" />

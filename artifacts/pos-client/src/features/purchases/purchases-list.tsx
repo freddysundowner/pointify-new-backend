@@ -75,7 +75,10 @@ export default function PurchasesList() {
   const isAdmin = !!admin && !localStorage.getItem("attendantData");
 
   const handleBackClick = () => {
-    // Navigate back to appropriate dashboard
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
     if (isAdmin) {
       navigate("/");
     } else {

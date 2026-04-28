@@ -70,6 +70,10 @@ export default function POS() {
   };
 
   const handleBackToDashboard = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
     setLocation(attendant ? "/attendant/dashboard" : "/dashboard");
   };
 

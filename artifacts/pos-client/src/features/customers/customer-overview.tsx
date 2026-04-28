@@ -727,12 +727,10 @@ export default function CustomerOverview() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
           <div className="space-y-2">
-            <Link href={customersRoute}>
-              <Button variant="outline" size="sm" className="w-full sm:w-auto">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Customers
-              </Button>
-            </Link>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign(customersRoute)}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Customers
+            </Button>
             <h1 className="text-2xl sm:text-3xl font-bold">Customer Overview</h1>
           </div>
         </div>

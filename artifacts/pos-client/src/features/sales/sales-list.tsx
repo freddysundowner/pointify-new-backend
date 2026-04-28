@@ -95,6 +95,10 @@ function SalesList() {
 
   // Back button handler
   const handleBackClick = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
     if (userType === "attendant") {
       setLocation("/attendant/dashboard");
     } else {

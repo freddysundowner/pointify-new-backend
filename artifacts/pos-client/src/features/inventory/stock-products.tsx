@@ -537,6 +537,10 @@ export default function StockProducts() {
               size="sm"
               className="h-8 w-8 p-0"
               onClick={() => {
+                if (window.history.length > 1) {
+                  window.history.back();
+                  return;
+                }
                 const urlParams = new URLSearchParams(window.location.search);
                 const hasFilter = urlParams.has('filter');
                 if (hasFilter) {
