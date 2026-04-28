@@ -22,16 +22,6 @@ const fmt = (v: any) => {
   return `KES ${isNaN(num) ? "0" : num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
 
-const METHOD_CONFIG: Record<string, { label: string; icon: any; bg: string; text: string; bar: string }> = {
-  cash:      { label: "Cash",          icon: Banknote,   bg: "bg-green-50",   text: "text-green-700",  bar: "bg-green-500" },
-  mpesa:     { label: "M-Pesa",        icon: Smartphone, bg: "bg-emerald-50", text: "text-emerald-700",bar: "bg-emerald-500" },
-  mpesa_stk: { label: "M-Pesa STK",   icon: Smartphone, bg: "bg-emerald-50", text: "text-emerald-700",bar: "bg-emerald-500" },
-  bank:      { label: "Bank Transfer", icon: Building,   bg: "bg-blue-50",    text: "text-blue-700",   bar: "bg-blue-500" },
-  card:      { label: "Card",          icon: CreditCard, bg: "bg-indigo-50",  text: "text-indigo-700", bar: "bg-indigo-500" },
-  wallet:    { label: "Wallet",        icon: CreditCard, bg: "bg-purple-50",  text: "text-purple-700", bar: "bg-purple-500" },
-  credit:    { label: "Credit",        icon: Clock,      bg: "bg-orange-50",  text: "text-orange-700", bar: "bg-orange-400" },
-};
-
 const QUICK = [
   { label: "Today", days: 1 },
   { label: "7 days", days: 7 },
@@ -112,19 +102,12 @@ export default function SalesReportPage() {
     staleTime: 0,
   });
 
-  const paymentRows: any[] = paymentData?.rows ?? [];
   const cashCollected = n(paymentData?.grandTotal);
   const dailyRows: any[] = (dailyData?.rows ?? []).slice().reverse();
 
   const totalSalesValue   = dailyRows.reduce((s: number, r: any) => s + n(r.totalRevenue), 0);
   const totalTransactions = dailyRows.reduce((s: number, r: any) => s + n(r.totalSales), 0);
   const totalOnCredit     = Math.max(0, totalSalesValue - cashCollected);
-
-  // Build full payment method list: real payments + credit remainder
-  const allMethods = [
-    ...paymentRows.map((r: any) => ({ type: r.paymentType, amount: n(r.totalAmount), count: n(r.saleCount) })),
-    ...(totalOnCredit > 0 ? [{ type: "credit", amount: totalOnCredit, count: 0 }] : []),
-  ];
 
   const refetch = () => { refetchPay(); refetchDaily(); refetchStats(); };
   const isLoading = loadingPay || loadingDaily || loadingStats;
@@ -327,45 +310,6 @@ export default function SalesReportPage() {
                 * <strong>Credit</strong> = completed sales with unpaid balance &nbsp;|&nbsp;
                 <strong>Hold</strong> = parked sales not yet checked out (these are different)
               </p>
-            </div>
-
-            {/* Payment method cards — the main section */}
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2 px-1">How Money Came In</p>
-              {allMethods.length === 0 ? (
-                <Card className="border-0 shadow-sm">
-                  <CardContent className="py-8 text-center text-sm text-gray-400">
-                    No payments recorded yet
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-                  {allMethods.map(m => {
-                    const cfg = METHOD_CONFIG[m.type] ?? { label: m.type, icon: CreditCard, bg: "bg-gray-50", text: "text-gray-700", bar: "bg-gray-400" };
-                    const Icon = cfg.icon;
-                    const shareOfTotal = totalSalesValue > 0 ? Math.round((m.amount / totalSalesValue) * 100) : 0;
-                    return (
-                      <Card key={m.type} className={`border-0 shadow-sm ${cfg.bg}`}>
-                        <CardContent className="p-3">
-                          <div className="flex items-center gap-1.5 mb-2">
-                            <div className={`h-6 w-6 rounded-md bg-white/60 flex items-center justify-center shrink-0`}>
-                              <Icon className={`h-3.5 w-3.5 ${cfg.text}`} />
-                            </div>
-                            <p className={`text-xs font-semibold ${cfg.text}`}>{cfg.label}</p>
-                          </div>
-                          <p className={`text-lg font-bold leading-tight ${cfg.text}`}>{fmt(m.amount)}</p>
-                          {m.count > 0 && <p className={`text-xs mt-0.5 opacity-70 ${cfg.text}`}>{m.count} sale{m.count !== 1 ? "s" : ""}</p>}
-                          {m.count === 0 && m.type === "credit" && <p className={`text-xs mt-0.5 opacity-70 ${cfg.text}`}>awaiting payment</p>}
-                          <div className="mt-2 h-1 bg-white/50 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${cfg.bar}`} style={{ width: `${shareOfTotal}%` }} />
-                          </div>
-                          <p className={`text-xs mt-0.5 opacity-60 ${cfg.text}`}>{shareOfTotal}% of total</p>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
             </div>
 
             {/* Day-by-day table */}
