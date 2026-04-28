@@ -291,11 +291,11 @@ router.get("/banks/:id/transactions", requireAdminOrAttendant, async (req, res, 
 
 router.get("/cashflows", requireAdminOrAttendant, async (req, res, next) => {
   try {
-    const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
     const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
     const categoryId = req.query["categoryId"] ? Number(req.query["categoryId"]) : null;
+    const grouped = req.query["grouped"] === "true";
 
     const conditions: any[] = [];
     if (shopId) conditions.push(eq(cashflows.shop, shopId));
@@ -304,13 +304,8 @@ router.get("/cashflows", requireAdminOrAttendant, async (req, res, next) => {
     if (categoryId) conditions.push(eq(cashflows.category, categoryId));
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
 
-    const [rows, total, summaryRows] = await Promise.all([
-      db.query.cashflows.findMany({
-        where, limit, offset,
-        orderBy: (c, { desc }) => [desc(c.createdAt)],
-        with: { category: true },
-      }),
-      db.$count(cashflows, where),
+    // Shared summary query
+    const [summaryRows] = await Promise.all([
       db.select({
         totalCashIn: sql<string>`COALESCE(SUM(CASE WHEN ${cashflowCategories.type} = 'cashin' THEN ${cashflows.amount}::numeric ELSE 0 END), 0)`,
         totalCashOut: sql<string>`COALESCE(SUM(CASE WHEN ${cashflowCategories.type} = 'cashout' THEN ${cashflows.amount}::numeric ELSE 0 END), 0)`,
@@ -324,16 +319,49 @@ router.get("/cashflows", requireAdminOrAttendant, async (req, res, next) => {
     const totalCashIn = parseFloat(s?.totalCashIn ?? "0");
     const totalCashOut = parseFloat(s?.totalCashOut ?? "0");
     const totalUncategorized = parseFloat(s?.totalUncategorized ?? "0");
+    const summary = {
+      totalCashIn,
+      totalCashOut,
+      totalUncategorized,
+      net: totalCashIn - totalCashOut + totalUncategorized,
+    };
+
+    if (grouped) {
+      // Return one tally row per category (no pagination)
+      const groupRows = await db.select({
+        categoryId: cashflows.category,
+        categoryName: sql<string>`COALESCE(${cashflowCategories.name}, 'Uncategorized')`,
+        type: sql<string>`COALESCE(${cashflowCategories.type}, '')`,
+        count: sql<number>`COUNT(*)::int`,
+        total: sql<string>`COALESCE(SUM(${cashflows.amount}::numeric), 0)`,
+      }).from(cashflows)
+        .leftJoin(cashflowCategories, eq(cashflows.category, cashflowCategories.id))
+        .where(where)
+        .groupBy(cashflows.category, cashflowCategories.name, cashflowCategories.type)
+        .orderBy(
+          sql`CASE COALESCE(${cashflowCategories.type},'') WHEN 'cashin' THEN 0 WHEN 'cashout' THEN 1 ELSE 2 END`,
+          sql`COALESCE(SUM(${cashflows.amount}::numeric), 0) DESC`,
+        );
+
+      return res.json({ success: true, data: groupRows, summary });
+    }
+
+    // Non-grouped: paginated individual rows
+    const { page, limit, offset } = getPagination(req);
+    const [rows, total] = await Promise.all([
+      db.query.cashflows.findMany({
+        where, limit, offset,
+        orderBy: (c, { desc }) => [desc(c.createdAt)],
+        with: { category: true },
+      }),
+      db.$count(cashflows, where),
+    ]);
+
     return res.json({
       success: true,
       data: rows,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-      summary: {
-        totalCashIn,
-        totalCashOut,
-        totalUncategorized,
-        net: totalCashIn - totalCashOut + totalUncategorized,
-      },
+      summary,
     });
   } catch (e) { next(e); }
 });

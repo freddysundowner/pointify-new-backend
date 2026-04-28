@@ -10,7 +10,6 @@ import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useCurrency } from "@/utils";
 import { useNavigationRoute } from "@/lib/navigation-utils";
 import { Link } from "wouter";
-import { format } from "date-fns";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,12 +22,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  ArrowLeft, Plus, RefreshCw, ArrowUpRight, ArrowDownRight, Trash2, Settings,
+  ArrowLeft, Plus, RefreshCw, ArrowUpRight, ArrowDownRight, Settings,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -63,11 +57,8 @@ export default function CashFlow() {
   const [quickDays, setQuickDays] = useState(30);
   const [from, setFrom] = useState(firstOfMonth);
   const [to, setTo] = useState(today);
-  const [page, setPage] = useState(1);
-  const [categoryFilter, setCategoryFilter] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({ description: "", amount: "", categoryId: "", bankId: "" });
-  const PAGE_SIZE = 50;
 
   const isCustom = quickDays === 0;
   const effectiveFrom = isCustom ? from : new Date(Date.now() - (quickDays - 1) * 86400000).toISOString().split("T")[0];
@@ -100,18 +91,16 @@ export default function CashFlow() {
     staleTime: 30 * 1000,
   });
 
-  // Cashflow list
+  // Grouped tally from API
   const { data: raw, isLoading, refetch } = useQuery<any>({
-    queryKey: ["cashflows", shopId, effectiveFrom, effectiveTo, page, categoryFilter],
+    queryKey: ["cashflows-grouped", shopId, effectiveFrom, effectiveTo],
     queryFn: async () => {
       const p = new URLSearchParams({
         shopId: shopId || "",
         from: effectiveFrom,
         to: effectiveTo,
-        page: String(page),
-        limit: String(PAGE_SIZE),
+        grouped: "true",
       });
-      if (categoryFilter) p.set("categoryId", categoryFilter);
       const res = await apiRequest("GET", `${ENDPOINTS.cashflow.getAll}?${p}`);
       return res.json();
     },
@@ -120,17 +109,8 @@ export default function CashFlow() {
   });
 
   const rows: any[] = raw?.data ?? [];
-  const meta = raw?.meta ?? { total: 0, page: 1, totalPages: 1 };
   const summary = raw?.summary ?? { totalCashIn: 0, totalCashOut: 0, totalUncategorized: 0, net: 0 };
-  // Use server net which includes uncategorized entries; fallback to row-level calculation
-  const net = summary.net !== undefined
-    ? summary.net
-    : rows.reduce((acc: number, r: any) => {
-        const amt = parseFloat(r.amount ?? "0");
-        if (r.category?.type === "cashin") return acc + amt;
-        if (r.category?.type === "cashout") return acc - amt;
-        return acc + amt;
-      }, 0);
+  const net = summary.net !== undefined ? summary.net : 0;
   const isPositive = net >= 0;
 
   // Create mutation
@@ -146,23 +126,11 @@ export default function CashFlow() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cashflows"] });
+      queryClient.invalidateQueries({ queryKey: ["cashflows-grouped"] });
       queryClient.invalidateQueries({ queryKey: ["banks"] });
       setIsDialogOpen(false);
       setFormData({ description: "", amount: "", categoryId: "", bankId: "" });
       toast({ title: "Entry added" });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/finance/cashflows/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cashflows"] });
-      toast({ title: "Entry deleted" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -174,7 +142,7 @@ export default function CashFlow() {
     createMutation.mutate(formData);
   };
 
-  const handleQuick = (days: number) => { setQuickDays(days); setPage(1); };
+  const handleQuick = (days: number) => setQuickDays(days);
 
   return (
     <DashboardLayout title="Cash Flow">
@@ -307,9 +275,9 @@ export default function CashFlow() {
           ))}
           {isCustom && (
             <>
-              <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} className="h-8 text-sm w-36" />
+              <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="h-8 text-sm w-36" />
               <span className="text-gray-400 text-xs">to</span>
-              <Input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1); }} className="h-8 text-sm w-36" />
+              <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="h-8 text-sm w-36" />
             </>
           )}
           <Button size="sm" variant="outline" className="h-8 gap-1 text-xs ml-auto" onClick={() => refetch()} disabled={isLoading}>
@@ -347,48 +315,12 @@ export default function CashFlow() {
           </Card>
         </div>
 
-        {/* Category filter chips */}
-        {categories.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              onClick={() => { setCategoryFilter(""); setPage(1); }}
-              className={`text-xs rounded-full px-2.5 py-1 transition-colors ${
-                !categoryFilter ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              All
-            </button>
-            {cashInCats.map((c: any) => (
-              <button
-                key={c.id}
-                onClick={() => { setCategoryFilter(String(c.id)); setPage(1); }}
-                className={`text-xs rounded-full px-2.5 py-1 transition-colors ${
-                  categoryFilter === String(c.id) ? "bg-green-600 text-white" : "bg-green-50 text-green-700 hover:bg-green-100"
-                }`}
-              >
-                ↑ {c.name}
-              </button>
-            ))}
-            {cashOutCats.map((c: any) => (
-              <button
-                key={c.id}
-                onClick={() => { setCategoryFilter(String(c.id)); setPage(1); }}
-                className={`text-xs rounded-full px-2.5 py-1 transition-colors ${
-                  categoryFilter === String(c.id) ? "bg-red-600 text-white" : "bg-red-50 text-red-600 hover:bg-red-100"
-                }`}
-              >
-                ↓ {c.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Table */}
+        {/* Tally table */}
         <Card className="border-0 shadow-sm">
           <CardContent className="p-0">
             {isLoading ? (
               <div className="space-y-1 p-3">
-                {[...Array(6)].map((_, i) => <div key={i} className="h-9 bg-gray-100 rounded-lg animate-pulse" />)}
+                {[...Array(5)].map((_, i) => <div key={i} className="h-10 bg-gray-100 rounded-lg animate-pulse" />)}
               </div>
             ) : rows.length === 0 ? (
               <div className="text-center py-10">
@@ -399,113 +331,55 @@ export default function CashFlow() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-xs text-gray-400 border-b">
-                    <th className="text-left px-3 py-2 font-medium">Date</th>
-                    <th className="text-left px-3 py-2 font-medium">Description</th>
-                    <th className="text-left px-3 py-2 font-medium">Category</th>
-                    <th className="text-right px-3 py-2 font-medium">Amount</th>
-                    <th className="px-3 py-2 w-10"></th>
+                    <th className="text-left px-4 py-2.5 font-medium">Category</th>
+                    <th className="text-center px-3 py-2.5 font-medium w-20">Entries</th>
+                    <th className="text-right px-4 py-2.5 font-medium">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {rows.map((row: any) => {
-                    const isIn = row.category?.type === "cashin";
-                    const isOut = row.category?.type === "cashout";
+                  {rows.map((row: any, idx: number) => {
+                    const isIn = row.type === "cashin";
+                    const isOut = row.type === "cashout";
                     return (
-                      <tr key={row.id} className="hover:bg-gray-50/70">
-                        <td className="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">
-                          {row.createdAt ? format(new Date(row.createdAt), "MMM d, yyyy") : "—"}
+                      <tr key={row.categoryId ?? `none-${idx}`} className="hover:bg-gray-50/60">
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${
+                            isIn ? "text-green-700" : isOut ? "text-red-600" : "text-gray-600"
+                          }`}>
+                            {isIn && <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />}
+                            {isOut && <ArrowDownRight className="h-3.5 w-3.5 shrink-0" />}
+                            {row.categoryName}
+                          </span>
+                          {isIn && <span className="ml-2 text-[10px] text-green-500 bg-green-50 px-1.5 py-0.5 rounded-full font-medium">IN</span>}
+                          {isOut && <span className="ml-2 text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full font-medium">OUT</span>}
                         </td>
-                        <td className="px-3 py-2.5">
-                          <span className="font-medium text-gray-800">{row.description}</span>
-                          {row.cashflowNo && (
-                            <span className="ml-1.5 text-[10px] text-gray-400">{row.cashflowNo}</span>
-                          )}
-                          {row.bank && (
-                            <span className="ml-1.5 text-[10px] text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">
-                              🏦 {banks.find((b: any) => b.id === row.bank)?.name ?? `Bank #${row.bank}`}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {row.category ? (
-                            <span className={`inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full font-medium ${
-                              isIn ? "bg-green-100 text-green-700" : isOut ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-600"
-                            }`}>
-                              {isIn ? "↑" : isOut ? "↓" : ""} {row.category.name}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${
+                        <td className="px-3 py-3 text-center text-xs text-gray-400">{row.count}</td>
+                        <td className={`px-4 py-3 text-right font-bold text-base whitespace-nowrap ${
                           isIn ? "text-green-700" : isOut ? "text-red-600" : "text-gray-700"
                         }`}>
-                          {isIn ? "+" : isOut ? "−" : ""}{fmt(row.amount, currency)}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-300 hover:text-red-500 hover:bg-red-50">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Entry</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Delete "{row.description}"? This cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => deleteMutation.mutate(row.id)}
-                                  className="bg-red-600 hover:bg-red-700"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          {isIn ? "+" : isOut ? "−" : ""}{fmt(row.total, currency)}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t">
-                    <td colSpan={3} className="px-3 py-2 text-xs text-gray-400">{meta.total} entries</td>
-                    <td className="px-3 py-2 text-right">
+                  <tr className="border-t bg-gray-50/60">
+                    <td className="px-4 py-2.5 text-xs text-gray-400">{rows.length} {rows.length === 1 ? "category" : "categories"}</td>
+                    <td className="px-3 py-2.5 text-center text-xs text-gray-400">
+                      {rows.reduce((s: number, r: any) => s + (r.count ?? 0), 0)} total
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
                       <span className={`text-sm font-bold ${isPositive ? "text-green-700" : "text-red-600"}`}>
                         Net: {isPositive ? "+" : ""}{fmt(net, currency)}
                       </span>
                     </td>
-                    <td />
                   </tr>
                 </tfoot>
               </table>
             )}
           </CardContent>
         </Card>
-
-        {/* Pagination */}
-        {meta.totalPages > 1 && (
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-gray-400">
-              Page {meta.page} of {meta.totalPages} · {meta.total} entries
-            </p>
-            <div className="flex gap-1">
-              <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
-                disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
-                ← Prev
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
-                disabled={page >= meta.totalPages} onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}>
-                Next →
-              </Button>
-            </div>
-          </div>
-        )}
 
       </div>
     </DashboardLayout>
