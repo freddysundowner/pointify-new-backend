@@ -236,7 +236,7 @@ export default function StockSummary() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {stockData?.totalstock || 0}
+                {Number(stockData?.totalProducts) || 0}
               </div>
               <p className="text-xs text-muted-foreground">
                 Products in inventory
