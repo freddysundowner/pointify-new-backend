@@ -237,7 +237,7 @@ export default function ShopDetails() {
 
         {/* Sticky header */}
         <div className="sticky top-0 z-10 bg-white border-b">
-          <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+          <div className="px-6 py-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <Link href="/shops">
                 <Button variant="ghost" size="icon" className="shrink-0">
@@ -261,7 +261,7 @@ export default function ShopDetails() {
         </div>
 
         {/* Body */}
-        <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="px-6 py-8">
           <Tabs defaultValue="general">
             <TabsList className="mb-6 bg-white border shadow-sm w-full justify-start h-auto p-1 gap-1 rounded-lg">
               <TabsTrigger value="general" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
