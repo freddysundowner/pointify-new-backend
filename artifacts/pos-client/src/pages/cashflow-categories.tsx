@@ -76,17 +76,16 @@ export default function CashflowCategories() {
 
   // Fetch cashflow categories for management
   const { data: categories = [], isLoading, error } = useQuery({
-    queryKey: [ENDPOINTS.cashflow.categories, effectiveShopId],
+    queryKey: ["cashflow-categories-page", effectiveShopId],
     queryFn: async () => {
       const response = await apiRequest('GET', `${ENDPOINTS.cashflow.categories}?shopId=${effectiveShopId}`);
       const json = await response.json();
       return Array.isArray(json) ? json : (json?.data ?? []);
     },
+    select: (data: any) => Array.isArray(data) ? data : (data?.data ?? []),
     enabled: !!effectiveShopId,
-    staleTime: 1 * 60 * 1000, // 1 minute - shorter stale time for more frequent updates
-    gcTime: 5 * 60 * 1000, // 5 minutes - cache cleanup time
-    refetchOnWindowFocus: false, // Don't refetch on window focus
-    refetchOnMount: "always", // Always refetch on component mount for fresh data
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   // Create category mutation
