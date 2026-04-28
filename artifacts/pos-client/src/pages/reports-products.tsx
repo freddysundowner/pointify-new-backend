@@ -53,20 +53,27 @@ export default function ProductsReportPage() {
   const [from, setFrom] = useState(firstOfMonth);
   const [to, setTo] = useState(today);
   const [activeTab, setActiveTab] = useState("sales");
+  const [salesPage, setSalesPage] = useState(1);
+  const [stockPage, setStockPage] = useState(1);
+  const PAGE_SIZE = 50;
   const isCustom = quickDays === 0;
 
-  const buildParams = () => {
-    if (isCustom) return new URLSearchParams({ shopId: shopId || "", from, to });
-    const sinceDate = new Date(Date.now() - (quickDays - 1) * 86400000).toISOString().split("T")[0];
-    return new URLSearchParams({ shopId: shopId || "", from: sinceDate, to: today });
+  const buildParams = (page = 1) => {
+    const base = isCustom
+      ? { shopId: shopId || "", from, to }
+      : { shopId: shopId || "", from: new Date(Date.now() - (quickDays - 1) * 86400000).toISOString().split("T")[0], to: today };
+    return new URLSearchParams({ ...base, page: String(page), limit: String(PAGE_SIZE) });
   };
 
   const effectiveFrom = isCustom ? from : new Date(Date.now() - (quickDays - 1) * 86400000).toISOString().split("T")[0];
 
+  const handleApply = () => { setSalesPage(1); refetch(); };
+  const handleQuickDays = (days: number) => { setQuickDays(days); setSalesPage(1); };
+
   const { data: raw, isLoading: salesLoading, refetch } = useQuery<any>({
-    queryKey: ["products-report", shopId, from, to, quickDays],
+    queryKey: ["products-report", shopId, from, to, quickDays, salesPage],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/reports/sales/by-product/detail?${buildParams()}`);
+      const res = await apiRequest("GET", `/api/reports/sales/by-product/detail?${buildParams(salesPage)}`);
       const json = await res.json();
       return json?.data ?? json;
     },
@@ -85,9 +92,9 @@ export default function ProductsReportPage() {
   });
 
   const { data: stockValueData, isLoading: svLoading } = useQuery<any>({
-    queryKey: ["stock-value-report", shopId],
+    queryKey: ["stock-value-report", shopId, stockPage],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/reports/stock-value?shopId=${shopId}`);
+      const res = await apiRequest("GET", `/api/reports/stock-value?shopId=${shopId}&page=${stockPage}&limit=${PAGE_SIZE}`);
       const json = await res.json();
       return json?.data ?? json;
     },
@@ -108,8 +115,10 @@ export default function ProductsReportPage() {
 
   const rows: any[] = raw?.rows ?? [];
   const summary = raw?.summary ?? {};
+  const salesPagination = raw?.pagination ?? { page: 1, totalPages: 1, total: 0 };
   const inv = inventoryData ?? {};
   const stockRows: any[] = stockValueData?.rows ?? [];
+  const stockPagination = stockValueData?.pagination ?? { page: 1, totalPages: 1, total: 0 };
   const discSummary = discountData?.summary ?? {};
 
   const outOfStock = stockRows.filter(r => n(r.quantity) <= 0);
@@ -165,19 +174,19 @@ export default function ProductsReportPage() {
                   variant={quickDays === q.days ? "default" : "outline"}
                   size="sm"
                   className="h-8 text-sm"
-                  onClick={() => setQuickDays(q.days)}
+                  onClick={() => handleQuickDays(q.days)}
                 >
                   {q.label}
                 </Button>
               ))}
               {isCustom && (
                 <>
-                  <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="h-8 text-sm w-36" />
+                  <Input type="date" value={from} onChange={e => { setFrom(e.target.value); setSalesPage(1); }} className="h-8 text-sm w-36" />
                   <span className="text-gray-400 text-sm">to</span>
-                  <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="h-8 text-sm w-36" />
+                  <Input type="date" value={to} onChange={e => { setTo(e.target.value); setSalesPage(1); }} className="h-8 text-sm w-36" />
                 </>
               )}
-              <Button size="sm" onClick={() => refetch()} disabled={isLoading} className="h-8 gap-1 ml-auto bg-blue-600 hover:bg-blue-700">
+              <Button size="sm" onClick={handleApply} disabled={isLoading} className="h-8 gap-1 ml-auto bg-blue-600 hover:bg-blue-700">
                 <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
                 Apply
               </Button>
@@ -239,61 +248,91 @@ export default function ProductsReportPage() {
                         <p className="text-sm text-gray-400">No sales found in this period</p>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-xs text-gray-400 border-b">
-                              <th className="text-left pb-2 font-medium">#</th>
-                              <th className="text-left pb-2 font-medium">Product</th>
-                              <th className="text-right pb-2 font-medium">Units</th>
-                              <th className="text-right pb-2 font-medium">Revenue</th>
-                              <th className="text-right pb-2 font-medium">Profit</th>
-                              <th className="text-right pb-2 font-medium">Margin</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {rows.map((row, i) => {
-                              const profit = n(row.grossProfit);
-                              const margin = n(row.marginPercent);
-                              return (
-                                <tr key={row.productId ?? i} className="hover:bg-gray-50">
-                                  <td className="py-2.5 text-gray-400 text-xs">{i + 1}</td>
-                                  <td className="py-2.5">
-                                    <span className="font-medium text-gray-800">{row.productName ?? "—"}</span>
-                                    {row.productType && row.productType !== "product" && (
-                                      <span className="ml-1.5 text-xs text-gray-400 capitalize">{row.productType}</span>
-                                    )}
-                                  </td>
-                                  <td className="py-2.5 text-right text-gray-600">{qty(row.totalQty)}</td>
-                                  <td className="py-2.5 text-right font-medium text-gray-900">{fmt(row.totalRevenue)}</td>
-                                  <td className={`py-2.5 text-right font-semibold ${profit >= 0 ? "text-green-700" : "text-red-500"}`}>
-                                    {profit > 0 ? fmt(profit) : profit < 0 ? `-${fmt(Math.abs(profit))}` : "—"}
-                                  </td>
-                                  <td className="py-2.5 text-right">
-                                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-                                      margin >= 30 ? "bg-green-100 text-green-700"
-                                      : margin >= 10 ? "bg-amber-100 text-amber-700"
-                                      : "bg-red-100 text-red-600"
-                                    }`}>
-                                      {pct(margin)}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot>
-                            <tr className="border-t font-bold">
-                              <td colSpan={3} className="pt-2 text-gray-700">Total</td>
-                              <td className="pt-2 text-right text-blue-700">{fmt(summary.grandRevenue)}</td>
-                              <td className="pt-2 text-right text-green-700">{fmt(summary.grandProfit)}</td>
-                              <td className="pt-2 text-right">
-                                <span className="text-xs text-gray-500">{pct(summary.overallMarginPercent)}</span>
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
+                      <>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-xs text-gray-400 border-b">
+                                <th className="text-left pb-2 font-medium">#</th>
+                                <th className="text-left pb-2 font-medium">Product</th>
+                                <th className="text-right pb-2 font-medium">Units</th>
+                                <th className="text-right pb-2 font-medium">Revenue</th>
+                                <th className="text-right pb-2 font-medium">Profit</th>
+                                <th className="text-right pb-2 font-medium">Margin</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {rows.map((row, i) => {
+                                const profit = n(row.grossProfit);
+                                const margin = n(row.marginPercent);
+                                const globalIndex = (salesPagination.page - 1) * PAGE_SIZE + i + 1;
+                                return (
+                                  <tr key={row.productId ?? i} className="hover:bg-gray-50">
+                                    <td className="py-2.5 text-gray-400 text-xs">{globalIndex}</td>
+                                    <td className="py-2.5">
+                                      <span className="font-medium text-gray-800">{row.productName ?? "—"}</span>
+                                      {row.productType && row.productType !== "product" && (
+                                        <span className="ml-1.5 text-xs text-gray-400 capitalize">{row.productType}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2.5 text-right text-gray-600">{qty(row.totalQty)}</td>
+                                    <td className="py-2.5 text-right font-medium text-gray-900">{fmt(row.totalRevenue)}</td>
+                                    <td className={`py-2.5 text-right font-semibold ${profit >= 0 ? "text-green-700" : "text-red-500"}`}>
+                                      {profit > 0 ? fmt(profit) : profit < 0 ? `-${fmt(Math.abs(profit))}` : "—"}
+                                    </td>
+                                    <td className="py-2.5 text-right">
+                                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
+                                        margin >= 30 ? "bg-green-100 text-green-700"
+                                        : margin >= 10 ? "bg-amber-100 text-amber-700"
+                                        : "bg-red-100 text-red-600"
+                                      }`}>
+                                        {pct(margin)}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t font-bold">
+                                <td colSpan={3} className="pt-2 text-gray-700">Total ({salesPagination.total} products)</td>
+                                <td className="pt-2 text-right text-blue-700">{fmt(summary.grandRevenue)}</td>
+                                <td className="pt-2 text-right text-green-700">{fmt(summary.grandProfit)}</td>
+                                <td className="pt-2 text-right">
+                                  <span className="text-xs text-gray-500">{pct(summary.overallMarginPercent)}</span>
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                        {salesPagination.totalPages > 1 && (
+                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                            <p className="text-xs text-gray-400">
+                              Page {salesPagination.page} of {salesPagination.totalPages} &nbsp;·&nbsp; {salesPagination.total} products
+                            </p>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={salesPagination.page <= 1}
+                                onClick={() => setSalesPage(p => Math.max(1, p - 1))}
+                              >
+                                ← Prev
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={salesPagination.page >= salesPagination.totalPages}
+                                onClick={() => setSalesPage(p => Math.min(salesPagination.totalPages, p + 1))}
+                              >
+                                Next →
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </CardContent>
                 </Card>
@@ -454,41 +493,70 @@ export default function ProductsReportPage() {
                     {stockRows.length === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-6">No inventory data</p>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-xs text-gray-400 border-b">
-                              <th className="text-left pb-2 font-medium">Product</th>
-                              <th className="text-right pb-2 font-medium">Qty</th>
-                              <th className="text-right pb-2 font-medium">Buy Price</th>
-                              <th className="text-right pb-2 font-medium">Sell Price</th>
-                              <th className="text-right pb-2 font-medium">Cost Value</th>
-                              <th className="text-right pb-2 font-medium">Retail Value</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {stockRows.map((r: any) => (
-                              <tr key={r.productId} className="hover:bg-gray-50">
-                                <td className="py-2 font-medium text-gray-800">{r.productName ?? "—"}</td>
-                                <td className={`py-2 text-right font-semibold ${n(r.quantity) <= 0 ? "text-red-500" : n(r.quantity) <= 10 ? "text-amber-600" : "text-gray-700"}`}>
-                                  {qty(r.quantity)}
-                                </td>
-                                <td className="py-2 text-right text-gray-500">{fmt(r.buyingPrice)}</td>
-                                <td className="py-2 text-right text-gray-500">{fmt(r.sellingPrice)}</td>
-                                <td className="py-2 text-right text-gray-700">{fmt(r.stockValueAtCost)}</td>
-                                <td className="py-2 text-right font-medium text-gray-900">{fmt(r.stockValueAtSale)}</td>
+                      <>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-xs text-gray-400 border-b">
+                                <th className="text-left pb-2 font-medium">Product</th>
+                                <th className="text-right pb-2 font-medium">Qty</th>
+                                <th className="text-right pb-2 font-medium">Buy Price</th>
+                                <th className="text-right pb-2 font-medium">Sell Price</th>
+                                <th className="text-right pb-2 font-medium">Cost Value</th>
+                                <th className="text-right pb-2 font-medium">Retail Value</th>
                               </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr className="border-t font-bold">
-                              <td colSpan={4} className="pt-2 text-gray-700">Total</td>
-                              <td className="pt-2 text-right text-purple-700">{fmt(stockValueData?.summary?.totalAtCost)}</td>
-                              <td className="pt-2 text-right text-indigo-700">{fmt(stockValueData?.summary?.totalAtSale)}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {stockRows.map((r: any) => (
+                                <tr key={r.productId} className="hover:bg-gray-50">
+                                  <td className="py-2 font-medium text-gray-800">{r.productName ?? "—"}</td>
+                                  <td className={`py-2 text-right font-semibold ${n(r.quantity) <= 0 ? "text-red-500" : n(r.quantity) <= 10 ? "text-amber-600" : "text-gray-700"}`}>
+                                    {qty(r.quantity)}
+                                  </td>
+                                  <td className="py-2 text-right text-gray-500">{fmt(r.buyingPrice)}</td>
+                                  <td className="py-2 text-right text-gray-500">{fmt(r.sellingPrice)}</td>
+                                  <td className="py-2 text-right text-gray-700">{fmt(r.stockValueAtCost)}</td>
+                                  <td className="py-2 text-right font-medium text-gray-900">{fmt(r.stockValueAtSale)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t font-bold">
+                                <td colSpan={4} className="pt-2 text-gray-700">Total ({stockPagination.total} products)</td>
+                                <td className="pt-2 text-right text-purple-700">{fmt(stockValueData?.summary?.totalAtCost)}</td>
+                                <td className="pt-2 text-right text-indigo-700">{fmt(stockValueData?.summary?.totalAtSale)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                        {stockPagination.totalPages > 1 && (
+                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                            <p className="text-xs text-gray-400">
+                              Page {stockPagination.page} of {stockPagination.totalPages} &nbsp;·&nbsp; {stockPagination.total} products
+                            </p>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={stockPagination.page <= 1}
+                                onClick={() => setStockPage(p => Math.max(1, p - 1))}
+                              >
+                                ← Prev
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={stockPagination.page >= stockPagination.totalPages}
+                                onClick={() => setStockPage(p => Math.min(stockPagination.totalPages, p + 1))}
+                              >
+                                Next →
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </CardContent>
                 </Card>

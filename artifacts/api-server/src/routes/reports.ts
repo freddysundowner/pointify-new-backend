@@ -292,7 +292,19 @@ router.get("/discounted-sales", requireAdmin, async (req, res, next) => {
 router.get("/stock-value", requireAdmin, async (req, res, next) => {
   try {
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const page = req.query["page"] ? Math.max(1, Number(req.query["page"])) : 1;
+    const limit = req.query["limit"] ? Math.min(200, Math.max(1, Number(req.query["limit"]))) : 50;
+    const offset = (page - 1) * limit;
     const where = shopId ? eq(inventory.shop, shopId) : undefined;
+
+    const [globalTotals] = await db.select({
+      totalAtCost: sql<string>`COALESCE(SUM(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric), 0)`,
+      totalAtSale: sql<string>`COALESCE(SUM(${inventory.quantity}::numeric * ${products.sellingPrice}::numeric), 0)`,
+      productCount: sql<number>`COUNT(*)`,
+    })
+    .from(inventory)
+    .leftJoin(products, eq(inventory.product, products.id))
+    .where(where);
 
     const rows = await db.select({
       productId: inventory.product,
@@ -306,12 +318,22 @@ router.get("/stock-value", requireAdmin, async (req, res, next) => {
     .from(inventory)
     .leftJoin(products, eq(inventory.product, products.id))
     .where(where)
-    .orderBy(sql`COALESCE(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric, 0) DESC`);
+    .orderBy(sql`COALESCE(${inventory.quantity}::numeric * ${products.buyingPrice}::numeric, 0) DESC`)
+    .limit(limit)
+    .offset(offset);
 
-    const totalAtCost = rows.reduce((s, r) => s + parseFloat(r.stockValueAtCost ?? "0"), 0);
-    const totalAtSale = rows.reduce((s, r) => s + parseFloat(r.stockValueAtSale ?? "0"), 0);
+    const total = Number(globalTotals?.productCount ?? 0);
+    const totalPages = Math.ceil(total / limit);
 
-    return ok(res, { rows, summary: { totalAtCost, totalAtSale, productCount: rows.length } });
+    return ok(res, {
+      rows,
+      summary: {
+        totalAtCost: parseFloat(globalTotals?.totalAtCost ?? "0"),
+        totalAtSale: parseFloat(globalTotals?.totalAtSale ?? "0"),
+        productCount: total,
+      },
+      pagination: { page, limit, total, totalPages },
+    });
   } catch (e) { next(e); }
 });
 
@@ -686,11 +708,24 @@ router.get("/sales/by-product/detail", requireAdmin, async (req, res, next) => {
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
     const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+    const page = req.query["page"] ? Math.max(1, Number(req.query["page"])) : 1;
+    const limit = req.query["limit"] ? Math.min(200, Math.max(1, Number(req.query["limit"]))) : 50;
+    const offset = (page - 1) * limit;
 
     const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
     if (shopId) conditions.push(eq(saleItems.shop, shopId));
     if (from) conditions.push(gte(sales.createdAt, from));
     if (to) { const eod = new Date(to); eod.setUTCHours(23, 59, 59, 999); conditions.push(lte(sales.createdAt, eod)); }
+
+    const [globalTotals] = await db.select({
+      grandRevenue: sql<string>`COALESCE(SUM(${saleItems.unitPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
+      grandCost: sql<string>`COALESCE(SUM(${saleItems.costPrice}::numeric * ${saleItems.quantity}::numeric), 0)`,
+      grandProfit: sql<string>`COALESCE(SUM((${saleItems.unitPrice}::numeric - ${saleItems.costPrice}::numeric) * ${saleItems.quantity}::numeric), 0)`,
+      productCount: sql<number>`COUNT(DISTINCT ${saleItems.product})`,
+    })
+    .from(saleItems)
+    .innerJoin(sales, eq(saleItems.sale, sales.id))
+    .where(and(...conditions));
 
     const rows = await db.select({
       productId: saleItems.product,
@@ -709,7 +744,8 @@ router.get("/sales/by-product/detail", requireAdmin, async (req, res, next) => {
     .where(and(...conditions))
     .groupBy(saleItems.product, products.name, products.type, products.category)
     .orderBy(sql`COALESCE(SUM(${saleItems.unitPrice}::numeric * ${saleItems.quantity}::numeric), 0) DESC`)
-    .limit(200);
+    .limit(limit)
+    .offset(offset);
 
     const enriched = rows.map((r) => {
       const revenue = parseFloat(r.totalRevenue);
@@ -718,9 +754,11 @@ router.get("/sales/by-product/detail", requireAdmin, async (req, res, next) => {
       return { ...r, marginPercent: margin.toFixed(2) };
     });
 
-    const grandRevenue = enriched.reduce((s, r) => s + parseFloat(r.totalRevenue), 0);
-    const grandCost = enriched.reduce((s, r) => s + parseFloat(r.totalCost), 0);
-    const grandProfit = enriched.reduce((s, r) => s + parseFloat(r.grossProfit), 0);
+    const grandRevenue = parseFloat(globalTotals?.grandRevenue ?? "0");
+    const grandCost = parseFloat(globalTotals?.grandCost ?? "0");
+    const grandProfit = parseFloat(globalTotals?.grandProfit ?? "0");
+    const total = Number(globalTotals?.productCount ?? 0);
+    const totalPages = Math.ceil(total / limit);
 
     return ok(res, {
       rows: enriched,
@@ -729,8 +767,9 @@ router.get("/sales/by-product/detail", requireAdmin, async (req, res, next) => {
         grandCost: grandCost.toFixed(2),
         grandProfit: grandProfit.toFixed(2),
         overallMarginPercent: grandRevenue > 0 ? ((grandProfit / grandRevenue) * 100).toFixed(2) : "0.00",
-        productCount: rows.length,
+        productCount: total,
       },
+      pagination: { page, limit, total, totalPages },
     });
   } catch (e) { next(e); }
 });
