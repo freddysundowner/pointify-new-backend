@@ -274,9 +274,10 @@ export default function Expenses() {
     },
   });
 
-  const getCategoryName = (categoryId: string) => {
-    const category = categories.find((cat: ExpenseCategory) => cat._id === categoryId);
-    return category?.name || categoryId;
+  const getCategoryName = (categoryId: string | number) => {
+    const id = String(categoryId);
+    const category = categories.find((cat: ExpenseCategory) => String(cat._id) === id || String((cat as any).id) === id);
+    return category?.name || '—';
   };
 
   // Since API now handles filtering, we just use the returned data directly
@@ -417,7 +418,7 @@ export default function Expenses() {
     }
   };
 
-  const totalAmount = sortedExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const totalAmount = sortedExpenses.reduce((sum, expense) => sum + parseFloat(String(expense.amount ?? 0)), 0);
 
   return (
     <DashboardLayout title="Expenses">
@@ -621,14 +622,14 @@ export default function Expenses() {
             <CardContent className="p-3">
               <p className="text-xs text-red-500 font-medium">Total Spent</p>
               <p className="text-xl font-bold text-red-700 leading-tight">
-                {currency} {(expenseStats?.summary?.totalAmount || 0).toLocaleString()}
+                {currency} {parseFloat(expenseStats?.data?.totalAmount || '0').toLocaleString()}
               </p>
             </CardContent>
           </Card>
           <Card className="border-0 shadow-sm bg-gray-50">
             <CardContent className="p-3">
               <p className="text-xs text-gray-400 font-medium">Expenses</p>
-              <p className="text-xl font-bold text-gray-700 leading-tight">{expenseStats?.summary?.totalCount || 0}</p>
+              <p className="text-xl font-bold text-gray-700 leading-tight">{expenseStats?.data?.totalExpenses ?? sortedExpenses.length}</p>
             </CardContent>
           </Card>
           <Card className="border-0 shadow-sm bg-blue-50">
@@ -739,13 +740,19 @@ export default function Expenses() {
                         )}
                       </td>
                       <td className="px-3 py-2.5 text-xs text-gray-500">
-                        {typeof expense.category === 'string' ? getCategoryName(expense.category) : expense.category?.name || '—'}
+                        {expense.category && typeof expense.category === 'object'
+                          ? expense.category?.name || '—'
+                          : expense.category
+                            ? getCategoryName(expense.category as any)
+                            : '—'}
                       </td>
                       <td className="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">
-                        {expense.createAt ? format(new Date(expense.createAt), 'MMM d, yyyy') : '—'}
+                        {(expense.createdAt || expense.createAt)
+                          ? format(new Date((expense.createdAt || expense.createAt) as string), 'MMM d, yyyy')
+                          : '—'}
                       </td>
                       <td className="px-3 py-2.5 text-right font-semibold text-red-600 whitespace-nowrap">
-                        {currency} {expense.amount.toLocaleString()}
+                        {currency} {parseFloat(String(expense.amount ?? 0)).toLocaleString()}
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-0.5 justify-end">
