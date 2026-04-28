@@ -66,7 +66,7 @@ export default function StockProducts() {
   const [productType, setProductType] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [stockFilter, setStockFilter] = useState<
-    "all" | "outofstock" | "lowstock"
+    "all" | "outofstock" | "lowstock" | "highstock" | "expiring"
   >("all");
   const { currency, shop } = useShop();
   const { admin } = useAuth();
@@ -156,7 +156,10 @@ export default function StockProducts() {
         limit: itemsPerPage.toString(),
         search: debouncedSearch,
         shopId: effectiveShopId || "",
-        ...(stockFilter !== "all" ? { stockStatus: stockFilter } : {}),
+        ...(stockFilter === "outofstock" ? { stockStatus: "outofstock" } : {}),
+        ...(stockFilter === "lowstock" ? { stockStatus: "lowstock" } : {}),
+        ...(stockFilter === "expiring" ? { stockStatus: "expiring", sort: "expiring" } : {}),
+        ...(stockFilter === "highstock" ? { sort: "qty_desc" } : {}),
         ...(selectedCategory !== "all" ? { categoryId: selectedCategory } : {}),
       });
 
@@ -578,7 +581,7 @@ export default function StockProducts() {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={stockFilter} onValueChange={(value: "all" | "outofstock" | "lowstock") => setStockFilter(value)}>
+              <Select value={stockFilter} onValueChange={(value: "all" | "outofstock" | "lowstock" | "highstock" | "expiring") => setStockFilter(value)}>
                 <SelectTrigger className="h-8 text-xs w-full sm:w-36">
                   <SelectValue placeholder="All Stock" />
                 </SelectTrigger>
@@ -586,6 +589,8 @@ export default function StockProducts() {
                   <SelectItem value="all">All Stock</SelectItem>
                   <SelectItem value="outofstock">Out of Stock</SelectItem>
                   <SelectItem value="lowstock">Running Low</SelectItem>
+                  <SelectItem value="highstock">Highest Stock</SelectItem>
+                  <SelectItem value="expiring">Expiring</SelectItem>
                 </SelectContent>
               </Select>
             </div>

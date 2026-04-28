@@ -98,6 +98,7 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     const requestedShopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const categoryId = req.query["categoryId"] ? Number(req.query["categoryId"]) : null;
     const stockStatus = String(req.query["stockStatus"] ?? "").trim();
+    const sort = String(req.query["sort"] ?? "name").trim();
 
     const allowedShops = await resolveShopFilter(req, requestedShopId);
 
@@ -130,15 +131,24 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
         AND inv.reorder_level::numeric > 0
         AND inv.quantity::numeric <= inv.reorder_level::numeric
       )`);
+    } else if (stockStatus === "expiring") {
+      conditions.push(sql`${products.expiryDate} IS NOT NULL`);
     }
 
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    // Build order-by: qty_desc uses a subquery into inventory
+    const orderByClause = sort === "qty_desc"
+      ? sql`(SELECT COALESCE(inv.quantity::numeric, 0) FROM inventory inv WHERE inv.product_id = ${products.id} AND inv.shop_id = ${products.shop} LIMIT 1) DESC NULLS LAST`
+      : sort === "expiring"
+        ? sql`${products.expiryDate} ASC NULLS LAST`
+        : sql`${products.name} ASC`;
 
     const rows = await db.query.products.findMany({
       where,
       limit,
       offset,
-      orderBy: (p, { asc }) => [asc(p.name)],
+      orderBy: () => [orderByClause],
       with: { category: true },
     });
     const total = await db.$count(products, where);
