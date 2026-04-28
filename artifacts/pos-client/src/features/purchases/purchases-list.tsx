@@ -228,7 +228,7 @@ export default function PurchasesList() {
     ],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (shopId) params.append("shopid", shopId);
+      if (shopId) params.append("shopId", shopId);
       if (startDate) params.append("fromDate", startDate);
       if (endDate) params.append("toDate", endDate);
 

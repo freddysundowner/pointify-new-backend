@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { extractId } from '@/lib/utils';
+import { useSelector } from 'react-redux';
+import type { RootState } from '@/store';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { useGoBack } from "@/hooks/useGoBack";
@@ -89,10 +91,11 @@ export default function SupplierHistoryPage() {
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
   const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = useState(false);
   
-  // Get admin data for shop context
+  // Get shop ID from Redux (respects shop switching) with localStorage fallback
+  const { selectedShopId, selectedShopData } = useSelector((state: RootState) => state.shop);
   const adminData = JSON.parse(localStorage.getItem('adminData') || '{}');
-  const shopId = extractId(adminData?.primaryShop);
-  const shopCurrency = adminData?.primaryShop?.currency || 'KES';
+  const shopId = selectedShopId || String(extractId(adminData?.primaryShop) ?? '');
+  const shopCurrency = selectedShopData?.currency || adminData?.primaryShop?.currency || 'KES';
 
   // Fetch purchase analytics for summary cards
   const { data: analyticsData } = useQuery({
@@ -101,7 +104,7 @@ export default function SupplierHistoryPage() {
       if (!supplierId || !shopId) return null;
       
       const params = new URLSearchParams();
-      params.append('shopid', shopId);
+      params.append('shopId', shopId);
       params.append('supplierId', supplierId);
       // Always include date parameters, use current date if not set
       const fromDate = dateFrom || new Date().toISOString().split('T')[0];
@@ -846,13 +849,13 @@ export default function SupplierHistoryPage() {
                     <div>
                       <p className="text-sm text-muted-foreground">Total Amount</p>
                       <p className="text-lg font-bold">
-                        {selectedPurchase.shopId?.currency || shopCurrency} {selectedPurchase.totalAmount?.toFixed(2)}
+                        {selectedPurchase.shopId?.currency || shopCurrency} {parseFloat(String(selectedPurchase.totalAmount || 0)).toFixed(2)}
                       </p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Outstanding Balance</p>
                       <p className="text-lg font-bold text-red-600">
-                        {selectedPurchase.shopId?.currency || shopCurrency} {((selectedPurchase.totalAmount || 0) - (selectedPurchase.amountPaid || 0)).toFixed(2)}
+                        {selectedPurchase.shopId?.currency || shopCurrency} {(parseFloat(String(selectedPurchase.totalAmount || 0)) - parseFloat(String(selectedPurchase.amountPaid || 0))).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -872,10 +875,10 @@ export default function SupplierHistoryPage() {
                           <TableCell className="font-medium">{payment.paymentNo}</TableCell>
                           <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
                           <TableCell>
-                            {selectedPurchase.shopId?.currency || shopCurrency} {payment.amount.toFixed(2)}
+                            {selectedPurchase.shopId?.currency || shopCurrency} {parseFloat(String(payment.amount || 0)).toFixed(2)}
                           </TableCell>
                           <TableCell>
-                            {selectedPurchase.shopId?.currency || shopCurrency} {payment.balance?.toFixed(2)}
+                            {selectedPurchase.shopId?.currency || shopCurrency} {parseFloat(String(payment.balance || 0)).toFixed(2)}
                           </TableCell>
                         </TableRow>
                       ))}

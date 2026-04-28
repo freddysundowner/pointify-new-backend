@@ -101,7 +101,7 @@ export default function BusinessDashboard() {
         date: "",
         limit: "100",
         name: "",
-        shopid: effectiveShopId || "",
+        shopId: effectiveShopId || "",
         type: "",
         sort: "name",
         productid: "",

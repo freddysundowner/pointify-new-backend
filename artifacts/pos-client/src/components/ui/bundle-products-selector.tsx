@@ -56,7 +56,7 @@ export default function BundleProductsSelector({
       const params = new URLSearchParams({
         page: "1",
         limit: "50",
-        shopid: shopId,
+        shopId: shopId,
         sort: "name",
         useWarehouse: "true",
         warehouse: "false",

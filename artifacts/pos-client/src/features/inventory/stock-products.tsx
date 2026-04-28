@@ -294,7 +294,7 @@ export default function StockProducts() {
   const downloadStockData = async (type: 'outofstock' | 'lowstock') => {
     try {
       const token = localStorage.getItem("authToken");
-      const url = `${ENDPOINTS.analytics.stockPdfFile}?shopid=${effectiveShopId}`;
+      const url = `${ENDPOINTS.analytics.stockPdfFile}?shopId=${effectiveShopId}`;
       
       console.log("Downloading stock data for:", type);
       console.log("Download URL:", url);

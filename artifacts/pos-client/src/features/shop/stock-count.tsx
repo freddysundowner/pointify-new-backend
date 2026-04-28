@@ -51,7 +51,7 @@ export default function StockCount() {
         page: currentPage.toString(),
         limit: itemsPerPage.toString(),
         name: searchQuery,
-        shopid: shopId,
+        shopId: shopId,
         type: "all",
         reason: "",
         date: "",
