@@ -189,6 +189,18 @@ export default function StockProducts() {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch product categories for filter
+  const { data: categoriesData } = useQuery({
+    queryKey: [ENDPOINTS.products.getCategories, effectiveShopId],
+    queryFn: async () => {
+      const response = await apiCall(ENDPOINTS.products.getCategories, { method: "GET" });
+      return response.json();
+    },
+    enabled: !!effectiveShopId,
+    staleTime: 60_000,
+  });
+  const categories: any[] = categoriesData?.data ?? categoriesData ?? [];
+
   // Fetch stock analysis data
   const { data: stockAnalysis, error: stockAnalysisError } = useQuery({
     queryKey: [ENDPOINTS.analytics.stockAnalysis, effectiveShopId],
@@ -553,12 +565,25 @@ export default function StockProducts() {
                   className="pl-8 h-8 text-xs"
                 />
               </div>
-              <Select value={stockFilter} onValueChange={(value: "all" | "outofstock" | "lowstock") => setStockFilter(value)}>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger className="h-8 text-xs w-full sm:w-36">
-                  <SelectValue placeholder="All Products" />
+                  <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Products</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((cat: any) => (
+                    <SelectItem key={cat.id ?? cat._id} value={String(cat.id ?? cat._id)}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={stockFilter} onValueChange={(value: "all" | "outofstock" | "lowstock") => setStockFilter(value)}>
+                <SelectTrigger className="h-8 text-xs w-full sm:w-36">
+                  <SelectValue placeholder="All Stock" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Stock</SelectItem>
                   <SelectItem value="outofstock">Out of Stock</SelectItem>
                   <SelectItem value="lowstock">Running Low</SelectItem>
                 </SelectContent>
