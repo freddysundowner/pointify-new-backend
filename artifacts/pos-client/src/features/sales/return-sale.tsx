@@ -120,6 +120,8 @@ export default function ReturnSale() {
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: [ENDPOINTS.sales.getAll] });
         queryClient.invalidateQueries({ queryKey: ["sale-detail", saleId] });
+        queryClient.invalidateQueries({ queryKey: [ENDPOINTS.analytics.netProfit] });
+        queryClient.invalidateQueries({ queryKey: [ENDPOINTS.analytics.profitLoss] });
         setAlertConfig({ title: "Return Successful", description: "The return has been processed successfully.", type: "success" });
         setShowAlert(true);
       } else {

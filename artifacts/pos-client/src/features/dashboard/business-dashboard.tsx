@@ -139,6 +139,8 @@ export default function BusinessDashboard() {
       return json?.data ?? json;
     },
     enabled: !!effectiveShopId,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   // Fetch recent sales data for homepage - limited to 20 records
@@ -163,7 +165,8 @@ export default function BusinessDashboard() {
       return response.json();
     },
     enabled: !!adminId && !!effectiveShopId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
 
@@ -217,8 +220,9 @@ export default function BusinessDashboard() {
       return data;
     },
     enabled: !!adminId && (location === '/business-dashboard' || location === '/dashboard'),
-    staleTime: 0, // 5 minutes
-    refetchInterval: false, // Disable auto-refetch
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: false,
   });
 
 
