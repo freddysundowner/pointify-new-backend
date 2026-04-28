@@ -215,7 +215,7 @@ export default function ProductsReportPage() {
   const slowPagination = slowData?.pagination ?? { page: 1, totalPages: 1, total: 0 };
 
   const outOfStock = stockRows.filter(r => n(r.quantity) <= 0);
-  const lowStock = stockRows.filter(r => n(r.quantity) > 0 && n(r.quantity) <= 10).sort((a, b) => n(a.quantity) - n(b.quantity));
+  const lowStock = stockRows.filter(r => n(r.reorderLevel) > 0 && n(r.quantity) > 0 && n(r.quantity) <= n(r.reorderLevel)).sort((a, b) => n(a.quantity) - n(b.quantity));
   const belowReorder = stockRows.filter(r => n(r.reorderLevel) > 0 && n(r.quantity) > 0 && n(r.quantity) < n(r.reorderLevel));
 
   const isLoading = salesLoading;
@@ -634,7 +634,7 @@ export default function ProductsReportPage() {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide flex items-center gap-1">
-                          <AlertTriangle className="h-3.5 w-3.5" /> Low Stock — under 10 units ({lowStock.length})
+                          <AlertTriangle className="h-3.5 w-3.5" /> Low Stock — at or below reorder level ({lowStock.length})
                         </p>
                         <Button
                           size="sm" variant="outline"
@@ -808,7 +808,7 @@ export default function ProductsReportPage() {
                               {stockRows.map((r: any) => (
                                 <tr key={r.productId} className="hover:bg-gray-50">
                                   <td className="py-2 font-medium text-gray-800">{r.productName ?? "—"}</td>
-                                  <td className={`py-2 text-right font-semibold ${n(r.quantity) <= 0 ? "text-red-500" : n(r.quantity) <= 10 ? "text-amber-600" : "text-gray-700"}`}>
+                                  <td className={`py-2 text-right font-semibold ${n(r.quantity) <= 0 ? "text-red-500" : (n(r.reorderLevel) > 0 && n(r.quantity) <= n(r.reorderLevel)) ? "text-amber-600" : "text-gray-700"}`}>
                                     {qty(r.quantity)}
                                   </td>
                                   <td className="py-2 text-right text-gray-400 text-xs">{n(r.reorderLevel) > 0 ? qty(r.reorderLevel) : "—"}</td>
