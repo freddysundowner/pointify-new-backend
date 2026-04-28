@@ -268,220 +268,131 @@ function ReturnsList() {
 
   return (
     <DashboardLayout title="Sales Returns">
-      <div className="p-4">
+      <div className="p-3 space-y-3">
         <div className="w-full">
-          <div className="mb-6 flex justify-between items-start">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Sales Returns
-              </h1>
-              <div className="text-gray-600 dark:text-gray-400 mt-1">
-                <p>Shop One - Logged in as: {(admin?.attendantId as any)?.username || user?.name} ({user?.role})</p>
-                <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                  {!startDate && !endDate ? 
-                    `Showing today's returns (${new Date().toLocaleDateString()})` : 
-                    startDate === endDate ? 
-                      `Showing returns for ${new Date(startDate).toLocaleDateString()}` :
-                      `Showing returns from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`
-                  }
-                </p>
-              </div>
+
+          {/* Header */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <RotateCcw className="h-4 w-4 text-gray-500" />
+              <h1 className="text-base font-bold text-gray-900 dark:text-white">Sales Returns</h1>
+              <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
+                {!startDate && !endDate
+                  ? `Today`
+                  : startDate === endDate
+                  ? new Date(startDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                  : `${new Date(startDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${new Date(endDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                }
+              </span>
             </div>
-            
-            {/* Action Buttons - Permission Controlled */}
-            <div className="flex gap-2">
-              <PermissionGuard permission="returns_create">
-                <Button className="flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  New Return
-                </Button>
-              </PermissionGuard>
-            </div>
+            <PermissionGuard permission="returns_create">
+              <Button size="sm" className="h-8 gap-1 text-xs">
+                <Plus className="h-3.5 w-3.5" /> New Return
+              </Button>
+            </PermissionGuard>
           </div>
 
-          {/* Filters Section */}
-          <Card className="mb-4">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Filter className="h-4 w-4" />
-                <span className="font-medium">Filters</span>
-              </div>
-              
-              <div className="space-y-4">
+          {/* Compact Filters */}
+          <Card className="mb-3">
+            <CardContent className="p-3">
+              <div className="flex flex-col sm:flex-row gap-2">
+                {/* Attendant */}
+                <Select value={attendantFilter} onValueChange={handleAttendantFilter}>
+                  <SelectTrigger className="h-8 text-xs w-full sm:w-40">
+                    <SelectValue placeholder="All Attendants" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Attendants</SelectItem>
+                    {uniqueAttendants.map((attendant: any) => (
+                      <SelectItem key={attendant._id} value={attendant._id}>
+                        {attendant.username}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-                {/* Attendant Filter */}
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">Filter by Attendant</Label>
-                  <Select value={attendantFilter} onValueChange={handleAttendantFilter}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Select attendant..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Attendants</SelectItem>
-                      {uniqueAttendants.map((attendant: any) => (
-                        <SelectItem key={attendant._id} value={attendant._id}>
-                          {attendant.username}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {attendantFilter !== 'all' && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Filtering by: {uniqueAttendants.find((a: any) => a._id === attendantFilter)?.username}
-                    </p>
-                  )}
+                {/* Date pickers */}
+                <div className="flex items-center gap-1 flex-1">
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-8 text-xs flex-1"
+                  />
+                  <span className="text-xs text-gray-400 shrink-0">–</span>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="h-8 text-xs flex-1"
+                  />
                 </div>
 
-                {/* Date Range */}
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">Date Range</Label>
-                  <div className="flex flex-col lg:flex-row gap-4">
-                    {/* Date Inputs */}
-                    <div className="flex flex-col sm:flex-row gap-3 flex-1">
-                      <div className="flex-1">
-                        <Label htmlFor="start-date" className="text-xs text-muted-foreground mb-1 block">
-                          From Date
-                        </Label>
-                        <Input
-                          id="start-date"
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
-                          className="h-9"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <Label htmlFor="end-date" className="text-xs text-muted-foreground mb-1 block">
-                          To Date
-                        </Label>
-                        <Input
-                          id="end-date"
-                          type="date"
-                          value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
-                          className="h-9"
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Quick Date Filters */}
-                    <div className="flex flex-wrap gap-2 lg:w-auto">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDateRange(7)}
-                        className="h-9"
-                      >
-                        Last 7 Days
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDateRange(30)}
-                        className="h-9"
-                      >
-                        Last 30 Days
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDateRange(90)}
-                        className="h-9"
-                      >
-                        Last 90 Days
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={clearDateFilters}
-                        disabled={!startDate && !endDate}
-                        className="flex items-center gap-1 h-9"
-                      >
-                        <Calendar className="h-3 w-3" />
-                        Clear Dates
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  {(startDate || endDate) && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Showing {transformedReturns.length} results from {startDate || "beginning"} to {endDate || "now"}
-                    </p>
-                  )}
+                {/* Quick range buttons */}
+                <div className="flex items-center gap-1 flex-wrap">
+                  {[{ label: "7d", days: 7 }, { label: "30d", days: 30 }, { label: "90d", days: 90 }].map(({ label, days }) => (
+                    <Button key={days} variant="outline" size="sm" className="h-8 px-2 text-xs" onClick={() => setDateRange(days)}>
+                      {label}
+                    </Button>
+                  ))}
+                  <Button
+                    variant="ghost" size="sm"
+                    className="h-8 px-2 text-xs text-gray-400"
+                    onClick={clearDateFilters}
+                    disabled={!startDate && !endDate}
+                  >
+                    <Calendar className="h-3 w-3" />
+                  </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Summary Stats */}
-          <div className="space-y-4 mb-4">
-            {/* Date Range Header */}
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold">Summary Stats</h2>
-              <span className="text-sm text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded">
-                {!startDate && !endDate ? 
-                  `Today (${new Date().toLocaleDateString()})` : 
-                  startDate === endDate ? 
-                    `${new Date(startDate).toLocaleDateString()}` :
-                    `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`
-                }
-              </span>
-            </div>
-            
-            {/* Summary Metrics - Only Total Returns and Returns Count */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Returns</p>
-                    <p className="text-2xl font-bold">{primaryShopCurrency} {totalReturnsAmount.toFixed(2)}</p>
-                  </div>
-                  <DollarSign className="h-5 w-5 text-muted-foreground" />
+          {/* Summary Stats — compact inline bar */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Total Returns</p>
+                  <p className="text-lg font-bold">{primaryShopCurrency} {totalReturnsAmount.toFixed(2)}</p>
                 </div>
-              </Card>
-
-              <Card className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Returns Count</p>
-                    <p className="text-2xl font-bold">{totalCount}</p>
-                  </div>
-                  <TrendingUp className="h-5 w-5 text-muted-foreground" />
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Returns Count</p>
+                  <p className="text-lg font-bold">{totalCount}</p>
                 </div>
-              </Card>
-            </div>
-
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
           </div>
 
           {/* Returns History Table */}
           <Card className="flex-1">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <CardTitle className="text-lg">
-                  Returns History 
+            <CardHeader className="py-2 px-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold">
+                  Returns History
                   {statusFilter !== "all" && (
-                    <Badge variant="secondary" className="ml-2 text-xs">
-                      {statusFilter}
-                    </Badge>
+                    <Badge variant="secondary" className="ml-2 text-xs">{statusFilter}</Badge>
                   )}
                 </CardTitle>
-                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">
-                      Show:
-                    </Label>
-                    <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
-                      <SelectTrigger className="w-16 h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">Show:</span>
+                  <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                    <SelectTrigger className="w-14 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardHeader>
@@ -504,47 +415,43 @@ function ReturnsList() {
                   {/* Desktop Table */}
                   <div className="hidden lg:block">
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b bg-muted/50">
-                            <th className="text-left p-4 font-medium">Receipt #</th>
-                            <th className="text-left p-4 font-medium">Customer</th>
-                            <th className="text-left p-4 font-medium">Amount</th>
-                            <th className="text-left p-4 font-medium">Date</th>
-                            <th className="text-left p-4 font-medium">Attendant</th>
-                            <th className="text-left p-4 font-medium">Status</th>
-                            <th className="text-left p-4 font-medium">Actions</th>
+                            <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Receipt #</th>
+                            <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Customer</th>
+                            <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Amount</th>
+                            <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Date</th>
+                            <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Attendant</th>
+                            <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Status</th>
+                            <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
                           {transformedReturns.map((returnItem: any) => (
                             <tr key={returnItem.id} className="border-b hover:bg-muted/50">
-                              <td className="p-4">
-                                <div className="font-medium">{returnItem.receiptNo}</div>
+                              <td className="px-3 py-2">
+                                <div className="font-medium text-xs">{returnItem.receiptNo}</div>
                               </td>
-                              <td className="p-4">{returnItem.customerName}</td>
-                              <td className="p-4">
-                                <div className="font-medium">
+                              <td className="px-3 py-2 text-xs">{returnItem.customerName}</td>
+                              <td className="px-3 py-2">
+                                <div className="font-medium text-xs">
                                   {getReturnCurrency(returnItem)} {parseFloat(returnItem.totalAmount).toFixed(2)}
                                 </div>
                               </td>
-                              <td className="p-4">
-                                <div className="text-sm">
-                                  {new Date(returnItem.returnDate).toLocaleDateString()}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {new Date(returnItem.returnDate).toLocaleTimeString()}
-                                </div>
+                              <td className="px-3 py-2">
+                                <div className="text-xs">{new Date(returnItem.returnDate).toLocaleDateString()}</div>
+                                <div className="text-xs text-muted-foreground">{new Date(returnItem.returnDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                               </td>
-                              <td className="p-4">
-                                <div className="text-sm">{returnItem.attendantName}</div>
+                              <td className="px-3 py-2">
+                                <div className="text-xs">{returnItem.attendantName}</div>
                               </td>
-                              <td className="p-4">
-                                <Badge variant={getStatusBadgeVariant(returnItem.status)}>
+                              <td className="px-3 py-2">
+                                <Badge variant={getStatusBadgeVariant(returnItem.status)} className="text-xs px-1.5 py-0">
                                   {returnItem.status}
                                 </Badge>
                               </td>
-                              <td className="p-4">
+                              <td className="px-3 py-2">
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-8 w-8 p-0">
@@ -572,46 +479,35 @@ function ReturnsList() {
                   </div>
 
                   {/* Mobile Cards */}
-                  <div className="lg:hidden p-4 space-y-4">
+                  <div className="lg:hidden p-2 space-y-2">
                     {transformedReturns.map((returnItem: any) => (
-                      <Card key={returnItem.id} className="p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <div className="font-medium">{returnItem.receiptNo}</div>
-                            <div className="text-sm text-muted-foreground">{returnItem.customerName}</div>
-                          </div>
+                      <div key={returnItem.id} className="border rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold truncate">{returnItem.receiptNo}</div>
+                          <div className="text-xs text-muted-foreground truncate">{returnItem.customerName} · {returnItem.attendantName}</div>
+                          <div className="text-xs text-muted-foreground">{new Date(returnItem.returnDate).toLocaleDateString()}</div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
                           <div className="text-right">
-                            <div className="font-medium">{getReturnCurrency(returnItem)} {parseFloat(returnItem.totalAmount).toFixed(2)}</div>
-                            <Badge variant={getStatusBadgeVariant(returnItem.status)} className="text-xs">
-                              {returnItem.status}
-                            </Badge>
+                            <div className="text-xs font-semibold">{getReturnCurrency(returnItem)} {parseFloat(returnItem.totalAmount).toFixed(2)}</div>
+                            <Badge variant={getStatusBadgeVariant(returnItem.status)} className="text-xs px-1.5 py-0">{returnItem.status}</Badge>
                           </div>
-                        </div>
-                        <div className="flex justify-between items-center text-xs text-muted-foreground">
-                          <div>{new Date(returnItem.returnDate).toLocaleDateString()}</div>
-                          <div>{returnItem.attendantName}</div>
-                        </div>
-                        <div className="mt-3 flex justify-end">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="h-4 w-4" />
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                <MoreHorizontal className="h-3.5 w-3.5" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <PermissionGuard permission="returns_delete">
-                                <DropdownMenuItem 
-                                  onClick={() => handleDeleteReturn(returnItem)}
-                                  className="text-red-600"
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
+                                <DropdownMenuItem onClick={() => handleDeleteReturn(returnItem)} className="text-red-600">
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
                                 </DropdownMenuItem>
                               </PermissionGuard>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
-                      </Card>
+                      </div>
                     ))}
                   </div>
 
