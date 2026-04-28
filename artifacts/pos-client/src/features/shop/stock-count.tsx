@@ -191,7 +191,9 @@ export default function StockCount() {
   };
 
   const handleSaveCount = async () => {
-    const productCounts = Object.entries(preservedCounts).filter(([_, count]) => count !== undefined);
+    const productCounts = Object.entries(preservedCounts).filter(
+      ([productId, count]) => productId !== "undefined" && !isNaN(Number(productId)) && count !== undefined
+    );
     
     if (productCounts.length === 0) {
       toast({
@@ -205,7 +207,7 @@ export default function StockCount() {
     const payload = {
       shopId: shopId,
       items: productCounts.map(([productId, physicalCount]) => ({
-        productId,
+        productId: Number(productId),
         physicalCount
       }))
     };
