@@ -1364,13 +1364,16 @@ router.get("/profit-loss/detail", requireAdmin, async (req, res, next) => {
     const expensesWhere = shopDate(shopId, from, to, expenses);
     const purchasesWhere = shopDate(shopId, from, to, purchases);
 
+    const returnsWhere = shopDate(shopId, from, to, saleReturns);
+
     const [
       [revenueSummary],
       [costSummary],
       [expensesSummary],
       [purchasesSummary],
       [discountSummary],
-      [returnsSummary],
+      [shrinkageSummary],
+      [saleReturnsSummary],
       expenseByCategory,
       byPaymentMethod,
     ] = await Promise.all([
@@ -1402,6 +1405,16 @@ router.get("/profit-loss/detail", requireAdmin, async (req, res, next) => {
         refundedAmount: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'refunded' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
       }).from(sales).where(shopDate(shopId, from, to, sales) ?? sql`1=1`),
 
+      // Sale returns (partial & full) — subtract from gross revenue
+      db.select({
+        totalReturns: sql<string>`COALESCE(SUM(${saleReturns.refundAmount}::numeric), 0)`,
+      }).from(saleReturns)
+        .innerJoin(sales, and(
+          eq(saleReturns.sale, sales.id),
+          sql`${sales.status} NOT IN ('voided', 'held', 'refunded', 'returned')`,
+        ))
+        .where(returnsWhere),
+
       db.select({
         categoryName: expenseCategories.name,
         total: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)`,
@@ -1423,7 +1436,9 @@ router.get("/profit-loss/detail", requireAdmin, async (req, res, next) => {
       .orderBy(sql`COALESCE(SUM(${salePayments.amount}::numeric), 0) DESC`),
     ]);
 
-    const revenue = parseFloat(revenueSummary?.revenue ?? "0");
+    const grossRevenue = parseFloat(revenueSummary?.revenue ?? "0");
+    const totalReturns = parseFloat(saleReturnsSummary?.totalReturns ?? "0");
+    const revenue = Math.max(0, grossRevenue - totalReturns);
     const cost = parseFloat(costSummary?.cost ?? "0");
     const expensesTotal = parseFloat(expensesSummary?.totalExpenses ?? "0");
     const grossProfit = revenue - cost;
@@ -1435,10 +1450,12 @@ router.get("/profit-loss/detail", requireAdmin, async (req, res, next) => {
       period: { from, to },
       income: {
         revenue: revenue.toFixed(2),
+        grossRevenue: grossRevenue.toFixed(2),
+        returnsAmount: totalReturns.toFixed(2),
         saleCount: revenueSummary?.saleCount ?? 0,
         totalDiscount: discountSummary?.totalDiscount ?? "0",
-        voidedAmount: returnsSummary?.voidedAmount ?? "0",
-        refundedAmount: returnsSummary?.refundedAmount ?? "0",
+        voidedAmount: shrinkageSummary?.voidedAmount ?? "0",
+        refundedAmount: shrinkageSummary?.refundedAmount ?? "0",
       },
       cogs: {
         cost: cost.toFixed(2),

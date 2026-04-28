@@ -93,6 +93,7 @@ export default function ProfitLossPage() {
   const totalDiscount = n(income.totalDiscount);
   const voidedAmount = n(income.voidedAmount);
   const refundedAmount = n(income.refundedAmount);
+  const returnsAmount = n(income.returnsAmount);
   const avgOrder = saleCount > 0 ? Math.round(revenue / saleCount) : 0;
 
   const isProfit = netProfit >= 0;
@@ -197,6 +198,7 @@ export default function ProfitLossPage() {
   </tr>
   ${totalDiscount > 0 ? `<tr><td class="label indent">— Discounts given</td><td class="num debit">(${fmt(totalDiscount)})</td></tr>` : ""}
   ${(voidedAmount + refundedAmount) > 0 ? `<tr><td class="label indent">— Voided / Refunded</td><td class="num debit">(${fmt(voidedAmount + refundedAmount)})</td></tr>` : ""}
+  ${returnsAmount > 0 ? `<tr><td class="label indent">— Sale Returns</td><td class="num debit">(${fmt(returnsAmount)})</td></tr>` : ""}
 </table>
 
 <div class="section-title">Cost of Goods Sold</div>
@@ -355,6 +357,9 @@ ${!isProfit ? `<p class="note warn">&#9888; Expenses exceeded gross profit this 
                       )}
                       {(voidedAmount + refundedAmount) > 0 && (
                         <p className="text-xs text-red-400">{fmt(voidedAmount + refundedAmount)} voided/refunded</p>
+                      )}
+                      {returnsAmount > 0 && (
+                        <p className="text-xs text-red-400">{fmt(returnsAmount)} deducted for returns</p>
                       )}
                     </div>
                   </div>
