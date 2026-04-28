@@ -234,13 +234,27 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
 
     const allowedShops = await resolveShopFilter(req, requestedShopId);
 
+    // Build shop condition: match products owned by the shop OR products that
+    // have inventory records for the shop (shared/transferred stock scenario)
+    const buildShopCondition = (shopIds: number[]) => {
+      if (shopIds.length === 0) return eq(products.id, -1);
+      const ownedBy = shopIds.length === 1 ? eq(products.shop, shopIds[0]!) : inArray(products.shop, shopIds);
+      const inInventory = shopIds.length === 1
+        ? sql`EXISTS (SELECT 1 FROM inventory inv WHERE inv.product_id = ${products.id} AND inv.shop_id = ${shopIds[0]!})`
+        : sql`EXISTS (SELECT 1 FROM inventory inv WHERE inv.product_id = ${products.id} AND inv.shop_id = ANY(ARRAY[${sql.join(shopIds.map(id => sql`${id}`), sql`, `)}]::int[]))`;
+      return or(ownedBy, inInventory);
+    };
+
     const shopCondition = allowedShops === null
       ? undefined
-      : allowedShops.length === 0
-        ? eq(products.id, -1)
-        : allowedShops.length === 1
-          ? eq(products.shop, allowedShops[0]!)
-          : inArray(products.shop, allowedShops);
+      : buildShopCondition(allowedShops);
+
+    // For stock-status filters, use the requested shopId for the inventory subquery
+    const invShopFilter = requestedShopId
+      ? sql`inv.shop_id = ${requestedShopId}`
+      : allowedShops !== null && allowedShops.length === 1
+        ? sql`inv.shop_id = ${allowedShops[0]!}`
+        : sql`TRUE`;
 
     const conditions: any[] = [];
     if (shopCondition) conditions.push(shopCondition);
@@ -251,14 +265,14 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
       conditions.push(sql`EXISTS (
         SELECT 1 FROM inventory inv
         WHERE inv.product_id = ${products.id}
-        AND inv.shop_id = ${products.shop}
+        AND ${invShopFilter}
         AND inv.quantity::numeric <= 0
       )`);
     } else if (stockStatus === "lowstock") {
       conditions.push(sql`EXISTS (
         SELECT 1 FROM inventory inv
         WHERE inv.product_id = ${products.id}
-        AND inv.shop_id = ${products.shop}
+        AND ${invShopFilter}
         AND inv.quantity::numeric > 0
         AND inv.reorder_level::numeric > 0
         AND inv.quantity::numeric <= inv.reorder_level::numeric
@@ -289,6 +303,11 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
 
     if (withBundles.length > 0) {
       const productIds = withBundles.map((p: any) => p.id).filter(Boolean);
+      // Fetch inventory for all relevant products; if a specific shop is requested
+      // prefer that shop's inventory row so stock quantities are correct
+      const invWhere = requestedShopId
+        ? and(inArray(inventory.product, productIds), eq(inventory.shop, requestedShopId))
+        : inArray(inventory.product, productIds);
       const invRows = await db
         .select({
           product: inventory.product,
@@ -298,12 +317,13 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
           status: inventory.status,
         })
         .from(inventory)
-        .where(inArray(inventory.product, productIds));
+        .where(invWhere);
 
-      const invMap = new Map(invRows.map((inv) => [`${inv.product}-${inv.shop}`, inv]));
+      // Key by product id (shop-specific lookup already narrowed above)
+      const invMap = new Map(invRows.map((inv) => [inv.product, inv]));
 
       const enriched = withBundles.map((p: any) => {
-        const inv = invMap.get(`${p.id}-${p.shop}`);
+        const inv = invMap.get(p.id);
         return {
           ...p,
           quantity: inv ? Number(inv.quantity) : 0,
