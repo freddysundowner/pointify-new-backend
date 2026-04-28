@@ -57,6 +57,7 @@ export const ENDPOINTS = {
     purchasesHistory:     (id: string) => `/api/products/${id}/purchases-history`,
     stockHistory:         (id: string) => `/api/products/${id}/stock-history`,
     badStockMovements:    "/api/inventory/bad-stocks",
+    export:               "/api/products/export",
   },
 
   // ─── Customers ────────────────────────────────────────────────────────────

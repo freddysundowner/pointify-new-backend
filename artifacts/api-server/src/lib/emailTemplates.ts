@@ -548,6 +548,22 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
      <p>Hope to see you soon,<br/>The Pointify team</p>`,
     "Hi {{adminName}}, your trial ended a few days ago but your data is safe. Sign in any time to pick a plan and pick up where you left off.",
   ),
+  make(
+    "stock_export",
+    "reports",
+    "Sent on demand when an admin exports a stock report.",
+    "Stock report — {{shopName}}",
+    "Your stock report is ready",
+    `<p>Hi {{adminName}},</p>
+     <p>Please find your stock report for <strong>{{shopName}}</strong> attached as a CSV file.</p>
+     <ul style="padding-left:18px;line-height:1.7">
+       <li><strong>Filter:</strong> {{filterLabel}}</li>
+       <li><strong>Total products:</strong> {{totalProducts}}</li>
+       <li><strong>Generated:</strong> {{generatedAt}}</li>
+     </ul>
+     <p>You can open the CSV in Excel, Google Sheets, or any spreadsheet app.</p>`,
+    "Hi {{adminName}}, your stock report for {{shopName}} is attached (filter: {{filterLabel}}, {{totalProducts}} products, generated {{generatedAt}}).",
+  ),
 ];
 
 export const DEFAULT_TEMPLATES_BY_KEY: Record<string, EmailTemplate> = Object.fromEntries(

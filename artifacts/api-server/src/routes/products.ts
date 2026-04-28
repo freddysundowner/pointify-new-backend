@@ -3,10 +3,10 @@ import { eq, ilike, and, gte, lte, sql, inArray, lower, or } from "drizzle-orm";
 import path from "path";
 import fs from "fs";
 import {
-  products, productSerials, inventory,
+  products, productSerials, inventory, productCategories,
   bundleItems, saleItems, sales, purchaseItems, purchases,
   adjustments, badStocks, transferItems, productTransfers, shops,
-  batches, productHistory,
+  batches, productHistory, admins,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -15,6 +15,7 @@ import { assertShopOwnership, resolveShopFilter } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
 import { attachBundleItems } from "../lib/attach-bundle-items.js";
+import { sendEmail } from "../lib/email.js";
 import multer from "multer";
 
 const router = Router();
@@ -88,6 +89,137 @@ router.get("/search", requireAdminOrAttendant, async (req, res, next) => {
       limit: 20,
     });
     return ok(res, rows);
+  } catch (e) { next(e); }
+});
+
+// ── CSV export (download or email) ───────────────────────────────────────────
+function buildExportConditions(params: {
+  shopCondition: any;
+  categoryId: number | null;
+  search: string | null;
+  stockStatus: string;
+}): any[] {
+  const { shopCondition, categoryId, search, stockStatus } = params;
+  const conditions: any[] = [];
+  if (shopCondition) conditions.push(shopCondition);
+  if (categoryId) conditions.push(eq(products.category, categoryId));
+  if (search) conditions.push(ilike(products.name, `%${search}%`));
+  if (stockStatus === "outofstock") {
+    conditions.push(sql`EXISTS (SELECT 1 FROM inventory inv WHERE inv.product_id = ${products.id} AND inv.shop_id = ${products.shop} AND inv.quantity::numeric <= 0)`);
+  } else if (stockStatus === "lowstock") {
+    conditions.push(sql`EXISTS (SELECT 1 FROM inventory inv WHERE inv.product_id = ${products.id} AND inv.shop_id = ${products.shop} AND inv.quantity::numeric > 0 AND inv.reorder_level::numeric > 0 AND inv.quantity::numeric <= inv.reorder_level::numeric)`);
+  } else if (stockStatus === "expiring") {
+    conditions.push(sql`${products.expiryDate} IS NOT NULL`);
+  }
+  return conditions;
+}
+
+function buildExportOrderBy(sort: string): any {
+  if (sort === "qty_desc") return sql`(SELECT COALESCE(inv.quantity::numeric,0) FROM inventory inv WHERE inv.product_id = ${products.id} AND inv.shop_id = ${products.shop} LIMIT 1) DESC NULLS LAST`;
+  if (sort === "expiring") return sql`${products.expiryDate} ASC NULLS LAST`;
+  return sql`${products.name} ASC`;
+}
+
+function buildCsv(rows: any[]): string {
+  const headers = ["Name", "SKU/Barcode", "Category", "Type", "Quantity", "Reorder Level", "Buy Price", "Sell Price", "Stock Value (Cost)", "Status", "Expiry Date"];
+  const escape = (v: any) => {
+    const s = v == null ? "" : String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [headers.join(",")];
+  for (const r of rows) {
+    const qty = Number(r.quantity ?? 0);
+    const buy = Number(r.buyingPrice ?? 0);
+    lines.push([
+      r.name, r.barcode ?? r.serialNumber ?? "", r.category?.name ?? "", r.type ?? "product",
+      qty, Number(r.reorderLevel ?? 0), buy.toFixed(2), Number(r.sellingPrice ?? 0).toFixed(2),
+      (qty * buy).toFixed(2), r.stockStatus ?? (qty <= 0 ? "out" : "in"),
+      r.expiryDate ? new Date(r.expiryDate).toLocaleDateString() : "",
+    ].map(escape).join(","));
+  }
+  return lines.join("\r\n");
+}
+
+const FILTER_LABELS: Record<string, string> = {
+  all: "All Stock", outofstock: "Out of Stock", lowstock: "Running Low",
+  highstock: "Highest Stock", expiring: "Expiring",
+};
+
+router.get("/export", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const action = String(req.query["action"] ?? "download"); // download | email
+    const search = req.query["search"] ? String(req.query["search"]).trim() : null;
+    const requestedShopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const categoryId = req.query["categoryId"] ? Number(req.query["categoryId"]) : null;
+    const stockStatus = String(req.query["stockStatus"] ?? "").trim();
+    const sort = String(req.query["sort"] ?? "name").trim();
+    const filterKey = String(req.query["filterKey"] ?? "all");
+
+    const allowedShops = await resolveShopFilter(req, requestedShopId);
+    const shopCondition = allowedShops === null ? undefined
+      : allowedShops.length === 0 ? eq(products.id, -1)
+      : allowedShops.length === 1 ? eq(products.shop, allowedShops[0]!)
+      : inArray(products.shop, allowedShops);
+
+    const conditions = buildExportConditions({ shopCondition, categoryId, search, stockStatus });
+    const where = conditions.length > 1 ? and(...conditions) : conditions[0];
+    const orderByClause = buildExportOrderBy(sort);
+
+    // Fetch ALL rows — no pagination limit
+    const rows = await db.query.products.findMany({
+      where,
+      orderBy: () => [orderByClause],
+      with: { category: true },
+    });
+
+    // Enrich with inventory quantities
+    if (rows.length > 0) {
+      const productIds = rows.map((p: any) => p.id).filter(Boolean);
+      const invRows = await db.select({ product: inventory.product, shop: inventory.shop, quantity: inventory.quantity, reorderLevel: inventory.reorderLevel, status: inventory.status })
+        .from(inventory).where(inArray(inventory.product, productIds));
+      const invMap = new Map(invRows.map((inv) => [`${inv.product}-${inv.shop}`, inv]));
+      for (const p of rows as any[]) {
+        const inv = invMap.get(`${p.id}-${p.shop}`);
+        p.quantity = inv ? Number(inv.quantity) : 0;
+        p.reorderLevel = inv ? Number(inv.reorderLevel) : 0;
+        p.stockStatus = inv?.status ?? "active";
+      }
+    }
+
+    const csv = buildCsv(rows);
+    const filterLabel = FILTER_LABELS[filterKey] ?? "All Stock";
+
+    if (action === "email") {
+      // Determine recipient: warehouseEmail > receiptEmail > admin email
+      const shopRow = requestedShopId
+        ? await db.query.shops.findFirst({ where: eq(shops.id, requestedShopId) })
+        : null;
+      const adminRow = await db.query.admins.findFirst({ where: eq(admins.id, (req as any).admin.id) });
+      const to = shopRow?.warehouseEmail || shopRow?.receiptEmail || adminRow?.email;
+      if (!to) return badRequest(res, "No email address configured for this shop");
+
+      const result = await sendEmail({
+        key: "stock_export",
+        to,
+        vars: {
+          adminName: adminRow?.username ?? "there",
+          shopName: shopRow?.name ?? "your shop",
+          filterLabel,
+          totalProducts: rows.length,
+          generatedAt: new Date().toLocaleString(),
+        },
+        attachments: [{ name: `stock-report-${filterKey}-${Date.now()}.csv`, content: Buffer.from(csv).toString("base64") }],
+      });
+
+      if (!result.ok) return ok(res, { sent: false, reason: result.skipped ?? result.error });
+      return ok(res, { sent: true, to });
+    }
+
+    // Download
+    const filename = `stock-report-${filterKey}-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    return res.send(csv);
   } catch (e) { next(e); }
 });
 

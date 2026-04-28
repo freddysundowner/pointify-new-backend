@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Package, AlertTriangle, TrendingUp, Edit, MoreVertical, History, Trash2, ArrowLeft, FileText } from "lucide-react";
+import { Search, Plus, Package, AlertTriangle, TrendingUp, Edit, MoreVertical, History, Trash2, ArrowLeft, FileText, Download, Mail, ChevronDown, Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiCall } from "@/lib/api-config";
 import { ENDPOINTS } from "@/lib/api-endpoints";
@@ -68,6 +68,10 @@ export default function StockProducts() {
   const [stockFilter, setStockFilter] = useState<
     "all" | "outofstock" | "lowstock" | "highstock" | "expiring"
   >("all");
+  const [isExporting, setIsExporting] = useState(false);
+  const [isEmailing, setIsEmailing] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailAddress, setEmailAddress] = useState("");
   const { currency, shop } = useShop();
   const { admin } = useAuth();
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
@@ -333,6 +337,74 @@ export default function StockProducts() {
     }
   };
 
+  // Build export URL params (same filters, no pagination)
+  const buildExportParams = (action: "download" | "email", toEmail?: string) => {
+    const p = new URLSearchParams({
+      action,
+      shopId: effectiveShopId || "",
+      search: debouncedSearch,
+      filterKey: stockFilter,
+      ...(stockFilter === "outofstock" ? { stockStatus: "outofstock" } : {}),
+      ...(stockFilter === "lowstock" ? { stockStatus: "lowstock" } : {}),
+      ...(stockFilter === "expiring" ? { stockStatus: "expiring", sort: "expiring" } : {}),
+      ...(stockFilter === "highstock" ? { sort: "qty_desc" } : {}),
+      ...(selectedCategory !== "all" ? { categoryId: selectedCategory } : {}),
+      ...(toEmail ? { to: toEmail } : {}),
+    });
+    return p.toString();
+  };
+
+  const handleDownload = async () => {
+    setIsExporting(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const url = `${ENDPOINTS.products.export}?${buildExportParams("download")}`;
+      const response = await fetch(url, {
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      const cd = response.headers.get("content-disposition") ?? "";
+      const match = cd.match(/filename="?([^"]+)"?/);
+      link.download = match ? match[1] : `stock-report-${stockFilter}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      toast({ title: "Downloaded", description: "Stock report saved as CSV." });
+    } catch (err) {
+      toast({ title: "Download failed", description: err instanceof Error ? err.message : "Error", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailAddress.trim()) return;
+    setIsEmailing(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const url = `${ENDPOINTS.products.export}?${buildExportParams("email")}&to=${encodeURIComponent(emailAddress.trim())}`;
+      const response = await fetch(url, {
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+        credentials: "include",
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.message ?? `${response.status}`);
+      if (data?.sent === false) throw new Error(data?.reason ?? "Email not sent");
+      toast({ title: "Email sent", description: `Stock report sent to ${emailAddress.trim()}.` });
+      setEmailDialogOpen(false);
+    } catch (err) {
+      toast({ title: "Email failed", description: err instanceof Error ? err.message : "Error", variant: "destructive" });
+    } finally {
+      setIsEmailing(false);
+    }
+  };
+
   const getQuantityStatus = (product: any) => {
     // Services and virtual products don't have stock status
     if (product.type === "virtual" || product.type === "service") {
@@ -477,17 +549,71 @@ export default function StockProducts() {
             </Button>
             <h1 className="text-base font-semibold">Products</h1>
           </div>
-          {(hasPermission("inventory_add") ||
-            hasAttendantPermission("stocks", "add_products") ||
-            hasAttendantPermission("products", "add")) && (
-            <Link href={addProductRoute}>
-              <Button size="sm" className="h-8 bg-purple-600 hover:bg-purple-700 text-xs px-3">
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Add Product
-              </Button>
-            </Link>
-          )}
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs px-3" disabled={isExporting || isEmailing}>
+                  {isExporting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
+                  Export
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={handleDownload} disabled={isExporting}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  setEmailAddress((shop as any)?.warehouseEmail || (shop as any)?.receiptEmail || "");
+                  setEmailDialogOpen(true);
+                }} disabled={isEmailing}>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send by Email
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {(hasPermission("inventory_add") ||
+              hasAttendantPermission("stocks", "add_products") ||
+              hasAttendantPermission("products", "add")) && (
+              <Link href={addProductRoute}>
+                <Button size="sm" className="h-8 bg-purple-600 hover:bg-purple-700 text-xs px-3">
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add Product
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
+
+        {/* Email export dialog */}
+        <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Send Stock Report</DialogTitle>
+              <DialogDescription>
+                The current filtered stock list will be sent as a CSV attachment.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <Label htmlFor="export-email" className="text-sm">Email address</Label>
+              <Input
+                id="export-email"
+                type="email"
+                placeholder="e.g. manager@shop.com"
+                value={emailAddress}
+                onChange={(e) => setEmailAddress(e.target.value)}
+                className="h-9 text-sm"
+                onKeyDown={(e) => { if (e.key === "Enter") handleSendEmail(); }}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setEmailDialogOpen(false)}>Cancel</Button>
+              <Button size="sm" onClick={handleSendEmail} disabled={isEmailing || !emailAddress.trim()}>
+                {isEmailing ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />Sending…</> : <><Mail className="h-3.5 w-3.5 mr-1" />Send</>}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Stats strip */}
         {(hasPermission('inventory_view') || hasAttendantPermission("stocks", "stock_summary")) && (
