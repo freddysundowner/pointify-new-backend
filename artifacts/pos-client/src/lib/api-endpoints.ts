@@ -82,6 +82,7 @@ export const ENDPOINTS = {
     create:               "/api/sales",
     getAll:               "/api/sales",
     stats:                "/api/sales/stats",
+    collectedPayments:    "/api/sales/collected-payments",
     getById:              (id: string) => `/api/sales/${id}`,
     getReceipt:           (id: string) => `/api/sales/${id}`,
     update:               (id: string) => `/api/sales/${id}`,

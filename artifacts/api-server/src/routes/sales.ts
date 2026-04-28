@@ -999,6 +999,62 @@ router.post("/:id/refund", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// List debt collection payments (salePayments inserted >5 min after the sale)
+router.get("/collected-payments", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const start = req.query["start"] ? new Date(String(req.query["start"])) : null;
+    const end = req.query["end"] ? new Date(String(req.query["end"])) : null;
+    if (end) end.setHours(23, 59, 59, 999);
+    const effectiveShopId = req.attendant ? req.attendant.shopId : shopId;
+
+    const baseWhere = sql`
+      sp.created_at > s.created_at + INTERVAL '5 minutes'
+      ${effectiveShopId ? sql`AND s.shop_id = ${effectiveShopId}` : sql``}
+      ${start ? sql`AND sp.created_at >= ${start}` : sql``}
+      ${end ? sql`AND sp.created_at <= ${end}` : sql``}
+    `;
+
+    const [rows, countRows] = await Promise.all([
+      db.execute(sql`
+        SELECT
+          sp.id,
+          sp.paid_at,
+          sp.amount,
+          sp.balance,
+          sp.payment_type,
+          sp.payment_reference,
+          sp.payment_no,
+          s.id    AS sale_id,
+          s.sale_no,
+          s.receipt_no,
+          s.total_with_discount,
+          s.outstanding_balance,
+          s.status AS sale_status,
+          c.id    AS customer_id,
+          c.name  AS customer_name,
+          c.phone_number AS customer_phone
+        FROM sale_payments sp
+        INNER JOIN sales s ON sp.sale_id = s.id
+        LEFT JOIN customers c ON s.customer_id = c.id
+        WHERE ${baseWhere}
+        ORDER BY sp.paid_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `),
+      db.execute(sql`
+        SELECT COUNT(*) AS total
+        FROM sale_payments sp
+        INNER JOIN sales s ON sp.sale_id = s.id
+        WHERE ${baseWhere}
+      `),
+    ]);
+
+    const total = Number((countRows.rows[0] as any)?.total ?? 0);
+    return paginated(res, rows.rows, total, page, limit);
+  } catch (e) { next(e); }
+});
+
 router.post("/:id/payments", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { amount, method, reference } = req.body;

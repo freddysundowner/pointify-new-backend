@@ -70,6 +70,7 @@ import ReportsHubPage from "@/pages/reports-hub";
 import SalesReportPage from "@/pages/reports-sales";
 import ProductsReportPage from "@/pages/reports-products";
 import DebtorsPage from "@/pages/debtors";
+import CollectedPaymentsPage from "@/pages/collected-payments";
 import PrinterConfigPage from "@/pages/printer-config";
 import SettingsPage from "@/pages/settings";
 import SmsSettingsPage from "@/pages/sms-settings";
@@ -451,6 +452,7 @@ function AppContent() {
             <Route path="/reports/products" component={ProductsReportPage} />
             <Route path="/reports" component={ReportsHubPage} />
             <Route path="/debtors" component={DebtorsPage} />
+            <Route path="/collected-payments" component={CollectedPaymentsPage} />
             <Route path="/printer-config" component={PrinterConfigPage} />
             <Route path="/settings" component={SettingsPage} />
             <Route path="/sms-settings" component={SmsSettingsPage} />

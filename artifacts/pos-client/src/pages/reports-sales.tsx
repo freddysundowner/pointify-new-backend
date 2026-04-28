@@ -283,7 +283,11 @@ export default function SalesReportPage() {
                   return (
                     <button
                       key={t.key}
-                      onClick={() => goToSales(t.status)}
+                      onClick={() =>
+                        t.key === "creditCollected"
+                          ? (() => { const { from: f, to: t2 } = getDateRange(); setLocation(`/collected-payments?startDate=${f}&endDate=${t2}`); })()
+                          : goToSales(t.status)
+                      }
                       className={`text-left rounded-lg border p-2.5 transition-colors cursor-pointer ${t.bg} ${t.border}`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
