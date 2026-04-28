@@ -9,6 +9,7 @@ import { requireAdmin } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifyPurchaseOrderToSupplier } from "../lib/emailEvents.js";
 import { recordProductHistory } from "../lib/product-history.js";
+import { autoRecordCashflow } from "../lib/auto-cashflow.js";
 
 const router = Router();
 
@@ -154,6 +155,13 @@ router.post("/", requireAdmin, async (req, res, next) => {
       }))
     );
     void notifyPurchaseOrderToSupplier(purchase.id);
+    void autoRecordCashflow({
+      shopId: sid,
+      amount: totalAmount,
+      description: `Purchase ${purchase.purchaseNo}`,
+      categoryKey: "purchase",
+      recordedBy: req.attendant?.id,
+    });
     return created(res, { ...purchase, items: enrichedItems });
   } catch (e) { next(e); }
 });

@@ -11,6 +11,7 @@ import { notifySaleReceipt } from "../lib/emailEvents.js";
 import { notifySaleReceiptSms } from "../lib/smsEvents.js";
 import { sendRawEmail } from "../lib/email.js";
 import { recordProductHistory } from "../lib/product-history.js";
+import { autoRecordCashflow } from "../lib/auto-cashflow.js";
 
 const router = Router();
 
@@ -713,6 +714,13 @@ router.post("/:id/checkout", requireAdminOrAttendant, async (req, res, next) => 
 
     void notifySaleReceipt(saleId);
     void notifySaleReceiptSms(saleId);
+    void autoRecordCashflow({
+      shopId: existing.shop,
+      amount: parseFloat(existing.totalWithDiscount),
+      description: `Sale ${existing.receiptNo ?? saleId}`,
+      categoryKey: "sales",
+      recordedBy: req.attendant?.id,
+    });
     return ok(res, updated);
   } catch (e) { next(e); }
 });

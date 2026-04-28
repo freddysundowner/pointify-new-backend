@@ -8,6 +8,7 @@ import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
 import { assertShopOwnership } from "../lib/shop.js";
+import { autoRecordCashflow } from "../lib/auto-cashflow.js";
 import { requireAdmin, requireAdminOrAttendant, requireSuperAdmin } from "../middlewares/auth.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
 
@@ -147,6 +148,13 @@ router.post("/expenses", requireAdminOrAttendant, async (req, res, next) => {
       frequency,
       expenseNo: `EXP${Date.now()}`,
     }).returning();
+    void autoRecordCashflow({
+      shopId: Number(shopId),
+      amount: parseFloat(String(amount)),
+      description: description ? `Expense: ${description}` : `Expense ${row.expenseNo}`,
+      categoryKey: "expense",
+      recordedBy: req.attendant?.id,
+    });
     return created(res, row);
   } catch (e) { next(e); }
 });
