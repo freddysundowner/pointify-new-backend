@@ -251,14 +251,14 @@ export default function ProductsReportPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-gray-100">
+        <div className="flex gap-1 border-b border-gray-100 overflow-x-auto scrollbar-hide">
           {TABS.map(tab => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                   activeTab === tab.id
                     ? "border-blue-600 text-blue-600"
                     : "border-transparent text-gray-500 hover:text-gray-700"
@@ -301,8 +301,8 @@ export default function ProductsReportPage() {
             </div>
 
             {/* Search + Category + Sort bar */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1 flex-1 min-w-[180px] max-w-xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="flex items-center gap-1 flex-1">
                 <div className="relative flex-1">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                   <Input
@@ -318,36 +318,38 @@ export default function ProductsReportPage() {
                     </button>
                   )}
                 </div>
-                <Button size="sm" variant="outline" className="h-8 px-2" onClick={handleSalesSearch}>
+                <Button size="sm" variant="outline" className="h-8 px-2 shrink-0" onClick={handleSalesSearch}>
                   <Search className="h-3.5 w-3.5" />
                 </Button>
               </div>
 
-              {categories.length > 0 && (
-                <div className="flex items-center gap-1">
-                  <Filter className="h-3.5 w-3.5 text-gray-400" />
-                  <select
-                    value={salesCategory}
-                    onChange={e => { setSalesCategory(e.target.value); setSalesPage(1); }}
-                    className="h-8 text-sm border border-gray-200 rounded-md px-2 bg-white text-gray-700"
-                  >
-                    <option value="">All categories</option>
-                    {categories.map((c: any) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {categories.length > 0 && (
+                  <div className="flex items-center gap-1 flex-1 sm:flex-none">
+                    <Filter className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                    <select
+                      value={salesCategory}
+                      onChange={e => { setSalesCategory(e.target.value); setSalesPage(1); }}
+                      className="h-8 text-sm border border-gray-200 rounded-md px-2 bg-white text-gray-700 flex-1 sm:flex-none"
+                    >
+                      <option value="">All categories</option>
+                      {categories.map((c: any) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 px-2 gap-1 text-xs"
-                onClick={() => { setSalesSort(s => s === "desc" ? "asc" : "desc"); setSalesPage(1); }}
-              >
-                <ArrowUpDown className="h-3.5 w-3.5" />
-                {salesSort === "desc" ? "Best first" : "Worst first"}
-              </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 px-2 gap-1 text-xs shrink-0"
+                  onClick={() => { setSalesSort(s => s === "desc" ? "asc" : "desc"); setSalesPage(1); }}
+                >
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  {salesSort === "desc" ? "Best first" : "Worst first"}
+                </Button>
+              </div>
             </div>
 
             {isLoading && (

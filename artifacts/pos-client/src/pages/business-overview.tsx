@@ -74,20 +74,20 @@ export default function BusinessOverviewPage() {
       <div className="p-4 space-y-3">
 
         {/* Header */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={goBack} className="gap-1 px-2">
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Button>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={goBack} className="gap-1 px-2">
+              <ArrowLeft className="h-4 w-4" /> Back
+            </Button>
             <TrendingUp className="h-5 w-5 text-blue-600" />
             <h1 className="text-lg font-bold text-gray-900">Business Overview</h1>
+            <Button variant="outline" size="sm" className="text-xs hidden sm:inline-flex" onClick={() => setLocation("/profit-loss")}>
+              Profit & Loss →
+            </Button>
           </div>
-          <Button variant="outline" size="sm" className="text-xs" onClick={() => setLocation("/profit-loss")}>
-            Profit & Loss →
-          </Button>
 
           {/* Period selector */}
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-1 sm:ml-auto flex-wrap">
             {PERIODS.map(p => (
               <Button
                 key={p.days}
@@ -103,6 +103,9 @@ export default function BusinessOverviewPage() {
               <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
             </Button>
           </div>
+          <Button variant="outline" size="sm" className="text-xs sm:hidden" onClick={() => setLocation("/profit-loss")}>
+            Profit & Loss →
+          </Button>
         </div>
 
         {error && (

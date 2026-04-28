@@ -150,22 +150,22 @@ export default function SalesReportPage() {
         {!isLoading && totalTransactions > 0 && (
           <>
             {/* Top summary row */}
-            <div className="grid grid-cols-3 gap-2.5">
-              <Card className="border-0 shadow-sm bg-blue-50 col-span-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <Card className="border-0 shadow-sm bg-blue-50">
                 <CardContent className="p-3">
                   <p className="text-xs text-blue-500 font-medium">Total Sales Value</p>
                   <p className="text-xl font-bold text-blue-700 leading-tight mt-0.5">{fmt(totalSalesValue)}</p>
                   <p className="text-xs text-blue-400 mt-0.5">{totalTransactions} transaction{totalTransactions !== 1 ? "s" : ""}</p>
                 </CardContent>
               </Card>
-              <Card className="border-0 shadow-sm bg-green-50 col-span-1">
+              <Card className="border-0 shadow-sm bg-green-50">
                 <CardContent className="p-3">
                   <p className="text-xs text-green-500 font-medium">Money Received</p>
                   <p className="text-xl font-bold text-green-700 leading-tight mt-0.5">{fmt(cashCollected)}</p>
                   <p className="text-xs text-green-400 mt-0.5">cash + mpesa + bank</p>
                 </CardContent>
               </Card>
-              <Card className={`border-0 shadow-sm col-span-1 ${totalOnCredit > 0 ? "bg-orange-50" : "bg-gray-50"}`}>
+              <Card className={`border-0 shadow-sm ${totalOnCredit > 0 ? "bg-orange-50" : "bg-gray-50"}`}>
                 <CardContent className="p-3">
                   <p className={`text-xs font-medium ${totalOnCredit > 0 ? "text-orange-500" : "text-gray-400"}`}>Still on Credit</p>
                   <p className={`text-xl font-bold leading-tight mt-0.5 ${totalOnCredit > 0 ? "text-orange-600" : "text-gray-400"}`}>{fmt(totalOnCredit)}</p>
@@ -225,10 +225,10 @@ export default function SalesReportPage() {
                       <thead>
                         <tr className="text-xs text-gray-400 border-b">
                           <th className="text-left pb-2 font-medium">Date</th>
-                          <th className="text-right pb-2 font-medium">Sales</th>
+                          <th className="text-right pb-2 font-medium hidden sm:table-cell">Sales</th>
                           <th className="text-right pb-2 font-medium">Total Value</th>
-                          <th className="text-right pb-2 font-medium">Cash Received</th>
-                          <th className="text-right pb-2 font-medium">Discounts</th>
+                          <th className="text-right pb-2 font-medium">Received</th>
+                          <th className="text-right pb-2 font-medium hidden sm:table-cell">Discounts</th>
                           <th className="pb-2"></th>
                         </tr>
                       </thead>
@@ -236,12 +236,13 @@ export default function SalesReportPage() {
                         {dailyRows.map((row: any) => (
                           <tr key={row.day} className="hover:bg-gray-50">
                             <td className="py-2.5 text-gray-700 font-medium">
-                              {new Date(row.day + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+                              <span className="hidden sm:inline">{new Date(row.day + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span>
+                              <span className="sm:hidden">{new Date(row.day + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
                             </td>
-                            <td className="py-2.5 text-right text-gray-500">{n(row.totalSales)}</td>
+                            <td className="py-2.5 text-right text-gray-500 hidden sm:table-cell">{n(row.totalSales)}</td>
                             <td className="py-2.5 text-right font-semibold text-blue-700">{fmt(row.totalRevenue)}</td>
                             <td className="py-2.5 text-right font-semibold text-green-700">{fmt(row.totalPaid)}</td>
-                            <td className="py-2.5 text-right text-orange-500">{n(row.totalDiscount) > 0 ? fmt(row.totalDiscount) : "—"}</td>
+                            <td className="py-2.5 text-right text-orange-500 hidden sm:table-cell">{n(row.totalDiscount) > 0 ? fmt(row.totalDiscount) : "—"}</td>
                             <td className="py-2.5 text-right">
                               <Button
                                 variant="ghost"
@@ -249,7 +250,7 @@ export default function SalesReportPage() {
                                 className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 gap-1"
                                 onClick={() => setLocation(`/sales?startDate=${row.day}&endDate=${row.day}`)}
                               >
-                                View <ExternalLink className="h-3 w-3" />
+                                <span className="hidden sm:inline">View</span> <ExternalLink className="h-3 w-3" />
                               </Button>
                             </td>
                           </tr>
@@ -258,10 +259,10 @@ export default function SalesReportPage() {
                       <tfoot>
                         <tr className="border-t font-bold">
                           <td className="pt-2.5 text-gray-700">Total</td>
-                          <td className="pt-2.5 text-right text-gray-600">{totalTransactions}</td>
+                          <td className="pt-2.5 text-right text-gray-600 hidden sm:table-cell">{totalTransactions}</td>
                           <td className="pt-2.5 text-right text-blue-700">{fmt(totalSalesValue)}</td>
                           <td className="pt-2.5 text-right text-green-700">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalPaid), 0))}</td>
-                          <td className="pt-2.5 text-right text-orange-500">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalDiscount), 0))}</td>
+                          <td className="pt-2.5 text-right text-orange-500 hidden sm:table-cell">{fmt(dailyRows.reduce((s: number, r: any) => s + n(r.totalDiscount), 0))}</td>
                           <td></td>
                         </tr>
                       </tfoot>
