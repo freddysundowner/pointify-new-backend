@@ -61,6 +61,7 @@ export default function StockTransfer() {
   const [toShopId, setToShopId] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [draftQty, setDraftQty] = useState<Record<number, string>>({});
   const [productSearch, setProductSearch] = useState("");
 
   // ── Shops ──
@@ -137,6 +138,7 @@ export default function StockTransfer() {
     setToShopId(null);
     setNote("");
     setCart([]);
+    setDraftQty({});
     setProductSearch("");
   };
 
@@ -427,8 +429,14 @@ export default function StockTransfer() {
                       <span className="flex-1 text-sm font-medium">{item.productName}</span>
                       <input
                         type="number"
-                        value={item.quantity}
-                        onChange={(e) => updateCartQty(item.productId, parseInt(e.target.value) || 1)}
+                        value={draftQty[item.productId] ?? String(item.quantity)}
+                        onChange={(e) => setDraftQty(d => ({ ...d, [item.productId]: e.target.value }))}
+                        onBlur={(e) => {
+                          const parsed = parseInt(e.target.value);
+                          const qty = parsed > 0 ? parsed : 1;
+                          setDraftQty(d => { const next = { ...d }; delete next[item.productId]; return next; });
+                          updateCartQty(item.productId, qty);
+                        }}
                         className="w-16 h-7 text-center text-xs border border-gray-300 rounded-md bg-white outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         min="1"
                       />
