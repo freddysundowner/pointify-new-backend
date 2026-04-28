@@ -117,15 +117,15 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     if (stockStatus === "outofstock") {
       conditions.push(sql`EXISTS (
         SELECT 1 FROM inventory inv
-        WHERE inv.product = ${products.id}
-        AND inv.shop = ${products.shop}
+        WHERE inv.product_id = ${products.id}
+        AND inv.shop_id = ${products.shop}
         AND inv.quantity::numeric <= 0
       )`);
     } else if (stockStatus === "lowstock") {
       conditions.push(sql`EXISTS (
         SELECT 1 FROM inventory inv
-        WHERE inv.product = ${products.id}
-        AND inv.shop = ${products.shop}
+        WHERE inv.product_id = ${products.id}
+        AND inv.shop_id = ${products.shop}
         AND inv.quantity::numeric > 0
         AND inv.reorder_level::numeric > 0
         AND inv.quantity::numeric <= inv.reorder_level::numeric
