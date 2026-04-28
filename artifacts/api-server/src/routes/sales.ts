@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, and, gte, lte, sql, inArray, ilike } from "drizzle-orm";
-import { sales, saleItems, salePayments, saleReturns, saleReturnItems, products, inventory, customers, customerWalletTransactions, paymentMethods, batches, saleItemBatches, shops, loyaltyTransactions } from "@workspace/db";
+import { eq, and, gte, lte, sql, inArray, ilike, or } from "drizzle-orm";
+import { sales, saleItems, salePayments, saleReturns, saleReturnItems, products, inventory, customers, customerWalletTransactions, paymentMethods, batches, saleItemBatches, shops, loyaltyTransactions, cashflows } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -817,7 +817,7 @@ async function restoreSaleInventory(saleId: number): Promise<void> {
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params["id"]);
-    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true, status: true, customer: true, outstandingBalance: true, totalAmount: true, saleNo: true } });
+    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true, status: true, customer: true, outstandingBalance: true, totalAmount: true, saleNo: true, receiptNo: true } });
     if (!existing) throw notFound("Sale not found");
     await assertShopOwnership(req, existing.shop);
 
@@ -847,15 +847,15 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
     const [deleted] = await db.delete(sales).where(eq(sales.id, id)).returning();
     if (!deleted) throw notFound("Sale not found");
 
-    if (existing.status !== "voided") {
-      const saleTotal = parseFloat(String(existing.totalAmount ?? "0"));
-      void autoRecordCashflow({
-        shopId: existing.shop,
-        amount: saleTotal,
-        description: `Sale Deleted ${existing.saleNo ?? id}`,
-        categoryKey: "sale_reversal",
-        recordedBy: (req as any).attendant?.id,
-      });
+    // Remove all auto-recorded cashflow entries for this sale so the cashflow
+    // page stays clean (no orphaned "Sales" or "Sale Return" entries).
+    if (existing.receiptNo) {
+      await db.delete(cashflows).where(
+        or(
+          eq(cashflows.description, `Sale ${existing.receiptNo}`),
+          eq(cashflows.description, `Sale Return ${existing.receiptNo}`)
+        )
+      );
     }
 
     return noContent(res);
