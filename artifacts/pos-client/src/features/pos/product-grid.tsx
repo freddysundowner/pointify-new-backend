@@ -673,6 +673,26 @@ export default function ProductGrid({
         }
       }
       
+      if (selectedPaymentMethod === "wallet") {
+        if (!selectedCustomerId) {
+          toast({
+            title: "Customer Required",
+            description: "Please select a customer to pay with wallet.",
+            variant: "destructive",
+          });
+          return;
+        }
+        const walletBalance = parseFloat(selectedCustomer?.wallet || "0");
+        if (walletBalance < totals.total) {
+          toast({
+            title: "Insufficient Wallet Balance",
+            description: `Customer's wallet balance (${currency}${walletBalance.toFixed(2)}) is less than the sale total (${currency}${totals.total.toFixed(2)}).`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       if (selectedPaymentMethod === "split") {
         const totalSplit = splitAmounts.cash + splitAmounts.mpesa + splitAmounts.bank;
         if (Math.abs(totalSplit - totals.total) > 0.01) {

@@ -299,6 +299,21 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       }
     }
 
+    // ── Wallet payment validation ────────────────────────────────────────────
+    const walletAmt = !held
+      ? resolvedPayments.filter(p => /wallet/i.test(p.methodName)).reduce((s, p) => s + p.amount, 0)
+      : 0;
+    if (!held && walletAmt > 0) {
+      if (!customerId) throw badRequest("Wallet payment requires a customer");
+      const walletCust = await db.query.customers.findFirst({
+        where: eq(customers.id, Number(customerId)),
+        columns: { wallet: true },
+      });
+      const walletBalance = parseFloat(String(walletCust?.wallet ?? "0"));
+      if (walletBalance < walletAmt)
+        throw badRequest("customer has no enough balance in the wallet");
+    }
+
     // ── Payment type label and cached method totals ─────────────────────────
     const paymentTypeLabel = held ? "cash"
       : resolvedPayments.length > 1 ? "split"
@@ -506,6 +521,23 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
             }
           }
         }
+      }
+
+      // ── Wallet deduction ──────────────────────────────────────────────────
+      if (walletAmt > 0 && customerId) {
+        const [updatedCust] = await db.update(customers)
+          .set({ wallet: sql`${customers.wallet}::numeric - ${walletAmt}::numeric` })
+          .where(eq(customers.id, Number(customerId)))
+          .returning({ wallet: customers.wallet });
+        await db.insert(customerWalletTransactions).values({
+          customer: Number(customerId),
+          shop: Number(shopId),
+          type: "payment",
+          amount: String(walletAmt.toFixed(2)),
+          balance: String(parseFloat(String(updatedCust?.wallet ?? "0")).toFixed(2)),
+          saleId: sale.id,
+          handledBy: req.attendant?.id ?? null,
+        });
       }
 
       void notifySaleReceipt(sale.id);
