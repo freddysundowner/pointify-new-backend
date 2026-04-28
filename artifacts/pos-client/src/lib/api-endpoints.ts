@@ -286,6 +286,7 @@ export const ENDPOINTS = {
     getAll:               "/api/inventory/stock-counts",
     getById:              (id: string) => `/api/inventory/stock-counts/${id}`,
     countAnalysis:        "/api/reports/stock-count-analysis",
+    productSearch:        "/api/inventory/stock-counts/product-search",
   },
 
   // ─── Expenses ─────────────────────────────────────────────────────────────

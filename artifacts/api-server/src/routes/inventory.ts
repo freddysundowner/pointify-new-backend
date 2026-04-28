@@ -277,11 +277,28 @@ router.get("/bad-stocks", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
-    const where = shopId ? eq(badStocks.shop, shopId) : undefined;
+    const fromDate = req.query["startDate"] ? new Date(String(req.query["startDate"])) : null;
+    const toDate = req.query["endDate"] ? new Date(String(req.query["endDate"]) + "T23:59:59") : null;
+
+    const conditions: any[] = [];
+    if (shopId) conditions.push(eq(badStocks.shop, shopId));
+    if (fromDate) conditions.push(gte(badStocks.createdAt, fromDate));
+    if (toDate) conditions.push(lte(badStocks.createdAt, toDate));
+    const where = conditions.length ? and(...conditions) : undefined;
 
     const rows = await db.query.badStocks.findMany({ where, limit, offset, orderBy: (b, { desc }) => [desc(b.createdAt)] });
     const total = await db.$count(badStocks, where);
-    return paginated(res, rows, { total, page, limit });
+
+    // Enrich with product names
+    const productIds = [...new Set(rows.map(r => r.product))];
+    const productNames: Record<number, string> = {};
+    if (productIds.length) {
+      const prods = await db.select({ id: products.id, name: products.name }).from(products).where(inArray(products.id, productIds));
+      prods.forEach(p => { productNames[p.id] = p.name; });
+    }
+
+    const enriched = rows.map(r => ({ ...r, productName: productNames[r.product] ?? `Product #${r.product}` }));
+    return paginated(res, enriched, { total, page, limit });
   } catch (e) { next(e); }
 });
 
