@@ -778,40 +778,61 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Restore inventory for every item in a sale (idempotency: guarded by caller's status check)
+// Restore inventory for every item in a sale (idempotency: guarded by caller's status check).
+// If any quantity was already restored by a sale return, only the remaining un-returned
+// portion is added back so inventory is never double-counted.
 async function restoreSaleInventory(saleId: number): Promise<void> {
   const items = await db.query.saleItems.findMany({ where: eq(saleItems.sale, saleId) });
   if (!items.length) return;
-  const enriched = await Promise.all(
+
+  // Build a map of already-returned quantities per saleItem id
+  const returnedRows = await db
+    .select({
+      saleItem: saleReturnItems.saleItem,
+      returned: sql<string>`COALESCE(SUM(${saleReturnItems.quantity}::numeric), 0)`,
+    })
+    .from(saleReturnItems)
+    .where(inArray(saleReturnItems.saleItem, items.map(i => i.id)))
+    .groupBy(saleReturnItems.saleItem);
+  const returnedMap = new Map(returnedRows.map(r => [r.saleItem, parseFloat(r.returned)]));
+
+  const enriched: Array<typeof items[number] & { netQty: number; qtyBefore: string; qtyAfter: string }> = [];
+  await Promise.all(
     items.map(async (item) => {
-      const qty = parseFloat(item.quantity);
+      const soldQty = parseFloat(item.quantity);
+      const alreadyReturned = returnedMap.get(item.id) ?? 0;
+      const netQty = soldQty - alreadyReturned; // quantity not yet restored by a return
+      if (netQty <= 0) return; // already fully restored — skip
+
       const existing = await db.query.inventory.findFirst({
         where: and(eq(inventory.product, item.product), eq(inventory.shop, item.shop)),
         columns: { quantity: true },
       });
       const qtyBefore = existing?.quantity ?? "0";
-      const qtyAfter = String(parseFloat(qtyBefore) + qty);
+      const qtyAfter = String(parseFloat(qtyBefore) + netQty);
       await db.insert(inventory)
-        .values({ product: item.product, shop: item.shop, quantity: item.quantity })
+        .values({ product: item.product, shop: item.shop, quantity: String(netQty) })
         .onConflictDoUpdate({
           target: [inventory.product, inventory.shop],
-          set: { quantity: sql`${inventory.quantity} + ${qty}::numeric` },
+          set: { quantity: sql`${inventory.quantity} + ${netQty}::numeric` },
         });
-      return { ...item, qtyBefore, qtyAfter };
+      enriched.push({ ...item, netQty, qtyBefore, qtyAfter });
     })
   );
-  await recordProductHistory(
-    enriched.map((item) => ({
-      product: item.product,
-      shop: item.shop,
-      eventType: "sale_return" as const,
-      referenceId: item.id,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      quantityBefore: item.qtyBefore,
-      quantityAfter: item.qtyAfter,
-    }))
-  );
+  if (enriched.length) {
+    await recordProductHistory(
+      enriched.map((item) => ({
+        product: item.product,
+        shop: item.shop,
+        eventType: "sale_return" as const,
+        referenceId: item.id,
+        quantity: String(item.netQty),
+        unitPrice: item.unitPrice,
+        quantityBefore: item.qtyBefore,
+        quantityAfter: item.qtyAfter,
+      }))
+    );
+  }
 }
 
 router.delete("/:id", requireAdmin, async (req, res, next) => {
