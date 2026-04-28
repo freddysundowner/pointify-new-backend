@@ -910,7 +910,21 @@ function SalesList() {
 
   const filteredSalesCount = totalCount;
 
-
+  // Derive stats Total that respects the payment method / status filter
+  const statsD = (salesReportData as any)?.data;
+  const filteredStatsTotal = (() => {
+    if (!statsD) return 0;
+    switch (statusFilter) {
+      case "cash":     return Number(statsD.cashtransactions ?? 0);
+      case "mpesa":    return Number(statsD.mpesa ?? 0);
+      case "credit":   return Number(statsD.credit ?? 0);
+      case "wallet":   return Number(statsD.wallet ?? 0);
+      case "bank":     return Number(statsD.bank ?? 0);
+      case "held":     return Number(statsD.hold ?? 0);
+      case "returned": return Number(statsD.returns ?? 0);
+      default:         return Number(statsD.totalSales ?? 0);
+    }
+  })();
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -1081,8 +1095,8 @@ function SalesList() {
           {(isAdmin || hasAttendantPermission("sales", "view_summary")) && (
             <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 mb-3">
               {[
-                { label: "Total", value: Number(salesReportData?.data?.totalSales ?? 0).toFixed(2), currency: true },
-                { label: "Count", value: String(salesReportData?.data?.totalCount ?? filteredSalesCount), currency: false },
+                { label: "Total", value: filteredStatsTotal.toFixed(2), currency: true },
+                { label: "Count", value: String(filteredSalesCount), currency: false },
                 { label: "Cash", value: Number(salesReportData?.data?.cashtransactions ?? 0).toFixed(2), currency: true },
                 { label: "M-Pesa", value: Number(salesReportData?.data?.mpesa ?? 0).toFixed(2), currency: true },
                 { label: "Credit", value: Number(salesReportData?.data?.credit ?? 0).toFixed(2), currency: true },
