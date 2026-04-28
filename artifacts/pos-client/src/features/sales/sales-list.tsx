@@ -605,18 +605,13 @@ function SalesList() {
       const doc = buildQuotationDoc(sale);
       const pdfBase64 = doc.output("datauristring").split(",")[1];
       const shopName = (currentShop as any)?.name || "";
-      const response = await fetch("/api/sales/email-receipt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          toEmail: email,
-          receiptHtml: `<p>Please find your quotation <strong>#${sale.receiptNo}</strong> attached.</p>`,
-          receiptNo: sale.receiptNo,
-          shopName,
-          customerName: sale.customerName !== "Walk-in" ? sale.customerName : undefined,
-          pdfBase64,
-        }),
+      const response = await apiRequest("POST", "/api/sales/email-receipt", {
+        toEmail: email,
+        receiptHtml: `<p>Please find your quotation <strong>#${sale.receiptNo}</strong> attached.</p>`,
+        receiptNo: sale.receiptNo,
+        shopName,
+        customerName: sale.customerName !== "Walk-in" ? sale.customerName : undefined,
+        pdfBase64,
       });
       const data = await response.json();
       if (data.success) {
@@ -776,18 +771,13 @@ function SalesList() {
       const doc = buildInvoiceDoc(sale);
       const pdfBase64 = doc.output("datauristring").split(",")[1];
       const shopName = (currentShop as any)?.name || "";
-      const response = await fetch("/api/sales/email-receipt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          toEmail: email,
-          receiptHtml: `<p>Please find your invoice <strong>#${sale.receiptNo}</strong> attached. Payment is due at your earliest convenience.</p>`,
-          receiptNo: sale.receiptNo,
-          shopName,
-          customerName: sale.customerName !== "Walk-in" ? sale.customerName : undefined,
-          pdfBase64,
-        }),
+      const response = await apiRequest("POST", "/api/sales/email-receipt", {
+        toEmail: email,
+        receiptHtml: `<p>Please find your invoice <strong>#${sale.receiptNo}</strong> attached. Payment is due at your earliest convenience.</p>`,
+        receiptNo: sale.receiptNo,
+        shopName,
+        customerName: sale.customerName !== "Walk-in" ? sale.customerName : undefined,
+        pdfBase64,
       });
       const data = await response.json();
       if (data.success) {
