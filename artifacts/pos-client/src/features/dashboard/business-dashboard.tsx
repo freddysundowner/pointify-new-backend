@@ -187,7 +187,7 @@ export default function BusinessDashboard() {
   useEffect(() => {
     if (shopsData && Array.isArray(shopsData)) {
       const shops = shopsData.map((shop: any) => ({
-        id: shop.id ?? shop._id,
+        id: String(shop.id ?? shop._id),
         name: shop.name,
         type: shop.category?.name || 'General',
         location: shop.address,
@@ -229,7 +229,7 @@ export default function BusinessDashboard() {
 
 
 
-  const currentShopData = availableShops.find(shop => shop.id === selectedShopId) || availableShops[0];
+  const currentShopData = availableShops.find(shop => String(shop.id) === String(selectedShopId)) || availableShops[0];
 
   // Initialize selected shop from admin data - reset shop selection for new users
   useEffect(() => {
@@ -238,38 +238,40 @@ export default function BusinessDashboard() {
       // manual shop switches persist across page refreshes
       const storedShopId = localStorage.getItem('selectedShopId');
       const storedBelongsToAdmin = storedShopId
-        ? availableShops.find(s => s.id === storedShopId)
+        ? availableShops.find(s => String(s.id) === String(storedShopId))
         : null;
 
       const primaryShopId = String(extractId(admin?.primaryShop) ?? '');
 
-      const currentShopBelongsToAdmin = availableShops.find(shop => shop.id === selectedShopId);
+      const currentShopBelongsToAdmin = selectedShopId
+        ? availableShops.find(shop => String(shop.id) === String(selectedShopId))
+        : null;
 
-      let resolvedShopId = selectedShopId;
+      let resolvedShopId: string | null = selectedShopId;
 
       if (!selectedShopId || !currentShopBelongsToAdmin) {
         // Prefer: stored user selection → API primaryShop → first shop
         const preferredId = storedBelongsToAdmin
-          ? storedShopId!
+          ? String(storedShopId!)
           : primaryShopId;
 
         if (preferredId) {
-          const shopExists = availableShops.find(shop => shop.id === preferredId);
-          const shopToSelect = shopExists ? preferredId : availableShops[0]?.id;
+          const shopExists = availableShops.find(shop => String(shop.id) === String(preferredId));
+          const shopToSelect = shopExists ? String(preferredId) : (availableShops[0] ? String(availableShops[0].id) : null);
           if (shopToSelect) {
             dispatch(setSelectedShop(shopToSelect));
             resolvedShopId = shopToSelect;
           }
         } else if (availableShops[0]?.id) {
-          dispatch(setSelectedShop(availableShops[0].id));
-          resolvedShopId = availableShops[0].id;
+          const firstId = String(availableShops[0].id);
+          dispatch(setSelectedShop(firstId));
+          resolvedShopId = firstId;
         }
       }
 
       // Always ensure Redux + localStorage have the full shop object for the resolved shop
-      // so usePrimaryShop can derive shopCategoryId (e.g. for laundry features) reactively
       if (resolvedShopId && Array.isArray(shopsData)) {
-        const fullShop = (shopsData as any[]).find((s: any) => (s.id ?? s._id) === resolvedShopId);
+        const fullShop = (shopsData as any[]).find((s: any) => String(s.id ?? s._id) === String(resolvedShopId));
         if (fullShop) {
           dispatch(setSelectedShopData(fullShop));
         }
@@ -279,13 +281,15 @@ export default function BusinessDashboard() {
 
   // Handle shop switching with smooth data refresh
   const handleShopSwitch = async (shopId: string) => {
+    const sid = String(shopId);
+
     // Find the full shop object from the API response so localStorage retains it
     const fullShopData = Array.isArray(shopsData)
-      ? shopsData.find((s: any) => s._id === shopId)
+      ? (shopsData as any[]).find((s: any) => String(s.id ?? s._id) === sid)
       : null;
-    const selectedShopMeta = availableShops.find(shop => shop.id === shopId);
+    const selectedShopMeta = availableShops.find(shop => shop.id === sid);
 
-    dispatch(setSelectedShop(shopId));
+    dispatch(setSelectedShop(sid));
 
     // Push full shop object into Redux so usePrimaryShop picks it up immediately
     if (fullShopData) {
@@ -296,13 +300,13 @@ export default function BusinessDashboard() {
     const currentAdminData = JSON.parse(localStorage.getItem('adminData') || '{}');
     const mergedAdminData = {
       ...currentAdminData,
-      primaryShop: fullShopData || shopId,
+      primaryShop: fullShopData || sid,
     };
     localStorage.setItem('adminData', JSON.stringify(mergedAdminData));
     updateAdmin(mergedAdminData);
 
-    // Invalidate and refetch all queries for the new shop immediately
-    queryClient.invalidateQueries();
+    // Clear all cached query data so every page fetches fresh data for the new shop
+    queryClient.resetQueries();
 
     toast({
       title: "Switching Shop",
