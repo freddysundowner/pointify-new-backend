@@ -223,7 +223,8 @@ export default function StockProducts() {
         credentials: "include",
       });
       if (!response.ok) throw new Error(`API Error: ${response.status}`);
-      return response.json();
+      const json = await response.json();
+      return json.data ?? json;
     },
     staleTime: 0,
     refetchOnMount: true,
@@ -283,7 +284,7 @@ export default function StockProducts() {
   const totalProducts = productsData?.meta?.total || 0;
   const totalPages = productsData?.meta?.totalPages || 1;
   const currentPage = productsData?.meta?.page || 1;
-  const stockSummary = stockAnalysis?.data ?? stockAnalysis ?? {};
+  const stockSummary = stockAnalysis ?? {};
   const lowQuantityProducts = Number(stockSummary?.lowstock ?? 0);
   const outOfStockProducts = Number(stockSummary?.outofstock ?? 0);
   const totalStockValue = Number(stockSummary?.totalStockValue ?? stockSummary?.totalValue ?? 0);
