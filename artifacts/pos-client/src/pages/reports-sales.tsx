@@ -5,7 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { DollarSign, ArrowLeft, RefreshCw, CreditCard, Smartphone, Banknote, Building, Clock, ShoppingCart, ExternalLink } from "lucide-react";
+import {
+  DollarSign, ArrowLeft, RefreshCw, CreditCard, Smartphone,
+  Banknote, Building, Clock, ShoppingCart, ExternalLink,
+  RotateCcw, Pause, ChevronRight,
+} from "lucide-react";
 import { RootState } from "@/store";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useLocation } from "wouter";
@@ -50,10 +54,27 @@ export default function SalesReportPage() {
   const [to, setTo] = useState(today);
   const isCustom = quickDays === 0;
 
-  const buildParams = () => {
-    if (isCustom) return new URLSearchParams({ shopId: shopId || "", from, to });
+  // Returns the effective from/to dates for the current selection
+  const getDateRange = (): { from: string; to: string } => {
+    if (isCustom) return { from, to };
     const sinceDate = new Date(Date.now() - (quickDays - 1) * 86400000).toISOString().split("T")[0];
-    return new URLSearchParams({ shopId: shopId || "", from: sinceDate, to: today });
+    return { from: sinceDate, to: today };
+  };
+
+  const buildParams = () => {
+    const { from: f, to: t } = getDateRange();
+    return new URLSearchParams({ shopId: shopId || "", from: f, to: t });
+  };
+
+  const buildStatsParams = () => {
+    const { from: f, to: t } = getDateRange();
+    return new URLSearchParams({ shopId: shopId || "", start: f, end: t });
+  };
+
+  // Navigate to sales list pre-filtered by status + current date range
+  const goToSales = (status: string) => {
+    const { from: f, to: t } = getDateRange();
+    setLocation(`/sales?startDate=${f}&endDate=${t}&status=${status}`);
   };
 
   const { data: paymentData, isLoading: loadingPay, refetch: refetchPay } = useQuery<any>({
@@ -80,13 +101,24 @@ export default function SalesReportPage() {
     staleTime: 0,
   });
 
+  const { data: statsData, isLoading: loadingStats, refetch: refetchStats } = useQuery<any>({
+    queryKey: ["sales-stats-tally", shopId, from, to, quickDays],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/sales/stats?${buildStatsParams()}`);
+      const json = await res.json();
+      return json?.data ?? json;
+    },
+    enabled: !!shopId,
+    staleTime: 0,
+  });
+
   const paymentRows: any[] = paymentData?.rows ?? [];
   const cashCollected = n(paymentData?.grandTotal);
   const dailyRows: any[] = (dailyData?.rows ?? []).slice().reverse();
 
-  const totalSalesValue  = dailyRows.reduce((s: number, r: any) => s + n(r.totalRevenue), 0);
+  const totalSalesValue   = dailyRows.reduce((s: number, r: any) => s + n(r.totalRevenue), 0);
   const totalTransactions = dailyRows.reduce((s: number, r: any) => s + n(r.totalSales), 0);
-  const totalOnCredit    = Math.max(0, totalSalesValue - cashCollected);
+  const totalOnCredit     = Math.max(0, totalSalesValue - cashCollected);
 
   // Build full payment method list: real payments + credit remainder
   const allMethods = [
@@ -94,8 +126,96 @@ export default function SalesReportPage() {
     ...(totalOnCredit > 0 ? [{ type: "credit", amount: totalOnCredit, count: 0 }] : []),
   ];
 
-  const refetch = () => { refetchPay(); refetchDaily(); };
-  const isLoading = loadingPay || loadingDaily;
+  const refetch = () => { refetchPay(); refetchDaily(); refetchStats(); };
+  const isLoading = loadingPay || loadingDaily || loadingStats;
+
+  // Tally cards config — each links to the sales list filtered by the given status
+  const TALLIES = [
+    {
+      key: "cash",
+      label: "Cash Sales",
+      subtitle: "Paid in cash",
+      amount: n(statsData?.cashtransactions),
+      icon: Banknote,
+      bg: "bg-green-50 hover:bg-green-100",
+      text: "text-green-700",
+      iconBg: "bg-green-100",
+      border: "border-green-200",
+      status: "cash",
+    },
+    {
+      key: "mpesa",
+      label: "M-Pesa Collected",
+      subtitle: "Mobile money",
+      amount: n(statsData?.mpesa),
+      icon: Smartphone,
+      bg: "bg-emerald-50 hover:bg-emerald-100",
+      text: "text-emerald-700",
+      iconBg: "bg-emerald-100",
+      border: "border-emerald-200",
+      status: "mpesa",
+    },
+    {
+      key: "wallet",
+      label: "Wallet Sales",
+      subtitle: "Paid from wallet",
+      amount: n(statsData?.wallet),
+      icon: CreditCard,
+      bg: "bg-purple-50 hover:bg-purple-100",
+      text: "text-purple-700",
+      iconBg: "bg-purple-100",
+      border: "border-purple-200",
+      status: "wallet",
+    },
+    {
+      key: "bank",
+      label: "Bank Transfer",
+      subtitle: "Bank payments",
+      amount: n(statsData?.bank),
+      icon: Building,
+      bg: "bg-blue-50 hover:bg-blue-100",
+      text: "text-blue-700",
+      iconBg: "bg-blue-100",
+      border: "border-blue-200",
+      status: "bank",
+    },
+    {
+      key: "credit",
+      label: "Credit Sales",
+      subtitle: "Outstanding balance",
+      amount: n(statsData?.credit),
+      icon: Clock,
+      bg: "bg-orange-50 hover:bg-orange-100",
+      text: "text-orange-700",
+      iconBg: "bg-orange-100",
+      border: "border-orange-200",
+      status: "credit",
+    },
+    {
+      key: "hold",
+      label: "On Hold",
+      subtitle: "Parked, not yet paid",
+      amount: n(statsData?.hold),
+      icon: Pause,
+      bg: "bg-yellow-50 hover:bg-yellow-100",
+      text: "text-yellow-700",
+      iconBg: "bg-yellow-100",
+      border: "border-yellow-200",
+      status: "held",
+    },
+    {
+      key: "returns",
+      label: "Returns",
+      subtitle: "Refunds issued",
+      amount: n(statsData?.returns),
+      icon: RotateCcw,
+      bg: "bg-red-50 hover:bg-red-100",
+      text: "text-red-700",
+      iconBg: "bg-red-100",
+      border: "border-red-200",
+      status: "returned",
+    },
+  ];
 
   return (
     <DashboardLayout>
@@ -133,7 +253,7 @@ export default function SalesReportPage() {
 
         {isLoading && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
+            {[...Array(8)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
           </div>
         )}
 
@@ -174,6 +294,39 @@ export default function SalesReportPage() {
                   </p>
                 </CardContent>
               </Card>
+            </div>
+
+            {/* === TALLY CARDS — click any to view those sales === */}
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2 px-1">
+                Sales Tallies — click to view
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {TALLIES.map(t => {
+                  const Icon = t.icon;
+                  return (
+                    <button
+                      key={t.key}
+                      onClick={() => goToSales(t.status)}
+                      className={`text-left rounded-xl border p-3 transition-colors cursor-pointer ${t.bg} ${t.border}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className={`h-7 w-7 rounded-lg ${t.iconBg} flex items-center justify-center`}>
+                          <Icon className={`h-3.5 w-3.5 ${t.text}`} />
+                        </div>
+                        <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
+                      </div>
+                      <p className={`text-base font-bold leading-tight ${t.text}`}>{fmt(t.amount)}</p>
+                      <p className={`text-xs font-semibold mt-0.5 ${t.text}`}>{t.label}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{t.subtitle}</p>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-400 mt-1.5 px-1">
+                * <strong>Credit</strong> = completed sales with unpaid balance &nbsp;|&nbsp;
+                <strong>Hold</strong> = parked sales not yet checked out (these are different)
+              </p>
             </div>
 
             {/* Payment method cards — the main section */}
