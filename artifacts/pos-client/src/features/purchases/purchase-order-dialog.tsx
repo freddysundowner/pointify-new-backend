@@ -413,7 +413,7 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
                           <div className="flex-1">
                             <p className="font-medium">{product.name}</p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span>Cost: {product.shopId?.currency || 'KES'} {(product.buyingPrice || 0).toFixed(2)}</span>
+                              <span>Cost: {product.shopId?.currency || 'KES'} {parseFloat(String(product.buyingPrice || 0)).toFixed(2)}</span>
                               <span>•</span>
                               <span>Stock: {product.quantity || 0}</span>
                             </div>

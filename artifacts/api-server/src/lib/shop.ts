@@ -20,7 +20,11 @@ export async function resolveShopFilter(
     return [sid];
   }
   if (req.admin) {
-    if (req.admin.isSuperAdmin) return null;
+    if (req.admin.isSuperAdmin) {
+      // Super admin: if a specific shop was requested, scope to that shop.
+      // Without a requested shop, return null (unrestricted — all shops).
+      return requestedShopId ? [requestedShopId] : null;
+    }
     if (requestedShopId) {
       const owned = await db.query.shops.findFirst({
         where: and(eq(shops.id, requestedShopId), eq(shops.admin, req.admin.id)),
