@@ -94,8 +94,13 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       reason,
       refundMethod: refundMethod ?? "cash",
       processedBy: processedById,
-      returnNo: `RET${Date.now()}`,
+      returnNo: `RET-TEMP-${Date.now()}`,
     }).returning();
+
+    // Replace with clean sequential number now that we have the ID
+    const cleanReturnNo = `RET-${String(saleReturn.id).padStart(5, "0")}`;
+    await db.update(saleReturns).set({ returnNo: cleanReturnNo }).where(eq(saleReturns.id, saleReturn.id));
+    saleReturn.returnNo = cleanReturnNo;
 
     const itemRows = await db.insert(saleReturnItems).values(
       items.map((item: any) => ({

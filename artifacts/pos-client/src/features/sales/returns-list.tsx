@@ -161,7 +161,13 @@ function ReturnsList() {
   // Transform API data to match expected format
   const transformedReturns = returnsData.map((returnItem: any) => ({
     id: returnItem.id || returnItem._id,
-    receiptNo: returnItem.returnNo || returnItem.saleReturnNo || `#${returnItem.id}`,
+    receiptNo: (() => {
+      const rn: string = returnItem.returnNo || returnItem.saleReturnNo || "";
+      if (!rn) return `RET-${String(returnItem.id || 0).padStart(5, "0")}`;
+      // Old format: RET{13-digit timestamp} → reformat using row id
+      if (/^RET\d{10,}$/.test(rn)) return `RET-${String(returnItem.id || 0).padStart(5, "0")}`;
+      return rn;
+    })(),
     customerName: returnItem.customer?.name || returnItem.customerId?.name || 'Walk-in',
     totalAmount: returnItem.refundAmount || 0,
     returnDate: returnItem.createdAt,
