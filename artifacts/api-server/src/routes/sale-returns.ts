@@ -9,7 +9,6 @@ import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { getPagination } from "../lib/paginate.js";
 import { notifySaleRefund } from "../lib/emailEvents.js";
 import { recordProductHistory } from "../lib/product-history.js";
-import { autoRecordCashflow } from "../lib/auto-cashflow.js";
 
 const router = Router();
 
@@ -114,13 +113,6 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     }).where(eq(sales.id, Number(saleId)));
 
     void notifySaleRefund(saleReturn.id);
-    void autoRecordCashflow({
-      shopId: Number(shopId),
-      amount: refundAmount,
-      description: `Sale Return ${saleReturn.returnNo}`,
-      categoryKey: "sale_return",
-      recordedBy: req.attendant?.id,
-    });
     return created(res, { ...saleReturn, items: itemRows });
   } catch (e) { next(e); }
 });
