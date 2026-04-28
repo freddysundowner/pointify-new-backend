@@ -998,55 +998,43 @@ router.post("/:id/refund", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// List debt collection payments (salePayments inserted >5 min after the sale)
+// List debt collection payments — payments tagged payment_no = 'DEBT'
 router.get("/collected-payments", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const start = req.query["start"] ? new Date(String(req.query["start"])) : null;
-    const end = req.query["end"] ? new Date(String(req.query["end"])) : null;
+    const end   = req.query["end"]   ? new Date(String(req.query["end"]))   : null;
     if (end) end.setHours(23, 59, 59, 999);
     const effectiveShopId = req.attendant ? req.attendant.shopId : shopId;
 
-    const limitLit  = sql.raw(String(Number(limit)));
-    const offsetLit = sql.raw(String(Number(offset)));
-    const shopFilter  = effectiveShopId ? sql.raw(`AND s.shop_id = ${Number(effectiveShopId)}`) : sql.raw("");
-    const startFilter = start  ? sql.raw(`AND sp.paid_at >= '${start.toISOString()}'`) : sql.raw("");
-    const endFilter   = end    ? sql.raw(`AND sp.paid_at <= '${end.toISOString()}'`)   : sql.raw("");
+    // Build fully-literal SQL — no Drizzle parameters, all values are server-controlled.
+    const shopClause  = effectiveShopId ? `AND s.shop_id = ${Number(effectiveShopId)}` : "";
+    const startClause = start ? `AND sp.paid_at >= '${start.toISOString()}'` : "";
+    const endClause   = end   ? `AND sp.paid_at <= '${end.toISOString()}'`   : "";
+    const baseWhere   = `sp.payment_no = 'DEBT' ${shopClause} ${startClause} ${endClause}`;
 
     const [rows, countRows] = await Promise.all([
-      db.execute(sql`
+      db.execute(sql.raw(`
         SELECT
-          sp.id,
-          sp.paid_at,
-          sp.amount,
-          sp.balance,
-          sp.payment_type,
-          sp.payment_reference,
-          sp.payment_no,
-          s.id          AS sale_id,
-          s.receipt_no,
-          s.total_with_discount,
-          s.outstanding_balance,
-          s.status      AS sale_status,
-          c.id          AS customer_id,
-          c.name        AS customer_name,
-          c.phone_number AS customer_phone
+          sp.id, sp.paid_at, sp.amount, sp.balance, sp.payment_type,
+          sp.payment_reference, sp.payment_no,
+          s.id AS sale_id, s.receipt_no, s.total_with_discount,
+          s.outstanding_balance, s.status AS sale_status,
+          c.id AS customer_id, c.name AS customer_name, c.phone_number AS customer_phone
         FROM sale_payments sp
         INNER JOIN sales s ON sp.sale_id = s.id
         LEFT JOIN customers c ON s.customer_id = c.id
-        WHERE sp.payment_no = 'DEBT'
-        ${shopFilter} ${startFilter} ${endFilter}
+        WHERE ${baseWhere}
         ORDER BY sp.paid_at DESC
-        LIMIT ${limitLit} OFFSET ${offsetLit}
-      `),
-      db.execute(sql`
+        LIMIT ${Number(limit)} OFFSET ${Number(offset)}
+      `)),
+      db.execute(sql.raw(`
         SELECT COUNT(*) AS total
         FROM sale_payments sp
         INNER JOIN sales s ON sp.sale_id = s.id
-        WHERE sp.payment_no = 'DEBT'
-        ${shopFilter} ${startFilter} ${endFilter}
-      `),
+        WHERE ${baseWhere}
+      `)),
     ]);
 
     const total = Number((countRows.rows[0] as any)?.total ?? 0);
