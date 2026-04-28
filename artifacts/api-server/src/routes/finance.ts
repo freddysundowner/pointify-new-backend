@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, gte, lte, ilike } from "drizzle-orm";
+import { eq, and, gte, lte, ilike, sql } from "drizzle-orm";
 import {
   expenses, expenseCategories, cashflows, cashflowCategories,
   banks, paymentMethods, userPayments
@@ -279,16 +279,40 @@ router.get("/cashflows", requireAdminOrAttendant, async (req, res, next) => {
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
     const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+    const categoryId = req.query["categoryId"] ? Number(req.query["categoryId"]) : null;
 
-    const conditions = [];
+    const conditions: any[] = [];
     if (shopId) conditions.push(eq(cashflows.shop, shopId));
     if (from) conditions.push(gte(cashflows.createdAt, from));
-    if (to) conditions.push(lte(cashflows.createdAt, to));
+    if (to) { const eod = new Date(to); eod.setUTCHours(23, 59, 59, 999); conditions.push(lte(cashflows.createdAt, eod)); }
+    if (categoryId) conditions.push(eq(cashflows.category, categoryId));
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
 
-    const rows = await db.query.cashflows.findMany({ where, limit, offset, orderBy: (c, { desc }) => [desc(c.createdAt)] });
-    const total = await db.$count(cashflows, where);
-    return paginated(res, rows, { total, page, limit });
+    const [rows, total, summaryRows] = await Promise.all([
+      db.query.cashflows.findMany({
+        where, limit, offset,
+        orderBy: (c, { desc }) => [desc(c.createdAt)],
+        with: { category: true },
+      }),
+      db.$count(cashflows, where),
+      db.select({
+        totalCashIn: sql<string>`COALESCE(SUM(CASE WHEN ${cashflowCategories.type} = 'cashin' THEN ${cashflows.amount}::numeric ELSE 0 END), 0)`,
+        totalCashOut: sql<string>`COALESCE(SUM(CASE WHEN ${cashflowCategories.type} = 'cashout' THEN ${cashflows.amount}::numeric ELSE 0 END), 0)`,
+      }).from(cashflows)
+        .leftJoin(cashflowCategories, eq(cashflows.category, cashflowCategories.id))
+        .where(where),
+    ]);
+
+    const s = summaryRows[0];
+    return res.json({
+      success: true,
+      data: rows,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      summary: {
+        totalCashIn: parseFloat(s?.totalCashIn ?? "0"),
+        totalCashOut: parseFloat(s?.totalCashOut ?? "0"),
+      },
+    });
   } catch (e) { next(e); }
 });
 
