@@ -514,8 +514,8 @@ function SalesList() {
       doc.text("Qty", 110, y, { align: "right" });
       doc.text("Unit Price", 145, y, { align: "right" });
       doc.text("Total", 188, y, { align: "right" });
-      y += 8;
-      doc.line(20, y - 2, 190, y - 2);
+      y += 10;
+      doc.line(20, y - 4, 190, y - 4);
       doc.setFont("helvetica", "normal");
 
       // Items
@@ -537,9 +537,9 @@ function SalesList() {
         }
       });
 
-      y += 2;
+      y += 6;
       doc.line(20, y, 190, y);
-      y += 8;
+      y += 10;
 
       // Subtotal
       const subtotal = originalSale?.totalAmount || sale.totalAmount || 0;
