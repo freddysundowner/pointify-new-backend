@@ -374,7 +374,9 @@ export default function BusinessDashboard() {
     amount: parseFloat(sale.totalWithDiscount || sale.totalAmount || sale.total || 0),
     items: sale.saleItems?.length || sale.products?.length || sale.items?.length || 1,
     time: timeAgo(sale.createdAt),
-    paymentMethod: sale.paymentType || sale.paymentMethod || "Cash",
+    paymentMethod: (sale.status === "hold" || sale.status === "on_hold")
+      ? "Hold"
+      : (sale.paymentType || sale.paymentMethod || "Cash"),
     status: sale.status || "completed",
     outstandingBalance: parseFloat(sale.outstandingBalance || 0)
   })) : [];
@@ -417,11 +419,16 @@ export default function BusinessDashboard() {
   const getPaymentMethodBadge = (method: string) => {
     switch (method) {
       case "Cash":
+      case "cash":
         return <Badge variant="outline" className="bg-green-50 text-green-700">Cash</Badge>;
       case "Card":
+      case "card":
         return <Badge variant="outline" className="bg-blue-50 text-blue-700">Card</Badge>;
       case "Credit":
+      case "credit":
         return <Badge variant="outline" className="bg-orange-50 text-orange-700">Credit</Badge>;
+      case "Hold":
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">Hold</Badge>;
       default:
         return <Badge variant="outline">{method}</Badge>;
     }
