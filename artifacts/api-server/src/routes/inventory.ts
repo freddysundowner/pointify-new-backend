@@ -113,7 +113,7 @@ router.get("/movements", requireAdminOrAttendant, async (req, res, next) => {
     .where(and(
       saleShopWhere,
       gte(sales.createdAt, since),
-      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`,
     ))
     .groupBy(saleItems.product, saleItems.shop)
     .orderBy(sql`SUM(${saleItems.quantity}::numeric) DESC`)
@@ -139,7 +139,7 @@ router.get("/movements", requireAdminOrAttendant, async (req, res, next) => {
       .where(and(
         saleShopWhere,
         gte(sales.createdAt, since),
-        sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+        sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`,
       ));
     const allSoldProductIds = allRecentlySoldRaw.map((r) => r.productId).filter((x): x is number => !!x);
 

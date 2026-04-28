@@ -101,6 +101,18 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         note: saleReturn.returnNo,
       }))
     );
+    // Update the original sale's totals to reflect the returned amount
+    const newTotal = Math.max(0, parseFloat(sale.totalWithDiscount) - refundAmount);
+    const newAmountPaid = Math.max(0, parseFloat(sale.amountPaid) - refundAmount);
+    const newOutstanding = Math.max(0, parseFloat(sale.outstandingBalance ?? "0") - refundAmount);
+    const allReturned = newTotal <= 0;
+    await db.update(sales).set({
+      totalWithDiscount: String(newTotal.toFixed(2)),
+      amountPaid: String(newAmountPaid.toFixed(2)),
+      outstandingBalance: String(newOutstanding.toFixed(2)),
+      ...(allReturned ? { status: "returned" } : {}),
+    }).where(eq(sales.id, Number(saleId)));
+
     void notifySaleRefund(saleReturn.id);
     void autoRecordCashflow({
       shopId: Number(shopId),

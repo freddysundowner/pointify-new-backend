@@ -36,8 +36,8 @@ router.get("/sales", requireAdmin, async (req, res, next) => {
 
     const baseWhere = shopDate(shopId, from, to, sales);
     const where = baseWhere
-      ? and(baseWhere, sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`)
-      : sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`;
+      ? and(baseWhere, sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`)
+      : sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`;
     const [summary] = await db.select({
       totalSales: sql<number>`COUNT(*)`,
       totalRevenue: sql<string>`COALESCE(SUM(${sales.totalWithDiscount}::numeric), 0)`,
@@ -59,7 +59,7 @@ router.get("/sales/by-product", requireAdmin, async (req, res, next) => {
     if (shopId) conditions.push(eq(sales.shop, shopId));
     if (from) conditions.push(gte(sales.createdAt, from));
     if (to) conditions.push(lte(sales.createdAt, to));
-    conditions.push(sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`);
+    conditions.push(sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`);
 
     const rows = await db.select({
       productId: saleItems.product,
@@ -87,7 +87,7 @@ router.get("/sales/by-customer", requireAdmin, async (req, res, next) => {
     if (shopId) conditions.push(eq(sales.shop, shopId));
     if (from) conditions.push(gte(sales.createdAt, from));
     if (to) conditions.push(lte(sales.createdAt, to));
-    conditions.push(sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`);
+    conditions.push(sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`);
 
     const rows = await db.select({
       customerId: sales.customer,
@@ -153,8 +153,8 @@ router.get("/profit-loss", requireAdmin, async (req, res, next) => {
 
     const baseSalesWhere = shopDate(shopId, from, to, sales);
     const salesWhere = baseSalesWhere
-      ? and(baseSalesWhere, sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`)
-      : sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`;
+      ? and(baseSalesWhere, sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`)
+      : sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`;
     const expensesWhere = shopDate(shopId, from, to, expenses);
 
     const [[revenueSummary], [costSummary], [expensesSummary]] = await Promise.all([
@@ -210,7 +210,7 @@ router.get("/inventory", requireAdmin, async (req, res, next) => {
 router.get("/credit", requireAdmin, async (req, res, next) => {
   try {
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
-    const statusFilter = sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`;
+    const statusFilter = sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`;
     const where = shopId
       ? and(eq(sales.shop, shopId), sql`${sales.outstandingBalance}::numeric > 0`, statusFilter)
       : and(sql`${sales.outstandingBalance}::numeric > 0`, statusFilter);
@@ -236,7 +236,7 @@ router.get("/monthly-product-sales", requireAdmin, async (req, res, next) => {
     const conditions = [
       gte(sales.createdAt, new Date(`${year}-01-01T00:00:00.000Z`)),
       lte(sales.createdAt, new Date(`${year}-12-31T23:59:59.999Z`)),
-      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`,
     ];
     if (shopId) conditions.push(eq(sales.shop, shopId));
     if (productId) conditions.push(eq(saleItems.product, productId));
@@ -355,7 +355,7 @@ router.get("/slow-movers", requireAdmin, async (req, res, next) => {
     const limit = req.query["limit"] ? Math.min(200, Math.max(1, Number(req.query["limit"]))) : 50;
     const offset = (page - 1) * limit;
 
-    const saleConditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
+    const saleConditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`];
     if (shopId) saleConditions.push(eq(saleItems.shop, shopId));
     if (from) saleConditions.push(gte(sales.createdAt, from));
     if (to) { const eod = new Date(to); eod.setUTCHours(23, 59, 59, 999); saleConditions.push(lte(sales.createdAt, eod)); }
@@ -516,7 +516,7 @@ router.get("/backup", requireAdmin, async (req, res, next) => {
 router.get("/dues", requireAdmin, async (req, res, next) => {
   try {
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
-    const conditions = [sql`${sales.outstandingBalance}::numeric > 0`, sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
+    const conditions = [sql`${sales.outstandingBalance}::numeric > 0`, sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`];
     if (shopId) conditions.push(eq(sales.shop, shopId));
     const where = and(...conditions);
 
@@ -558,7 +558,7 @@ router.get("/profit/yearly/:year", requireAdmin, async (req, res, next) => {
     const salesConditions = [
       gte(sales.createdAt, yearStart),
       lte(sales.createdAt, yearEnd),
-      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`,
     ];
     if (shopId) salesConditions.push(eq(sales.shop, shopId));
     const expConditions = [gte(expenses.createdAt, yearStart), lte(expenses.createdAt, yearEnd)];
@@ -606,7 +606,7 @@ router.get("/cross-shop", requireAdmin, async (req, res, next) => {
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
     const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
 
-    const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
+    const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`];
     if (from) conditions.push(gte(sales.createdAt, from));
     if (to) conditions.push(lte(sales.createdAt, to));
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
@@ -631,7 +631,7 @@ router.get("/sales/by-payment-method", requireAdmin, async (req, res, next) => {
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
     const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
 
-    const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
+    const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`];
     if (shopId) conditions.push(eq(sales.shop, shopId));
     if (from) conditions.push(gte(sales.createdAt, from));
     if (to) { const eod = new Date(to); eod.setUTCHours(23, 59, 59, 999); conditions.push(lte(sales.createdAt, eod)); }
@@ -738,7 +738,7 @@ router.get("/dues/overdue", requireAdmin, async (req, res, next) => {
 
     const conditions = [
       sql`${sales.outstandingBalance}::numeric > 0`,
-      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`,
       sql`${sales.dueDate} IS NOT NULL`,
       lte(sales.dueDate, now),
     ];
@@ -786,7 +786,7 @@ router.get("/sales/by-product/detail", requireAdmin, async (req, res, next) => {
     const categoryId = req.query["categoryId"] ? Number(req.query["categoryId"]) : null;
     const search = req.query["search"] ? String(req.query["search"]).trim() : null;
 
-    const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
+    const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`];
     if (shopId) conditions.push(eq(saleItems.shop, shopId));
     if (from) conditions.push(gte(sales.createdAt, from));
     if (to) { const eod = new Date(to); eod.setUTCHours(23, 59, 59, 999); conditions.push(lte(sales.createdAt, eod)); }
@@ -864,7 +864,7 @@ router.get("/sales/daily", requireAdminOrAttendant, async (req, res, next) => {
 
     const conditions = [
       gte(sales.createdAt, since),
-      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`,
     ];
     if (shopId) conditions.push(eq(sales.shop, shopId));
     if (req.attendant) conditions.push(eq(sales.attendant, req.attendant.id));
@@ -895,7 +895,7 @@ router.get("/sales/monthly", requireAdminOrAttendant, async (req, res, next) => 
     const conditions = [
       gte(sales.createdAt, new Date(`${year}-01-01`)),
       lte(sales.createdAt, new Date(`${year}-12-31T23:59:59`)),
-      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`,
     ];
     if (shopId) conditions.push(eq(sales.shop, shopId));
     if (req.attendant) conditions.push(eq(sales.attendant, req.attendant.id));
@@ -941,7 +941,7 @@ router.get("/income", requireAdmin, async (req, res, next) => {
     const days = req.query["days"] ? Number(req.query["days"]) : 30;
     const since = from ?? new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    const baseCond = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
+    const baseCond = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`];
     if (shopId) baseCond.push(eq(sales.shop, shopId));
     if (from) baseCond.push(gte(sales.createdAt, from)); else baseCond.push(gte(sales.createdAt, since));
     if (to) baseCond.push(lte(sales.createdAt, to));
@@ -1125,7 +1125,7 @@ router.get("/debts/aging", requireAdmin, async (req, res, next) => {
 
     const conditions = [
       sql`${sales.outstandingBalance}::numeric > 0`,
-      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`,
     ];
     if (shopId) conditions.push(eq(sales.shop, shopId));
     const where = and(...conditions);
@@ -1188,7 +1188,7 @@ router.get("/dues/detail", requireAdmin, async (req, res, next) => {
 
     const conditions = [
       sql`${sales.outstandingBalance}::numeric > 0`,
-      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`,
     ];
     if (shopId) conditions.push(eq(sales.shop, shopId));
     if (overdue) {
@@ -1345,8 +1345,8 @@ router.get("/profit-loss/detail", requireAdmin, async (req, res, next) => {
 
     const baseSalesWhere = shopDate(shopId, from, to, sales);
     const salesWhere = baseSalesWhere
-      ? and(baseSalesWhere, sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`)
-      : sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`;
+      ? and(baseSalesWhere, sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`)
+      : sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`;
     const expensesWhere = shopDate(shopId, from, to, expenses);
     const purchasesWhere = shopDate(shopId, from, to, purchases);
 
@@ -1457,7 +1457,7 @@ router.get("/business-summary", requireAdmin, async (req, res, next) => {
     const salesWhere = and(
       shopId ? eq(sales.shop, shopId) : sql`1=1`,
       gte(sales.createdAt, since),
-      sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`,
+      sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`,
     );
     const expWhere = and(
       shopId ? eq(expenses.shop, shopId) : sql`1=1`,
@@ -1600,7 +1600,7 @@ router.get("/sales/by-attendant", requireAdmin, async (req, res, next) => {
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
     const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
 
-    const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held')`];
+    const conditions = [sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`];
     if (shopId) conditions.push(eq(sales.shop, shopId));
     if (from) conditions.push(gte(sales.createdAt, from));
     if (to) conditions.push(lte(sales.createdAt, to));
