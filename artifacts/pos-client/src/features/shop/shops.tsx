@@ -166,8 +166,10 @@ export default function Shops() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredShops.map((shop: Shop) => (
-                <Card key={shop._id} className="hover:shadow-lg transition-shadow duration-200">
+              {filteredShops.map((shop: any) => {
+                const shopId = shop.id ?? shop._id;
+                return (
+                <Card key={shopId} className="hover:shadow-lg transition-shadow duration-200">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -179,7 +181,7 @@ export default function Shops() {
                           {shop.address}
                         </CardDescription>
                       </div>
-                      {admin?.primaryShop === shop._id && (
+                      {String(admin?.primaryShop) === String(shopId) && (
                         <Badge variant="default" className="bg-purple-100 text-purple-800 border-purple-200">
                           Primary
                         </Badge>
@@ -215,13 +217,13 @@ export default function Shops() {
                   </CardContent>
 
                   <CardFooter className="pt-3 flex gap-2">
-                    <Link href={`/shop/${shop._id}`} className="flex-1">
+                    <Link href={`/shop/${shopId}`} className="flex-1">
                       <Button variant="outline" size="sm" className="w-full">
                         <Eye className="w-4 h-4 mr-1" />
                         View
                       </Button>
                     </Link>
-                    <Link href={`/shop/${shop._id}`} className="flex-1">
+                    <Link href={`/shop/${shopId}`} className="flex-1">
                       <Button variant="outline" size="sm" className="w-full">
                         <Edit className="w-4 h-4 mr-1" />
                         Edit
@@ -229,7 +231,8 @@ export default function Shops() {
                     </Link>
                   </CardFooter>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -251,7 +254,7 @@ export default function Shops() {
                   <div>
                     <p className="text-sm font-medium text-gray-600">Primary Shop</p>
                     <p className="text-lg font-semibold text-gray-900">
-                      {shops.find((shop: Shop) => shop._id === primaryShopId)?.name || "None"}
+                      {shops.find((shop: any) => String(shop.id ?? shop._id) === String(primaryShopId))?.name || "None"}
                     </p>
                   </div>
                   <Badge className="bg-purple-100 text-purple-800">

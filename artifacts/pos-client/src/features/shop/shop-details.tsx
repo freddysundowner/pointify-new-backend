@@ -101,7 +101,8 @@ export default function ShopDetails() {
       });
       const data = await response.json();
       console.log('Categories loaded from API:', data);
-      return data;
+      const rows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+      return rows;
     },
   });
 
@@ -557,17 +558,20 @@ export default function ShopDetails() {
                       <Label htmlFor="businessType" className="text-sm font-medium">Business Category</Label>
                       <Select
                         value={formData.categoryId}
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, shopCategoryId: value }))}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, categoryId: value }))}
                       >
                         <SelectTrigger className="h-10">
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
                         <SelectContent>
-                          {categories.map((category: ShopCategory) => (
-                            <SelectItem key={category._id} value={category._id}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
+                          {(categories as any[]).map((category: any) => {
+                            const catId = String(category.id ?? category._id);
+                            return (
+                              <SelectItem key={catId} value={catId}>
+                                {category.name}
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
                     </div>
