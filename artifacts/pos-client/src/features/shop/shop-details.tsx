@@ -228,13 +228,16 @@ export default function ShopDetails() {
       isOpen: true,
       type: "input",
       title: "Delete Shop Data",
-      description: "Permanently removes all products, transactions and sales for this shop. Type 'DELETE' to confirm.",
-      confirmText: "Delete Data",
+      description: "Permanently removes all products, sales, purchases, customers, expenses and loyalty data for this shop. The shop itself stays intact. Type 'DELETE' to confirm.",
+      confirmText: "Delete All Data",
       requiredInput: "DELETE",
       inputPlaceholder: "Type DELETE to confirm",
       onConfirm: () => {
         apiCall(ENDPOINTS.shop.getData(id), { method: "DELETE" })
-          .then(() => toast({ title: "Shop data deleted", description: "All data permanently removed." }))
+          .then(() => {
+            toast({ title: "Shop data deleted", description: "All shop data has been permanently cleared." });
+            queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getById(id!)] });
+          })
           .catch(() => toast({ title: "Error", description: "Failed to delete shop data.", variant: "destructive" }));
       },
     });

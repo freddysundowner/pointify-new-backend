@@ -10,6 +10,8 @@ import {
   adjustments, badStocks,
   activities,
   expenses, cashflows, userPayments,
+  expenseCategories, cashflowCategories, banks,
+  loyaltyTransactions,
   inventory,
   products, batches, productSerials, bundleItems as bundleItemsTable, productHistory,
   customers, customerWalletTransactions,
@@ -395,13 +397,20 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
 
       await tx.delete(products).where(eq(products.shop, shopId));
 
-      // ── 3. Customers and suppliers ───────────────────────────────────────────
+      // ── 3. Customers, loyalty and suppliers ──────────────────────────────────
+      // loyaltyTransactions cascades from customers, but we delete explicitly for clarity
+      await tx.delete(loyaltyTransactions).where(eq(loyaltyTransactions.shop, shopId));
       // userPayments has non-cascading FKs to both customers and suppliers
       await tx.delete(userPayments).where(eq(userPayments.shopId, shopId));
       await tx.delete(customerWalletTransactions).where(eq(customerWalletTransactions.shop, shopId));
       await tx.delete(supplierWalletTransactions).where(eq(supplierWalletTransactions.shop, shopId));
       await tx.delete(customers).where(eq(customers.shop, shopId));
       await tx.delete(suppliers).where(eq(suppliers.shop, shopId));
+
+      // ── 4. Finance reference data ─────────────────────────────────────────────
+      await tx.delete(banks).where(eq(banks.shop, shopId));
+      await tx.delete(expenseCategories).where(eq(expenseCategories.shop, shopId));
+      await tx.delete(cashflowCategories).where(eq(cashflowCategories.shop, shopId));
     });
 
     return ok(res, { message: "Shop data cleared", shopId });

@@ -33,7 +33,7 @@ export const ENDPOINTS = {
   shop: {
     getAll:               "/api/shops",
     getById:              (id: string) => `/api/shops/${id}`,
-    getData:              (id: string) => `/api/shops/${id}`,
+    getData:              (id: string) => `/api/shops/${id}/data`,
     getCategories:        "/api/shop-categories",
     create:               "/api/shops",
   },
