@@ -211,14 +211,18 @@ export async function backupShopNow(shopId: number, reason: "data-clear" | "shop
     );
 
     const shopName = shop.name ?? `Shop ${shopId}`;
+    const makeAttachment = (name: string, csv: string) => {
+      const content = Buffer.from(csv).toString("base64");
+      return content ? { name, content } : null;
+    };
     const attachments = [
-      { name: `${shopName}_sales_${date}.csv`,     content: Buffer.from(buildSalesCsv(salesRows)).toString("base64") },
-      { name: `${shopName}_stock_${date}.csv`,     content: Buffer.from(buildProductsCsv(productRows)).toString("base64") },
-      { name: `${shopName}_customers_${date}.csv`, content: Buffer.from(buildCustomersCsv(customerRows)).toString("base64") },
-      { name: `${shopName}_purchases_${date}.csv`, content: Buffer.from(buildPurchasesCsv(purchaseRows)).toString("base64") },
-      { name: `${shopName}_expenses_${date}.csv`,  content: Buffer.from(buildExpensesCsv(expenseRows)).toString("base64") },
-      { name: `${shopName}_loyalty_${date}.csv`,   content: Buffer.from(buildLoyaltyCsv(loyaltyRows, customerMap)).toString("base64") },
-    ];
+      makeAttachment(`${shopName}_sales_${date}.csv`,     buildSalesCsv(salesRows)),
+      makeAttachment(`${shopName}_stock_${date}.csv`,     buildProductsCsv(productRows)),
+      makeAttachment(`${shopName}_customers_${date}.csv`, buildCustomersCsv(customerRows)),
+      makeAttachment(`${shopName}_purchases_${date}.csv`, buildPurchasesCsv(purchaseRows)),
+      makeAttachment(`${shopName}_expenses_${date}.csv`,  buildExpensesCsv(expenseRows)),
+      makeAttachment(`${shopName}_loyalty_${date}.csv`,   buildLoyaltyCsv(loyaltyRows, customerMap)),
+    ].filter((a): a is { name: string; content: string } => a !== null && a.content.length > 0);
 
     const actionLabel = reason === "shop-delete"
       ? "This shop is about to be <strong>permanently deleted</strong>"

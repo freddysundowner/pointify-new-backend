@@ -74,6 +74,8 @@ export const ENDPOINTS = {
     getPayments:          (id: string) => `/api/customers/${id}/wallet-transactions`,
     getOverdue:           "/api/reports/dues/overdue",
     getAnalysis:          "/api/customers/analysis",
+    getLoyalty:           (id: string) => `/api/customers/${id}/loyalty`,
+    adjustLoyalty:        (id: string) => `/api/customers/${id}/loyalty/adjust`,
   },
 
   // ─── Sales ────────────────────────────────────────────────────────────────

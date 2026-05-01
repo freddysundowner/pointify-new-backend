@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { normalizeIds } from "@/lib/utils";
-import { X, CreditCard, Banknote, Check, UserX, User, Calendar } from "lucide-react";
+import { X, CreditCard, Banknote, Check, UserX, User, Star } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,31 +31,49 @@ export default function CheckoutModal({
   onClose,
   cartItems,
   totals,
-  onComplete,
-}: CheckoutModalProps) {
+}: CheckoutModalProps & { onComplete: (t: Transaction) => void }) {
   const [paymentMethod, setPaymentMethod] = useState<"card" | "cash" | "credit" | null>(null);
   const [cashReceived, setCashReceived] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
-  const [dueDate, setDueDate] = useState<string>("");
+  const [loyaltyCustomer, setLoyaltyCustomer] = useState<any>(null);
+  const [redeemPointsStr, setRedeemPointsStr] = useState<string>("");
   const { toast } = useToast();
   const { admin, token } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch customers for credit sales
+  // ── Active customer for loyalty (credit customer takes priority)
+  const activeCustomer = paymentMethod === "credit" ? selectedCustomer : loyaltyCustomer;
+
+  // ── Fetch customers list
   const { data: customers = [] } = useQuery({
     queryKey: ['customers'],
     queryFn: async () => {
       const adminid = admin?._id || admin?.id;
-      const params = new URLSearchParams({
-        adminid: adminid || ''
-      });
-      
+      const params = new URLSearchParams({ adminid: adminid || '' });
       const response = await apiRequest('GET', `${ENDPOINTS.customers.getAll}?${params.toString()}`);
       const data = await response.json();
       return normalizeIds(Array.isArray(data) ? data : data?.customers || data?.data || []);
     },
-    enabled: !!admin && !!token
+    enabled: !!admin && !!token,
   });
+
+  // ── Fetch loyalty data when a customer is selected
+  const { data: loyaltyData } = useQuery({
+    queryKey: ['checkout-loyalty', activeCustomer?._id],
+    queryFn: async () => {
+      const res = await apiRequest('GET', ENDPOINTS.customers.getLoyalty(activeCustomer._id));
+      return res.json();
+    },
+    enabled: !!activeCustomer?._id,
+  });
+
+  // ── Derived loyalty values
+  const loyaltyEnabled = loyaltyData?.shopSettings?.loyaltyEnabled ?? false;
+  const loyaltyBalance = loyaltyData?.loyaltyPoints ?? 0;
+  const pointsValue = parseFloat(String(loyaltyData?.shopSettings?.pointsValue ?? 0));
+  const redeemPoints = Math.min(Math.max(0, parseFloat(redeemPointsStr) || 0), loyaltyBalance);
+  const redemptionValue = parseFloat((redeemPoints * pointsValue).toFixed(2));
+  const effectiveTotal = Math.max(0, totals.total - redemptionValue);
 
   const createTransactionMutation = useMutation({
     mutationFn: async (transactionData: any) => {
@@ -66,19 +84,13 @@ export default function CheckoutModal({
     },
     onSuccess: (transaction: Transaction) => {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
-      onComplete(transaction);
+      queryClient.invalidateQueries({ queryKey: ['customer-loyalty', activeCustomer?._id] });
+      queryClient.invalidateQueries({ queryKey: ['customer-detail', activeCustomer?._id] });
       resetModal();
-      toast({
-        title: "Payment Successful",
-        description: "Transaction completed successfully",
-      });
+      toast({ title: "Payment Successful", description: "Transaction completed successfully" });
     },
     onError: () => {
-      toast({
-        title: "Payment Failed",
-        description: "There was an error processing the payment",
-        variant: "destructive",
-      });
+      toast({ title: "Payment Failed", description: "There was an error processing the payment", variant: "destructive" });
     },
   });
 
@@ -86,6 +98,8 @@ export default function CheckoutModal({
     setPaymentMethod(null);
     setCashReceived("");
     setSelectedCustomer(null);
+    setLoyaltyCustomer(null);
+    setRedeemPointsStr("");
   };
 
   const handleClose = () => {
@@ -95,40 +109,48 @@ export default function CheckoutModal({
 
   const calculateChange = () => {
     const received = parseFloat(cashReceived) || 0;
-    return Math.max(0, received - totals.total);
+    return Math.max(0, received - effectiveTotal);
   };
 
   const canComplete = () => {
     if (!paymentMethod) return false;
     if (paymentMethod === "cash") {
       const received = parseFloat(cashReceived) || 0;
-      return received >= totals.total;
+      return received >= effectiveTotal;
     }
-    if (paymentMethod === "credit") {
-      return selectedCustomer !== null;
-    }
+    if (paymentMethod === "credit") return selectedCustomer !== null;
     return true;
   };
 
   const handleComplete = () => {
     if (!canComplete()) return;
 
-    const transactionData = {
+    const transactionData: Record<string, unknown> = {
       subtotal: totals.subtotal.toFixed(2),
       tax: totals.tax.toFixed(2),
       totalTax: totals.tax.toFixed(2),
-      total: totals.total.toFixed(2),
+      total: effectiveTotal.toFixed(2),
       paymentMethod: paymentMethod!,
       cashReceived: paymentMethod === "cash" ? parseFloat(cashReceived).toFixed(2) : null,
       change: paymentMethod === "cash" ? calculateChange().toFixed(2) : null,
-      customerId: paymentMethod === "credit" ? selectedCustomer?._id : null,
-      customerName: paymentMethod === "credit" ? selectedCustomer?.name : null,
+      customerId: paymentMethod === "credit"
+        ? selectedCustomer?._id
+        : (loyaltyCustomer?._id ?? null),
+      customerName: paymentMethod === "credit"
+        ? selectedCustomer?.name
+        : (loyaltyCustomer?.name ?? null),
       items: cartItems,
-      cashierId: 1, // Default cashier ID
+      cashierId: 1,
     };
+
+    if (redeemPoints > 0) {
+      transactionData.redeemPoints = redeemPoints;
+    }
 
     createTransactionMutation.mutate(transactionData);
   };
+
+  const showLoyaltySection = !!activeCustomer && loyaltyEnabled && loyaltyBalance > 0 && pointsValue > 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -143,23 +165,41 @@ export default function CheckoutModal({
             </Button>
           </DialogTitle>
         </DialogHeader>
-        
-        <div className="space-y-6 sm:space-y-8">
+
+        <div className="space-y-4 sm:space-y-6">
+          {/* Total display */}
           <div className="text-center bg-gradient-to-br from-primary/5 to-purple-50 p-4 sm:p-6 rounded-2xl">
-            <div className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent mb-2">
-              Ksh {totals.total.toFixed(2)}
-            </div>
-            <p className="text-gray-600 font-medium text-sm sm:text-base">Total Amount Due</p>
+            {redemptionValue > 0 ? (
+              <>
+                <div className="text-xl font-semibold text-gray-400 line-through mb-1">
+                  Ksh {totals.total.toFixed(2)}
+                </div>
+                <div className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-green-500 to-emerald-600 bg-clip-text text-transparent mb-1">
+                  Ksh {effectiveTotal.toFixed(2)}
+                </div>
+                <p className="text-xs text-yellow-600 font-medium flex items-center justify-center gap-1">
+                  <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+                  {redeemPoints.toLocaleString()} pts applied (− Ksh {redemptionValue.toFixed(2)})
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent mb-2">
+                  Ksh {totals.total.toFixed(2)}
+                </div>
+                <p className="text-gray-600 font-medium text-sm sm:text-base">Total Amount Due</p>
+              </>
+            )}
           </div>
-          
+
           {/* Payment Methods */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <Button
               variant="ghost"
               onClick={() => setPaymentMethod("card")}
               className={`flex flex-col items-center p-4 sm:p-6 h-auto rounded-2xl border-2 transition-all duration-200 ${
-                paymentMethod === "card" 
-                  ? 'border-primary bg-primary/5 text-primary' 
+                paymentMethod === "card"
+                  ? 'border-primary bg-primary/5 text-primary'
                   : 'border-gray-200 hover:border-primary/30 hover:bg-primary/5'
               }`}
             >
@@ -171,8 +211,8 @@ export default function CheckoutModal({
               variant="ghost"
               onClick={() => setPaymentMethod("cash")}
               className={`flex flex-col items-center p-4 sm:p-6 h-auto rounded-2xl border-2 transition-all duration-200 ${
-                paymentMethod === "cash" 
-                  ? 'border-primary bg-primary/5 text-primary' 
+                paymentMethod === "cash"
+                  ? 'border-primary bg-primary/5 text-primary'
                   : 'border-gray-200 hover:border-primary/30 hover:bg-primary/5'
               }`}
             >
@@ -184,8 +224,8 @@ export default function CheckoutModal({
               variant="ghost"
               onClick={() => setPaymentMethod("credit")}
               className={`flex flex-col items-center p-4 sm:p-6 h-auto rounded-2xl border-2 transition-all duration-200 ${
-                paymentMethod === "credit" 
-                  ? 'border-orange-500 bg-orange-50 text-orange-600' 
+                paymentMethod === "credit"
+                  ? 'border-orange-500 bg-orange-50 text-orange-600'
                   : 'border-gray-200 hover:border-orange-300 hover:bg-orange-50'
               }`}
             >
@@ -194,10 +234,10 @@ export default function CheckoutModal({
               <span className="text-xs text-gray-500 mt-1">Sell on credit</span>
             </Button>
           </div>
-          
+
           {/* Cash Payment */}
           {paymentMethod === "cash" && (
-            <div className="space-y-4 sm:space-y-6 bg-gray-50 p-4 sm:p-6 rounded-2xl">
+            <div className="space-y-4 sm:space-y-4 bg-gray-50 p-4 sm:p-6 rounded-2xl">
               <div>
                 <Label htmlFor="cashReceived" className="text-sm sm:text-base font-semibold mb-2 sm:mb-3 block">
                   Cash Received
@@ -216,24 +256,66 @@ export default function CheckoutModal({
               <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200">
                 <div className="flex justify-between text-lg sm:text-xl font-bold">
                   <span>Change Due:</span>
-                  <span className="text-green-600">
-                    Ksh {calculateChange().toFixed(2)}
-                  </span>
+                  <span className="text-green-600">Ksh {calculateChange().toFixed(2)}</span>
                 </div>
+              </div>
+
+              {/* Loyalty customer for cash */}
+              <div>
+                <Label className="text-sm font-medium text-gray-600 mb-2 block">
+                  Customer for loyalty (optional)
+                </Label>
+                <Select onValueChange={(value) => {
+                  setLoyaltyCustomer(value === "__none__" ? null : customers.find((c: any) => c._id === value) ?? null);
+                  setRedeemPointsStr("");
+                }}>
+                  <SelectTrigger className="h-10 rounded-xl border-gray-200">
+                    <SelectValue placeholder="Select customer to apply loyalty..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No customer</SelectItem>
+                    {customers.map((c: any) => (
+                      <SelectItem key={c._id} value={c._id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
-          
+
           {/* Card Payment */}
           {paymentMethod === "card" && (
-            <div className="text-center py-12 bg-gradient-to-br from-primary/5 to-purple-50 rounded-2xl">
-              <div className="w-20 h-20 bg-gradient-to-br from-primary to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-                <CreditCard className="h-10 w-10 text-white" />
+            <div className="space-y-4 bg-gray-50 p-4 sm:p-6 rounded-2xl">
+              <div className="text-center py-8 bg-gradient-to-br from-primary/5 to-purple-50 rounded-xl">
+                <div className="w-16 h-16 bg-gradient-to-br from-primary to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <CreditCard className="h-8 w-8 text-white" />
+                </div>
+                <p className="text-gray-700 font-medium mb-2">Ready for card payment</p>
+                <p className="text-gray-500 text-sm mb-3">Insert, tap, or swipe your card</p>
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                </div>
               </div>
-              <p className="text-gray-700 font-medium mb-4 text-lg">Ready for card payment</p>
-              <p className="text-gray-500 mb-4">Insert, tap, or swipe your card</p>
-              <div className="flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+
+              {/* Loyalty customer for card */}
+              <div>
+                <Label className="text-sm font-medium text-gray-600 mb-2 block">
+                  Customer for loyalty (optional)
+                </Label>
+                <Select onValueChange={(value) => {
+                  setLoyaltyCustomer(value === "__none__" ? null : customers.find((c: any) => c._id === value) ?? null);
+                  setRedeemPointsStr("");
+                }}>
+                  <SelectTrigger className="h-10 rounded-xl border-gray-200">
+                    <SelectValue placeholder="Select customer to apply loyalty..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No customer</SelectItem>
+                    {customers.map((c: any) => (
+                      <SelectItem key={c._id} value={c._id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
@@ -241,7 +323,7 @@ export default function CheckoutModal({
           {/* Credit Payment */}
           {paymentMethod === "credit" && (
             <div className="space-y-4 bg-orange-50 p-4 sm:p-6 rounded-2xl border border-orange-200">
-              <div className="flex items-center space-x-2 mb-4">
+              <div className="flex items-center space-x-2 mb-2">
                 <UserX className="h-5 w-5 text-orange-600" />
                 <span className="font-medium text-orange-800">Credit Sale</span>
               </div>
@@ -250,8 +332,9 @@ export default function CheckoutModal({
                   Select Customer *
                 </Label>
                 <Select onValueChange={(value) => {
-                  const customer = customers.find((c: { _id: string; }) => c._id === value);
+                  const customer = customers.find((c: { _id: string }) => c._id === value);
                   setSelectedCustomer(customer);
+                  setRedeemPointsStr("");
                 }}>
                   <SelectTrigger className="h-12 rounded-xl border-orange-200 focus:border-orange-500">
                     <SelectValue placeholder="Choose a customer..." />
@@ -283,7 +366,7 @@ export default function CheckoutModal({
                     <div>
                       <p className="font-medium text-gray-900">{selectedCustomer.name}</p>
                       <p className="text-sm text-gray-500">
-                        Current Balance: Ksh {Math.abs(selectedCustomer.balance || 0).toFixed(2)} 
+                        Current Balance: Ksh {Math.abs(selectedCustomer.balance || 0).toFixed(2)}
                         {selectedCustomer.balance > 0 ? ' (Credit)' : selectedCustomer.balance < 0 ? ' (Owes)' : ''}
                       </p>
                     </div>
@@ -293,7 +376,51 @@ export default function CheckoutModal({
               )}
             </div>
           )}
-          
+
+          {/* ── Loyalty Redemption ─────────────────────────────── */}
+          {showLoyaltySection && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Star className="h-4 w-4 text-yellow-500 fill-yellow-400" />
+                <span className="font-semibold text-yellow-800 text-sm">Loyalty Points</span>
+                <span className="ml-auto text-sm font-medium text-yellow-700">
+                  Balance: {loyaltyBalance.toLocaleString()} pts
+                  <span className="text-gray-500 ml-1">(= Ksh {(loyaltyBalance * pointsValue).toFixed(2)})</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <Label htmlFor="redeemPts" className="text-xs text-gray-600 mb-1 block">
+                    Points to redeem (max {loyaltyBalance.toLocaleString()})
+                  </Label>
+                  <Input
+                    id="redeemPts"
+                    type="number"
+                    min="0"
+                    max={loyaltyBalance}
+                    step="1"
+                    placeholder="0"
+                    value={redeemPointsStr}
+                    onChange={(e) => setRedeemPointsStr(e.target.value)}
+                    className="h-10 rounded-xl border-yellow-300 focus:border-yellow-500 bg-white"
+                  />
+                </div>
+                {redeemPoints > 0 && (
+                  <div className="text-right pt-5">
+                    <p className="text-xs text-gray-500">Discount</p>
+                    <p className="text-base font-bold text-green-600">− Ksh {redemptionValue.toFixed(2)}</p>
+                  </div>
+                )}
+              </div>
+              {redeemPoints > 0 && (
+                <div className="bg-white rounded-xl border border-yellow-200 px-4 py-2 flex justify-between items-center">
+                  <span className="text-sm text-gray-600">New total after redemption</span>
+                  <span className="text-lg font-bold text-green-700">Ksh {effectiveTotal.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex space-x-4">
             <Button

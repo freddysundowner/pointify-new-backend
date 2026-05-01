@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, User, CreditCard, ShoppingBag, Calendar, DollarSign, TrendingUp, FileText, Phone, Mail, MapPin, ArrowLeft, Filter, ChevronLeft, ChevronRight, Wallet, Plus, Download } from "lucide-react";
+import { Search, User, CreditCard, ShoppingBag, Calendar, DollarSign, TrendingUp, FileText, Phone, Mail, MapPin, ArrowLeft, Filter, ChevronLeft, ChevronRight, Wallet, Plus, Download, Star, Minus } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/layout/dashboard-layout";
@@ -107,6 +107,9 @@ export default function CustomerOverview() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [statementFilter, setStatementFilter] = useState("all");
+  const [adjustPoints, setAdjustPoints] = useState("");
+  const [adjustNote, setAdjustNote] = useState("");
+  const [isAdjustDialogOpen, setIsAdjustDialogOpen] = useState(false);
   const { toast } = useToast();
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const { admin } = useAuth();
@@ -343,6 +346,44 @@ export default function CustomerOverview() {
       });
     },
   });
+
+  // Fetch loyalty data for this customer
+  const { data: loyaltyData, refetch: refetchLoyalty } = useQuery({
+    queryKey: ['customer-loyalty', customerId],
+    queryFn: async () => {
+      const res = await apiRequest('GET', ENDPOINTS.customers.getLoyalty(customerId!));
+      return res.json();
+    },
+    enabled: !!customerId,
+  });
+
+  // Adjust loyalty points (admin only)
+  const adjustLoyaltyMutation = useMutation({
+    mutationFn: async ({ points, note }: { points: number; note: string }) => {
+      const res = await apiRequest('POST', ENDPOINTS.customers.adjustLoyalty(customerId!), { points, note });
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchLoyalty();
+      queryClient.invalidateQueries({ queryKey: ['customer-detail', customerId] });
+      setAdjustPoints("");
+      setAdjustNote("");
+      setIsAdjustDialogOpen(false);
+      toast({ title: "Points updated", description: "Loyalty points adjusted successfully" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed", description: err?.message || "Could not adjust points", variant: "destructive" });
+    },
+  });
+
+  const handleAdjustLoyalty = () => {
+    const pts = parseFloat(adjustPoints);
+    if (isNaN(pts) || pts === 0) {
+      toast({ title: "Invalid", description: "Enter a non-zero point amount", variant: "destructive" });
+      return;
+    }
+    adjustLoyaltyMutation.mutate({ points: pts, note: adjustNote || "Manual adjustment" });
+  };
 
   // Handle wallet deposit
   const handleDeposit = () => {
@@ -845,9 +886,10 @@ export default function CustomerOverview() {
 
         {/* Detailed Information Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="sales">Sales</TabsTrigger>
             <TabsTrigger value="statement">Statement</TabsTrigger>
+            <TabsTrigger value="loyalty">Loyalty</TabsTrigger>
             <TabsTrigger value="contact">Contact Info</TabsTrigger>
           </TabsList>
 
@@ -1065,6 +1107,172 @@ export default function CustomerOverview() {
             </Card>
           </TabsContent>
 
+
+          {/* ── LOYALTY TAB ─────────────────────────────────────────── */}
+          <TabsContent value="loyalty" className="space-y-4">
+            {/* Balance summary card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    <CardTitle>Loyalty Points</CardTitle>
+                  </div>
+                  {loyaltyData?.shopSettings?.loyaltyEnabled === false && (
+                    <Badge variant="secondary">Programme disabled for this shop</Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-yellow-50 rounded-xl p-4 text-center">
+                    <p className="text-sm text-gray-500 mb-1">Current Balance</p>
+                    <p className="text-3xl font-bold text-yellow-600">
+                      {(loyaltyData?.loyaltyPoints ?? 0).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">points</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-xl p-4 text-center">
+                    <p className="text-sm text-gray-500 mb-1">Earn Rate</p>
+                    <p className="text-xl font-bold text-blue-600">
+                      {loyaltyData?.shopSettings?.pointsPerAmount ?? 0} pts
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">per KES spent</p>
+                  </div>
+                  <div className="bg-green-50 rounded-xl p-4 text-center">
+                    <p className="text-sm text-gray-500 mb-1">Point Value</p>
+                    <p className="text-xl font-bold text-green-600">
+                      KES {loyaltyData?.shopSettings?.pointsValue ?? 0}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">per point</p>
+                  </div>
+                </div>
+
+                {/* Redemption value summary */}
+                {(loyaltyData?.loyaltyPoints ?? 0) > 0 && (loyaltyData?.shopSettings?.pointsValue ?? 0) > 0 && (
+                  <div className="mt-4 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Star className="h-4 w-4 text-yellow-500" />
+                      <span className="text-sm font-medium text-gray-700">Total redemption value</span>
+                    </div>
+                    <span className="text-lg font-bold text-yellow-700">
+                      KES {((loyaltyData.loyaltyPoints ?? 0) * (loyaltyData.shopSettings.pointsValue ?? 0)).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Admin adjust button */}
+                <div className="mt-4 flex justify-end">
+                  <Dialog open={isAdjustDialogOpen} onOpenChange={setIsAdjustDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Adjust Points
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Adjust Loyalty Points</DialogTitle>
+                        <DialogDescription>
+                          Enter a positive number to add points or a negative number to deduct points.
+                          Current balance: <strong>{(loyaltyData?.loyaltyPoints ?? 0).toLocaleString()} pts</strong>
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="adj-points">Points (+ to add, - to deduct)</Label>
+                          <Input
+                            id="adj-points"
+                            type="number"
+                            placeholder="e.g. 50 or -20"
+                            value={adjustPoints}
+                            onChange={(e) => setAdjustPoints(e.target.value)}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="adj-note">Note (optional)</Label>
+                          <Input
+                            id="adj-note"
+                            placeholder="Reason for adjustment"
+                            value={adjustNote}
+                            onChange={(e) => setAdjustNote(e.target.value)}
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAdjustDialogOpen(false)}>Cancel</Button>
+                        <Button
+                          onClick={handleAdjustLoyalty}
+                          disabled={adjustLoyaltyMutation.isPending}
+                        >
+                          {adjustLoyaltyMutation.isPending ? "Saving..." : "Apply Adjustment"}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Transaction history */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Point History</CardTitle>
+                <CardDescription>Last 50 loyalty transactions</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">Points</TableHead>
+                        <TableHead className="text-right">Balance After</TableHead>
+                        <TableHead>Note</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {!loyaltyData && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-gray-400 py-8">Loading...</TableCell>
+                        </TableRow>
+                      )}
+                      {loyaltyData && loyaltyData.transactions?.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-gray-400 py-8">No loyalty transactions yet</TableCell>
+                        </TableRow>
+                      )}
+                      {loyaltyData?.transactions?.map((tx: any) => (
+                        <TableRow key={tx.id}>
+                          <TableCell className="text-sm text-gray-600 whitespace-nowrap">
+                            {new Date(tx.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={
+                              tx.type === "earn" ? "default" :
+                              tx.type === "redeem" ? "destructive" : "secondary"
+                            } className="capitalize text-xs">
+                              {tx.type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className={`text-right font-semibold ${parseFloat(tx.points) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {parseFloat(tx.points) >= 0 ? '+' : ''}{parseFloat(tx.points).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right text-gray-700">
+                            {parseFloat(tx.balanceAfter).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-500">{tx.note || '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="contact" className="space-y-4">
             <Card>
