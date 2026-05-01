@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
@@ -14,7 +16,8 @@ import AddressInput from "@/components/ui/address-input";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation, Link } from "wouter";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { ArrowLeft, Store, Globe } from "lucide-react";
+import { ArrowLeft, Store, Globe, ChevronsUpDown, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ShopCategory {
   id: number;
@@ -25,6 +28,7 @@ interface ShopCategory {
 export default function ShopSetup() {
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
   const { admin } = useAuth();
   const { toast } = useToast();
 
@@ -52,6 +56,8 @@ export default function ShopSetup() {
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  const selectedCategory = categories.find((c) => String(c.id) === formData.category);
 
   const handleAddressChange = (address: string, details?: any) => {
     setFormData(prev => ({ ...prev, address }));
@@ -154,34 +160,62 @@ export default function ShopSetup() {
               />
             </div>
 
-            {/* Business Type */}
+            {/* Business Type — searchable combobox */}
             <div>
               <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
                 Business Type <span className="text-red-500">*</span>
               </Label>
-              <Select
-                value={formData.category}
-                onValueChange={(v) => setFormData(p => ({ ...p, category: v }))}
-              >
-                <SelectTrigger className="h-11 border-gray-300 focus:border-purple-500 focus:ring-purple-500/20">
-                  <SelectValue
-                    placeholder={categoriesLoading ? "Loading…" : "Select a category"}
-                  />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {categoriesLoading ? (
-                    <SelectItem value="__loading" disabled>Loading categories…</SelectItem>
-                  ) : categories.length > 0 ? (
-                    categories.map((cat) => (
-                      <SelectItem key={cat.id} value={String(cat.id)}>
-                        {cat.icon ? `${cat.icon} ` : ""}{cat.name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="__none" disabled>No categories available</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={categoryOpen}
+                    className={cn(
+                      "w-full h-11 justify-between border-gray-300 font-normal text-base",
+                      !selectedCategory && "text-gray-400"
+                    )}
+                    disabled={categoriesLoading}
+                  >
+                    <span className="truncate">
+                      {categoriesLoading
+                        ? "Loading…"
+                        : selectedCategory
+                          ? `${selectedCategory.icon ? selectedCategory.icon + " " : ""}${selectedCategory.name}`
+                          : "Search business type…"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search business type…" className="h-10" />
+                    <CommandList className="max-h-60">
+                      <CommandEmpty>No matching category found.</CommandEmpty>
+                      <CommandGroup>
+                        {categories.map((cat) => (
+                          <CommandItem
+                            key={cat.id}
+                            value={`${cat.icon ?? ""} ${cat.name}`}
+                            onSelect={() => {
+                              setFormData(p => ({ ...p, category: String(cat.id) }));
+                              setCategoryOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4 shrink-0",
+                                formData.category === String(cat.id) ? "opacity-100 text-purple-600" : "opacity-0"
+                              )}
+                            />
+                            {cat.icon ? `${cat.icon} ` : ""}{cat.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Address */}

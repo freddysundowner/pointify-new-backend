@@ -8,9 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
-  ArrowLeft, Trash2, Store, Receipt, Settings2, Shield, Save, Star,
+  ArrowLeft, Trash2, Store, Receipt, Settings2, Shield, Save, Star, ChevronsUpDown, Check,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
 import { ENDPOINTS } from "@/lib/api-endpoints";
@@ -43,6 +46,8 @@ export default function ShopDetails() {
     description: "",
     onConfirm: () => {},
   });
+
+  const [categoryOpen, setCategoryOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     // General
@@ -106,6 +111,10 @@ export default function ShopDetails() {
       return Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
     },
   });
+
+  const selectedCategory = (categories as any[]).find(
+    (c: any) => String(c.id ?? c._id) === formData.categoryId
+  );
 
   const { data: shop, isLoading } = useQuery({
     queryKey: ["shop", id],
@@ -376,15 +385,57 @@ export default function ShopDetails() {
                     </div>
                     <div className="space-y-1.5">
                       <Label>Business Category</Label>
-                      <Select value={formData.categoryId} onValueChange={v => set("categoryId", v)}>
-                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                        <SelectContent>
-                          {(categories as any[]).map((cat: any) => {
-                            const catId = String(cat.id ?? cat._id);
-                            return <SelectItem key={catId} value={catId}>{cat.name}</SelectItem>;
-                          })}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={categoryOpen}
+                            className={cn(
+                              "w-full h-9 justify-between font-normal",
+                              !selectedCategory && "text-gray-400"
+                            )}
+                          >
+                            <span className="truncate">
+                              {selectedCategory
+                                ? `${selectedCategory.icon ? selectedCategory.icon + " " : ""}${selectedCategory.name}`
+                                : "Search business type…"}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search business type…" className="h-9" />
+                            <CommandList className="max-h-56">
+                              <CommandEmpty>No matching category found.</CommandEmpty>
+                              <CommandGroup>
+                                {(categories as any[]).map((cat: any) => {
+                                  const catId = String(cat.id ?? cat._id);
+                                  return (
+                                    <CommandItem
+                                      key={catId}
+                                      value={`${cat.icon ?? ""} ${cat.name}`}
+                                      onSelect={() => {
+                                        set("categoryId", catId);
+                                        setCategoryOpen(false);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4 shrink-0",
+                                          formData.categoryId === catId ? "opacity-100 text-purple-600" : "opacity-0"
+                                        )}
+                                      />
+                                      {cat.icon ? `${cat.icon} ` : ""}{cat.name}
+                                    </CommandItem>
+                                  );
+                                })}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label>Address</Label>
