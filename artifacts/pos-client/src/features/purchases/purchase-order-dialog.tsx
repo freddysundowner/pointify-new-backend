@@ -232,6 +232,7 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
       paymentType: paymentMethod,
       amountPaid: paymentMethod === "cash" ? subtotal : 0,
       note: notes || undefined,
+      trackBatches,
       items: orderItems.map(item => ({
         productId: item.id,
         quantity: parseFloat(item.quantity.toString()),

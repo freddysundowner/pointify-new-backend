@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { purchases, purchaseItems, purchasePayments, batches, inventory } from "@workspace/db";
+import { purchases, purchaseItems, purchasePayments, batches, inventory, shops } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -42,10 +42,23 @@ router.get("/", requireAdmin, async (req, res, next) => {
 
 router.post("/", requireAdmin, async (req, res, next) => {
   try {
-    const { shopId, supplierId, items, amountPaid, note, paymentType } = req.body;
+    const { shopId, supplierId, items, amountPaid, note, paymentType, trackBatches: trackBatchesBody } = req.body;
     if (!shopId || !items?.length) throw badRequest("shopId and items required");
 
     const sid = Number(shopId);
+
+    // Resolve trackBatches: use the value from the request body if present,
+    // otherwise fall back to the shop's configured setting.
+    let shouldTrackBatches: boolean;
+    if (trackBatchesBody !== undefined) {
+      shouldTrackBatches = Boolean(trackBatchesBody);
+    } else {
+      const shopSettings = await db.query.shops.findFirst({
+        where: eq(shops.id, sid),
+        columns: { trackBatches: true },
+      });
+      shouldTrackBatches = shopSettings?.trackBatches ?? true;
+    }
     await assertShopOwnership(req, sid);
     let totalAmount = 0;
     for (const item of items) totalAmount += (item.buyingPrice ?? 0) * (item.quantity ?? 1);
@@ -94,22 +107,26 @@ router.post("/", requireAdmin, async (req, res, next) => {
         const qtyBefore = existing ? String(existing.quantity) : "0";
         const qtyAfter  = String(parseFloat(qtyBefore) + parseFloat(qty));
 
-        // Create a batch for this stock lot
-        const [batch] = await db.insert(batches).values({
-          product: itemRow.product,
-          shop: sid,
-          buyingPrice: buyPrice,
-          quantity: qty,
-          totalQuantity: qty,
-          expirationDate: item.expiryDate ? new Date(item.expiryDate) : null,
-          batchCode: item.batchCode ?? null,
-        }).onConflictDoNothing().returning();
+        // Create a batch for this stock lot — only when batch tracking is enabled
+        let batch: typeof batches.$inferSelect | undefined;
+        if (shouldTrackBatches) {
+          const [inserted] = await db.insert(batches).values({
+            product: itemRow.product,
+            shop: sid,
+            buyingPrice: buyPrice,
+            quantity: qty,
+            totalQuantity: qty,
+            expirationDate: item.expiryDate ? new Date(item.expiryDate) : null,
+            batchCode: item.batchCode ?? null,
+          }).onConflictDoNothing().returning();
+          batch = inserted;
 
-        // Link batch back to the purchase item (if batch was created)
-        if (batch) {
-          await db.update(purchaseItems)
-            .set({ batch: batch.id })
-            .where(eq(purchaseItems.id, itemRow.id));
+          // Link batch back to the purchase item (if batch was created)
+          if (batch) {
+            await db.update(purchaseItems)
+              .set({ batch: batch.id })
+              .where(eq(purchaseItems.id, itemRow.id));
+          }
         }
 
         // Upsert inventory: add received quantity (create row with qty if new)

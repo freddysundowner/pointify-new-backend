@@ -157,6 +157,7 @@ export default function CreatePurchase() {
         supplierId: selectedSupplier?._id || null,
         paymentType: "cash",
         amountPaid: calculateTotal(),
+        trackBatches,
         items: purchaseItems,
       };
       

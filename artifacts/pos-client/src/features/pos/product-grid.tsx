@@ -90,7 +90,7 @@ export default function ProductGrid({
   const { attendant } = useAttendantAuth();
   const { admin } = useAuth();
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
-  const { shopData } = usePrimaryShop();
+  const { shopData, allowNegativeStock } = usePrimaryShop();
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -1198,7 +1198,7 @@ export default function ProductGrid({
                     ) : (
                       products.slice(0, 8).map((product: any) => {
                         const isService = product?.type === 'service' || product?.type === 'virtual';
-                        const isOutOfStock = !isService && (product.quantity === 0);
+                        const isOutOfStock = !isService && !allowNegativeStock && (product.quantity === 0);
                         return (
                         <div
                           key={product.id}
@@ -1578,7 +1578,7 @@ export default function ProductGrid({
                         const productName = product.name || product.title;
                         const quantity = product.quantity || 0;
                         const isVirtual = product.type === 'virtual' || product.type === 'service';
-                        const isOutOfStock = !isVirtual && quantity === 0;
+                        const isOutOfStock = !isVirtual && !allowNegativeStock && quantity === 0;
                         
                         return (
                           <div
@@ -1672,7 +1672,7 @@ export default function ProductGrid({
                     const quantity = product.quantity || 0;
                     const reorderLevel = product.reorderLevel || product.lowStockThreshold || 0;
                     const isVirtual = product.virtual || product?.productType == "service";
-                    const isOutOfStock = !isVirtual && quantity === 0;
+                    const isOutOfStock = !isVirtual && !allowNegativeStock && quantity === 0;
                     const isLowStock = !isVirtual && quantity > 0 && quantity <= reorderLevel;
                     
                     return (
@@ -2916,7 +2916,7 @@ export default function ProductGrid({
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
                     {suggestions.map((p: any) => {
                       const isService = p.type === 'service' || p.type === 'virtual';
-                      const outOfStock = !isService && (p.quantity ?? 0) <= 0;
+                      const outOfStock = !isService && !allowNegativeStock && (p.quantity ?? 0) <= 0;
                       return (
                         <div
                           key={p.id}
