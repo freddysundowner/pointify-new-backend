@@ -381,9 +381,7 @@ async function clearShopData(tx: Tx, shopId: number): Promise<void> {
   await tx.delete(banks).where(eq(banks.shop, shopId));
   await tx.delete(expenseCategories).where(eq(expenseCategories.shop, shopId));
   await tx.delete(cashflowCategories).where(eq(cashflowCategories.shop, shopId));
-
-  // ── 5. Subscription links ───────────────────────────────────────────────────
-  await tx.delete(subscriptionShops).where(eq(subscriptionShops.shop, shopId));
+  // NOTE: subscriptions / subscriptionShops are billing records — never cleared here.
 }
 
 // DELETE /api/shops/:shopId — clear all data, then remove the shop record itself
