@@ -136,7 +136,7 @@ export default function Shops() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredShops.map((shop: any) => {
                 const shopId = shop.id ?? shop._id;
                 const isPrimary = String(admin?.primaryShop) === String(shopId);
