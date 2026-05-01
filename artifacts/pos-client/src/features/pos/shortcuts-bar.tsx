@@ -11,11 +11,7 @@ interface Shortcut {
   label: string;
 }
 
-interface ShortcutsBarProps {
-  className?: string;
-}
-
-export default function ShortcutsBar({ className }: ShortcutsBarProps) {
+export default function ShortcutsBar() {
   const mod = useMemo(() => (isMac() ? "⌘" : "Ctrl"), []);
 
   const shortcuts: Shortcut[] = [
@@ -27,9 +23,7 @@ export default function ShortcutsBar({ className }: ShortcutsBarProps) {
   ];
 
   return (
-    <div
-      className={`flex items-center gap-3 flex-wrap px-4 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 select-none ${className ?? ""}`}
-    >
+    <>
       <span className="flex items-center gap-1 font-medium text-gray-400 shrink-0">
         <Keyboard className="h-3 w-3" />
         Shortcuts:
@@ -49,6 +43,6 @@ export default function ShortcutsBar({ className }: ShortcutsBarProps) {
           <span className="text-gray-400">{label}</span>
         </span>
       ))}
-    </div>
+    </>
   );
 }
