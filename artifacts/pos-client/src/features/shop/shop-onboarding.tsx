@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Search, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
@@ -40,6 +40,7 @@ export default function ShopOnboarding() {
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const [categorySearch, setCategorySearch] = useState("");
   const [address, setAddress] = useState("");
   const [currency, setCurrency] = useState("KES");
   const [placeDetails, setPlaceDetails] = useState<{ coordinates?: { lat: number; lng: number } } | null>(null);
@@ -53,6 +54,14 @@ export default function ShopOnboarding() {
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  const filteredCategories = useMemo(() => {
+    const q = categorySearch.trim().toLowerCase();
+    if (!q) return categories;
+    return categories.filter((c) => c.name.toLowerCase().includes(q));
+  }, [categories, categorySearch]);
+
+  const selectedCategory = categories.find((c) => String(c.id) === category);
 
   const handleAddressChange = (val: string, details?: any) => {
     setAddress(val);
@@ -155,44 +164,77 @@ export default function ShopOnboarding() {
             </>
           )}
 
-          {/* Step 2 — Business category (wider container) */}
+          {/* Step 2 — Business category */}
           {step === 2 && (
-            <div className="w-full max-w-2xl mx-auto">
-              <h1 className="text-3xl font-bold text-gray-900 mb-3">
+            <div className="w-full max-w-lg mx-auto">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
                 What type of business is it?
               </h1>
-              <p className="text-gray-400 text-sm mb-8">
+              <p className="text-gray-400 text-sm mb-6">
                 Pick the category that best describes <span className="font-medium text-gray-600">{name}</span>.
               </p>
 
-              {categoriesLoading ? (
-                <div className="grid grid-cols-3 gap-3">
-                  {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />
-                  ))}
+              {/* Selected badge */}
+              {selectedCategory && (
+                <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg text-purple-700 text-sm font-medium w-fit">
+                  <Check className="w-4 h-4" />
+                  {selectedCategory.name}
                 </div>
-              ) : categories.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-72 overflow-y-auto pr-1">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => setCategory(String(cat.id))}
-                      className={`flex items-center gap-2.5 px-4 py-3.5 rounded-xl border-2 text-left transition-all ${
-                        category === String(cat.id)
-                          ? "border-purple-600 bg-purple-50 text-purple-700"
-                          : "border-gray-200 hover:border-gray-300 text-gray-700"
-                      }`}
-                    >
-                      {cat.icon && <span className="text-xl">{cat.icon}</span>}
-                      <span className="text-sm font-medium leading-tight">{cat.name}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-gray-400 text-center py-6">No categories available</div>
               )}
 
-              <div className="mt-10 flex items-center gap-4">
+              {/* Search input */}
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Search categories…"
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 bg-gray-50"
+                />
+              </div>
+
+              {/* Scrollable list */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                {categoriesLoading ? (
+                  <div className="p-4 space-y-2">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="h-9 bg-gray-100 rounded-lg animate-pulse" />
+                    ))}
+                  </div>
+                ) : filteredCategories.length > 0 ? (
+                  <ul className="max-h-64 overflow-y-auto divide-y divide-gray-100">
+                    {filteredCategories.map((cat) => {
+                      const isSelected = category === String(cat.id);
+                      return (
+                        <li key={cat.id}>
+                          <button
+                            onClick={() => setCategory(String(cat.id))}
+                            className={`w-full flex items-center justify-between px-4 py-2.5 text-sm text-left transition-colors ${
+                              isSelected
+                                ? "bg-purple-50 text-purple-700 font-medium"
+                                : "text-gray-700 hover:bg-gray-50"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              {cat.icon && <span>{cat.icon}</span>}
+                              {cat.name}
+                            </span>
+                            {isSelected && <Check className="w-4 h-4 text-purple-600 shrink-0" />}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <div className="py-8 text-center text-sm text-gray-400">
+                    No categories match "<span className="font-medium">{categorySearch}</span>"
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-8 flex items-center gap-4">
                 <button
                   onClick={() => setStep(3)}
                   disabled={!category}
@@ -201,7 +243,7 @@ export default function ShopOnboarding() {
                   Continue <ArrowRight className="w-5 h-5" />
                 </button>
                 <button
-                  onClick={() => { setCategory(""); setStep(3); }}
+                  onClick={() => { setCategory(""); setCategorySearch(""); setStep(3); }}
                   className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   Skip
