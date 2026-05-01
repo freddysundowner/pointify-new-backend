@@ -632,6 +632,14 @@ router.post("/stock-requests", requireAdminOrAttendant, async (req, res, next) =
     const { fromShopId, warehouseId, items } = req.body;
     if (!fromShopId || !warehouseId || !items?.length) throw badRequest("fromShopId, warehouseId and items required");
 
+    // Verify the target shop is a designated warehouse
+    const warehouseShop = await db.query.shops.findFirst({
+      where: eq(shops.id, Number(warehouseId)),
+      columns: { id: true, isWarehouse: true, name: true },
+    });
+    if (!warehouseShop) throw badRequest("Warehouse shop not found");
+    if (!warehouseShop.isWarehouse) throw badRequest(`Shop "${warehouseShop.name}" is not configured as a warehouse. Enable the warehouse setting on that shop first.`);
+
     const invoiceNumber = `SRQ${Date.now()}${Math.floor(Math.random() * 1000)}`;
     const [request] = await db.insert(stockRequests).values({
       fromShop: Number(fromShopId),

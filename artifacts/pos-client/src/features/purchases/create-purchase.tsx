@@ -20,12 +20,14 @@ import type { RootState } from "@/store";
 import { usePrimaryShop } from "../../hooks/usePrimaryShop";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { apiRequest } from "@/lib/queryClient";
+import { useShop } from "@/features/shop/useShop";
 
 export default function CreatePurchase() {
   const [location, setLocation] = useLocation();
   const { admin, isAuthenticated } = useAuth();
   const { currency } = useSelector((state: RootState) => state.currency);
   const { attendantId,shopId } = usePrimaryShop();
+  const { shop } = useShop();
 
   // Suppliers API integration
   const { data: suppliersResponse, isLoading: suppliersLoading } = useQuery({
@@ -60,6 +62,13 @@ export default function CreatePurchase() {
   useEffect(() => {
     setInvoiceNumber(generateInvoiceNumber());
   }, []);
+
+  // Default trackBatches from shop setting once loaded
+  useEffect(() => {
+    if (shop?.trackBatches !== undefined) {
+      setTrackBatches(shop.trackBatches);
+    }
+  }, [shop?.trackBatches]);
 
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [productSearchOpen, setProductSearchOpen] = useState(false);

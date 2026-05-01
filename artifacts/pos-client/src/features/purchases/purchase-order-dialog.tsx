@@ -23,6 +23,7 @@ import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { useCurrency } from "@/utils";
+import { useShop } from "@/features/shop/useShop";
 
 interface PurchaseOrderDialogProps {
   isOpen: boolean;
@@ -58,6 +59,7 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
   const currency  = useCurrency();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { shop } = useShop();
   
   // Get shopId from either admin or attendant context
   const getShopId = () => {
@@ -79,6 +81,13 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
   const [expectedDate, setExpectedDate] = useState("");
   const [trackBatches, setTrackBatches] = useState(false);
   const [quantityInputs, setQuantityInputs] = useState<{[key: number]: string}>({});
+
+  // Default trackBatches from shop setting once loaded
+  useEffect(() => {
+    if (shop?.trackBatches !== undefined) {
+      setTrackBatches(shop.trackBatches);
+    }
+  }, [shop?.trackBatches]);
 
   // Generate PO number
   const [poNumber] = useState(() => {

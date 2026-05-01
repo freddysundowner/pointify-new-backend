@@ -20,6 +20,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useCurrency } from '@/utils';
 import { ENDPOINTS } from '@/lib/api-endpoints';
 import { apiRequest } from '@/lib/queryClient';
+import { useShop } from '@/features/shop/useShop';
 
 interface Product {
   _id?: string;
@@ -51,6 +52,7 @@ export default function PurchaseOrderPage() {
   const { toast } = useToast();
   const { admin } = useAuth();
   const { shopId, attendantId, adminId } = usePrimaryShop();
+  const { shop } = useShop();
   const { products, refreshProducts } = useProducts();
   const queryClient = useQueryClient();
 
@@ -70,6 +72,13 @@ export default function PurchaseOrderPage() {
 
   const [trackBatches, setTrackBatches] = useState(false);
   const [quantityInputs, setQuantityInputs] = useState<{[key: number]: string}>({});
+
+  // Default trackBatches from shop setting once loaded
+  useEffect(() => {
+    if (shop?.trackBatches !== undefined) {
+      setTrackBatches(shop.trackBatches);
+    }
+  }, [shop?.trackBatches]);
 
   // Fetch suppliers filtered by selected shop
   const { data: suppliers = [] } = useQuery<Supplier[]>({

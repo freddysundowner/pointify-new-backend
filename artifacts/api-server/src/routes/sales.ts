@@ -333,6 +333,50 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         throw badRequest("customer has no enough balance in the wallet");
     }
 
+    // ── Negative-selling guard ───────────────────────────────────────────────
+    // Fetch the shop setting once and validate stock before any DB writes.
+    if (!held) {
+      const shopSettings = await db.query.shops.findFirst({
+        where: eq(shops.id, Number(shopId)),
+        columns: { allowNegativeSelling: true },
+      });
+
+      if (!shopSettings?.allowNegativeSelling) {
+        // Identify physical products (service/virtual skip inventory)
+        const physicalItems = items.filter((item: any) => {
+          // We'll check type after fetching — default to physical for the guard
+          return true;
+        });
+
+        const itemProductIds = physicalItems.map((item: any) => Number(item.productId));
+        const [productTypeRows, inventoryRows] = await Promise.all([
+          itemProductIds.length
+            ? db.query.products.findMany({ where: inArray(products.id, itemProductIds), columns: { id: true, type: true } })
+            : [],
+          itemProductIds.length
+            ? db.query.inventory.findMany({ where: and(inArray(inventory.product, itemProductIds), eq(inventory.shop, Number(shopId))), columns: { product: true, quantity: true } })
+            : [],
+        ]);
+        const typeMap = new Map(productTypeRows.map((p) => [p.id, p.type ?? "product"]));
+        const stockMap = new Map(inventoryRows.map((r) => [r.product!, parseFloat(String(r.quantity ?? "0"))]));
+
+        const shortages: string[] = [];
+        for (const item of physicalItems) {
+          const pid = Number(item.productId);
+          const pType = typeMap.get(pid) ?? "product";
+          if (pType === "service" || pType === "virtual") continue;
+          const available = stockMap.get(pid) ?? 0;
+          const needed = Number(item.quantity ?? 1);
+          if (available < needed) {
+            shortages.push(`Product #${pid}: need ${needed}, have ${available}`);
+          }
+        }
+        if (shortages.length) {
+          throw badRequest(`Insufficient stock (negative selling is disabled for this shop): ${shortages.join("; ")}`);
+        }
+      }
+    }
+
     // ── Payment type label and cached method totals ─────────────────────────
     const paymentTypeLabel = held ? "cash"
       : resolvedPayments.length > 1 ? "split"
