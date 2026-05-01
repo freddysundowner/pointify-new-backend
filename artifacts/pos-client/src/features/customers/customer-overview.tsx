@@ -352,7 +352,8 @@ export default function CustomerOverview() {
     queryKey: ['customer-loyalty', customerId],
     queryFn: async () => {
       const res = await apiRequest('GET', ENDPOINTS.customers.getLoyalty(customerId!));
-      return res.json();
+      const json = await res.json();
+      return json?.data ?? json;
     },
     enabled: !!customerId,
   });

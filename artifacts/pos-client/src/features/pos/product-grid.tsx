@@ -2,7 +2,7 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizeId, normalizeIds } from "@/lib/utils";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Search, Calculator, Package, Minus, Plus, Trash2, CreditCard, Wallet, Smartphone, Building, Banknote, Split, User, X, Edit3, Calendar, Clock, UserCheck, Grid3X3, Table, PlusCircle, Loader2, CheckCircle2 } from "lucide-react";
+import { Search, Calculator, Package, Minus, Plus, Trash2, CreditCard, Wallet, Smartphone, Building, Banknote, Split, User, X, Edit3, Calendar, Clock, UserCheck, Grid3X3, Table, PlusCircle, Loader2, CheckCircle2, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -127,6 +127,9 @@ export default function ProductGrid({
     bank: 0
   });
   
+  // Loyalty redemption state
+  const [redeemPointsStr, setRedeemPointsStr] = useState("");
+
   // Date/time override states
   const [isCustomDateTime, setIsCustomDateTime] = useState(false);
   const [customDateTime, setCustomDateTime] = useState("");
@@ -360,6 +363,22 @@ export default function ProductGrid({
     ? categoriesResponse 
     : categoriesResponse?.categories || categoriesResponse?.data || [];
 
+  const { data: loyaltyData } = useQuery({
+    queryKey: ["loyalty", selectedCustomerId],
+    queryFn: async () => {
+      const res = await apiCall(ENDPOINTS.customers.getLoyalty(selectedCustomerId));
+      return res.json();
+    },
+    enabled: !!selectedCustomerId,
+    staleTime: 30000,
+  });
+
+  const loyaltyEnabled: boolean = loyaltyData?.data?.shopSettings?.loyaltyEnabled ?? false;
+  const loyaltyBalance: number = parseFloat(String(loyaltyData?.data?.loyaltyPoints ?? 0));
+  const loyaltyPointsValue: number = parseFloat(String(loyaltyData?.data?.shopSettings?.pointsValue ?? 0));
+  const redeemPoints: number = Math.min(Math.max(0, parseFloat(redeemPointsStr) || 0), loyaltyBalance);
+  const loyaltyRedemptionValue: number = parseFloat((redeemPoints * loyaltyPointsValue).toFixed(2));
+
   const customers = normalizeIds(
     Array.isArray(customersResponse)
       ? customersResponse
@@ -403,6 +422,9 @@ export default function ProductGrid({
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ predicate: isDashboardOrSalesKey });
       queryClient.refetchQueries({ predicate: isDashboardOrSalesKey });
+      if (variables.customerId) {
+        queryClient.invalidateQueries({ queryKey: ["loyalty", String(variables.customerId)] });
+      }
       
       // Also refresh ProductsContext to update POS grid immediately
       refreshProducts();
@@ -812,11 +834,12 @@ export default function ProductGrid({
       dueDate: selectedPaymentMethod === "credit" ? creditDueDate : undefined,
       amountPaid: isHold || selectedPaymentMethod === "credit" ? 0.0 :
                  selectedPaymentMethod === "split" ? (splitAmounts.cash + splitAmounts.mpesa + splitAmounts.bank) :
-                 parseFloat(totals.total.toString()),
+                 Math.max(0, parseFloat(totals.total.toString()) - loyaltyRedemptionValue),
       paymentMethod: isHold ? "cash" : effectivePaymentMethod !== "split" ? normalizeMethod(effectivePaymentMethod) : undefined,
       payments: buildPayments(),
       discount: parseFloat(totals.discount.toString()),
       customerId: selectedCustomerId ? Number(selectedCustomerId) : null,
+      ...(redeemPoints > 0 && !isHold ? { redeemPoints } : {}),
     };
 
     try {
@@ -938,6 +961,7 @@ export default function ProductGrid({
     setSplitAmounts({ cash: 0, mpesa: 0, bank: 0 });
     setIsCustomDateTime(false);
     setCustomDateTime("");
+    setRedeemPointsStr("");
   };
 
 
@@ -1909,7 +1933,18 @@ export default function ProductGrid({
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-lg font-semibold">Total Amount:</span>
-                  <span className="text-2xl font-bold text-green-600">Ksh {totals.total.toFixed(2)}</span>
+                  <div className="text-right">
+                    {loyaltyRedemptionValue > 0 ? (
+                      <>
+                        <span className="text-lg line-through text-gray-400 mr-2">Ksh {totals.total.toFixed(2)}</span>
+                        <span className="text-2xl font-bold text-green-600">
+                          Ksh {Math.max(0, totals.total - loyaltyRedemptionValue).toFixed(2)}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-2xl font-bold text-green-600">Ksh {totals.total.toFixed(2)}</span>
+                    )}
+                  </div>
                 </div>
               </div>
               
@@ -2142,6 +2177,42 @@ export default function ProductGrid({
                 </div>
               )}
               
+              {/* Loyalty Points Redemption */}
+              {selectedCustomerId && loyaltyEnabled && loyaltyBalance > 0 && loyaltyPointsValue > 0 && (
+                <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Star className="h-5 w-5 text-amber-500" />
+                    <span className="font-medium text-amber-800">Loyalty Points</span>
+                    <span className="ml-auto text-sm text-amber-700">
+                      {loyaltyBalance.toLocaleString()} pts available
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>1 pt = Ksh {loyaltyPointsValue.toFixed(2)}</span>
+                      <span>Max discount: Ksh {(loyaltyBalance * loyaltyPointsValue).toFixed(2)}</span>
+                    </div>
+                    <label className="text-sm font-medium text-gray-700">Points to Redeem</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max={loyaltyBalance}
+                      step="1"
+                      placeholder="0"
+                      value={redeemPointsStr}
+                      onChange={(e) => setRedeemPointsStr(e.target.value)}
+                      className="w-full border-amber-200 focus:border-amber-500"
+                    />
+                    {redeemPoints > 0 && (
+                      <div className="flex justify-between items-center text-sm font-medium text-amber-700 bg-amber-100 px-3 py-2 rounded">
+                        <span>{redeemPoints.toLocaleString()} pts</span>
+                        <span>− Ksh {loyaltyRedemptionValue.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Manual Date/Time Setting - Only visible with permission */}
               {canSetSaleDate && (
                 <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
