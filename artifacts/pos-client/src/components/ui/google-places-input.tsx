@@ -67,7 +67,7 @@ export default function GooglePlacesInput({
         return;
       }
 
-      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "AIzaSyAhhiH3PrL9td9IGJWfpK3CXnU3gtsIYHY";
       if (!apiKey) {
         console.error("VITE_GOOGLE_MAPS_API_KEY not found");
         return;
