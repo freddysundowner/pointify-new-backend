@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Link } from "wouter";
 import AlertModal from "@/components/ui/alert-modal";
+import GooglePlacesInput from "@/components/ui/google-places-input";
 
 export default function ShopDetails() {
   const { id } = useParams();
@@ -79,10 +80,23 @@ export default function ShopDetails() {
     loyaltyEnabled: false,
     pointsPerAmount: "0",
     pointsValue: "0",
+
+    // Location
+    locationLat: undefined as number | undefined,
+    locationLng: undefined as number | undefined,
   });
 
   const set = <K extends keyof typeof formData>(key: K, value: typeof formData[K]) =>
     setFormData(prev => ({ ...prev, [key]: value }));
+
+  const handleAddressChange = (address: string, place?: google.maps.places.PlaceResult) => {
+    setFormData(prev => ({
+      ...prev,
+      address,
+      locationLat: place?.geometry?.location ? place.geometry.location.lat() : prev.locationLat,
+      locationLng: place?.geometry?.location ? place.geometry.location.lng() : prev.locationLng,
+    }));
+  };
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
@@ -143,6 +157,10 @@ export default function ShopDetails() {
       loyaltyEnabled: shop.loyaltyEnabled ?? false,
       pointsPerAmount: shop.pointsPerAmount ?? "0",
       pointsValue: shop.pointsValue ?? "0",
+
+      // Location
+      locationLat: shop.locationLat ?? undefined,
+      locationLng: shop.locationLng ?? undefined,
     });
   }, [shop]);
 
@@ -201,6 +219,10 @@ export default function ShopDetails() {
       loyaltyEnabled: formData.loyaltyEnabled,
       pointsPerAmount: formData.pointsPerAmount,
       pointsValue: formData.pointsValue,
+
+      // Location
+      locationLat: formData.locationLat,
+      locationLng: formData.locationLng,
     });
   };
 
@@ -355,10 +377,10 @@ export default function ShopDetails() {
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label>Address</Label>
-                      <Input
-                        placeholder="Physical address"
+                      <GooglePlacesInput
+                        placeholder="Start typing your shop address..."
                         value={formData.address}
-                        onChange={e => set("address", e.target.value)}
+                        onChange={handleAddressChange}
                       />
                     </div>
                   </div>
