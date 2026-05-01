@@ -74,7 +74,6 @@ export default function ShopDetails() {
     allowBackup: true,
     backupInterval: "end_of_month",
     backupEmail: "",
-    warehouseEmail: "",
 
     // Loyalty
     loyaltyEnabled: false,
@@ -151,7 +150,6 @@ export default function ShopDetails() {
       allowBackup: shop.allowBackup ?? true,
       backupInterval: shop.backupInterval || "end_of_month",
       backupEmail: shop.backupEmail || "",
-      warehouseEmail: shop.warehouseEmail || "",
 
       // Loyalty
       loyaltyEnabled: shop.loyaltyEnabled ?? false,
@@ -213,7 +211,6 @@ export default function ShopDetails() {
       allowBackup: formData.allowBackup,
       backupInterval: formData.backupInterval,
       backupEmail: formData.backupEmail,
-      warehouseEmail: formData.warehouseEmail,
 
       // Loyalty
       loyaltyEnabled: formData.loyaltyEnabled,
@@ -624,15 +621,6 @@ export default function ShopDetails() {
                         onChange={e => set("backupEmail", e.target.value)}
                       />
                       <p className="text-xs text-gray-400">Leave blank to use your admin email</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Warehouse Email</Label>
-                      <Input
-                        type="email"
-                        placeholder="warehouse@yourshop.com"
-                        value={formData.warehouseEmail}
-                        onChange={e => set("warehouseEmail", e.target.value)}
-                      />
                     </div>
                   </div>
                 </CardContent>
