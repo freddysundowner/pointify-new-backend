@@ -9,7 +9,7 @@ import {
   inventory, loyaltyTransactions, admins,
 } from "@workspace/db";
 import { db } from "./db.js";
-import { sendEmail, sendEmailAsync } from "./email.js";
+import { sendRawEmail, sendEmailAsync } from "./email.js";
 import { logger } from "./logger.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -224,8 +224,7 @@ export async function backupShopNow(shopId: number, reason: "data-clear" | "shop
       ? "This shop is about to be <strong>permanently deleted</strong>"
       : "All shop data is about to be <strong>permanently cleared</strong> (the shop itself will remain)";
 
-    await sendEmail({
-      key: `pre-delete-backup-${shopId}-${Date.now()}`,
+    const result = await sendRawEmail({
       to: recipient,
       subject: `⚠️ ${shopName} — Pre-Deletion Backup ${date}`,
       html: `
@@ -245,7 +244,11 @@ export async function backupShopNow(shopId: number, reason: "data-clear" | "shop
       attachments,
     });
 
-    logger.info({ shopId, email: recipient, reason }, "backupShopNow: pre-delete backup sent");
+    if (result.ok) {
+      logger.info({ shopId, email: recipient, reason, messageId: result.messageId }, "backupShopNow: pre-delete backup sent");
+    } else {
+      logger.warn({ shopId, email: recipient, reason, skipped: result.skipped, error: result.error }, "backupShopNow: pre-delete backup not sent (deletion will still proceed)");
+    }
   } catch (err) {
     // Email failure must never block deletion — log and continue
     logger.error({ err, shopId, reason }, "backupShopNow: failed to send pre-delete backup (deletion will still proceed)");
