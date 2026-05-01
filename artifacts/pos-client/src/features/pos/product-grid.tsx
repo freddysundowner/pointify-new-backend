@@ -942,7 +942,7 @@ export default function ProductGrid({
 
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col">
+    <div className="h-full bg-gray-50 flex flex-col">
       {/* Mobile Navigation Bar */}
       <div className="md:hidden bg-purple-600 text-white p-3">
         <div className="flex items-center justify-between">
@@ -1656,7 +1656,7 @@ export default function ProductGrid({
             )}
             
             {/* Product Display - Grid or Table View */}
-            <div className="flex-1 min-h-0 overflow-y-auto max-h-[calc(100vh-200px)]">
+            <div className="flex-1 min-h-0 overflow-y-auto max-h-[calc(100vh-232px)]">
               {isLoading ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>

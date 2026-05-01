@@ -120,22 +120,22 @@ export default function POS() {
   }, [searchQuery, clearCart]);
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-gray-200 shrink-0">
+    <div className="flex h-screen bg-background">
+      <div className="absolute top-3 left-4 z-50">
         <Button
           onClick={handleBackToDashboard}
           variant="outline"
           size="sm"
-          className="border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+          className="bg-white/90 backdrop-blur-sm border-gray-200 hover:bg-white hover:border-gray-300 shadow-lg"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Dashboard
         </Button>
       </div>
 
-      <ShortcutsBar />
-
-      <div className="flex-1 flex min-w-0 min-h-0">
+      <div className="flex-1 flex flex-col min-w-0">
+        <ShortcutsBar />
+        <div className="flex-1 min-h-0">
         <ProductGrid
           activeCategory={activeCategory}
           searchQuery={searchQuery}
@@ -177,6 +177,7 @@ export default function POS() {
           triggerPaymentRef={triggerPaymentRef}
           searchFocusRef={searchFocusRef}
         />
+        </div>
       </div>
 
       <ReceiptModal
