@@ -166,7 +166,7 @@ export default function ShopOnboarding() {
 
           {/* Step 2 — Business category */}
           {step === 2 && (
-            <div className="w-full max-w-lg mx-auto">
+            <div className="w-full max-w-3xl mx-auto">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
                 What type of business is it?
               </h1>
