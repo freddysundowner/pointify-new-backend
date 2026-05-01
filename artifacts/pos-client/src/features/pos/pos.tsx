@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useSelector } from "react-redux";
 import { ArrowLeft } from "lucide-react";
@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import ProductGrid from "./product-grid";
 import ReceiptModal from "./receipt-modal";
 import CalculatorModal from "./calculator-modal";
+import ShortcutsBar from "./shortcuts-bar";
 
 import { useAuth } from "@/features/auth/useAuth";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
@@ -28,6 +29,9 @@ export default function POS() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showCalculator, setShowCalculator] = useState(false);
   const [saleType, setSaleType] = useState<"Retail" | "Wholesale" | "Dealer">("Retail");
+
+  const triggerPaymentRef = useRef<(() => void) | null>(null);
+  const searchFocusRef = useRef<(() => void) | null>(null);
 
   const taxRate = primaryShopData?.tax || 0;
   const effectiveShopId =
@@ -77,21 +81,61 @@ export default function POS() {
     setLocation(attendant ? "/attendant/dashboard" : "/dashboard");
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod && e.key !== "Escape") return;
+
+      if (e.key === "Escape") {
+        if (searchQuery) {
+          e.preventDefault();
+          setSearchQuery("");
+        }
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case "f":
+          e.preventDefault();
+          searchFocusRef.current?.();
+          break;
+        case "k":
+          e.preventDefault();
+          setShowCalculator(true);
+          break;
+        case "enter":
+          e.preventDefault();
+          triggerPaymentRef.current?.();
+          break;
+        case "backspace":
+        case "delete":
+          e.preventDefault();
+          clearCart();
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [searchQuery, clearCart]);
+
   return (
-    <div className="flex h-screen bg-background">
-      <div className="absolute top-3 left-4 z-50">
+    <div className="flex flex-col h-screen bg-background">
+      <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-gray-200 shrink-0">
         <Button
           onClick={handleBackToDashboard}
           variant="outline"
           size="sm"
-          className="bg-white/90 backdrop-blur-sm border-gray-200 hover:bg-white hover:border-gray-300 shadow-lg"
+          className="border-gray-200 hover:bg-gray-50 hover:border-gray-300"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Dashboard
         </Button>
       </div>
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <ShortcutsBar />
+
+      <div className="flex-1 flex min-w-0 min-h-0">
         <ProductGrid
           activeCategory={activeCategory}
           searchQuery={searchQuery}
@@ -130,6 +174,8 @@ export default function POS() {
           canSellToDealer={canSellToDealer}
           canDiscount={canDiscount}
           canEditPrice={canEditPrice}
+          triggerPaymentRef={triggerPaymentRef}
+          searchFocusRef={searchFocusRef}
         />
       </div>
 

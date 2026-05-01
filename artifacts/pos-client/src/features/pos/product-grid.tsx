@@ -1,3 +1,4 @@
+import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizeId, normalizeIds } from "@/lib/utils";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
@@ -53,6 +54,9 @@ interface ProductGridProps {
   canDiscount?: boolean;
   canEditPrice?: boolean;
   orderId?: string | number;
+  // Keyboard shortcut refs
+  triggerPaymentRef?: React.RefObject<(() => void) | null>;
+  searchFocusRef?: React.RefObject<(() => void) | null>;
 }
 
 
@@ -79,13 +83,26 @@ export default function ProductGrid({
   canSellToDealer = true,
   canDiscount = true,
   canEditPrice = true,
-  orderId
+  orderId,
+  triggerPaymentRef,
+  searchFocusRef,
 }: ProductGridProps) {
   const { attendant } = useAttendantAuth();
   const { admin } = useAuth();
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const { shopData } = usePrimaryShop();
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (triggerPaymentRef) {
+      triggerPaymentRef.current = () => setShowPaymentDialog(true);
+    }
+    if (searchFocusRef) {
+      searchFocusRef.current = () => searchInputRef.current?.focus();
+    }
+  }, [triggerPaymentRef, searchFocusRef]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [showCardInterface, setShowCardInterface] = useState(false);
@@ -1153,6 +1170,7 @@ export default function ProductGrid({
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
+                  ref={searchInputRef}
                   type="text"
                   placeholder="Scan barcode or search products..."
                   value={searchQuery}
