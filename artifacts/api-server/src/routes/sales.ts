@@ -887,6 +887,41 @@ router.post("/:id/checkout", requireAdminOrAttendant, async (req, res, next) => 
     }).where(eq(sales.id, saleId)).returning();
     if (!updated) throw notFound("Sale not found");
 
+    // ── Award loyalty points on held-sale checkout ────────────────────────
+    // Redemption is not allowed for held sales (points can't be locked in
+    // advance), but earning must happen at checkout when payment is collected.
+    if (existing.customer) {
+      const shopSettings = await db.query.shops.findFirst({
+        where: eq(shops.id, existing.shop),
+        columns: { loyaltyEnabled: true, pointsPerAmount: true },
+      });
+      if (shopSettings?.loyaltyEnabled) {
+        const perAmount = parseFloat(String(shopSettings.pointsPerAmount ?? 0));
+        if (perAmount > 0) {
+          const earned = Math.floor(parseFloat(existing.totalWithDiscount) / perAmount);
+          if (earned > 0) {
+            const custRow = await db.query.customers.findFirst({
+              where: eq(customers.id, existing.customer),
+              columns: { loyaltyPoints: true },
+            });
+            const newPoints = parseFloat(String(custRow?.loyaltyPoints ?? 0)) + earned;
+            await db.update(customers)
+              .set({ loyaltyPoints: String(newPoints.toFixed(2)) })
+              .where(eq(customers.id, existing.customer));
+            await db.insert(loyaltyTransactions).values({
+              customer: existing.customer,
+              shop: existing.shop,
+              type: "earn",
+              points: String(earned.toFixed(2)),
+              balanceAfter: String(newPoints.toFixed(2)),
+              referenceId: saleId,
+              note: `Earned for ${existing.receiptNo ?? saleId} (checkout)`,
+            });
+          }
+        }
+      }
+    }
+
     void notifySaleReceipt(saleId);
     void notifySaleReceiptSms(saleId);
     void autoRecordCashflow({

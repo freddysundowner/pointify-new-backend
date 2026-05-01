@@ -562,16 +562,16 @@ export default function ShopDetails() {
                   <div className={`space-y-5 transition-opacity ${formData.loyaltyEnabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div className="space-y-1.5">
-                        <Label>Points per Amount Spent</Label>
+                        <Label>Spend Threshold per Point</Label>
                         <Input
                           type="number"
                           step="0.01"
                           min="0"
-                          placeholder="e.g. 1"
+                          placeholder="e.g. 10"
                           value={formData.pointsPerAmount}
                           onChange={e => set("pointsPerAmount", e.target.value)}
                         />
-                        <p className="text-xs text-gray-400">Points earned per 1 unit of currency spent</p>
+                        <p className="text-xs text-gray-400">Amount spent to earn 1 loyalty point (e.g. 10 = 1 point per KES 10)</p>
                       </div>
                       <div className="space-y-1.5">
                         <Label>Point Value</Label>

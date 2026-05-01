@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { saleReturns, saleReturnItems, sales, inventory, admins, attendants } from "@workspace/db";
+import { saleReturns, saleReturnItems, sales, inventory, admins, attendants, customers, loyaltyTransactions, shops } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -156,6 +156,70 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     }).from(saleReturns).where(eq(saleReturns.sale, Number(saleId)));
     if (parseFloat(cumulativeRefunds) >= parseFloat(sale.totalWithDiscount)) {
       await db.update(sales).set({ status: "returned" }).where(eq(sales.id, Number(saleId)));
+    }
+
+    // ── Reduce customer outstanding balance on credit sales ────────────────
+    // When items from a credit sale are returned, the refund amount reduces what
+    // the customer owes (capped so it never goes below zero).
+    if (sale.customer && parseFloat(String(sale.outstandingBalance ?? "0")) > 0) {
+      const reduction = Math.min(refundAmount, parseFloat(String(sale.outstandingBalance)));
+      if (reduction > 0) {
+        await db.update(customers)
+          .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric - ${reduction}::numeric)` })
+          .where(eq(customers.id, sale.customer));
+        // Keep the sale's own outstanding in sync
+        await db.update(sales)
+          .set({ outstandingBalance: sql`GREATEST(0, ${sales.outstandingBalance}::numeric - ${reduction}::numeric)` })
+          .where(eq(sales.id, Number(saleId)));
+      }
+    }
+
+    // ── Reverse loyalty points that were earned on this sale ───────────────
+    // Look up all "earn" transactions logged for this sale and reverse them
+    // proportionally to the refund amount (full reversal if fully returned,
+    // partial proportional reversal for partial returns).
+    if (sale.customer) {
+      const shopSettings = await db.query.shops.findFirst({
+        where: eq(shops.id, Number(shopId)),
+        columns: { loyaltyEnabled: true },
+      });
+      if (shopSettings?.loyaltyEnabled) {
+        const earnRows = await db.query.loyaltyTransactions.findMany({
+          where: and(
+            eq(loyaltyTransactions.customer, sale.customer),
+            eq(loyaltyTransactions.shop, Number(shopId)),
+            eq(loyaltyTransactions.type, "earn"),
+            eq(loyaltyTransactions.referenceId, Number(saleId)),
+          ),
+        });
+        const totalEarned = earnRows.reduce((s, r) => s + parseFloat(String(r.points)), 0);
+        if (totalEarned > 0) {
+          // Proportional reversal: refundAmount / sale.totalWithDiscount
+          const saleTotal = parseFloat(String(sale.totalWithDiscount ?? sale.totalAmount ?? "0"));
+          const fraction = saleTotal > 0 ? Math.min(1, refundAmount / saleTotal) : 1;
+          const pointsToReverse = Math.floor(totalEarned * fraction);
+          if (pointsToReverse > 0) {
+            const custRow = await db.query.customers.findFirst({
+              where: eq(customers.id, sale.customer),
+              columns: { loyaltyPoints: true },
+            });
+            const currentPoints = parseFloat(String(custRow?.loyaltyPoints ?? 0));
+            const newPoints = Math.max(0, currentPoints - pointsToReverse);
+            await db.update(customers)
+              .set({ loyaltyPoints: String(newPoints.toFixed(2)) })
+              .where(eq(customers.id, sale.customer));
+            await db.insert(loyaltyTransactions).values({
+              customer: sale.customer,
+              shop: Number(shopId),
+              type: "adjust",
+              points: String((-pointsToReverse).toFixed(2)),
+              balanceAfter: String(newPoints.toFixed(2)),
+              referenceId: Number(saleId),
+              note: `Points reversed for return ${saleReturn.returnNo}`,
+            });
+          }
+        }
+      }
     }
 
     void notifySaleRefund(saleReturn.id);
