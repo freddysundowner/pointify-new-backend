@@ -57,74 +57,101 @@ function toB64Csv(rows: Record<string, unknown>[]): string {
 
 function buildSalesCsv(rows: any[]): string {
   const mapped = rows.map(s => ({
-    Date: s.createdAt ? new Date(s.createdAt).toLocaleString("en-KE") : "",
-    Receipt_No: s.receiptNo ?? "",
-    Customer_ID: s.customer ?? "",
-    Total: s.total ?? "",
-    Discount: s.discount ?? "",
-    Tax: s.tax ?? "",
-    Payment_Method: s.paymentMethod ?? "",
-    Amount_Paid: s.amountPaid ?? "",
-    Balance: s.balance ?? "",
-    Status: s.status ?? "",
-    Notes: s.notes ?? "",
+    Date:             s.createdAt ? new Date(s.createdAt).toLocaleString("en-KE") : "",
+    Receipt_No:       s.receiptNo ?? "",
+    Sale_Type:        s.saleType ?? "",
+    Status:           s.status ?? "",
+    Customer_ID:      s.customer ?? "",
+    Subtotal:         s.totalAmount ?? "",
+    Sale_Discount:    s.saleDiscount ?? "",
+    Total:            s.totalWithDiscount ?? "",
+    Tax:              s.totalTax ?? "",
+    Payment_Type:     s.paymentType ?? "",
+    Amount_Paid:      s.amountPaid ?? "",
+    Cash:             s.amountPaid ?? "",
+    Mpesa:            s.mpesaTotal ?? "",
+    Bank:             s.bankTotal ?? "",
+    Card:             s.cardTotal ?? "",
+    Outstanding:      s.outstandingBalance ?? "",
+    Due_Date:         s.dueDate ? new Date(s.dueDate).toLocaleDateString("en-KE") : "",
+    Note:             s.saleNote ?? "",
   }));
   return toCsv(mapped);
 }
 
-function buildProductsCsv(rows: any[]): string {
-  const mapped = rows.map(p => ({
-    Name: p.name ?? "",
-    SKU: p.sku ?? "",
-    Barcode: p.barcode ?? "",
-    Category: p.category ?? "",
-    Selling_Price: p.sellingPrice ?? "",
-    Cost_Price: p.costPrice ?? "",
-    Stock_Qty: p.inventoryQty ?? "",
-    Min_Stock: p.minStock ?? "",
-    Max_Stock: p.maxStock ?? "",
-    Status: p.status ?? "",
-    Unit: p.unit ?? "",
-    Taxable: p.taxable ?? false,
-  }));
+/**
+ * Build products CSV.
+ * inventoryRows must be passed in so we can join stock levels onto each product.
+ */
+function buildProductsCsv(productRows: any[], inventoryRows: any[]): string {
+  // product.id → inventory record
+  const invMap = new Map<number, any>(
+    inventoryRows.map(inv => [inv.product, inv])
+  );
+
+  const mapped = productRows.map(p => {
+    const inv = invMap.get(p.id) ?? {};
+    return {
+      Name:              p.name ?? "",
+      Barcode:           p.barcode ?? "",
+      Serial_Number:     p.serialNumber ?? "",
+      Description:       p.description ?? "",
+      Type:              p.type ?? "product",
+      Category_ID:       p.category ?? "",
+      Buying_Price:      p.buyingPrice ?? "",
+      Selling_Price:     p.sellingPrice ?? "",
+      Wholesale_Price:   p.wholesalePrice ?? "",
+      Dealer_Price:      p.dealerPrice ?? "",
+      Min_Selling_Price: p.minSellingPrice ?? "",
+      Max_Discount:      p.maxDiscount ?? "",
+      Unit:              p.measureUnit ?? "",
+      Manufacturer:      p.manufacturer ?? "",
+      Supplier_ID:       p.supplier ?? "",
+      Stock_Qty:         inv.quantity ?? "",
+      Reorder_Level:     inv.reorderLevel ?? "",
+      Stock_Status:      inv.status ?? "",
+      Taxable:           p.isTaxable ?? false,
+      Expiry_Date:       p.expiryDate ? new Date(p.expiryDate).toLocaleDateString("en-KE") : "",
+      Created_At:        p.createdAt ? new Date(p.createdAt).toLocaleString("en-KE") : "",
+    };
+  });
   return toCsv(mapped);
 }
 
 function buildCustomersCsv(rows: any[]): string {
   const mapped = rows.map(c => ({
-    Name: c.name ?? "",
-    Phone: c.phone ?? "",
-    Email: c.email ?? "",
-    Loyalty_Points: c.loyaltyPoints ?? 0,
+    Name:                c.name ?? "",
+    Phone:               c.phone ?? "",
+    Email:               c.email ?? "",
+    Loyalty_Points:      c.loyaltyPoints ?? 0,
     Outstanding_Balance: c.outstandingBalance ?? 0,
-    Total_Purchases: c.totalPurchases ?? 0,
-    Address: c.address ?? "",
-    Created_At: c.createdAt ? new Date(c.createdAt).toLocaleString("en-KE") : "",
+    Total_Purchases:     c.totalPurchases ?? 0,
+    Address:             c.address ?? "",
+    Created_At:          c.createdAt ? new Date(c.createdAt).toLocaleString("en-KE") : "",
   }));
   return toCsv(mapped);
 }
 
 function buildPurchasesCsv(rows: any[]): string {
   const mapped = rows.map(p => ({
-    Date: p.createdAt ? new Date(p.createdAt).toLocaleString("en-KE") : "",
-    Reference: p.reference ?? "",
-    Supplier_ID: p.supplier ?? "",
-    Total: p.total ?? "",
-    Amount_Paid: p.amountPaid ?? "",
-    Balance: p.balance ?? "",
-    Payment_Status: p.paymentStatus ?? "",
-    Note: p.note ?? "",
+    Date:            p.createdAt ? new Date(p.createdAt).toLocaleString("en-KE") : "",
+    Purchase_No:     p.purchaseNo ?? "",
+    Supplier_ID:     p.supplier ?? "",
+    Total:           p.totalAmount ?? "",
+    Amount_Paid:     p.amountPaid ?? "",
+    Outstanding:     p.outstandingBalance ?? "",
+    Payment_Type:    p.paymentType ?? "",
   }));
   return toCsv(mapped);
 }
 
 function buildExpensesCsv(rows: any[]): string {
   const mapped = rows.map(e => ({
-    Date: e.createdAt ? new Date(e.createdAt).toLocaleString("en-KE") : "",
+    Date:        e.createdAt ? new Date(e.createdAt).toLocaleString("en-KE") : "",
     Description: e.description ?? "",
-    Amount: e.amount ?? "",
-    Category: e.category ?? "",
-    Note: e.note ?? "",
+    Amount:      e.amount ?? "",
+    Category:    e.category ?? "",
+    Note:        e.note ?? "",
     Recorded_By: e.recordedBy ?? "",
   }));
   return toCsv(mapped);
@@ -132,13 +159,13 @@ function buildExpensesCsv(rows: any[]): string {
 
 function buildLoyaltyCsv(rows: any[], customerMap: Map<number, string>): string {
   const mapped = rows.map(l => ({
-    Date: l.createdAt ? new Date(l.createdAt).toLocaleString("en-KE") : "",
-    Customer: customerMap.get(l.customer) ?? `ID ${l.customer}`,
-    Type: l.type ?? "",
-    Points: l.points ?? "",
-    Balance_After: l.balanceAfter ?? "",
+    Date:              l.createdAt ? new Date(l.createdAt).toLocaleString("en-KE") : "",
+    Customer:          customerMap.get(l.customer) ?? `ID ${l.customer}`,
+    Type:              l.type ?? "",
+    Points:            l.points ?? "",
+    Balance_After:     l.balanceAfter ?? "",
     Reference_Sale_ID: l.referenceId ?? "",
-    Note: l.note ?? "",
+    Note:              l.note ?? "",
   }));
   return toCsv(mapped);
 }
@@ -196,11 +223,12 @@ export async function backupShopNow(shopId: number, reason: "data-clear" | "shop
     const date = new Date().toISOString().split("T")[0];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    const [salesRows, productRows, customerRows, purchaseRows, expenseRows, loyaltyRows] =
+    const [salesRows, productRows, customerRows, inventoryRows, purchaseRows, expenseRows, loyaltyRows] =
       await Promise.all([
         db.query.sales.findMany({ where: and(eq(sales.shop, shopId), gte(sales.createdAt, thirtyDaysAgo)) }),
         db.query.products.findMany({ where: eq(products.shop, shopId) }),
         db.query.customers.findMany({ where: eq(customers.shop, shopId) }),
+        db.query.inventory.findMany({ where: eq(inventory.shop, shopId) }),
         db.query.purchases.findMany({ where: and(eq(purchases.shop, shopId), gte(purchases.createdAt, thirtyDaysAgo)) }),
         db.query.expenses.findMany({ where: and(eq(expenses.shop, shopId), gte(expenses.createdAt, thirtyDaysAgo)) }),
         db.query.loyaltyTransactions.findMany({ where: eq(loyaltyTransactions.shop, shopId) }),
@@ -217,7 +245,7 @@ export async function backupShopNow(shopId: number, reason: "data-clear" | "shop
     };
     const attachments = [
       makeAttachment(`${shopName}_sales_${date}.csv`,     buildSalesCsv(salesRows)),
-      makeAttachment(`${shopName}_stock_${date}.csv`,     buildProductsCsv(productRows)),
+      makeAttachment(`${shopName}_stock_${date}.csv`,     buildProductsCsv(productRows, inventoryRows)),
       makeAttachment(`${shopName}_customers_${date}.csv`, buildCustomersCsv(customerRows)),
       makeAttachment(`${shopName}_purchases_${date}.csv`, buildPurchasesCsv(purchaseRows)),
       makeAttachment(`${shopName}_expenses_${date}.csv`,  buildExpensesCsv(expenseRows)),
@@ -237,7 +265,7 @@ export async function backupShopNow(shopId: number, reason: "data-clear" | "shop
 <p>The following CSV files are attached:</p>
 <ul>
   <li><strong>Sales</strong> — last 30 days (${salesRows.length} records)</li>
-  <li><strong>Stock</strong> — all products (${productRows.length} products)</li>
+  <li><strong>Stock</strong> — all products with buying price, selling price, wholesale price, dealer price, stock qty, reorder level and more (${productRows.length} products)</li>
   <li><strong>Customers</strong> — full list (${customerRows.length} customers)</li>
   <li><strong>Purchases</strong> — last 30 days (${purchaseRows.length} records)</li>
   <li><strong>Expenses</strong> — last 30 days (${expenseRows.length} records)</li>
@@ -290,13 +318,14 @@ export async function jobBackup(): Promise<void> {
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
         // ── Fetch all data in parallel ────────────────────────────────────────
-        const [salesRows, productRows, customerRows, purchaseRows, expenseRows, loyaltyRows] =
+        const [salesRows, productRows, customerRows, inventoryRows, purchaseRows, expenseRows, loyaltyRows] =
           await Promise.all([
             db.query.sales.findMany({
               where: and(eq(sales.shop, shop.id), gte(sales.createdAt, thirtyDaysAgo)),
             }),
             db.query.products.findMany({ where: eq(products.shop, shop.id) }),
             db.query.customers.findMany({ where: eq(customers.shop, shop.id) }),
+            db.query.inventory.findMany({ where: eq(inventory.shop, shop.id) }),
             db.query.purchases.findMany({
               where: and(eq(purchases.shop, shop.id), gte(purchases.createdAt, thirtyDaysAgo)),
             }),
@@ -321,7 +350,7 @@ export async function jobBackup(): Promise<void> {
           },
           {
             name: `${shop.name ?? "shop"}_stock_${date}.csv`,
-            content: Buffer.from(buildProductsCsv(productRows)).toString("base64"),
+            content: Buffer.from(buildProductsCsv(productRows, inventoryRows)).toString("base64"),
           },
           {
             name: `${shop.name ?? "shop"}_customers_${date}.csv`,
@@ -351,7 +380,7 @@ export async function jobBackup(): Promise<void> {
 <p>The following CSV files are attached:</p>
 <ul>
   <li><strong>Sales</strong> — last 30 days of sales transactions (${salesRows.length} records)</li>
-  <li><strong>Stock</strong> — all products and current inventory levels (${productRows.length} products)</li>
+  <li><strong>Stock</strong> — all products with buying price, selling price, wholesale price, dealer price, stock levels and more (${productRows.length} products)</li>
   <li><strong>Customers</strong> — customer list with loyalty points and balances (${customerRows.length} customers)</li>
   <li><strong>Purchases</strong> — last 30 days of stock purchases/supplier orders (${purchaseRows.length} records)</li>
   <li><strong>Expenses</strong> — last 30 days of recorded expenses (${expenseRows.length} records)</li>
