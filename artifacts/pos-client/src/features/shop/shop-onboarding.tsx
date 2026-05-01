@@ -174,14 +174,6 @@ export default function ShopOnboarding() {
                 Pick the category that best describes <span className="font-medium text-gray-600">{name}</span>.
               </p>
 
-              {/* Selected badge */}
-              {selectedCategory && (
-                <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg text-purple-700 text-sm font-medium w-fit">
-                  <Check className="w-4 h-4" />
-                  {selectedCategory.name}
-                </div>
-              )}
-
               {/* Search input */}
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -195,44 +187,39 @@ export default function ShopOnboarding() {
                 />
               </div>
 
-              {/* Scrollable list */}
-              <div className="border border-gray-200 rounded-xl overflow-hidden">
-                {categoriesLoading ? (
-                  <div className="p-4 space-y-2">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <div key={i} className="h-9 bg-gray-100 rounded-lg animate-pulse" />
-                    ))}
-                  </div>
-                ) : filteredCategories.length > 0 ? (
-                  <ul className="max-h-64 overflow-y-auto divide-y divide-gray-100">
-                    {filteredCategories.map((cat) => {
-                      const isSelected = category === String(cat.id);
-                      return (
-                        <li key={cat.id}>
-                          <button
-                            onClick={() => setCategory(String(cat.id))}
-                            className={`w-full flex items-center justify-between px-4 py-2.5 text-sm text-left transition-colors ${
-                              isSelected
-                                ? "bg-purple-50 text-purple-700 font-medium"
-                                : "text-gray-700 hover:bg-gray-50"
-                            }`}
-                          >
-                            <span className="flex items-center gap-2">
-                              {cat.icon && <span>{cat.icon}</span>}
-                              {cat.name}
-                            </span>
-                            {isSelected && <Check className="w-4 h-4 text-purple-600 shrink-0" />}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <div className="py-8 text-center text-sm text-gray-400">
-                    No categories match "<span className="font-medium">{categorySearch}</span>"
-                  </div>
-                )}
-              </div>
+              {/* Chips */}
+              {categoriesLoading ? (
+                <div className="flex flex-wrap gap-2">
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <div key={i} className="h-8 w-28 bg-gray-100 rounded-full animate-pulse" />
+                  ))}
+                </div>
+              ) : filteredCategories.length > 0 ? (
+                <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto pr-1">
+                  {filteredCategories.map((cat) => {
+                    const isSelected = category === String(cat.id);
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => setCategory(String(cat.id))}
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                          isSelected
+                            ? "bg-purple-600 border-purple-600 text-white"
+                            : "bg-white border-gray-200 text-gray-700 hover:border-purple-300 hover:text-purple-700"
+                        }`}
+                      >
+                        {cat.icon && <span>{cat.icon}</span>}
+                        {cat.name}
+                        {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-6 text-center text-sm text-gray-400">
+                  No categories match "<span className="font-medium">{categorySearch}</span>"
+                </div>
+              )}
 
               <div className="mt-8 flex items-center gap-4">
                 <button
