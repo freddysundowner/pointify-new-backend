@@ -48,10 +48,15 @@ export default function AddressInput({
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [ready, setReady] = useState(false);
 
+  // Keep onChange in a ref so the listener never needs to be re-registered.
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; });
+
   useEffect(() => {
     loadGoogleMaps().then(() => setReady(true));
   }, []);
 
+  // Attach autocomplete once — onChange intentionally excluded from deps.
   useEffect(() => {
     if (!ready || !inputRef.current || autocompleteRef.current) return;
 
@@ -74,7 +79,9 @@ export default function AddressInput({
           ? { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() }
           : undefined,
       };
-      onChange(address, details);
+
+      if (inputRef.current) inputRef.current.value = address;
+      onChangeRef.current(address, details);
     });
 
     return () => {
@@ -83,7 +90,7 @@ export default function AddressInput({
       }
       autocompleteRef.current = null;
     };
-  }, [ready, onChange]);
+  }, [ready]);
 
   useEffect(() => {
     if (inputRef.current && inputRef.current !== document.activeElement) {
@@ -100,7 +107,7 @@ export default function AddressInput({
       defaultValue={value}
       required={required}
       autoComplete="off"
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChangeRef.current(e.target.value)}
       className={cn(
         "w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm outline-none placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
         className
