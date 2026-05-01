@@ -320,15 +320,24 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 async function clearShopData(tx: Tx, shopId: number): Promise<void> {
   // ── 1. Transactional records ────────────────────────────────────────────────
   // Returns first — they hold non-cascade FKs back to sales/purchases
-  await tx.delete(saleReturns).where(eq(saleReturns.shop, shopId));       // cascades saleReturnItems
+  await tx.delete(saleReturns).where(eq(saleReturns.shop, shopId));         // cascades saleReturnItems
   await tx.delete(purchaseReturns).where(eq(purchaseReturns.shop, shopId)); // cascades purchaseReturnItems
 
-  await tx.delete(sales).where(eq(sales.shop, shopId));           // cascades saleItems → saleItemBatches + salePayments
-  await tx.delete(purchases).where(eq(purchases.shop, shopId));   // cascades purchaseItems + purchasePayments
-  await tx.delete(orders).where(eq(orders.shop, shopId));         // cascades orderItems
-  await tx.delete(productTransfers).where(eq(productTransfers.fromShop, shopId)); // cascades transferItems
-  await tx.delete(stockCounts).where(eq(stockCounts.shop, shopId));   // cascades stockCountItems
-  await tx.delete(stockRequests).where(eq(stockRequests.fromShop, shopId)); // cascades stockRequestItems
+  await tx.delete(sales).where(eq(sales.shop, shopId));       // cascades saleItems → saleItemBatches + salePayments
+  await tx.delete(purchases).where(eq(purchases.shop, shopId)); // cascades purchaseItems + purchasePayments
+  await tx.delete(orders).where(eq(orders.shop, shopId));     // cascades orderItems
+
+  // productTransfers references shops on BOTH fromShop AND toShop — handle both sides
+  await tx.delete(productTransfers).where(
+    or(eq(productTransfers.fromShop, shopId), eq(productTransfers.toShop, shopId))
+  ); // cascades transferItems
+
+  await tx.delete(stockCounts).where(eq(stockCounts.shop, shopId)); // cascades stockCountItems
+
+  // stockRequests references shops on BOTH fromShop AND warehouse — handle both sides
+  await tx.delete(stockRequests).where(
+    or(eq(stockRequests.fromShop, shopId), eq(stockRequests.warehouse, shopId))
+  ); // cascades stockRequestItems
 
   await tx.delete(adjustments).where(eq(adjustments.shop, shopId));
   await tx.delete(badStocks).where(eq(badStocks.shop, shopId));
@@ -393,7 +402,14 @@ router.delete("/:shopId", requireAdmin, async (req, res, next) => {
     if (existing.admin !== req.admin!.id && !req.admin!.isSuperAdmin) throw forbidden("Access denied");
 
     await db.transaction(async (tx) => {
+      // Clear all transactional + catalog + customer data
       await clearShopData(tx, shopId);
+
+      // Remove billing/subscription links — must happen before the shop row is deleted
+      // because both subscriptions.shop_id and subscription_shops.shop_id are NO ACTION FKs.
+      await tx.delete(subscriptionShops).where(eq(subscriptionShops.shop, shopId));
+      await tx.delete(subscriptions).where(eq(subscriptions.shop, shopId));
+
       await tx.delete(shops).where(eq(shops.id, shopId));
     });
 
