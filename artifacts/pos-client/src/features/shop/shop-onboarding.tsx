@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
+import { apiRequest } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import AddressInput from "@/components/ui/address-input";
 import { queryClient } from "@/lib/queryClient";
@@ -21,6 +23,14 @@ const CURRENCIES = [
   { value: "TZS", label: "TZS — Tanzanian Shilling" },
 ];
 
+interface ShopCategory {
+  id: number;
+  name: string;
+  icon?: string;
+}
+
+const TOTAL_STEPS = 3;
+
 export default function ShopOnboarding() {
   const [, setLocation] = useLocation();
   const [step, setStep] = useState(1);
@@ -29,9 +39,20 @@ export default function ShopOnboarding() {
   const { toast } = useToast();
 
   const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
   const [address, setAddress] = useState("");
   const [currency, setCurrency] = useState("KES");
   const [placeDetails, setPlaceDetails] = useState<{ coordinates?: { lat: number; lng: number } } | null>(null);
+
+  const { data: categories = [], isLoading: categoriesLoading } = useQuery<ShopCategory[]>({
+    queryKey: [ENDPOINTS.shop.getCategories],
+    queryFn: async () => {
+      const res = await apiRequest("GET", ENDPOINTS.shop.getCategories);
+      const json = await res.json();
+      return Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const handleAddressChange = (val: string, details?: any) => {
     setAddress(val);
@@ -45,6 +66,7 @@ export default function ShopOnboarding() {
         method: "POST",
         body: JSON.stringify({
           name,
+          categoryId: category || undefined,
           address,
           currency,
           ...(placeDetails?.coordinates && {
@@ -85,7 +107,7 @@ export default function ShopOnboarding() {
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
         <button
-          onClick={() => step > 1 && setStep(1)}
+          onClick={() => step > 1 && setStep(step - 1)}
           className={`flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition-colors ${step === 1 ? "invisible" : ""}`}
         >
           <ArrowLeft className="w-4 h-4" />
@@ -94,7 +116,7 @@ export default function ShopOnboarding() {
 
         {/* Dots */}
         <div className="flex items-center gap-1.5">
-          {[1, 2].map((s) => (
+          {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((s) => (
             <div key={s} className={`rounded-full transition-all duration-300 ${s <= step ? "w-6 h-2 bg-purple-600" : "w-2 h-2 bg-gray-200"}`} />
           ))}
         </div>
@@ -133,8 +155,63 @@ export default function ShopOnboarding() {
             </>
           )}
 
-          {/* Step 2 — Address + Currency */}
+          {/* Step 2 — Business category */}
           {step === 2 && (
+            <>
+              <h1 className="text-3xl font-bold text-gray-900 mb-3">
+                What type of business is it?
+              </h1>
+              <p className="text-gray-400 text-sm mb-8">
+                Pick the category that best describes <span className="font-medium text-gray-600">{name}</span>.
+              </p>
+
+              {categoriesLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />
+                  ))}
+                </div>
+              ) : categories.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setCategory(String(cat.id))}
+                      className={`flex items-center gap-2.5 px-4 py-3.5 rounded-xl border-2 text-left transition-all ${
+                        category === String(cat.id)
+                          ? "border-purple-600 bg-purple-50 text-purple-700"
+                          : "border-gray-200 hover:border-gray-300 text-gray-700"
+                      }`}
+                    >
+                      {cat.icon && <span className="text-xl">{cat.icon}</span>}
+                      <span className="text-sm font-medium leading-tight">{cat.name}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-400 text-center py-6">No categories available</div>
+              )}
+
+              <div className="mt-10 flex items-center gap-4">
+                <button
+                  onClick={() => setStep(3)}
+                  disabled={!category}
+                  className="flex items-center gap-2 px-8 py-4 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-2xl transition-all text-lg"
+                >
+                  Continue <ArrowRight className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => { setCategory(""); setStep(3); }}
+                  className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Skip
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Step 3 — Address + Currency */}
+          {step === 3 && (
             <>
               <h1 className="text-3xl font-bold text-gray-900 mb-8">
                 Where is your business located?
