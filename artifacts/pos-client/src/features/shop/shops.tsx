@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { extractId } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { MapPin, Store, Plus, Search, Edit, Eye } from "lucide-react";
@@ -41,7 +40,6 @@ export default function Shops() {
   const { admin } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Get primary shop ID from admin data (could be string or object)
   const getPrimaryShopId = () => {
     if (!admin?.primaryShop) return null;
     return extractId(admin.primaryShop) ?? null;
@@ -49,16 +47,12 @@ export default function Shops() {
 
   const primaryShopId = getPrimaryShopId();
 
-  // Fetch shops
   const { data: shopsResponse, isLoading, error } = useQuery({
     queryKey: ["shops", admin?._id],
     queryFn: async () => {
       if (!admin?._id) return [];
-      const response = await apiCall(ENDPOINTS.shop.getAll, {
-        method: "GET",
-      });
+      const response = await apiCall(ENDPOINTS.shop.getAll, { method: "GET" });
       const data = await response.json();
-      console.log("Shops API Response:", data);
       return Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : []);
     },
     enabled: !!admin?._id,
@@ -66,9 +60,7 @@ export default function Shops() {
   });
 
   const shops = Array.isArray(shopsResponse) ? shopsResponse : [];
-  console.log("Processed shops:", shops, "Length:", shops.length);
 
-  // Filter shops based on search query
   const filteredShops = shops.filter((shop: Shop) =>
     shop.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     shop.address.toLowerCase().includes(searchQuery.toLowerCase())
@@ -77,13 +69,8 @@ export default function Shops() {
   if (isLoading) {
     return (
       <DashboardLayout title="My Shops">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-            </div>
-            <p className="text-gray-600">Loading shops...</p>
-          </div>
+        <div className="flex items-center justify-center h-40">
+          <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
         </div>
       </DashboardLayout>
     );
@@ -92,12 +79,8 @@ export default function Shops() {
   if (error) {
     return (
       <DashboardLayout title="My Shops">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <Store className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Shops</h3>
-            <p className="text-gray-600">Failed to load your shops. Please try again.</p>
-          </div>
+        <div className="flex items-center justify-center h-40 text-sm text-gray-500">
+          Failed to load shops. Please try again.
         </div>
       </DashboardLayout>
     );
@@ -106,162 +89,121 @@ export default function Shops() {
   return (
     <DashboardLayout title="My Shops">
       <div className="h-full bg-gray-50">
-        {/* Header Section */}
-        <div className="bg-white border-b shadow-sm">
-          <div className="px-8 py-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">My Shops</h1>
-                <p className="text-lg text-gray-600 mt-2">
-                  Manage all your shop locations and settings
-                </p>
-              </div>
-              <Link href="/shop-setup">
-                <Button className="bg-purple-600 hover:bg-purple-700">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add New Shop
-                </Button>
-              </Link>
-            </div>
+        {/* Compact Header */}
+        <div className="bg-white border-b px-6 py-3 flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-1">
+            <h1 className="text-base font-semibold text-gray-900">My Shops</h1>
+            <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+              {shops.length}
+            </span>
           </div>
+          <div className="relative w-56">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search shops..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 text-sm"
+            />
+          </div>
+          <Link href="/shop-setup">
+            <Button size="sm" className="h-8 bg-purple-600 hover:bg-purple-700 text-xs px-3">
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              Add Shop
+            </Button>
+          </Link>
         </div>
 
-        {/* Content Section */}
-        <div className="px-8 py-8">
-          {/* Search Bar */}
-          <div className="mb-8">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search shops..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-
-          {/* Shops Grid */}
+        {/* Content */}
+        <div className="px-6 py-4">
           {filteredShops.length === 0 ? (
-            <div className="text-center py-16">
-              <Store className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <div className="text-center py-12">
+              <Store className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm font-medium text-gray-700 mb-1">
                 {searchQuery ? "No shops found" : "No shops yet"}
-              </h3>
-              <p className="text-gray-600 mb-6">
-                {searchQuery 
-                  ? "Try adjusting your search terms" 
-                  : "Get started by creating your first shop"
-                }
+              </p>
+              <p className="text-xs text-gray-400 mb-4">
+                {searchQuery ? "Try adjusting your search" : "Get started by creating your first shop"}
               </p>
               {!searchQuery && (
                 <Link href="/shop-setup">
-                  <Button className="bg-purple-600 hover:bg-purple-700">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Your First Shop
+                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-xs">
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Create First Shop
                   </Button>
                 </Link>
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {filteredShops.map((shop: any) => {
                 const shopId = shop.id ?? shop._id;
+                const isPrimary = String(admin?.primaryShop) === String(shopId);
                 return (
-                <Card key={shopId} className="hover:shadow-lg transition-shadow duration-200">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg font-semibold text-gray-900 mb-1">
-                          {shop.name}
-                        </CardTitle>
-                        <CardDescription className="flex items-center text-sm text-gray-600">
-                          <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
-                          {shop.address}
-                        </CardDescription>
-                      </div>
-                      {String(admin?.primaryShop) === String(shopId) && (
-                        <Badge variant="default" className="bg-purple-100 text-purple-800 border-purple-200">
+                  <div
+                    key={shopId}
+                    className="bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:shadow-sm transition-all duration-150 p-3 flex flex-col gap-2"
+                  >
+                    {/* Shop name + primary badge */}
+                    <div className="flex items-start justify-between gap-1">
+                      <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-1">
+                        {shop.name}
+                      </p>
+                      {isPrimary && (
+                        <Badge className="shrink-0 text-[10px] px-1.5 py-0 bg-purple-100 text-purple-700 border-purple-200 font-medium">
                           Primary
                         </Badge>
                       )}
                     </div>
-                  </CardHeader>
 
-                  <CardContent className="py-3">
-                    <div className="space-y-2">
-                      <div className="text-sm text-gray-600">
-                        <span className="font-medium">Category:</span> {shop.shopCategoryId?.name || 'N/A'}
-                      </div>
-                      {shop.contact && (
-                        <div className="text-sm text-gray-600">
-                          <span className="font-medium">Contact:</span> {shop.contact}
-                        </div>
-                      )}
-                      <div className="text-sm text-gray-600">
-                        <span className="font-medium">Currency:</span> {shop.currency}
-                      </div>
-                      {shop.subscription && (
-                        <div className="flex items-center gap-2">
-                          <Badge 
-                            variant={shop.subscription.status ? "default" : "secondary"}
-                            className={shop.subscription.status ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}
-                          >
-                            {shop.subscription.packageId?.title || 'Unknown Plan'}
-                          </Badge>
-                        </div>
-                      )}
-
+                    {/* Address */}
+                    <div className="flex items-start gap-1 text-gray-500">
+                      <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
+                      <span className="text-xs line-clamp-1">{shop.address}</span>
                     </div>
-                  </CardContent>
 
-                  <CardFooter className="pt-3 flex gap-2">
-                    <Link href={`/shop/${shopId}`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full">
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </Button>
-                    </Link>
-                    <Link href={`/shop/${shopId}`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full">
-                        <Edit className="w-4 h-4 mr-1" />
-                        Edit
-                      </Button>
-                    </Link>
-                  </CardFooter>
-                </Card>
+                    {/* Meta row */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {shop.shopCategoryId?.name && (
+                        <span className="text-[10px] bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">
+                          {shop.shopCategoryId.name}
+                        </span>
+                      )}
+                      <span className="text-[10px] bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">
+                        {shop.currency}
+                      </span>
+                      {shop.subscription && (
+                        <span
+                          className={`text-[10px] rounded px-1.5 py-0.5 ${
+                            shop.subscription.status
+                              ? "bg-green-50 text-green-700"
+                              : "bg-gray-100 text-gray-500"
+                          }`}
+                        >
+                          {shop.subscription.packageId?.title || "Plan"}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-1.5 pt-1 border-t border-gray-100">
+                      <Link href={`/shop/${shopId}`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full h-7 text-xs px-2">
+                          <Eye className="w-3 h-3 mr-1" />
+                          View
+                        </Button>
+                      </Link>
+                      <Link href={`/shop/${shopId}`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full h-7 text-xs px-2">
+                          <Edit className="w-3 h-3 mr-1" />
+                          Edit
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
                 );
               })}
-            </div>
-          )}
-
-          {/* Summary Stats */}
-          {filteredShops.length > 0 && (
-            <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-lg border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Shops</p>
-                    <p className="text-2xl font-bold text-gray-900">{shops.length}</p>
-                  </div>
-                  <Store className="w-8 h-8 text-purple-600" />
-                </div>
-              </div>
-              
-              <div className="bg-white p-6 rounded-lg border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Primary Shop</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {shops.find((shop: any) => String(shop.id ?? shop._id) === String(primaryShopId))?.name || "None"}
-                    </p>
-                  </div>
-                  <Badge className="bg-purple-100 text-purple-800">
-                    Primary
-                  </Badge>
-                </div>
-              </div>
             </div>
           )}
         </div>
