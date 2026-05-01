@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./lib/scheduler";
 import {
+  seedDefaultEmailConfig,
   seedDefaultEmailTemplates,
   seedDefaultPaymentMethods,
   seedDefaultSmsTemplates,
@@ -32,6 +33,7 @@ app.listen(port, (err) => {
   void seedDefaultPaymentMethods();
   void seedDefaultSmsTemplates();
   void seedDefaultEmailTemplates();
+  void seedDefaultEmailConfig();
   void seedDefaultTrialConfig();
   startScheduler();
 });

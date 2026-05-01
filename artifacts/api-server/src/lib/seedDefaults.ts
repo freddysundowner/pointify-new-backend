@@ -92,6 +92,41 @@ export async function seedDefaultTrialConfig(): Promise<void> {
   }
 }
 
+// Seed the email provider config row into `settings` under the key "email".
+// Only inserts if the row doesn't already exist (never overwrites admin edits).
+// Reads initial values from environment variables so the row is immediately
+// usable when those vars are set:
+//   BREVO_API_KEY       → apiKey
+//   EMAIL_FROM_ADDRESS  → fromAddress
+//   EMAIL_FROM_NAME     → fromName  (default: "Pointify POS")
+//   EMAIL_REPLY_TO      → replyTo
+export async function seedDefaultEmailConfig(): Promise<void> {
+  try {
+    const existing = await db.query.settings.findFirst({ where: eq(settings.name, "email") });
+    if (existing) return;
+
+    const config = {
+      provider:    "brevo",
+      apiKey:      process.env["BREVO_API_KEY"]      ?? "",
+      fromAddress: process.env["EMAIL_FROM_ADDRESS"] ?? "",
+      fromName:    process.env["EMAIL_FROM_NAME"]    ?? "Pointify POS",
+      replyTo:     process.env["EMAIL_REPLY_TO"]     ?? "",
+    };
+
+    await db.insert(settings).values({ name: "email", setting: config });
+
+    const ready = !!(config.apiKey && config.fromAddress);
+    logger.info(
+      { ready, fromAddress: config.fromAddress || "(not set)" },
+      ready
+        ? "seed: email config inserted from environment variables — email sending is active"
+        : "seed: email config placeholder inserted — set apiKey + fromAddress via PUT /system/settings/email to activate sending",
+    );
+  } catch (err) {
+    logger.error({ err }, "seed: email config failed");
+  }
+}
+
 // Seed the in-code SMS template registry into sms_templates so super-admin can
 // edit the bodies through the API. Only inserts templates that don't already
 // exist by name (key) — never overwrites super-admin edits.
