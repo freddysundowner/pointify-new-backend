@@ -314,6 +314,79 @@ router.put("/:shopId", requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── Shared helper: deletes ALL data linked to a shop inside an existing tx ──
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function clearShopData(tx: Tx, shopId: number): Promise<void> {
+  // ── 1. Transactional records ────────────────────────────────────────────────
+  // Returns first — they hold non-cascade FKs back to sales/purchases
+  await tx.delete(saleReturns).where(eq(saleReturns.shop, shopId));       // cascades saleReturnItems
+  await tx.delete(purchaseReturns).where(eq(purchaseReturns.shop, shopId)); // cascades purchaseReturnItems
+
+  await tx.delete(sales).where(eq(sales.shop, shopId));           // cascades saleItems → saleItemBatches + salePayments
+  await tx.delete(purchases).where(eq(purchases.shop, shopId));   // cascades purchaseItems + purchasePayments
+  await tx.delete(orders).where(eq(orders.shop, shopId));         // cascades orderItems
+  await tx.delete(productTransfers).where(eq(productTransfers.fromShop, shopId)); // cascades transferItems
+  await tx.delete(stockCounts).where(eq(stockCounts.shop, shopId));   // cascades stockCountItems
+  await tx.delete(stockRequests).where(eq(stockRequests.fromShop, shopId)); // cascades stockRequestItems
+
+  await tx.delete(adjustments).where(eq(adjustments.shop, shopId));
+  await tx.delete(badStocks).where(eq(badStocks.shop, shopId));
+  await tx.delete(activities).where(eq(activities.shop, shopId));
+  await tx.delete(expenses).where(eq(expenses.shop, shopId));
+  await tx.delete(cashflows).where(eq(cashflows.shop, shopId));
+
+  // ── 2. Catalog data ─────────────────────────────────────────────────────────
+  const shopProductIds = (
+    await tx.select({ id: products.id }).from(products).where(eq(products.shop, shopId))
+  ).map((r) => r.id);
+
+  if (shopProductIds.length > 0) {
+    await tx.delete(productHistory).where(
+      or(eq(productHistory.shop, shopId), inArray(productHistory.product, shopProductIds))
+    );
+    await tx.delete(bundleItemsTable).where(
+      or(
+        inArray(bundleItemsTable.product, shopProductIds),
+        inArray(bundleItemsTable.componentProduct, shopProductIds),
+      ),
+    );
+    await tx.delete(productSerials).where(
+      or(inArray(productSerials.product, shopProductIds), eq(productSerials.shop, shopId))
+    );
+    await tx.delete(batches).where(
+      or(inArray(batches.product, shopProductIds), eq(batches.shop, shopId))
+    );
+    await tx.delete(inventory).where(
+      or(inArray(inventory.product, shopProductIds), eq(inventory.shop, shopId))
+    );
+  } else {
+    await tx.delete(productHistory).where(eq(productHistory.shop, shopId));
+    await tx.delete(productSerials).where(eq(productSerials.shop, shopId));
+    await tx.delete(batches).where(eq(batches.shop, shopId));
+    await tx.delete(inventory).where(eq(inventory.shop, shopId));
+  }
+
+  await tx.delete(products).where(eq(products.shop, shopId));
+
+  // ── 3. Customers, loyalty and suppliers ─────────────────────────────────────
+  await tx.delete(loyaltyTransactions).where(eq(loyaltyTransactions.shop, shopId));
+  await tx.delete(userPayments).where(eq(userPayments.shopId, shopId));
+  await tx.delete(customerWalletTransactions).where(eq(customerWalletTransactions.shop, shopId));
+  await tx.delete(supplierWalletTransactions).where(eq(supplierWalletTransactions.shop, shopId));
+  await tx.delete(customers).where(eq(customers.shop, shopId));
+  await tx.delete(suppliers).where(eq(suppliers.shop, shopId));
+
+  // ── 4. Finance reference data ────────────────────────────────────────────────
+  await tx.delete(banks).where(eq(banks.shop, shopId));
+  await tx.delete(expenseCategories).where(eq(expenseCategories.shop, shopId));
+  await tx.delete(cashflowCategories).where(eq(cashflowCategories.shop, shopId));
+
+  // ── 5. Subscription links ───────────────────────────────────────────────────
+  await tx.delete(subscriptionShops).where(eq(subscriptionShops.shop, shopId));
+}
+
+// DELETE /api/shops/:shopId — clear all data, then remove the shop record itself
 router.delete("/:shopId", requireAdmin, async (req, res, next) => {
   try {
     const shopId = Number(req.params["shopId"]);
@@ -321,11 +394,19 @@ router.delete("/:shopId", requireAdmin, async (req, res, next) => {
     if (!existing) throw notFound("Shop not found");
     if (existing.admin !== req.admin!.id && !req.admin!.isSuperAdmin) throw forbidden("Access denied");
 
-    await db.delete(shops).where(eq(shops.id, shopId));
+    await db.transaction(async (tx) => {
+      await clearShopData(tx, shopId);
+      await tx.delete(shops).where(eq(shops.id, shopId));
+    });
+
     return noContent(res);
-  } catch (e) { next(e); }
+  } catch (e) {
+    logger.error({ err: e }, "delete shop failed");
+    next(e);
+  }
 });
 
+// DELETE /api/shops/:shopId/data — clear all data but keep the shop record
 router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
   try {
     const shopId = Number(req.params["shopId"]);
@@ -334,83 +415,7 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
     if (existing.admin !== req.admin!.id && !req.admin!.isSuperAdmin) throw forbidden("Access denied");
 
     await db.transaction(async (tx) => {
-      // ── 1. Transactional records ─────────────────────────────────────────────
-      // Delete returns first (they hold non-cascade FKs back to sales/purchases)
-      await tx.delete(saleReturns).where(eq(saleReturns.shop, shopId));       // cascades saleReturnItems
-      await tx.delete(purchaseReturns).where(eq(purchaseReturns.shop, shopId)); // cascades purchaseReturnItems
-
-      await tx.delete(sales).where(eq(sales.shop, shopId));           // cascades saleItems → saleItemBatches + salePayments
-      await tx.delete(purchases).where(eq(purchases.shop, shopId));   // cascades purchaseItems + purchasePayments
-      await tx.delete(orders).where(eq(orders.shop, shopId));         // cascades orderItems
-      await tx.delete(productTransfers).where(eq(productTransfers.fromShop, shopId)); // cascades transferItems
-      await tx.delete(stockCounts).where(eq(stockCounts.shop, shopId));   // cascades stockCountItems
-      await tx.delete(stockRequests).where(eq(stockRequests.fromShop, shopId)); // cascades stockRequestItems
-
-      await tx.delete(adjustments).where(eq(adjustments.shop, shopId));
-      await tx.delete(badStocks).where(eq(badStocks.shop, shopId));
-      await tx.delete(activities).where(eq(activities.shop, shopId));
-      await tx.delete(expenses).where(eq(expenses.shop, shopId));
-      await tx.delete(cashflows).where(eq(cashflows.shop, shopId));
-
-      // ── 2. Catalog data ──────────────────────────────────────────────────────
-      const shopProductIds = (
-        await tx.select({ id: products.id }).from(products).where(eq(products.shop, shopId))
-      ).map((r) => r.id);
-
-      // productHistory must be removed before products due to non-cascade FK.
-      // Delete by shopId (events recorded in this shop) AND by product ownership
-      // (events recorded in other shops for this shop's products).
-      if (shopProductIds.length > 0) {
-        await tx.delete(productHistory).where(
-          or(eq(productHistory.shop, shopId), inArray(productHistory.product, shopProductIds))
-        );
-      } else {
-        await tx.delete(productHistory).where(eq(productHistory.shop, shopId));
-      }
-
-      if (shopProductIds.length > 0) {
-        // bundleItems has FKs to products on both parent and component columns
-        await tx.delete(bundleItemsTable).where(
-          or(
-            inArray(bundleItemsTable.product, shopProductIds),
-            inArray(bundleItemsTable.componentProduct, shopProductIds),
-          ),
-        );
-
-        // Delete by product ownership (cross-shop rows like transferred inventory)
-        // AND by shop (rows in this shop for other shops' products e.g. transfers in)
-        await tx.delete(productSerials).where(
-          or(inArray(productSerials.product, shopProductIds), eq(productSerials.shop, shopId))
-        );
-        await tx.delete(batches).where(
-          or(inArray(batches.product, shopProductIds), eq(batches.shop, shopId))
-        );
-        await tx.delete(inventory).where(
-          or(inArray(inventory.product, shopProductIds), eq(inventory.shop, shopId))
-        );
-      } else {
-        // No products owned by this shop, but still clean up any in-shop rows
-        await tx.delete(productSerials).where(eq(productSerials.shop, shopId));
-        await tx.delete(batches).where(eq(batches.shop, shopId));
-        await tx.delete(inventory).where(eq(inventory.shop, shopId));
-      }
-
-      await tx.delete(products).where(eq(products.shop, shopId));
-
-      // ── 3. Customers, loyalty and suppliers ──────────────────────────────────
-      // loyaltyTransactions cascades from customers, but we delete explicitly for clarity
-      await tx.delete(loyaltyTransactions).where(eq(loyaltyTransactions.shop, shopId));
-      // userPayments has non-cascading FKs to both customers and suppliers
-      await tx.delete(userPayments).where(eq(userPayments.shopId, shopId));
-      await tx.delete(customerWalletTransactions).where(eq(customerWalletTransactions.shop, shopId));
-      await tx.delete(supplierWalletTransactions).where(eq(supplierWalletTransactions.shop, shopId));
-      await tx.delete(customers).where(eq(customers.shop, shopId));
-      await tx.delete(suppliers).where(eq(suppliers.shop, shopId));
-
-      // ── 4. Finance reference data ─────────────────────────────────────────────
-      await tx.delete(banks).where(eq(banks.shop, shopId));
-      await tx.delete(expenseCategories).where(eq(expenseCategories.shop, shopId));
-      await tx.delete(cashflowCategories).where(eq(cashflowCategories.shop, shopId));
+      await clearShopData(tx, shopId);
     });
 
     return ok(res, { message: "Shop data cleared", shopId });
