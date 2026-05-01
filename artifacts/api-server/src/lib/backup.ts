@@ -9,7 +9,7 @@ import {
   inventory, loyaltyTransactions, admins,
 } from "@workspace/db";
 import { db } from "./db.js";
-import { sendEmailAsync } from "./email.js";
+import { sendEmail, sendEmailAsync } from "./email.js";
 import { logger } from "./logger.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -158,6 +158,98 @@ export async function generateSnapshot(shopId: number): Promise<object> {
       db.query.expenses.findMany({ where: and(eq(expenses.shop, shopId), gte(expenses.createdAt, thirtyDaysAgo)) }),
     ]);
   return { generatedAt: new Date().toISOString(), shop: shopRow, products: productRows, customers: customerRows, inventory: inventoryRows, sales: salesRows, purchases: purchaseRows, expenses: expenseRows };
+}
+
+// ─── On-demand pre-delete backup ─────────────────────────────────────────────
+/**
+ * Generate and synchronously send a full CSV backup for a shop.
+ * Called immediately before a data-clear or shop-delete operation so the owner
+ * has a copy of their data before it is wiped.
+ *
+ * Uses `sendEmail` (not fire-and-forget) so the email is confirmed dispatched
+ * before the caller proceeds with deletion. On email failure the error is logged
+ * and the function resolves without throwing — a broken mail config should not
+ * block an intentional delete.
+ */
+export async function backupShopNow(shopId: number, reason: "data-clear" | "shop-delete"): Promise<void> {
+  try {
+    const shop = await db.query.shops.findFirst({
+      where: eq(shops.id, shopId),
+      columns: { id: true, name: true, backupEmail: true, admin: true },
+    });
+    if (!shop) return;
+
+    // Resolve recipient: backupEmail → admin account email → give up
+    let recipient = shop.backupEmail;
+    if (!recipient && shop.admin) {
+      const adminRow = await db.query.admins.findFirst({
+        where: eq(admins.id, shop.admin),
+        columns: { email: true },
+      });
+      recipient = adminRow?.email ?? null;
+    }
+    if (!recipient) {
+      logger.warn({ shopId }, "backupShopNow: no email configured, skipping pre-delete backup");
+      return;
+    }
+
+    const date = new Date().toISOString().split("T")[0];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [salesRows, productRows, customerRows, purchaseRows, expenseRows, loyaltyRows] =
+      await Promise.all([
+        db.query.sales.findMany({ where: and(eq(sales.shop, shopId), gte(sales.createdAt, thirtyDaysAgo)) }),
+        db.query.products.findMany({ where: eq(products.shop, shopId) }),
+        db.query.customers.findMany({ where: eq(customers.shop, shopId) }),
+        db.query.purchases.findMany({ where: and(eq(purchases.shop, shopId), gte(purchases.createdAt, thirtyDaysAgo)) }),
+        db.query.expenses.findMany({ where: and(eq(expenses.shop, shopId), gte(expenses.createdAt, thirtyDaysAgo)) }),
+        db.query.loyaltyTransactions.findMany({ where: eq(loyaltyTransactions.shop, shopId) }),
+      ]);
+
+    const customerMap = new Map<number, string>(
+      customerRows.map(c => [c.id, c.name ?? `Customer ${c.id}`])
+    );
+
+    const shopName = shop.name ?? `Shop ${shopId}`;
+    const attachments = [
+      { name: `${shopName}_sales_${date}.csv`,     content: Buffer.from(buildSalesCsv(salesRows)).toString("base64") },
+      { name: `${shopName}_stock_${date}.csv`,     content: Buffer.from(buildProductsCsv(productRows)).toString("base64") },
+      { name: `${shopName}_customers_${date}.csv`, content: Buffer.from(buildCustomersCsv(customerRows)).toString("base64") },
+      { name: `${shopName}_purchases_${date}.csv`, content: Buffer.from(buildPurchasesCsv(purchaseRows)).toString("base64") },
+      { name: `${shopName}_expenses_${date}.csv`,  content: Buffer.from(buildExpensesCsv(expenseRows)).toString("base64") },
+      { name: `${shopName}_loyalty_${date}.csv`,   content: Buffer.from(buildLoyaltyCsv(loyaltyRows, customerMap)).toString("base64") },
+    ];
+
+    const actionLabel = reason === "shop-delete"
+      ? "This shop is about to be <strong>permanently deleted</strong>"
+      : "All shop data is about to be <strong>permanently cleared</strong> (the shop itself will remain)";
+
+    await sendEmail({
+      key: `pre-delete-backup-${shopId}-${Date.now()}`,
+      to: recipient,
+      subject: `⚠️ ${shopName} — Pre-Deletion Backup ${date}`,
+      html: `
+<p>Hello,</p>
+<p>${actionLabel}. This email contains a full backup of all data taken <strong>immediately before deletion</strong> on ${new Date().toLocaleString("en-KE")}.</p>
+<p>The following CSV files are attached:</p>
+<ul>
+  <li><strong>Sales</strong> — last 30 days (${salesRows.length} records)</li>
+  <li><strong>Stock</strong> — all products (${productRows.length} products)</li>
+  <li><strong>Customers</strong> — full list (${customerRows.length} customers)</li>
+  <li><strong>Purchases</strong> — last 30 days (${purchaseRows.length} records)</li>
+  <li><strong>Expenses</strong> — last 30 days (${expenseRows.length} records)</li>
+  <li><strong>Loyalty</strong> — full history (${loyaltyRows.length} records)</li>
+</ul>
+<p style="color:#dc2626;font-weight:bold">Once deletion completes this data cannot be recovered. Please save these files.</p>
+<p style="color:#6b7280;font-size:12px">Pointify POS · Automated pre-deletion backup · ${date}</p>`,
+      attachments,
+    });
+
+    logger.info({ shopId, email: recipient, reason }, "backupShopNow: pre-delete backup sent");
+  } catch (err) {
+    // Email failure must never block deletion — log and continue
+    logger.error({ err, shopId, reason }, "backupShopNow: failed to send pre-delete backup (deletion will still proceed)");
+  }
 }
 
 // ─── Scheduled job ─────────────────────────────────────────────────────────────

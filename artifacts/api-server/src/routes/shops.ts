@@ -18,6 +18,7 @@ import {
   suppliers, supplierWalletTransactions,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
+import { backupShopNow } from "../lib/backup.js";
 import { ok, created, noContent } from "../lib/response.js";
 import { notFound, badRequest, forbidden } from "../lib/errors.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
@@ -393,7 +394,7 @@ async function clearShopData(tx: Tx, shopId: number): Promise<void> {
   // NOTE: subscriptions / subscriptionShops are billing records — never cleared here.
 }
 
-// DELETE /api/shops/:shopId — clear all data, then remove the shop record itself
+// DELETE /api/shops/:shopId — backup → clear all data → remove the shop record itself
 router.delete("/:shopId", requireAdmin, async (req, res, next) => {
   try {
     const shopId = Number(req.params["shopId"]);
@@ -401,26 +402,30 @@ router.delete("/:shopId", requireAdmin, async (req, res, next) => {
     if (!existing) throw notFound("Shop not found");
     if (existing.admin !== req.admin!.id && !req.admin!.isSuperAdmin) throw forbidden("Access denied");
 
-    await db.transaction(async (tx) => {
-      // Clear all transactional + catalog + customer data
-      await clearShopData(tx, shopId);
+    // ── Step 1: Send backup email BEFORE any data is touched.
+    // If email fails the error is logged and deletion continues (email outage
+    // should not block an intentional delete).
+    await backupShopNow(shopId, "shop-delete");
 
-      // Remove billing/subscription links — must happen before the shop row is deleted
-      // because both subscriptions.shop_id and subscription_shops.shop_id are NO ACTION FKs.
+    // ── Step 2: Delete everything inside a single transaction.
+    // If anything fails mid-delete the DB automatically rolls back to the
+    // state it was in before this request started — no partial deletes.
+    await db.transaction(async (tx) => {
+      await clearShopData(tx, shopId);
+      // Subscriptions are billing records — remove only on full shop delete
       await tx.delete(subscriptionShops).where(eq(subscriptionShops.shop, shopId));
       await tx.delete(subscriptions).where(eq(subscriptions.shop, shopId));
-
       await tx.delete(shops).where(eq(shops.id, shopId));
     });
 
     return noContent(res);
   } catch (e) {
-    logger.error({ err: e }, "delete shop failed");
+    logger.error({ err: e }, "delete shop failed — transaction rolled back, no data was changed");
     next(e);
   }
 });
 
-// DELETE /api/shops/:shopId/data — clear all data but keep the shop record
+// DELETE /api/shops/:shopId/data — backup → clear all data → keep the shop record
 router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
   try {
     const shopId = Number(req.params["shopId"]);
@@ -428,13 +433,18 @@ router.delete("/:shopId/data", requireAdmin, async (req, res, next) => {
     if (!existing) throw notFound("Shop not found");
     if (existing.admin !== req.admin!.id && !req.admin!.isSuperAdmin) throw forbidden("Access denied");
 
+    // ── Step 1: Send backup email BEFORE any data is touched.
+    await backupShopNow(shopId, "data-clear");
+
+    // ── Step 2: Delete data inside a single transaction.
+    // On any failure the DB rolls back completely — the shop is left unchanged.
     await db.transaction(async (tx) => {
       await clearShopData(tx, shopId);
     });
 
     return ok(res, { message: "Shop data cleared", shopId });
   } catch (e) {
-    logger.error({ err: e }, "clear shop data failed");
+    logger.error({ err: e }, "clear shop data failed — transaction rolled back, no data was changed");
     next(e);
   }
 });
