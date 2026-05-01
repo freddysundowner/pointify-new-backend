@@ -155,9 +155,9 @@ export default function ShopOnboarding() {
             </>
           )}
 
-          {/* Step 2 — Business category */}
+          {/* Step 2 — Business category (wider container) */}
           {step === 2 && (
-            <>
+            <div className="w-full max-w-2xl mx-auto">
               <h1 className="text-3xl font-bold text-gray-900 mb-3">
                 What type of business is it?
               </h1>
@@ -166,13 +166,13 @@ export default function ShopOnboarding() {
               </p>
 
               {categoriesLoading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3, 4].map((i) => (
+                <div className="grid grid-cols-3 gap-3">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
                     <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />
                   ))}
                 </div>
               ) : categories.length > 0 ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-72 overflow-y-auto pr-1">
                   {categories.map((cat) => (
                     <button
                       key={cat.id}
@@ -207,7 +207,7 @@ export default function ShopOnboarding() {
                   Skip
                 </button>
               </div>
-            </>
+            </div>
           )}
 
           {/* Step 3 — Address + Currency */}
