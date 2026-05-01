@@ -135,11 +135,10 @@ export default function ShopOnboarding() {
 
       {/* Content */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-16">
-        <div className="w-full max-w-md">
 
           {/* Step 1 — Shop name */}
           {step === 1 && (
-            <>
+            <div className="w-full max-w-md">
               <h1 className="text-3xl font-bold text-gray-900 mb-8">
                 What is your business name?
               </h1>
@@ -161,7 +160,7 @@ export default function ShopOnboarding() {
                   Continue <ArrowRight className="w-5 h-5" />
                 </button>
               </div>
-            </>
+            </div>
           )}
 
           {/* Step 2 — Business category */}
@@ -241,7 +240,7 @@ export default function ShopOnboarding() {
 
           {/* Step 3 — Address + Currency */}
           {step === 3 && (
-            <>
+            <div className="w-full max-w-md">
               <h1 className="text-3xl font-bold text-gray-900 mb-8">
                 Where is your business located?
               </h1>
@@ -279,9 +278,8 @@ export default function ShopOnboarding() {
                   {isLoading ? "Setting up…" : <> Create business <ArrowRight className="w-5 h-5" /> </>}
                 </button>
               </div>
-            </>
+            </div>
           )}
-        </div>
       </div>
 
       <p className="text-center text-xs text-gray-300 pb-6">© 2025 Pointify. All rights reserved.</p>
