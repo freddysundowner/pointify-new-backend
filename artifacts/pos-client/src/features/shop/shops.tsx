@@ -63,7 +63,7 @@ export default function Shops() {
 
   const filteredShops = shops.filter((shop: Shop) =>
     shop.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    shop.address.toLowerCase().includes(searchQuery.toLowerCase())
+    (shop.address ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (isLoading) {
@@ -89,34 +89,44 @@ export default function Shops() {
   return (
     <DashboardLayout title="My Shops">
       <div className="h-full bg-gray-50">
-        {/* Compact Header */}
-        <div className="bg-white border-b px-6 py-3 flex items-center gap-3">
-          <div className="flex items-center gap-2 flex-1">
-            <h1 className="text-base font-semibold text-gray-900">My Shops</h1>
-            <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
-              {shops.length}
-            </span>
+
+        {/* ── Header ─────────────────────────────────────────────────────────── */}
+        <div className="bg-white border-b px-4 sm:px-6 py-3 space-y-2 sm:space-y-0">
+          {/* Row 1: title + Add button */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-semibold text-gray-900">My Shops</h1>
+              <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+                {shops.length}
+              </span>
+            </div>
+            <Link href="/shop-setup">
+              <Button
+                size="sm"
+                className="h-9 sm:h-8 bg-purple-600 hover:bg-purple-700 text-xs px-3 shrink-0"
+              >
+                <Plus className="w-4 h-4 mr-1 sm:w-3.5 sm:h-3.5" />
+                <span className="hidden xs:inline">Add Shop</span>
+                <span className="xs:hidden">Add</span>
+              </Button>
+            </Link>
           </div>
-          <div className="relative w-56">
+
+          {/* Row 2: search — full-width on mobile, fixed-width on desktop */}
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
             <Input
               type="text"
               placeholder="Search shops..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-8 text-sm"
+              className="pl-8 h-9 text-sm w-full"
             />
           </div>
-          <Link href="/shop-setup">
-            <Button size="sm" className="h-8 bg-purple-600 hover:bg-purple-700 text-xs px-3">
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              Add Shop
-            </Button>
-          </Link>
         </div>
 
-        {/* Content */}
-        <div className="px-6 py-4">
+        {/* ── Content ─────────────────────────────────────────────────────────── */}
+        <div className="px-4 sm:px-6 py-4">
           {filteredShops.length === 0 ? (
             <div className="text-center py-12">
               <Store className="w-10 h-10 text-gray-300 mx-auto mb-3" />
@@ -124,7 +134,9 @@ export default function Shops() {
                 {searchQuery ? "No shops found" : "No shops yet"}
               </p>
               <p className="text-xs text-gray-400 mb-4">
-                {searchQuery ? "Try adjusting your search" : "Get started by creating your first shop"}
+                {searchQuery
+                  ? "Try adjusting your search"
+                  : "Get started by creating your first shop"}
               </p>
               {!searchQuery && (
                 <Link href="/shop-setup">
@@ -136,18 +148,20 @@ export default function Shops() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredShops.map((shop: any) => {
                 const shopId = shop.id ?? shop._id;
-                const isPrimary = String(admin?.primaryShop) === String(shopId);
+                const isPrimary =
+                  String(admin?.primaryShop) === String(shopId) ||
+                  String(primaryShopId) === String(shopId);
                 return (
                   <div
                     key={shopId}
-                    className="bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:shadow-sm transition-all duration-150 p-3 flex flex-col gap-2"
+                    className="bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:shadow-sm transition-all duration-150 p-4 flex flex-col gap-3"
                   >
-                    {/* Shop name + primary badge */}
-                    <div className="flex items-start justify-between gap-1">
-                      <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-1">
+                    {/* Name + primary badge */}
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-2">
                         {shop.name}
                       </p>
                       {isPrimary && (
@@ -158,24 +172,28 @@ export default function Shops() {
                     </div>
 
                     {/* Address */}
-                    <div className="flex items-start gap-1 text-gray-500">
-                      <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
-                      <span className="text-xs line-clamp-1">{shop.address}</span>
-                    </div>
+                    {shop.address && (
+                      <div className="flex items-start gap-1.5 text-gray-500">
+                        <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                        <span className="text-xs line-clamp-2 leading-relaxed">
+                          {shop.address}
+                        </span>
+                      </div>
+                    )}
 
-                    {/* Meta row */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {shop.shopCategoryId?.name && (
-                        <span className="text-[10px] bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">
-                          {shop.shopCategoryId.name}
+                    {/* Tags */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(shop.shopCategoryId?.name || shop.categoryName) && (
+                        <span className="text-[10px] bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">
+                          {shop.shopCategoryId?.name ?? shop.categoryName}
                         </span>
                       )}
-                      <span className="text-[10px] bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">
+                      <span className="text-[10px] bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">
                         {shop.currency}
                       </span>
                       {shop.subscription && (
                         <span
-                          className={`text-[10px] rounded px-1.5 py-0.5 ${
+                          className={`text-[10px] rounded-full px-2 py-0.5 ${
                             shop.subscription.status
                               ? "bg-green-50 text-green-700"
                               : "bg-gray-100 text-gray-500"
@@ -186,18 +204,26 @@ export default function Shops() {
                       )}
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex gap-1.5 pt-1 border-t border-gray-100">
+                    {/* Actions — full-width touch-friendly buttons */}
+                    <div className="flex gap-2 pt-1 border-t border-gray-100 mt-auto">
                       <Link href={`/shop/${shopId}`} className="flex-1">
-                        <Button variant="outline" size="sm" className="w-full h-7 text-xs px-2">
-                          <Eye className="w-3 h-3 mr-1" />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-9 text-xs gap-1.5"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
                           View
                         </Button>
                       </Link>
-                      <Link href={`/shop/${shopId}`} className="flex-1">
-                        <Button variant="outline" size="sm" className="w-full h-7 text-xs px-2">
-                          <Edit className="w-3 h-3 mr-1" />
-                          Edit
+                      <Link href={`/shop/${shopId}/settings`} className="flex-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-9 text-xs gap-1.5"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          Settings
                         </Button>
                       </Link>
                     </div>

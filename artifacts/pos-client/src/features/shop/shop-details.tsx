@@ -305,7 +305,7 @@ export default function ShopDetails() {
 
         {/* Sticky header */}
         <div className="sticky top-0 z-10 bg-white border-b">
-          <div className="px-6 py-4 flex items-center justify-between gap-4">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <Link href="/shops">
                 <Button variant="ghost" size="icon" className="shrink-0">
@@ -320,37 +320,45 @@ export default function ShopDetails() {
             <Button
               onClick={handleSave}
               disabled={updateShopMutation.isPending}
-              className="shrink-0 bg-purple-600 hover:bg-purple-700 gap-2"
+              className="shrink-0 bg-purple-600 hover:bg-purple-700 gap-2 h-9 px-3 sm:px-4"
             >
               <Save className="w-4 h-4" />
-              {updateShopMutation.isPending ? "Saving…" : "Save Changes"}
+              <span className="hidden sm:inline">
+                {updateShopMutation.isPending ? "Saving…" : "Save Changes"}
+              </span>
+              <span className="sm:hidden">
+                {updateShopMutation.isPending ? "…" : "Save"}
+              </span>
             </Button>
           </div>
         </div>
 
         {/* Body */}
-        <div className="px-6 py-8">
+        <div className="px-4 sm:px-6 py-4 sm:py-6">
           <Tabs defaultValue="general">
-            <TabsList className="mb-6 bg-white border shadow-sm w-full justify-start h-auto p-1 gap-1 rounded-lg">
-              <TabsTrigger value="general" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
-                <Store className="w-4 h-4" /> General
-              </TabsTrigger>
-              <TabsTrigger value="receipt" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
-                <Receipt className="w-4 h-4" /> Receipt
-              </TabsTrigger>
-              <TabsTrigger value="operations" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
-                <Settings2 className="w-4 h-4" /> Operations
-              </TabsTrigger>
-              <TabsTrigger value="loyalty" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
-                <Star className="w-4 h-4" /> Loyalty
-              </TabsTrigger>
-              <TabsTrigger value="backup" className="gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded">
-                <Shield className="w-4 h-4" /> Backup
-              </TabsTrigger>
-              <TabsTrigger value="danger" className="gap-2 data-[state=active]:bg-red-600 data-[state=active]:text-white rounded text-red-600">
-                <Trash2 className="w-4 h-4" /> Danger
-              </TabsTrigger>
-            </TabsList>
+            {/* Scrollable tab bar on mobile */}
+            <div className="overflow-x-auto pb-1 mb-5 -mx-1 px-1">
+              <TabsList className="bg-white border shadow-sm w-max sm:w-full justify-start h-auto p-1 gap-1 rounded-lg flex-nowrap sm:flex-wrap">
+                <TabsTrigger value="general" className="gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs sm:text-sm">
+                  <Store className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> General
+                </TabsTrigger>
+                <TabsTrigger value="receipt" className="gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs sm:text-sm">
+                  <Receipt className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Receipt
+                </TabsTrigger>
+                <TabsTrigger value="operations" className="gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs sm:text-sm">
+                  <Settings2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Operations
+                </TabsTrigger>
+                <TabsTrigger value="loyalty" className="gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs sm:text-sm">
+                  <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Loyalty
+                </TabsTrigger>
+                <TabsTrigger value="backup" className="gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs sm:text-sm">
+                  <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Backup
+                </TabsTrigger>
+                <TabsTrigger value="danger" className="gap-1.5 data-[state=active]:bg-red-600 data-[state=active]:text-white rounded text-red-600 whitespace-nowrap text-xs sm:text-sm">
+                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Danger
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             {/* ── GENERAL ── */}
             <TabsContent value="general" className="space-y-6">
@@ -655,7 +663,7 @@ export default function ShopDetails() {
                   <CardTitle className="text-base text-red-700">Danger Zone</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-red-50 border border-red-200">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-4 rounded-lg bg-red-50 border border-red-200">
                     <div>
                       <p className="text-sm font-medium text-red-800">Delete Shop Data</p>
                       <p className="text-xs text-red-600 mt-1">
@@ -665,7 +673,7 @@ export default function ShopDetails() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="shrink-0 border-red-300 text-red-700 hover:bg-red-100"
+                      className="w-full sm:w-auto shrink-0 border-red-300 text-red-700 hover:bg-red-100 h-9"
                       onClick={handleDeleteShopData}
                     >
                       <Trash2 className="w-3.5 h-3.5 mr-1.5" />
@@ -673,7 +681,7 @@ export default function ShopDetails() {
                     </Button>
                   </div>
 
-                  <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-red-100 border border-red-300">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-4 rounded-lg bg-red-100 border border-red-300">
                     <div>
                       <p className="text-sm font-medium text-red-900">Delete Entire Shop</p>
                       <p className="text-xs text-red-700 mt-1">
@@ -683,7 +691,7 @@ export default function ShopDetails() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      className="shrink-0"
+                      className="w-full sm:w-auto shrink-0 h-9"
                       onClick={handleDeleteShop}
                     >
                       <Trash2 className="w-3.5 h-3.5 mr-1.5" />
