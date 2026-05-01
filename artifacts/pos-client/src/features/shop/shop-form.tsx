@@ -52,6 +52,11 @@ export default function ShopForm({
   // Fetch shop categories from API
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
     queryKey: [ENDPOINTS.shop.getCategories],
+    queryFn: async () => {
+      const response = await apiCall(ENDPOINTS.shop.getCategories, { method: "GET" });
+      const data = await response.json();
+      return Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+    },
   });
 
   const handleInputChange = (field: string, value: string | boolean) => {
