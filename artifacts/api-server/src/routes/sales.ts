@@ -266,9 +266,9 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     if (!held && redeemPoints && redeemPoints > 0 && customerId) {
       const shop = await db.query.shops.findFirst({
         where: eq(shops.id, Number(shopId)),
-        columns: { loyaltyEnabled: true, pointsValue: true },
+        columns: { loyaltyEnabled: true, loyaltyRedemptionEnabled: true, pointsValue: true },
       });
-      if (shop?.loyaltyEnabled && parseFloat(String(shop.pointsValue ?? 0)) > 0) {
+      if (shop?.loyaltyEnabled && shop?.loyaltyRedemptionEnabled && parseFloat(String(shop.pointsValue ?? 0)) > 0) {
         const cust = await db.query.customers.findFirst({
           where: eq(customers.id, Number(customerId)),
           columns: { loyaltyPoints: true },

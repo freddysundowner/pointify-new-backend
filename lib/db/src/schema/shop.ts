@@ -65,6 +65,8 @@ export const shops = pgTable(
 
     // Loyalty points — earn points on purchase, redeem for discounts
     loyaltyEnabled: boolean("loyalty_enabled").notNull().default(false),
+    // When true, customers can redeem their points at checkout for a discount
+    loyaltyRedemptionEnabled: boolean("loyalty_redemption_enabled").notNull().default(false),
     // How much the customer must spend (in shop currency) to earn 1 loyalty point
     pointsPerAmount: numeric("points_per_amount", { precision: 10, scale: 4 }).notNull().default("0"),
     // Monetary value of 1 loyalty point (in shop currency) when redeemed

@@ -464,7 +464,7 @@ router.get("/:id/loyalty", requireAdminOrAttendant, async (req, res, next) => {
 
     const shopSettings = await db.query.shops.findFirst({
       where: eq(shops.id, cust.shop),
-      columns: { loyaltyEnabled: true, pointsPerAmount: true, pointsValue: true },
+      columns: { loyaltyEnabled: true, loyaltyRedemptionEnabled: true, pointsPerAmount: true, pointsValue: true },
     });
 
     const transactions = await db.query.loyaltyTransactions.findMany({

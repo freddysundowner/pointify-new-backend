@@ -140,7 +140,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
       // Receipt customisation
       receiptLogo, receiptFooter, receiptShowTax, receiptShowDiscount,
       // Loyalty programme
-      loyaltyEnabled, pointsPerAmount, pointsValue,
+      loyaltyEnabled, loyaltyRedemptionEnabled, pointsPerAmount, pointsValue,
     } = req.body ?? {};
     if (!name) throw badRequest("name is required");
 
@@ -181,6 +181,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
       ...(receiptShowDiscount !== undefined && { receiptShowDiscount: Boolean(receiptShowDiscount) }),
       // Loyalty
       ...(loyaltyEnabled !== undefined && { loyaltyEnabled: Boolean(loyaltyEnabled) }),
+      ...(loyaltyRedemptionEnabled !== undefined && { loyaltyRedemptionEnabled: Boolean(loyaltyRedemptionEnabled) }),
       ...(pointsPerAmount !== undefined && { pointsPerAmount: blank(pointsPerAmount) ? "0" : String(pointsPerAmount) }),
       ...(pointsValue !== undefined && { pointsValue: blank(pointsValue) ? "0" : String(pointsValue) }),
     }).returning();
@@ -270,7 +271,7 @@ router.put("/:shopId", requireAdmin, async (req, res, next) => {
       // Receipt customisation
       receiptLogo, receiptFooter, receiptShowTax, receiptShowDiscount,
       // Loyalty
-      loyaltyEnabled, pointsPerAmount, pointsValue,
+      loyaltyEnabled, loyaltyRedemptionEnabled, pointsPerAmount, pointsValue,
     } = req.body ?? {};
 
     const blank = (v: unknown) => v === undefined || v === null || v === "";
@@ -307,6 +308,7 @@ router.put("/:shopId", requireAdmin, async (req, res, next) => {
       ...(receiptShowDiscount !== undefined && { receiptShowDiscount: Boolean(receiptShowDiscount) }),
       // Loyalty
       ...(loyaltyEnabled !== undefined && { loyaltyEnabled: Boolean(loyaltyEnabled) }),
+      ...(loyaltyRedemptionEnabled !== undefined && { loyaltyRedemptionEnabled: Boolean(loyaltyRedemptionEnabled) }),
       ...(pointsPerAmount !== undefined && { pointsPerAmount: blank(pointsPerAmount) ? "0" : String(pointsPerAmount) }),
       ...(pointsValue !== undefined && { pointsValue: blank(pointsValue) ? "0" : String(pointsValue) }),
     }).where(eq(shops.id, shopId)).returning();

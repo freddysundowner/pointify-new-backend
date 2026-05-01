@@ -374,6 +374,7 @@ export default function ProductGrid({
   });
 
   const loyaltyEnabled: boolean = loyaltyData?.data?.shopSettings?.loyaltyEnabled ?? false;
+  const loyaltyRedemptionAllowed: boolean = loyaltyData?.data?.shopSettings?.loyaltyRedemptionEnabled ?? false;
   const loyaltyBalance: number = parseFloat(String(loyaltyData?.data?.loyaltyPoints ?? 0));
   const loyaltyPointsValue: number = parseFloat(String(loyaltyData?.data?.shopSettings?.pointsValue ?? 0));
   const redeemPoints: number = Math.min(Math.max(0, parseFloat(redeemPointsStr) || 0), loyaltyBalance);
@@ -2177,8 +2178,8 @@ export default function ProductGrid({
                 </div>
               )}
               
-              {/* Loyalty Points Redemption */}
-              {selectedCustomerId && loyaltyEnabled && loyaltyBalance > 0 && loyaltyPointsValue > 0 && (
+              {/* Loyalty Points Redemption — only when shop allows redeeming */}
+              {selectedCustomerId && loyaltyEnabled && loyaltyRedemptionAllowed && loyaltyBalance > 0 && loyaltyPointsValue > 0 && (
                 <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
                   <div className="flex items-center space-x-2 mb-3">
                     <Star className="h-5 w-5 text-amber-500" />

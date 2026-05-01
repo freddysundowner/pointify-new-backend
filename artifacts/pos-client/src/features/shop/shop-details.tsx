@@ -77,6 +77,7 @@ export default function ShopDetails() {
 
     // Loyalty
     loyaltyEnabled: false,
+    loyaltyRedemptionEnabled: false,
     pointsPerAmount: "0",
     pointsValue: "0",
 
@@ -153,6 +154,7 @@ export default function ShopDetails() {
 
       // Loyalty
       loyaltyEnabled: shop.loyaltyEnabled ?? false,
+      loyaltyRedemptionEnabled: shop.loyaltyRedemptionEnabled ?? false,
       pointsPerAmount: shop.pointsPerAmount ?? "0",
       pointsValue: shop.pointsValue ?? "0",
 
@@ -214,6 +216,7 @@ export default function ShopDetails() {
 
       // Loyalty
       loyaltyEnabled: formData.loyaltyEnabled,
+      loyaltyRedemptionEnabled: formData.loyaltyRedemptionEnabled,
       pointsPerAmount: formData.pointsPerAmount,
       pointsValue: formData.pointsValue,
 
@@ -556,30 +559,45 @@ export default function ShopDetails() {
                     />
                   </div>
 
-                  <div className={`grid grid-cols-1 sm:grid-cols-2 gap-5 transition-opacity ${formData.loyaltyEnabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
-                    <div className="space-y-1.5">
-                      <Label>Points per Amount Spent</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="e.g. 1"
-                        value={formData.pointsPerAmount}
-                        onChange={e => set("pointsPerAmount", e.target.value)}
-                      />
-                      <p className="text-xs text-gray-400">Points earned per 1 unit of currency spent</p>
+                  <div className={`space-y-5 transition-opacity ${formData.loyaltyEnabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="space-y-1.5">
+                        <Label>Points per Amount Spent</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="e.g. 1"
+                          value={formData.pointsPerAmount}
+                          onChange={e => set("pointsPerAmount", e.target.value)}
+                        />
+                        <p className="text-xs text-gray-400">Points earned per 1 unit of currency spent</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Point Value</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="e.g. 0.01"
+                          value={formData.pointsValue}
+                          onChange={e => set("pointsValue", e.target.value)}
+                        />
+                        <p className="text-xs text-gray-400">Cash value of 1 loyalty point</p>
+                      </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label>Point Value</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="e.g. 0.01"
-                        value={formData.pointsValue}
-                        onChange={e => set("pointsValue", e.target.value)}
+
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">Allow Point Redemption at Checkout</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          When off, points keep accumulating but cannot be used at the POS
+                        </p>
+                      </div>
+                      <Switch
+                        checked={formData.loyaltyRedemptionEnabled}
+                        onCheckedChange={v => set("loyaltyRedemptionEnabled", v)}
                       />
-                      <p className="text-xs text-gray-400">Cash value of 1 loyalty point</p>
                     </div>
                   </div>
                 </CardContent>
