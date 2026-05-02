@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte, gt, asc, sql } from "drizzle-orm";
 import { saleReturns, saleReturnItems, sales, inventory, admins, attendants, customers, loyaltyTransactions, shops, customerWalletTransactions } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -160,50 +160,67 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
 
     // ── Reduce customer outstanding balance on credit sales ────────────────
     // When items from a credit sale are returned:
-    //   1. The remaining outstanding debt is cancelled (up to refundAmount).
-    //   2. Any amount already paid towards this sale is refunded to the
-    //      customer's wallet — because the goods are coming back so money
-    //      paid for them should be returned too.
+    //   1. Cancel the remaining outstanding debt on this sale.
+    //   2. Any amount already paid towards this sale is applied to OTHER
+    //      outstanding credit sales (oldest first) — reducing their debt.
+    //   3. Only if no other debts remain is the amount a cash refund to the
+    //      customer (handled physically via refundMethod on the return record;
+    //      no wallet entry is created).
     if (sale.customer) {
       const saleOutstanding = parseFloat(String(sale.outstandingBalance ?? "0"));
       const alreadyPaid     = parseFloat(String((sale as any).amountPaid ?? "0"));
 
-      // 1. Cancel remaining debt (capped at what's still owed)
+      // 1. Cancel remaining debt on this sale
       const debtReduction = Math.min(refundAmount, saleOutstanding);
       if (debtReduction > 0) {
         await db.update(customers)
           .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric - ${debtReduction}::numeric)` })
           .where(eq(customers.id, sale.customer));
         await db.update(sales)
-          .set({ outstandingBalance: sql`GREATEST(0, ${sales.outstandingBalance}::numeric - ${debtReduction}::numeric)` })
+          .set({ outstandingBalance: "0" })
           .where(eq(sales.id, Number(saleId)));
       }
 
-      // 2. Refund the already-paid portion back to the customer's wallet.
-      //    walletRefund = how much of refundAmount has already been collected.
-      //    Formula: max(0, refundAmount - saleOutstanding)
-      //    e.g. refund 100, outstanding 20  → walletRefund = 80 (was paid)
-      //    e.g. refund 30,  outstanding 50  → walletRefund = 0  (still owes 20)
-      const walletRefund = Math.max(0, refundAmount - saleOutstanding);
-      if (walletRefund > 0 && alreadyPaid > 0) {
-        const actualRefund = Math.min(walletRefund, alreadyPaid);
-        const custRow = await db.query.customers.findFirst({
-          where: eq(customers.id, sale.customer),
-          columns: { wallet: true },
+      // 2. Apply any already-paid credit to other outstanding credit sales
+      //    alreadyCredited = the portion of refundAmount that was already collected
+      //    e.g. refundAmount=100, saleOutstanding=20  → 80 was paid, now credited
+      //    e.g. refundAmount=30,  saleOutstanding=50  → 0 (customer still owed 20 more)
+      const creditToApply = Math.min(Math.max(0, refundAmount - saleOutstanding), alreadyPaid);
+      if (creditToApply > 0) {
+        const otherCreditSales = await db.query.sales.findMany({
+          where: and(
+            eq(sales.customer, sale.customer),
+            eq(sales.status, "credit"),
+            gt(sales.outstandingBalance, "0"),
+          ),
+          orderBy: [asc(sales.createdAt)],
         });
-        const newWallet = (parseFloat(custRow?.wallet ?? "0") + actualRefund).toFixed(2);
-        await db.update(customers)
-          .set({ wallet: newWallet })
-          .where(eq(customers.id, sale.customer));
-        await db.insert(customerWalletTransactions).values({
-          customer: sale.customer,
-          shop: saleReturn.shop,
-          amount: String(actualRefund.toFixed(2)),
-          balance: newWallet,
-          type: "refund",
-          paymentNo: saleReturn.returnNo,
-          paymentReference: `Refund for returned sale ${sale.receiptNo ?? saleId}`,
-        });
+
+        let remaining = creditToApply;
+        for (const other of otherCreditSales) {
+          if (other.id === Number(saleId)) continue; // skip the returned sale
+          if (remaining <= 0) break;
+
+          const owed    = parseFloat(String(other.outstandingBalance));
+          const applied = Math.min(remaining, owed);
+          const newOwed = Math.max(0, owed - applied).toFixed(2);
+          const isFullyPaid = parseFloat(newOwed) === 0;
+
+          await db.update(sales).set({
+            outstandingBalance: newOwed,
+            amountPaid: sql`${sales.amountPaid}::numeric + ${applied}::numeric`,
+            ...(isFullyPaid ? { status: "cashed" } : {}),
+          }).where(eq(sales.id, other.id));
+
+          // Reduce customer aggregate outstanding to match
+          await db.update(customers)
+            .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric - ${applied}::numeric)` })
+            .where(eq(customers.id, sale.customer));
+
+          remaining -= applied;
+        }
+        // `remaining` after the loop is a cash refund to the customer.
+        // It is tracked via saleReturn.refundAmount + refundMethod — no wallet entry needed.
       }
     }
 
