@@ -66,18 +66,35 @@ export default function ReturnSale() {
   // Populate return items once sale is loaded
   useEffect(() => {
     if (!originalSale?.saleItems) return;
-    setReturnItems(
-      originalSale.saleItems.map((item: any) => ({
-        id: item.id,
-        productId: item.product?.id ?? item.product,
-        productName: item.productName ?? item.product?.name ?? "Unknown Product",
-        quantity: parseFloat(String(item.quantity)),
-        unitPrice: parseFloat(String(item.unitPrice ?? 0)),
-        totalPrice: parseFloat(String(item.totalPrice ?? 0)),
-        returnQuantity: parseFloat(String(item.quantity)),
-        shouldReturn: false,
-      }))
-    );
+
+    // Build a map of saleItemId → total already-returned qty from prior returns
+    const returnedQtyMap: Record<number, number> = {};
+    (originalSale.saleReturns ?? []).forEach((ret: any) => {
+      (ret.saleReturnItems ?? []).forEach((ri: any) => {
+        const saleItemId = ri.saleItem ?? ri.saleItemId ?? ri.sale_item_id;
+        returnedQtyMap[saleItemId] = (returnedQtyMap[saleItemId] ?? 0) + parseFloat(String(ri.quantity ?? 0));
+      });
+    });
+
+    const items = originalSale.saleItems
+      .map((item: any) => {
+        const originalQty = parseFloat(String(item.quantity));
+        const alreadyReturned = returnedQtyMap[item.id] ?? 0;
+        const remainingQty = Math.max(0, originalQty - alreadyReturned);
+        return {
+          id: item.id,
+          productId: item.product?.id ?? item.product,
+          productName: item.productName ?? item.product?.name ?? "Unknown Product",
+          quantity: remainingQty,
+          unitPrice: parseFloat(String(item.unitPrice ?? 0)),
+          totalPrice: parseFloat(String(item.totalPrice ?? 0)),
+          returnQuantity: remainingQty > 0 ? remainingQty : 0,
+          shouldReturn: false,
+        };
+      })
+      .filter((item: ReturnItem) => item.quantity > 0); // hide fully-returned items
+
+    setReturnItems(items);
   }, [originalSale]);
 
   const updateReturnItem = (index: number, field: keyof ReturnItem, value: any) => {
