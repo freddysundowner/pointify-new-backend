@@ -472,64 +472,61 @@ export default function Expenses() {
                   </div>
                   <div>
                     <Label>Category</Label>
-                    <Popover open={catOpen} onOpenChange={setCatOpen}>
-                      <PopoverTrigger asChild>
+                    <div className="flex gap-1.5">
+                      <Select
+                        value={String(formData.category || '')}
+                        onValueChange={(val) => setFormData(fd => ({ ...fd, category: val }))}
+                      >
+                        <SelectTrigger className="h-9 text-sm flex-1">
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((c: ExpenseCategory) => (
+                            <SelectItem key={c._id} value={String(c._id)}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                          {categories.length === 0 && (
+                            <div className="px-3 py-2 text-xs text-gray-500">No categories yet — use + to create one</div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-2.5"
+                        title="Create new category"
+                        onClick={() => { setCatOpen(o => !o); setCatSearch(''); }}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    {catOpen && (
+                      <div className="flex gap-1.5 mt-1.5">
+                        <Input
+                          value={catSearch}
+                          onChange={e => setCatSearch(e.target.value)}
+                          placeholder="New category name..."
+                          className="h-8 text-sm"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (catSearch.trim()) createCategoryMutation.mutate(catSearch.trim());
+                            }
+                          }}
+                        />
                         <Button
-                          variant="outline"
-                          role="combobox"
-                          className="w-full justify-between font-normal h-9 text-sm"
+                          type="button"
+                          size="sm"
+                          className="h-8 px-3 text-xs"
+                          disabled={!catSearch.trim() || createCategoryMutation.isPending}
+                          onClick={() => { if (catSearch.trim()) createCategoryMutation.mutate(catSearch.trim()); }}
                         >
-                          {formData.category
-                            ? (categories.find((c: ExpenseCategory) => c._id === formData.category)?.name ?? 'Select category')
-                            : 'Select category'}
-                          <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                          Add
                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[260px] p-0" align="start">
-                        <Command>
-                          <CommandInput
-                            placeholder="Search or create..."
-                            value={catSearch}
-                            onValueChange={setCatSearch}
-                          />
-                          <CommandList>
-                            <CommandGroup>
-                              {categories
-                                .filter((c: ExpenseCategory) => c.name.toLowerCase().includes(catSearch.toLowerCase()))
-                                .map((c: ExpenseCategory) => (
-                                  <CommandItem
-                                    key={c._id}
-                                    value={c.name}
-                                    onSelect={() => {
-                                      setFormData(fd => ({ ...fd, category: c._id }));
-                                      setCatOpen(false);
-                                      setCatSearch('');
-                                    }}
-                                  >
-                                    <Check className={cn("mr-2 h-3.5 w-3.5", formData.category === c._id ? "opacity-100" : "opacity-0")} />
-                                    {c.name}
-                                  </CommandItem>
-                                ))}
-                            </CommandGroup>
-                            {catSearch.trim() && !categories.some((c: ExpenseCategory) => c.name.toLowerCase() === catSearch.trim().toLowerCase()) && (
-                              <CommandGroup>
-                                <CommandItem
-                                  value={`__create__${catSearch}`}
-                                  onSelect={() => createCategoryMutation.mutate(catSearch.trim())}
-                                  className="text-green-700 font-medium"
-                                >
-                                  <Plus className="mr-2 h-3.5 w-3.5" />
-                                  Create "{catSearch.trim()}"
-                                </CommandItem>
-                              </CommandGroup>
-                            )}
-                            {!catSearch && categories.length === 0 && (
-                              <CommandEmpty>Type a name to create a category</CommandEmpty>
-                            )}
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="date">Date</Label>
