@@ -105,8 +105,11 @@ export default function SalesReportPage() {
   const cashCollected = n(paymentData?.grandTotal);
   const dailyRows: any[] = (dailyData?.rows ?? []).slice().reverse();
 
-  const totalSalesValue   = dailyRows.reduce((s: number, r: any) => s + n(r.totalRevenue), 0);
+  const grossSalesValue   = dailyRows.reduce((s: number, r: any) => s + n(r.totalRevenue), 0);
   const totalTransactions = dailyRows.reduce((s: number, r: any) => s + n(r.totalSales), 0);
+  const totalReturns      = n(statsData?.returns);
+  // Net sales = gross sales minus any returned amounts — avoids inflating the headline figure
+  const totalSalesValue   = Math.max(0, grossSalesValue - totalReturns);
   const totalOnCredit     = Math.max(0, totalSalesValue - cashCollected);
 
   const refetch = () => { refetchPay(); refetchDaily(); refetchStats(); };
