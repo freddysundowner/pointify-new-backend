@@ -525,8 +525,8 @@ router.post("/:id/loyalty/adjust", requireAdmin, async (req, res, next) => {
 router.post("/:id/email-statement", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const customerId = Number(req.params["id"]);
-    const { subject, html, toEmail } = req.body ?? {};
-    if (!html) throw badRequest("html body required");
+    const { subject, pdfBase64, toEmail, customerName: bodyName } = req.body ?? {};
+    if (!pdfBase64) throw badRequest("pdfBase64 required");
 
     const customer = await db.query.customers.findFirst({
       where: eq(customers.id, customerId),
@@ -538,11 +538,23 @@ router.post("/:id/email-statement", requireAdminOrAttendant, async (req, res, ne
     const recipientEmail = toEmail || customer.email;
     if (!recipientEmail) throw badRequest("Customer has no email address. Please add one first.");
 
+    const displayName = bodyName || customer.name;
+    const emailSubject = subject || `Account Statement — ${displayName}`;
+    const htmlBody = `
+      <div style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;">
+        <p>Dear ${displayName},</p>
+        <p>Please find attached your account statement.</p>
+        <p>If you have any questions about this statement, please do not hesitate to contact us.</p>
+        <p style="margin-top:24px;">Kind regards</p>
+      </div>
+    `;
+
     const result = await sendRawEmail({
       to: recipientEmail,
       name: customer.name,
-      subject: subject || `Account Statement — ${customer.name}`,
-      html,
+      subject: emailSubject,
+      html: htmlBody,
+      attachments: [{ name: `Statement_${displayName.replace(/\s+/g, '_')}.pdf`, content: pdfBase64, type: "application/pdf" }],
     });
 
     if (!result.ok) {

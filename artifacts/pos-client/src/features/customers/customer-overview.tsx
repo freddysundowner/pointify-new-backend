@@ -909,95 +909,122 @@ export default function CustomerOverview() {
 
     rows.sort((a, b) => a.ts - b.ts);
 
-    let runningBalance = 0;
-    const transactionRows = rows.map(row => {
-      runningBalance += row.credit - row.debit;
-      const balanceColor = runningBalance < 0 ? '#dc2626' : '#059669';
-      const balanceText = `${currency} ${Math.abs(runningBalance).toFixed(2)}${runningBalance > 0 ? ' Owing' : ''}`;
-      const debitCell = row.debit > 0 ? `<span style="color:#dc2626;font-weight:600;">${currency} ${row.debit.toFixed(2)}</span>` : `<span style="color:#9ca3af;">-</span>`;
-      const creditCell = row.credit > 0 ? `<span style="color:#059669;font-weight:600;">${currency} ${row.credit.toFixed(2)}</span>` : `<span style="color:#9ca3af;">-</span>`;
-      return `<tr>
-        <td style="padding:8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${row.date}</td>
-        <td style="padding:8px;border-bottom:1px solid #e5e7eb;font-size:12px;">${row.description}</td>
-        <td style="padding:8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${row.ref}<br/><span style="font-size:11px;color:#6b7280;">${row.attendant}</span></td>
-        <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${debitCell}</td>
-        <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${creditCell}</td>
-        <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;color:${balanceColor};">${balanceText}</td>
-      </tr>`;
-    }).join('');
-
     const totalDebits = rows.reduce((s, r) => s + r.debit, 0);
     const totalCredits = rows.reduce((s, r) => s + r.credit, 0);
     const closingBalance = totalCredits - totalDebits;
 
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-    .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2563eb; padding-bottom: 20px; }
-    .company-name { font-size: 24px; font-weight: bold; color: #2563eb; margin-bottom: 10px; }
-    .statement-title { font-size: 20px; margin-bottom: 20px; }
-    .customer-info { display: flex; justify-content: space-between; margin-bottom: 30px; background-color: #f8fafc; padding: 20px; border-radius: 8px; }
-    .info-section { flex: 1; }
-    .info-label { font-weight: bold; color: #374151; margin-bottom: 5px; }
-    .info-value { color: #6b7280; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th { background-color: #2563eb; color: white; padding: 12px 8px; text-align: left; font-weight: 600; }
-    th:last-child, td:last-child { text-align: right; }
-    .summary { margin-top: 30px; padding: 20px; background-color: #f0f9ff; border-radius: 8px; border-left: 4px solid #2563eb; }
-    .summary-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #2563eb; }
-    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-    .summary-item { text-align: center; }
-    .summary-value { font-size: 20px; font-weight: bold; margin-bottom: 5px; }
-    .summary-label { color: #6b7280; font-size: 14px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="company-name">${shopName}</div>
-    ${shopAddress ? `<div style="font-size:13px;color:#4b5563;margin-top:2px;">${shopAddress}</div>` : ''}
-    ${shopPhone ? `<div style="font-size:13px;color:#4b5563;">Tel: ${shopPhone}</div>` : ''}
-    ${shopEmail ? `<div style="font-size:13px;color:#4b5563;">${shopEmail}</div>` : ''}
-    <div class="statement-title" style="margin-top:10px;">Customer Account Statement</div>
-  </div>
-  <div class="customer-info">
-    <div class="info-section"><div class="info-label">Customer Name:</div><div class="info-value">${customerName}</div></div>
-    <div class="info-section"><div class="info-label">Statement Date:</div><div class="info-value">${currentDate}</div></div>
-    <div class="info-section"><div class="info-label">Phone:</div><div class="info-value">${(customerData as any)?.phonenumber || (customerData as any)?.phone || 'N/A'}</div></div>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width:90px;">Date</th>
-        <th>Description</th>
-        <th style="width:120px;">Reference</th>
-        <th style="text-align:right;width:100px;">Debit</th>
-        <th style="text-align:right;width:100px;">Credit</th>
-        <th style="text-align:right;width:110px;">Balance</th>
-      </tr>
-    </thead>
-    <tbody>${transactionRows}</tbody>
-    <tfoot>
-      <tr style="background:#f1f5f9;font-weight:700;">
-        <td colspan="3" style="padding:10px 8px;border-top:2px solid #2563eb;">Totals</td>
-        <td style="padding:10px 8px;border-top:2px solid #2563eb;text-align:right;color:#dc2626;">${currency} ${totalDebits.toFixed(2)}</td>
-        <td style="padding:10px 8px;border-top:2px solid #2563eb;text-align:right;color:#059669;">${currency} ${totalCredits.toFixed(2)}</td>
-        <td style="padding:10px 8px;border-top:2px solid #2563eb;text-align:right;color:${closingBalance < 0 ? '#dc2626' : '#059669'};">${currency} ${Math.abs(closingBalance).toFixed(2)}${closingBalance < 0 ? ' Owing' : ' Credit'}</td>
-      </tr>
-    </tfoot>
-  </table>
-  <div class="summary">
-    <div class="summary-title">Account Summary</div>
-    <div class="summary-grid">
-      <div class="summary-item"><div class="summary-value" style="color:#dc2626;">${currency} ${totalDebits.toFixed(2)}</div><div class="summary-label">Total Debits</div></div>
-      <div class="summary-item"><div class="summary-value" style="color:#059669;">${currency} ${totalCredits.toFixed(2)}</div><div class="summary-label">Total Credits</div></div>
-      <div class="summary-item"><div class="summary-value" style="color:${closingBalance < 0 ? '#dc2626' : '#059669'};">${currency} ${Math.abs(closingBalance).toFixed(2)}</div><div class="summary-label">${closingBalance < 0 ? 'Amount Owing' : 'Credit Balance'}</div></div>
-    </div>
-  </div>
-</body>
-</html>`;
+    // Build PDF using jspdf + autoTable
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const blue: [number, number, number] = [37, 99, 235];
+    const gray: [number, number, number] = [107, 114, 128];
+
+    // Shop header
+    doc.setFontSize(16);
+    doc.setTextColor(...blue);
+    doc.setFont('helvetica', 'bold');
+    doc.text(shopName, pageW / 2, 18, { align: 'center' });
+    doc.setFontSize(8);
+    doc.setTextColor(...gray);
+    doc.setFont('helvetica', 'normal');
+    let headerY = 23;
+    if (shopAddress) { doc.text(shopAddress, pageW / 2, headerY, { align: 'center' }); headerY += 4; }
+    if (shopPhone)   { doc.text(`Tel: ${shopPhone}`, pageW / 2, headerY, { align: 'center' }); headerY += 4; }
+    if (shopEmail)   { doc.text(shopEmail, pageW / 2, headerY, { align: 'center' }); headerY += 4; }
+
+    // Title line
+    doc.setDrawColor(...blue);
+    doc.setLineWidth(0.5);
+    doc.line(14, headerY + 1, pageW - 14, headerY + 1);
+    headerY += 5;
+    doc.setFontSize(13);
+    doc.setTextColor(30, 30, 30);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Customer Account Statement', pageW / 2, headerY, { align: 'center' });
+    headerY += 8;
+
+    // Customer info block
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 30, 30);
+    doc.text('Customer:', 14, headerY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(customerName, 38, headerY);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Date:', pageW / 2, headerY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(currentDate, pageW / 2 + 14, headerY);
+    headerY += 5;
+    const custPhone = (customerData as any)?.phonenumber || (customerData as any)?.phone || '';
+    if (custPhone) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Phone:', 14, headerY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(custPhone, 38, headerY);
+      headerY += 5;
+    }
+    headerY += 2;
+
+    // Transaction table
+    let runningBalance = 0;
+    const tableBody = rows.map(row => {
+      runningBalance += row.credit - row.debit;
+      const balStr = `${currency} ${Math.abs(runningBalance).toFixed(2)}${runningBalance > 0 ? ' Owing' : runningBalance < 0 ? ' Credit' : ''}`;
+      return [
+        row.date,
+        row.description,
+        row.ref + (row.attendant ? `\n${row.attendant}` : ''),
+        row.debit > 0 ? `${currency} ${row.debit.toFixed(2)}` : '-',
+        row.credit > 0 ? `${currency} ${row.credit.toFixed(2)}` : '-',
+        balStr,
+      ];
+    });
+
+    // Totals row
+    const closingStr = `${currency} ${Math.abs(closingBalance).toFixed(2)}${closingBalance < 0 ? ' Owing' : ' Credit'}`;
+    tableBody.push([
+      'TOTALS', '', '',
+      `${currency} ${totalDebits.toFixed(2)}`,
+      `${currency} ${totalCredits.toFixed(2)}`,
+      closingStr,
+    ]);
+
+    autoTable(doc, {
+      startY: headerY,
+      head: [['Date', 'Description', 'Ref / By', `Debit (${currency})`, `Credit (${currency})`, 'Balance']],
+      body: tableBody,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: blue, textColor: 255, fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 22 },
+        1: { cellWidth: 65 },
+        2: { cellWidth: 28 },
+        3: { cellWidth: 25, halign: 'right' },
+        4: { cellWidth: 25, halign: 'right' },
+        5: { cellWidth: 27, halign: 'right' },
+      },
+      didParseCell: (data: any) => {
+        // Style totals row bold
+        if (data.row.index === tableBody.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [241, 245, 249];
+        }
+        // Color debit column red, credit green in body rows
+        if (data.section === 'body' && data.row.index < tableBody.length - 1) {
+          if (data.column.index === 3 && data.cell.text[0] !== '-') data.cell.styles.textColor = [220, 38, 38];
+          if (data.column.index === 4 && data.cell.text[0] !== '-') data.cell.styles.textColor = [5, 150, 105];
+          if (data.column.index === 5) {
+            const txt = String(data.cell.text[0] || '');
+            data.cell.styles.textColor = txt.includes('Owing') ? [220, 38, 38] : [5, 150, 105];
+          }
+        }
+      },
+    });
+
+    const pdfBase64 = doc.output('datauristring').split(',')[1];
 
     setIsSendingEmail(true);
     try {
@@ -1005,7 +1032,12 @@ export default function CustomerOverview() {
       const res = await fetch(ENDPOINTS.customers.emailStatement(String(customerId)), {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: `Account Statement — ${customerName}`, html, toEmail: customerEmail || undefined }),
+        body: JSON.stringify({
+          subject: `Account Statement — ${customerName}`,
+          pdfBase64,
+          customerName,
+          toEmail: customerEmail || undefined,
+        }),
       });
       let data: any = {};
       try { data = await res.json(); } catch { /* non-JSON response */ }
