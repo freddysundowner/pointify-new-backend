@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowRight, Plus, Search, ArrowLeft, RefreshCw, Download, ChevronDown, ChevronUp, X, AlertTriangle } from "lucide-react";
+import { ArrowRight, Plus, Search, ArrowLeft, RefreshCw, Download, ChevronDown, ChevronUp, X, AlertTriangle, Package } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiRequest } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
@@ -39,7 +39,6 @@ interface Transfer {
 
 interface ShopOption { id: number; name: string; }
 interface ProductOption { id: number; name: string; quantity?: number; sellingPrice?: string | number; }
-
 interface CartItem { productId: number; productName: string; quantity: number; }
 
 export default function StockTransfer() {
@@ -50,7 +49,7 @@ export default function StockTransfer() {
   const goBack = useGoBack("/dashboard");
   const shopDetails = useShopDetails(shopId);
 
-  // Stock-error dialog (bundle expansion failures)
+  // Stock-error dialog
   interface StockError { productId: number; productName: string; required: number; available: number; fromBundle?: string; }
   const [transferErrors, setTransferErrors] = useState<StockError[]>([]);
 
@@ -101,7 +100,7 @@ export default function StockTransfer() {
   const totalPages = historyData?.meta?.totalPages ?? 1;
   const totalCount = historyData?.meta?.total ?? transfers.length;
 
-  // ── Product search (for create form) ──
+  // ── Product search ──
   const { data: productResults } = useQuery({
     queryKey: ["transfer-product-search", fromShopId, productSearch],
     queryFn: async () => {
@@ -118,9 +117,6 @@ export default function StockTransfer() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!fromShopId || !toShopId || !cart.length) throw new Error("Missing fields");
-      // apiRequest auto-throws on non-OK responses as `"${status}: ${rawText}"`.
-      // We catch that, parse the JSON body out of the message, and if it contains
-      // a structured `errors` array we re-throw a typed error for the dialog.
       try {
         const res = await apiRequest("POST", ENDPOINTS.transfers.shopTransfer, {
           fromShopId: Number(fromShopId),
@@ -205,6 +201,245 @@ export default function StockTransfer() {
     doc.save(`transfers-${new Date().toISOString().split("T")[0]}.pdf`);
   };
 
+  const fromShopName = shopOptions.find(s => s.id === fromShopId)?.name;
+  const toShopName   = shopOptions.find(s => s.id === toShopId)?.name;
+  const totalUnits   = cart.reduce((s, c) => s + c.quantity, 0);
+
+  // ════════════════════════════════════════════════════════════════════════
+  // FULL-PAGE CREATE FORM
+  // ════════════════════════════════════════════════════════════════════════
+  if (showForm) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col h-full bg-gray-50">
+
+          {/* ── Top bar ── */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b bg-white shrink-0">
+            <Button variant="ghost" size="sm" onClick={resetForm} className="h-8 px-2 gap-1.5 text-xs text-gray-600">
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
+            </Button>
+            <div className="w-px h-4 bg-gray-200" />
+            <ArrowRight className="h-4 w-4 text-purple-600 shrink-0" />
+            <span className="font-semibold text-sm">New Stock Transfer</span>
+          </div>
+
+          {/* ── Body ── */}
+          <div className="flex-1 overflow-auto">
+            <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+
+              {/* Shop selectors */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Route</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1.5 block">From Shop</label>
+                    <Select
+                      value={fromShopId ? String(fromShopId) : ""}
+                      onValueChange={(v) => { setFromShopId(Number(v)); setCart([]); setProductSearch(""); }}
+                    >
+                      <SelectTrigger className="h-10 border-gray-300 text-sm">
+                        <SelectValue placeholder="Select source…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {shopOptions.map(s => (
+                          <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1.5 block">To Shop</label>
+                    <Select
+                      value={toShopId ? String(toShopId) : ""}
+                      onValueChange={(v) => setToShopId(Number(v))}
+                      disabled={!fromShopId}
+                    >
+                      <SelectTrigger className="h-10 border-gray-300 text-sm">
+                        <SelectValue placeholder="Select destination…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {shopOptions.filter(s => s.id !== fromShopId).map(s => (
+                          <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {fromShopId && toShopId && (
+                  <div className="flex items-center gap-2 text-xs text-purple-700 bg-purple-50 border border-purple-100 rounded-lg px-3 py-2">
+                    <span className="font-medium">{fromShopName}</span>
+                    <ArrowRight className="h-3 w-3 text-purple-400" />
+                    <span className="font-medium">{toShopName}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Product search + cart */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Products</p>
+
+                {fromShopId ? (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search product name…"
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="pl-9 h-10 text-sm border-gray-300 focus:border-purple-500"
+                    />
+                    {productResults && productResults.length > 0 && (
+                      <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border rounded-lg shadow-lg max-h-56 overflow-auto">
+                        {productResults.map((p) => (
+                          <button
+                            key={p.id}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between border-b last:border-0"
+                            onClick={() => addToCart(p)}
+                          >
+                            <span className="font-medium">{p.name}</span>
+                            {p.quantity !== undefined && (
+                              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                                Stock: {parseFloat(String(p.quantity))}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-4">Select a source shop first</p>
+                )}
+
+                {cart.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    <p className="text-xs text-gray-500 font-medium">{cart.length} item{cart.length !== 1 ? "s" : ""} to transfer</p>
+                    {cart.map((item) => (
+                      <div key={item.productId} className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-lg px-4 py-2.5">
+                        <Package className="h-4 w-4 text-gray-400 shrink-0" />
+                        <span className="flex-1 text-sm font-medium text-gray-800">{item.productName}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-bold flex items-center justify-center"
+                            onClick={() => updateCartQty(item.productId, item.quantity - 1)}
+                          >−</button>
+                          <input
+                            type="number"
+                            value={draftQty[item.productId] ?? String(item.quantity)}
+                            onChange={(e) => setDraftQty(d => ({ ...d, [item.productId]: e.target.value }))}
+                            onBlur={(e) => {
+                              const parsed = parseInt(e.target.value);
+                              const qty = parsed > 0 ? parsed : 1;
+                              setDraftQty(d => { const next = { ...d }; delete next[item.productId]; return next; });
+                              updateCartQty(item.productId, qty);
+                            }}
+                            className="w-14 h-7 text-center text-sm font-semibold border border-gray-300 rounded-md bg-white outline-none focus:border-purple-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            min="1"
+                          />
+                          <button
+                            className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-bold flex items-center justify-center"
+                            onClick={() => updateCartQty(item.productId, item.quantity + 1)}
+                          >+</button>
+                        </div>
+                        <button className="text-gray-300 hover:text-red-500 ml-1" onClick={() => setCart(prev => prev.filter(c => c.productId !== item.productId))}>
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Note */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Note</p>
+                <Input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Transfer reason or notes (optional)…"
+                  className="h-10 text-sm border-gray-300 focus:border-purple-500"
+                />
+              </div>
+
+              {/* Summary + submit */}
+              {fromShopId && toShopId && cart.length > 0 && (
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 space-y-4">
+                  <div className="space-y-1.5 text-sm text-purple-800">
+                    <div className="flex justify-between">
+                      <span className="text-purple-600">From</span>
+                      <span className="font-semibold">{fromShopName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-purple-600">To</span>
+                      <span className="font-semibold">{toShopName}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-purple-200 pt-1.5 mt-1.5">
+                      <span className="text-purple-600">Total units</span>
+                      <span className="font-bold">{totalUnits}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-purple-600">Products</span>
+                      <span className="font-bold">{cart.length}</span>
+                    </div>
+                  </div>
+                  <Button
+                    className="w-full h-11 text-sm font-semibold bg-purple-600 hover:bg-purple-700"
+                    onClick={() => createMutation.mutate()}
+                    disabled={createMutation.isPending}
+                  >
+                    {createMutation.isPending ? (
+                      <span className="flex items-center gap-2"><RefreshCw className="h-4 w-4 animate-spin" /> Transferring…</span>
+                    ) : (
+                      <span className="flex items-center gap-2"><ArrowRight className="h-4 w-4" /> Confirm Transfer</span>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Stock Error Dialog ── */}
+        <Dialog open={transferErrors.length > 0} onOpenChange={(open) => { if (!open) setTransferErrors([]); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base text-red-600">
+                <AlertTriangle className="h-4 w-4" /> Insufficient Stock
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-gray-600 mt-1">
+              The following items don't have enough stock in the source shop to complete this transfer:
+            </p>
+            <div className="mt-3 space-y-2 max-h-72 overflow-y-auto">
+              {transferErrors.map((err, i) => (
+                <div key={i} className="rounded-md border border-red-100 bg-red-50 px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{err.productName}</p>
+                      {err.fromBundle && (
+                        <p className="text-xs text-gray-500 mt-0.5">Component of bundle: <span className="font-medium">{err.fromBundle}</span></p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-red-600 font-medium">Need {err.required}</p>
+                      <p className="text-xs text-gray-500">Have {err.available}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => setTransferErrors([])}>Close</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </DashboardLayout>
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // HISTORY PAGE
+  // ════════════════════════════════════════════════════════════════════════
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
@@ -217,7 +452,6 @@ export default function StockTransfer() {
           )}
           <span className="font-semibold text-sm">Stock Transfer</span>
 
-          {/* Date range */}
           <div className="flex items-center gap-1.5 ml-2">
             <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setCurrentPage(1); }} className="h-8 text-xs w-36" />
             <span className="text-gray-400 text-xs">→</span>
@@ -360,183 +594,6 @@ export default function StockTransfer() {
           </div>
         )}
       </div>
-
-      {/* ── Stock Error Dialog (insufficient stock / bundle expansion failures) ── */}
-      <Dialog open={transferErrors.length > 0} onOpenChange={(open) => { if (!open) setTransferErrors([]); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base text-red-600">
-              <AlertTriangle className="h-4 w-4" />
-              Insufficient Stock
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-gray-600 mt-1">
-            The following items don't have enough stock in the source shop to complete this transfer:
-          </p>
-          <div className="mt-3 space-y-2 max-h-72 overflow-y-auto">
-            {transferErrors.map((err, i) => (
-              <div key={i} className="rounded-md border border-red-100 bg-red-50 px-3 py-2.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">{err.productName}</p>
-                    {err.fromBundle && (
-                      <p className="text-xs text-gray-500 mt-0.5">Component of bundle: <span className="font-medium">{err.fromBundle}</span></p>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-red-600 font-medium">Need {err.required}</p>
-                    <p className="text-xs text-gray-500">Have {err.available}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 flex justify-end">
-            <Button size="sm" variant="outline" onClick={() => setTransferErrors([])}>Close</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Create Transfer Dialog ── */}
-      <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <ArrowRight className="h-4 w-4 text-purple-600" />
-              New Stock Transfer
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 pt-1">
-            {/* Shop selectors */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1.5 block">From Shop</label>
-                <Select
-                  value={fromShopId ? String(fromShopId) : ""}
-                  onValueChange={(v) => { setFromShopId(Number(v)); setCart([]); setProductSearch(""); }}
-                >
-                  <SelectTrigger className="text-sm h-9 border-gray-300">
-                    <SelectValue placeholder="Select source…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shopOptions.map(s => (
-                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1.5 block">To Shop</label>
-                <Select
-                  value={toShopId ? String(toShopId) : ""}
-                  onValueChange={(v) => setToShopId(Number(v))}
-                  disabled={!fromShopId}
-                >
-                  <SelectTrigger className="text-sm h-9 border-gray-300">
-                    <SelectValue placeholder="Select destination…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shopOptions.filter(s => s.id !== fromShopId).map(s => (
-                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Product search */}
-            {fromShopId && (
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1.5 block">Add Products</label>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                  <Input
-                    placeholder="Search product name…"
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    className="pl-8 text-sm h-9 border-gray-300 focus:border-purple-500 focus:ring-purple-500/20"
-                  />
-                  {productResults && productResults.length > 0 && (
-                    <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border rounded shadow-lg max-h-48 overflow-auto">
-                      {productResults.map((p) => (
-                        <button
-                          key={p.id}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
-                          onClick={() => addToCart(p)}
-                        >
-                          <span>{p.name}</span>
-                          {p.quantity !== undefined && (
-                            <span className="text-xs text-gray-400">Stock: {p.quantity}</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Cart */}
-            {cart.length > 0 && (
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1.5 block">
-                  Items to Transfer ({cart.length})
-                </label>
-                <div className="space-y-1.5">
-                  {cart.map((item) => (
-                    <div key={item.productId} className="flex items-center gap-2 bg-gray-50 rounded px-3 py-2">
-                      <span className="flex-1 text-sm font-medium">{item.productName}</span>
-                      <input
-                        type="number"
-                        value={draftQty[item.productId] ?? String(item.quantity)}
-                        onChange={(e) => setDraftQty(d => ({ ...d, [item.productId]: e.target.value }))}
-                        onBlur={(e) => {
-                          const parsed = parseInt(e.target.value);
-                          const qty = parsed > 0 ? parsed : 1;
-                          setDraftQty(d => { const next = { ...d }; delete next[item.productId]; return next; });
-                          updateCartQty(item.productId, qty);
-                        }}
-                        className="w-16 h-7 text-center text-xs border border-gray-300 rounded-md bg-white outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        min="1"
-                      />
-                      <button className="text-gray-300 hover:text-red-500" onClick={() => setCart(prev => prev.filter(c => c.productId !== item.productId))}>
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Note */}
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1.5 block">Note (optional)</label>
-              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Transfer reason or notes…" className="text-sm h-9 border-gray-300 focus:border-purple-500 focus:ring-purple-500/20" />
-            </div>
-
-            {/* Summary */}
-            {fromShopId && toShopId && cart.length > 0 && (
-              <div className="bg-purple-50 border border-purple-100 rounded px-3 py-2 text-xs text-purple-700">
-                Transfer <strong>{cart.reduce((s, c) => s + c.quantity, 0)}</strong> unit(s) across <strong>{cart.length}</strong> product(s) from{" "}
-                <strong>{shopOptions.find(s => s.id === fromShopId)?.name}</strong> →{" "}
-                <strong>{shopOptions.find(s => s.id === toShopId)?.name}</strong>
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 text-sm" onClick={resetForm}>Cancel</Button>
-              <Button
-                className="flex-1 text-sm bg-purple-600 hover:bg-purple-700"
-                onClick={() => createMutation.mutate()}
-                disabled={createMutation.isPending || !fromShopId || !toShopId || !cart.length}
-              >
-                {createMutation.isPending ? "Transferring…" : "Transfer Stock"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 }
