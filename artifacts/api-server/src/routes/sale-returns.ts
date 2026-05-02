@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, and, gte, lte, gt, asc, sql } from "drizzle-orm";
-import { saleReturns, saleReturnItems, sales, inventory, admins, attendants, customers, loyaltyTransactions, shops, customerWalletTransactions } from "@workspace/db";
+import { eq, and, gte, lte, gt, asc, inArray, sql } from "drizzle-orm";
+import { saleReturns, saleReturnItems, sales, inventory, admins, attendants, customers, loyaltyTransactions, shops, customerWalletTransactions, products, bundleItems } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -112,11 +112,36 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       }))
     ).returning();
 
-    // Restore inventory for each returned item and capture before/after quantities
+    // Restore inventory for each returned item (+ bundle components if applicable)
+    const sid = saleReturn.shop;
+
+    // Identify which returned products are bundles and fetch their components
+    const returnedProductIds = [...new Set(itemRows.map((r) => r.product).filter((x): x is number => !!x))];
+    const productTypeRows = returnedProductIds.length
+      ? await db.query.products.findMany({
+          where: inArray(products.id, returnedProductIds),
+          columns: { id: true, type: true },
+        })
+      : [];
+    const productTypeMap = new Map(productTypeRows.map((p) => [p.id, p.type ?? "product"]));
+
+    const bundleProductIds = returnedProductIds.filter((id) => productTypeMap.get(id) === "bundle");
+    const bundleComponentMap = new Map<number, Array<{ componentProduct: number; quantity: string }>>();
+    if (bundleProductIds.length) {
+      const bundleRows = await db.select({
+        product: bundleItems.product,
+        componentProduct: bundleItems.componentProduct,
+        quantity: bundleItems.quantity,
+      }).from(bundleItems).where(inArray(bundleItems.product, bundleProductIds));
+      for (const row of bundleRows) {
+        if (!bundleComponentMap.has(row.product!)) bundleComponentMap.set(row.product!, []);
+        bundleComponentMap.get(row.product!)!.push({ componentProduct: row.componentProduct!, quantity: String(row.quantity) });
+      }
+    }
+
     const enrichedItems = await Promise.all(
       itemRows.map(async (itemRow) => {
         const qty = parseFloat(itemRow.quantity);
-        const sid = saleReturn.shop;
 
         const existing = await db.query.inventory.findFirst({
           where: and(eq(inventory.product, itemRow.product), eq(inventory.shop, sid)),
@@ -125,13 +150,27 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         const qtyBefore = existing ? String(existing.quantity) : "0";
         const qtyAfter  = String(parseFloat(qtyBefore) + qty);
 
-        // Add returned stock back to inventory
+        // Restore the product's own inventory (or the bundle's "parent" row)
         await db.insert(inventory)
           .values({ product: itemRow.product, shop: sid, quantity: itemRow.quantity })
           .onConflictDoUpdate({
             target: [inventory.product, inventory.shop],
             set: { quantity: sql`${inventory.quantity} + ${qty}::numeric` },
           });
+
+        // If this is a bundle, also restore every component's inventory
+        if (productTypeMap.get(itemRow.product) === "bundle") {
+          const components = bundleComponentMap.get(itemRow.product) ?? [];
+          for (const comp of components) {
+            const compRestoreQty = qty * Number(comp.quantity);
+            await db.insert(inventory)
+              .values({ product: comp.componentProduct, shop: sid, quantity: String(compRestoreQty) })
+              .onConflictDoUpdate({
+                target: [inventory.product, inventory.shop],
+                set: { quantity: sql`${inventory.quantity} + ${compRestoreQty}::numeric` },
+              });
+          }
+        }
 
         return { ...itemRow, qtyBefore, qtyAfter };
       })
