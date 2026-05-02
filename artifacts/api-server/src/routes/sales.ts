@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, gte, lte, sql, inArray, ilike, or } from "drizzle-orm";
+import { eq, and, gte, lte, sql, inArray, ilike, or, asc } from "drizzle-orm";
 import { sales, saleItems, salePayments, saleReturns, saleReturnItems, products, inventory, customers, customerWalletTransactions, paymentMethods, batches, saleItemBatches, shops, loyaltyTransactions, cashflows, bundleItems } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -1157,14 +1157,28 @@ async function restoreSaleInventory(saleId: number): Promise<void> {
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params["id"]);
-    const existing = await db.query.sales.findFirst({ where: eq(sales.id, id), columns: { shop: true, status: true, customer: true, outstandingBalance: true, totalAmount: true, saleNo: true, receiptNo: true } });
+    const existing = await db.query.sales.findFirst({
+      where: eq(sales.id, id),
+      columns: { shop: true, status: true, customer: true, outstandingBalance: true, totalAmount: true, totalWithDiscount: true, amountPaid: true, saleNo: true, receiptNo: true },
+    });
     if (!existing) throw notFound("Sale not found");
     await assertShopOwnership(req, existing.shop);
 
-    // Restore product inventory before deleting
-    if (existing.status !== "voided") await restoreSaleInventory(id);
+    // Fetch all returns for this sale BEFORE deleting (needed for side-effect reversal)
+    const existingReturns = await db.query.saleReturns.findMany({
+      where: eq(saleReturns.sale, id),
+      columns: { returnNo: true, refundAmount: true },
+    });
 
-    // Reduce customer outstanding balance by whatever was remaining
+    // ── Inventory ──────────────────────────────────────────────────────────────
+    // If the sale was returned, the return already restored inventory — don't
+    // double-restore. Only restore if it wasn't voided or returned.
+    if (existing.status !== "voided" && existing.status !== "returned") {
+      await restoreSaleInventory(id);
+    }
+
+    // ── Customer outstanding ───────────────────────────────────────────────────
+    // Reduce customer outstanding by whatever remained on this sale (0 if returned).
     if (existing.customer && parseFloat(String(existing.outstandingBalance ?? "0")) > 0) {
       const prev = parseFloat(String(existing.outstandingBalance));
       await db.update(customers)
@@ -1172,23 +1186,81 @@ router.delete("/:id", requireAdmin, async (req, res, next) => {
         .where(eq(customers.id, existing.customer));
     }
 
-    // Delete saleReturnItems that reference this sale's items (no cascade on saleItem FK)
+    // ── Reverse return side-effects on other sales ─────────────────────────────
+    // When a return was processed, any paid credit (amountPaid on this sale) was
+    // transferred to reduce OTHER credit sales' outstandingBalance. We must reverse
+    // those offsets so the other sales are correct after this sale is deleted.
+    if (existingReturns.length > 0 && existing.customer) {
+      const totalRefunded = existingReturns.reduce((s, r) => s + parseFloat(String(r.refundAmount ?? "0")), 0);
+      const saleTotal = parseFloat(String(existing.totalWithDiscount || existing.totalAmount || "0"));
+      // Outstanding that was directly cancelled by returns (capped at sale total)
+      const totalOutstandingCancelled = Math.min(totalRefunded, saleTotal);
+      // Credit transferred to other sales = the paid portion re-routed during returns
+      const totalCreditTransferred = Math.max(0, totalRefunded - totalOutstandingCancelled);
+
+      if (totalCreditTransferred > 0) {
+        // Find other credit/cashed sales for this customer that had amountPaid incremented
+        // by this return's creditToApply, and reverse those adjustments.
+        const otherSales = await db.query.sales.findMany({
+          where: and(
+            eq(sales.customer, existing.customer),
+            inArray(sales.status, ["credit", "cashed"]),
+          ),
+          columns: { id: true, outstandingBalance: true, amountPaid: true, status: true },
+          orderBy: [asc(sales.createdAt)],
+        });
+
+        let remaining = totalCreditTransferred;
+        for (const other of otherSales) {
+          if (other.id === id || remaining <= 0) continue;
+          const paid = parseFloat(String(other.amountPaid ?? "0"));
+          if (paid <= 0) continue;
+          const reversal = Math.min(remaining, paid);
+          const newOutstanding = parseFloat(String(other.outstandingBalance ?? "0")) + reversal;
+          const newAmountPaid = Math.max(0, paid - reversal);
+          await db.update(sales).set({
+            outstandingBalance: String(newOutstanding.toFixed(2)),
+            amountPaid: String(newAmountPaid.toFixed(2)),
+            // Restore 'credit' status if this sale was marked 'cashed' by the offset
+            ...(other.status === "cashed" && newOutstanding > 0 ? { status: "credit" } : {}),
+          }).where(eq(sales.id, other.id));
+          // Restore customer aggregate outstanding for the reversed amount
+          await db.update(customers)
+            .set({ outstandingBalance: sql`${customers.outstandingBalance}::numeric + ${reversal}::numeric` })
+            .where(eq(customers.id, existing.customer));
+          remaining -= reversal;
+        }
+      }
+
+      // Delete return ledger entries (type='return', paymentNo = returnNo)
+      // These have no saleId so they aren't caught by the saleId-based delete below.
+      const returnNos = existingReturns.map(r => r.returnNo).filter((n): n is string => !!n);
+      if (returnNos.length > 0) {
+        await db.delete(customerWalletTransactions).where(
+          and(
+            inArray(customerWalletTransactions.paymentNo, returnNos),
+            eq(customerWalletTransactions.type, "return"),
+          )
+        );
+      }
+    }
+
+    // ── Delete return records ──────────────────────────────────────────────────
+    // saleReturnItems reference saleItem rows (no cascade), delete those first
     const itemRows = await db.select({ id: saleItems.id }).from(saleItems).where(eq(saleItems.sale, id));
     if (itemRows.length > 0) {
       await db.delete(saleReturnItems).where(inArray(saleReturnItems.saleItem, itemRows.map(r => r.id)));
     }
-    // Delete saleReturns for this sale (no cascade on sale FK)
     await db.delete(saleReturns).where(eq(saleReturns.sale, id));
 
-    // Delete customer wallet statement entries that were created when paying off this sale's debt
+    // Delete customer wallet statement entries linked to this sale (debt payments, etc.)
     await db.delete(customerWalletTransactions).where(eq(customerWalletTransactions.saleId, id));
 
-    // Hard-delete the sale (saleItems + salePayments cascade automatically)
+    // ── Hard-delete the sale (saleItems + salePayments cascade automatically) ──
     const [deleted] = await db.delete(sales).where(eq(sales.id, id)).returning();
     if (!deleted) throw notFound("Sale not found");
 
-    // Remove all auto-recorded cashflow entries for this sale so the cashflow
-    // page stays clean (no orphaned "Sales" or "Sale Return" entries).
+    // Remove auto-recorded cashflow entries so the cashflow page stays clean
     if (existing.receiptNo) {
       await db.delete(cashflows).where(
         or(
