@@ -424,53 +424,110 @@ export default function CustomerOverview() {
   };
 
   // Download customer statement as CSV
-  const downloadStatementCSV = () => {
+  const downloadStatementCSV = async () => {
     const customerName = customerOverviewData.name;
+    const customerPhone = (customerData as any)?.phonenumber || (customerData as any)?.phone || '';
+    const customerEmail = (customerData as any)?.email || '';
     const currentDate = new Date().toLocaleDateString();
-    
-    if (!customerPayments || customerPayments.length === 0) {
-      toast({
-        title: "No Payment History",
-        description: "No payment history available for this customer",
-        variant: "destructive",
+
+    // Fetch shop name
+    let shopName = 'Shop';
+    const sid = String(customerData?.shop || shopIdForQuery || '');
+    if (sid) {
+      try {
+        const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
+        const res = await fetch(ENDPOINTS.shop.getAll, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const r = await res.json();
+          const list: any[] = Array.isArray(r?.data) ? r.data : (Array.isArray(r) ? r : []);
+          const found = list.find((s: any) => String(s.id) === sid);
+          if (found?.name) shopName = found.name;
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Build merged statement rows (same logic as Statement tab and PDF)
+    type CsvRow = { ts: number; date: string; description: string; ref: string; attendant: string; debit: number; credit: number; };
+    const rows: CsvRow[] = [];
+
+    (salesData?.data || []).forEach((sale: any) => {
+      const isCredit = sale.status === 'credit' || Number(sale.outstandingBalance) > 0;
+      if (!isCredit) return;
+      const ts = new Date(sale.createdAt || sale.saleDate).getTime();
+      const saleItems = sale.saleItems || sale.items || [];
+      const productNames = saleItems.map((i: any) => i.product?.name || i.productName || i.name || 'Item').join(', ');
+      rows.push({
+        ts,
+        date: new Date(ts).toLocaleDateString(),
+        description: `Credit Sale${productNames ? ': ' + productNames : ''}`,
+        ref: sale.receiptNo || sale.receiptno || `#${sale.id}`,
+        attendant: sale.attendant?.username || '',
+        debit: Number(sale.outstandingBalance) || Number(sale.totalWithDiscount || sale.totalAmount || 0),
+        credit: 0,
       });
+    });
+
+    (customerPayments as any[]).forEach((p: any) => {
+      const ts = new Date(p.createdAt).getTime();
+      const pType = (p.type || '').toLowerCase();
+      const isDebit = pType === 'withdraw';
+      const descMap: Record<string, string> = { deposit: 'Wallet Deposit', withdraw: 'Wallet Withdrawal', payment: 'Debt Payment', refund: 'Refund' };
+      const amount = Number(p.amount ?? p.totalAmount ?? 0);
+      rows.push({
+        ts,
+        date: new Date(ts).toLocaleDateString(),
+        description: descMap[pType] || 'Transaction',
+        ref: p.paymentNo || `#${p.id}`,
+        attendant: p.handledBy ? 'Staff' : 'System',
+        debit: isDebit ? amount : 0,
+        credit: isDebit ? 0 : amount,
+      });
+    });
+
+    if (rows.length === 0) {
+      toast({ title: "No Data", description: "No transactions found for this customer.", variant: "destructive" });
       return;
     }
-    
-    // Prepare CSV data
-    let csvContent = `Customer Statement\n`;
-    csvContent += `Customer: ${customerName}\n`;
-    csvContent += `Generated: ${currentDate}\n`;
-    csvContent += `\n`;
-    csvContent += `Date,Type,Amount,Receipt No,Attendant,Balance\n`;
-    
-    customerPayments.forEach((payment: any) => {
-      const date = new Date(payment.createdAt).toLocaleDateString();
-      const type = payment.type.charAt(0).toUpperCase() + payment.type.slice(1);
-      const amount = Number(payment.amount ?? payment.totalAmount ?? 0);
-      const receiptNo = payment.paymentNo || 'N/A';
-      const attendant = payment.attendantId?.username || (payment.handledBy ? 'Staff' : 'System');
-      const balance = Number(payment.balance ?? payment.customerId?.wallet ?? 0);
-      
-      const sign = payment.type === 'withdraw' ? '-' : '+';
-      csvContent += `${date},"${type}",${sign}${amount.toFixed(2)},"${receiptNo}","${attendant}",${balance.toFixed(2)}\n`;
+
+    rows.sort((a, b) => a.ts - b.ts);
+
+    let runningBalance = 0;
+    const q = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
+
+    // Header block
+    let csv = `${shopName} — Customer Account Statement\n`;
+    csv += `Customer:,${q(customerName)}\n`;
+    if (customerPhone) csv += `Phone:,${q(customerPhone)}\n`;
+    if (customerEmail) csv += `Email:,${q(customerEmail)}\n`;
+    csv += `Statement Date:,${q(currentDate)}\n`;
+    csv += `\n`;
+
+    // Column headers
+    csv += `Date,Description,Reference,Attendant,Debit (${currency}),Credit (${currency}),Balance (${currency})\n`;
+
+    rows.forEach(row => {
+      runningBalance += row.debit - row.credit;
+      const balanceStr = runningBalance > 0 ? `${runningBalance.toFixed(2)} DR` : runningBalance < 0 ? `${Math.abs(runningBalance).toFixed(2)} CR` : '0.00';
+      csv += `${q(row.date)},${q(row.description)},${q(row.ref)},${q(row.attendant)},`;
+      csv += `${row.debit > 0 ? row.debit.toFixed(2) : ''},${row.credit > 0 ? row.credit.toFixed(2) : ''},${q(balanceStr)}\n`;
     });
-    
-    // Create and download file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    // Summary footer
+    const totalDebits = rows.reduce((s, r) => s + r.debit, 0);
+    const totalCredits = rows.reduce((s, r) => s + r.credit, 0);
+    const closing = runningBalance > 0 ? `${runningBalance.toFixed(2)} DR` : `${Math.abs(runningBalance).toFixed(2)} CR`;
+    csv += `\n`;
+    csv += `Totals,,,,${totalDebits.toFixed(2)},${totalCredits.toFixed(2)},${q(closing)}\n`;
+
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${customerName.replace(/\s+/g, '_')}_Statement_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
+    link.href = URL.createObjectURL(blob);
+    link.download = `${customerName.replace(/\s+/g, '_')}_Statement_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    toast({
-      title: "CSV Downloaded",
-      description: "Customer statement CSV has been downloaded successfully",
-    });
+    toast({ title: "CSV Downloaded", description: "Customer statement downloaded successfully." });
   };
 
   // Download customer statement as PDF
