@@ -50,6 +50,7 @@ export default function ShopDetails() {
 
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [postDeleteRoute, setPostDeleteRoute] = useState<"/shops" | "/onboarding">("/shops");
   const [deleteResult, setDeleteResult] = useState<{
     type: "data" | "shop";
     success: boolean;
@@ -284,6 +285,15 @@ export default function ShopDetails() {
         try {
           await apiCall(ENDPOINTS.shop.getById(id), { method: "DELETE" });
           queryClient.resetQueries();
+          // Check immediately whether any shops remain
+          try {
+            const res = await apiCall(ENDPOINTS.shop.getAll, { method: "GET" });
+            const json = await res.json();
+            const remaining = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
+            setPostDeleteRoute(remaining.length === 0 ? "/onboarding" : "/shops");
+          } catch {
+            setPostDeleteRoute("/shops");
+          }
           setDeleteResult({ type: "shop", success: true, message: "The shop and all its data have been permanently deleted." });
         } catch {
           setDeleteResult({ type: "shop", success: false, message: "Something went wrong while deleting the shop. Please try again." });
@@ -802,7 +812,7 @@ export default function ShopDetails() {
           if (!open) {
             const wasShopDeleted = deleteResult?.type === "shop" && deleteResult.success;
             setDeleteResult(null);
-            if (wasShopDeleted) setLocation("/shops");
+            if (wasShopDeleted) setLocation(postDeleteRoute);
           }
         }}
       >
@@ -832,10 +842,12 @@ export default function ShopDetails() {
               onClick={() => {
                 const wasShopDeleted = deleteResult?.type === "shop" && deleteResult.success;
                 setDeleteResult(null);
-                if (wasShopDeleted) setLocation("/shops");
+                if (wasShopDeleted) setLocation(postDeleteRoute);
               }}
             >
-              {deleteResult?.type === "shop" && deleteResult?.success ? "Back to Shops" : "OK"}
+              {deleteResult?.type === "shop" && deleteResult?.success
+                ? postDeleteRoute === "/onboarding" ? "Create a Shop" : "Back to Shops"
+                : "OK"}
             </Button>
           </DialogFooter>
         </DialogContent>
