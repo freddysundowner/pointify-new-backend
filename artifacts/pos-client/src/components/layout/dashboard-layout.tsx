@@ -54,7 +54,7 @@ function SidebarContent({ location, navSections, isSubscriptionExpired, onNav }:
       </div>
 
       {/* Nav */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
         {isSubscriptionExpired ? (
           <div className="space-y-2">
             <div className="bg-red-500/20 border border-red-400/30 rounded-xl p-3 text-xs text-red-200">
