@@ -1,368 +1,195 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
-import { useGoBack } from "@/hooks/useGoBack";
-import { extractId } from "@/lib/utils";
-import DashboardLayout from "@/components/layout/dashboard-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Calendar, Filter, RefreshCw, Download } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft, RefreshCw, Package, Plus, Minus } from "lucide-react";
+import DashboardLayout from "@/components/layout/dashboard-layout";
+import { apiCall } from "@/lib/api-config";
+import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store";
-import { ENDPOINTS } from "@/lib/api-endpoints";
+import { useGoBack } from "@/hooks/useGoBack";
+
+const fmt = (n: any) => parseFloat(String(n ?? 0));
+
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) +
+  " " + new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 export default function AdjustmentHistoryPage() {
-  const [location, setLocation] = useLocation();
-  const { toast } = useToast();
+  const [location] = useLocation();
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
-  
-  // Get product ID and name from URL params
-  const pathParts = location.split('/');
-  const productId = pathParts[pathParts.indexOf('adjustment-history') + 1];
-  
-  // State
-  const [product, setProduct] = useState<any>(null);
-  const [adjustmentHistory, setAdjustmentHistory] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [filterType, setFilterType] = useState("all");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  
-  // Check if user is an attendant
-  const isAttendant = location.startsWith("/attendant/");
-  
-  // Get effective shop ID
-  const getShopId = () => {
-    if (selectedShopId) return selectedShopId;
-
-    if (isAttendant) {
-      const attendantData = localStorage.getItem("attendantData");
-      if (attendantData) {
-        try {
-          const parsed = JSON.parse(attendantData);
-          return String(extractId(parsed.shopId) ?? '');
-        } catch {
-          return null;
-        }
-      }
-      return null;
-    }
-
-    // For admin users, get from localStorage admin data
-    const adminData = localStorage.getItem("adminData");
-    if (adminData) {
-      try {
-        const parsed = JSON.parse(adminData);
-        return parsed.primaryShop?._id || parsed.primaryShop;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  };
-
-  // Fetch product details
-  const fetchProduct = async () => {
-    try {
-      const response = await fetch(ENDPOINTS.products.getById(productId), {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken') || localStorage.getItem('attendantToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setProduct(data);
-      }
-    } catch (error) {
-      console.error('Error fetching product:', error);
-    }
-  };
-
-  // Fetch adjustment history
-  const fetchAdjustmentHistory = async () => {
-    setIsLoading(true);
-    try {
-      const shopId = getShopId();
-      
-      // Calculate date range - use provided dates or default to last 30 days
-      let startDate, endDate;
-      if (fromDate && toDate) {
-        startDate = fromDate;
-        endDate = toDate;
-      } else {
-        // Default to last 30 days if no dates provided
-        endDate = new Date().toISOString().split('T')[0];
-        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      }
-      
-      const queryParams = new URLSearchParams({
-        shopId: shopId,
-        fromDate: startDate,
-        toDate: endDate,
-        page: "1",
-        limit: "100",
-        ...(filterType !== "all" && { type: filterType })
-      });
-      
-      const response = await fetch(`${ENDPOINTS.products.adjustHistory(productId)}?${queryParams.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken') || localStorage.getItem('attendantToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch adjustment history');
-      }
-      
-      const data = await response.json();
-      console.log('Adjustment history data:', data);
-      
-      // Handle different response structures
-      let historyData = data.data || data.adjustments || data || [];
-      if (!Array.isArray(historyData)) {
-        historyData = [];
-      }
-      
-      // Data is filtered by API when type is specified, no need for client-side processing
-      
-      setAdjustmentHistory(historyData);
-    } catch (error) {
-      console.error('Error fetching adjustment history:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load adjustment history",
-        variant: "destructive",
-      });
-      setAdjustmentHistory([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Export to CSV
-  const exportToCsv = () => {
-    const headers = ['Date', 'Type', 'Before', 'After', 'Change'];
-    const csvData = adjustmentHistory.map(adjustment => {
-      const before = adjustment.before || adjustment.previousQuantity || 0;
-      const after = adjustment.after || adjustment.newQuantity || adjustment.currentQuantity || 0;
-      const change = after - before;
-      const type = change > 0 ? 'Stock In' : 'Stock Out';
-      const date = adjustment.date || adjustment.createdAt || adjustment.timestamp 
-        ? new Date(adjustment.date || adjustment.createdAt || adjustment.timestamp).toLocaleString()
-        : 'N/A';
-      
-      return [date, type, before, after, Math.abs(change)];
-    });
-
-    const csvContent = [headers, ...csvData]
-      .map(row => row.map(field => `"${field}"`).join(','))
-      .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${product?.name || 'product'}_adjustment_history_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-    
-    toast({
-      title: "Export Complete",
-      description: "Adjustment history exported to CSV",
-    });
-  };
-
-  // Navigate back
   const goBack = useGoBack("/stock/products");
 
-  useEffect(() => {
-    if (productId) {
-      fetchProduct();
-      fetchAdjustmentHistory();
-    }
-  }, [productId, filterType, fromDate, toDate]);
+  const pathParts = location.split("/");
+  const productId = pathParts[pathParts.indexOf("adjustment-history") + 1];
+
+  const today = new Date().toISOString().split("T")[0];
+  const thirtyAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+
+  const [fromDate,    setFromDate]    = useState(thirtyAgo);
+  const [toDate,      setToDate]      = useState(today);
+  const [filterType,  setFilterType]  = useState("all");
+  const [page,        setPage]        = useState(1);
+  const limit = 20;
+
+  const shopId = selectedShopId || "";
+
+  const { data: productResp } = useQuery({
+    queryKey: ["product", productId],
+    queryFn: async () => (await apiCall(ENDPOINTS.products.getById(productId))).json(),
+    enabled: !!productId,
+  });
+  const product = productResp?.data ?? productResp;
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["adj-history", productId, shopId, fromDate, toDate, filterType, page],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        shopId: String(shopId),
+        page: String(page),
+        limit: String(limit),
+        ...(filterType !== "all" && { type: filterType }),
+      });
+      return (await apiCall(`${ENDPOINTS.products.stockHistory(productId)}?${params}`)).json();
+    },
+    enabled: !!productId,
+    staleTime: 0,
+  });
+
+  const records: any[] = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+  const totalPages = data?.meta?.totalPages ?? 1;
+  const total      = data?.meta?.total ?? records.length;
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button variant="outline" onClick={goBack}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Products
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Adjustment History</h1>
-              <p className="text-gray-600">
-                Stock adjustment history for {product?.name || 'Product'}
-              </p>
-            </div>
+      <div className="flex flex-col h-full">
+
+        {/* ── Top bar ── */}
+        <div className="flex items-center gap-3 px-4 py-2.5 border-b bg-white flex-wrap">
+          <Button variant="ghost" size="sm" onClick={goBack} className="h-8 px-2 gap-1 text-xs">
+            <ArrowLeft className="h-3.5 w-3.5" /> Back
+          </Button>
+
+          <div className="leading-tight">
+            <span className="font-semibold text-sm">Adjustment History</span>
+            {product?.name && (
+              <span className="ml-1.5 text-xs text-gray-400">— {product.name}</span>
+            )}
           </div>
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" onClick={fetchAdjustmentHistory} disabled={isLoading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <Button variant="outline" onClick={exportToCsv} disabled={adjustmentHistory.length === 0}>
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
+
+          {/* Filters */}
+          <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+            <Select value={filterType} onValueChange={v => { setFilterType(v); setPage(1); }}>
+              <SelectTrigger className="h-8 text-xs w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="add">Stock In</SelectItem>
+                <SelectItem value="remove">Stock Out</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1); }} className="h-8 text-xs w-34" />
+            <span className="text-gray-400 text-xs">→</span>
+            <Input type="date" value={toDate}   onChange={e => { setToDate(e.target.value);   setPage(1); }} className="h-8 text-xs w-34" />
+
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => refetch()}>
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
             </Button>
           </div>
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">From Date</label>
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">To Date</label>
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Filter by Type</label>
-                <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="add">Stock In (Add)</SelectItem>
-                    <SelectItem value="remove">Stock Out (Remove)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        {/* ── Summary strip ── */}
+        <div className="flex items-center gap-4 px-4 py-1.5 bg-gray-50 border-b text-xs text-gray-500">
+          <span><span className="font-semibold text-gray-800">{total}</span> records</span>
+          {filterType !== "all" && (
+            <span className="capitalize text-indigo-600 font-medium">{filterType === "add" ? "Stock In only" : "Stock Out only"}</span>
+          )}
+        </div>
 
+        {/* ── Table ── */}
+        <div className="flex-1 overflow-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-40 text-gray-400 text-sm gap-2">
+              <RefreshCw className="h-4 w-4 animate-spin" /> Loading…
             </div>
-          </CardContent>
-        </Card>
+          ) : records.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 text-gray-400 gap-2">
+              <Package className="h-8 w-8 opacity-40" />
+              <span className="text-sm">No adjustment records found</span>
+              <span className="text-xs">Try a wider date range or different filter</span>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
+                  <th className="text-left px-4 py-2 font-medium">Date & Time</th>
+                  <th className="text-left px-3 py-2 font-medium">Type</th>
+                  <th className="text-right px-3 py-2 font-medium">Before</th>
+                  <th className="text-right px-3 py-2 font-medium">Change</th>
+                  <th className="text-right px-3 py-2 font-medium">After</th>
+                  <th className="text-left px-3 py-2 font-medium">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {records.map((r: any, i: number) => {
+                  const isAdd = r.type === "add" || (r.kind !== "adjustment" && fmt(r.quantityAdjusted ?? 0) > 0);
+                  const qty   = fmt(r.quantityAdjusted ?? Math.abs(fmt(r.after) - fmt(r.before)));
+                  return (
+                    <tr key={r.id ?? i} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">
+                        {fmtDate(r.createdAt ?? r.date)}
+                      </td>
+                      <td className="px-3 py-2">
+                        {isAdd ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200">
+                            <Plus className="h-3 w-3" /> Stock In
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
+                            <Minus className="h-3 w-3" /> Stock Out
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs text-gray-500">
+                        {fmt(r.quantityBefore ?? r.before ?? 0)}
+                      </td>
+                      <td className={`px-3 py-2 text-right font-semibold ${isAdd ? "text-teal-600" : "text-orange-600"}`}>
+                        {isAdd ? "+" : "-"}{qty}
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs text-gray-700 font-medium">
+                        {fmt(r.quantityAfter ?? r.after ?? 0)}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-400">
+                        {r.reason || "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
 
-        {/* Product Info */}
-        {product && (
-          <Card>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Product Name</p>
-                  <p className="font-semibold">{product.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Current Stock</p>
-                  <p className="font-semibold">{product.quantity || 0}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Category</p>
-                  <p className="font-semibold">{product.productCategoryId?.name || 'Uncategorized'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Type</p>
-                  <Badge variant={product.virtual ? "secondary" : "default"}>
-                    {product.virtual ? 'Service' : 'Physical'}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* ── Pagination ── */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-2 border-t bg-white text-xs text-gray-500">
+            <span>{total} records · page {page} of {totalPages}</span>
+            <div className="flex gap-1">
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>
+                ‹ Prev
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+                Next ›
+              </Button>
+            </div>
+          </div>
         )}
 
-        {/* Adjustment History Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Adjustment Records</span>
-              <Badge variant="outline">{adjustmentHistory.length} records</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center text-gray-500 py-12">
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                  <span>Loading adjustment history...</span>
-                </div>
-              </div>
-            ) : adjustmentHistory.length === 0 ? (
-              <div className="text-center text-gray-500 py-12">
-                <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">No adjustment history found</p>
-                <p className="text-sm">Try adjusting the date range or filters</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th className="text-left p-3 font-medium text-gray-700">Date</th>
-                      <th className="text-left p-3 font-medium text-gray-700">Type</th>
-                      <th className="text-left p-3 font-medium text-gray-700">Before</th>
-                      <th className="text-left p-3 font-medium text-gray-700">After</th>
-                      <th className="text-left p-3 font-medium text-gray-700">Change</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {adjustmentHistory.map((adjustment: any, index: number) => {
-                      const before = adjustment.before || adjustment.previousQuantity || 0;
-                      const after = adjustment.after || adjustment.newQuantity || adjustment.currentQuantity || 0;
-                      const change = after - before;
-                      const type = change > 0 ? 'Stock In' : 'Stock Out';
-                      const badgeVariant = change > 0 ? 'default' : 'destructive';
-                      
-                      return (
-                        <tr key={index} className="border-b hover:bg-gray-50">
-                          <td className="p-3 text-sm">
-                            {adjustment.date || adjustment.createdAt || adjustment.timestamp 
-                              ? new Date(adjustment.date || adjustment.createdAt || adjustment.timestamp).toLocaleString()
-                              : 'N/A'}
-                          </td>
-                          <td className="p-3 text-sm">
-                            <Badge variant={badgeVariant}>
-                              {type}
-                            </Badge>
-                          </td>
-                          <td className="p-3 text-sm">
-                            {before}
-                          </td>
-                          <td className="p-3 text-sm">
-                            {after}
-                          </td>
-                          <td className="p-3 text-sm">
-                            <span className={change > 0 ? 'text-green-600' : 'text-red-600'}>
-                              {change > 0 ? '+' : ''}{change}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   );
