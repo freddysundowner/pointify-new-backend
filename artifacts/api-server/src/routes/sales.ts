@@ -377,6 +377,63 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       }
     }
 
+    // ── Bundle component stock pre-flight (always enforced, before any DB writes) ──
+    if (!held) {
+      const allSaleProductIds = items.map((item: any) => Number(item.productId));
+      if (allSaleProductIds.length) {
+        const bundleTypeRows = await db.query.products.findMany({
+          where: and(inArray(products.id, allSaleProductIds), eq(products.type as any, 'bundle')),
+          columns: { id: true },
+        });
+        const bundleIds = bundleTypeRows.map((p) => p.id);
+        if (bundleIds.length) {
+          const compRows = await db.select({
+            product: bundleItems.product,
+            componentProduct: bundleItems.componentProduct,
+            quantity: bundleItems.quantity,
+            componentName: products.name,
+          }).from(bundleItems)
+            .leftJoin(products, eq(bundleItems.componentProduct, products.id))
+            .where(inArray(bundleItems.product, bundleIds));
+
+          // Collect all unique component product IDs and fetch their inventory in one query
+          const compProductIds = [...new Set(compRows.map((r) => r.componentProduct!).filter(Boolean))];
+          const compInventory = compProductIds.length
+            ? await db.query.inventory.findMany({
+                where: and(inArray(inventory.product, compProductIds), eq(inventory.shop, Number(shopId))),
+                columns: { product: true, quantity: true },
+              })
+            : [];
+          const compStockMap = new Map(compInventory.map((r) => [r.product!, parseFloat(String(r.quantity ?? "0"))]));
+
+          // Group components by bundle product
+          const compByBundle = new Map<number, typeof compRows>();
+          for (const row of compRows) {
+            if (!compByBundle.has(row.product!)) compByBundle.set(row.product!, []);
+            compByBundle.get(row.product!)!.push(row);
+          }
+
+          const bundleShortages: string[] = [];
+          for (const item of items) {
+            const pid = Number(item.productId);
+            if (!bundleIds.includes(pid)) continue;
+            const soldQty = Number(item.quantity ?? 1);
+            const components = compByBundle.get(pid) ?? [];
+            for (const comp of components) {
+              const needed = soldQty * Number(comp.quantity);
+              const available = compStockMap.get(comp.componentProduct!) ?? 0;
+              if (available < needed) {
+                bundleShortages.push(`"${comp.componentName ?? comp.componentProduct}" (need ${needed}, have ${available})`);
+              }
+            }
+          }
+          if (bundleShortages.length) {
+            throw badRequest(`Insufficient bundle component stock: ${bundleShortages.join('; ')}`);
+          }
+        }
+      }
+    }
+
     // ── Payment type label and cached method totals ─────────────────────────
     const paymentTypeLabel = held ? "cash"
       : resolvedPayments.length > 1 ? "split"

@@ -158,43 +158,62 @@ export default function ProductGrid({
   const [priceEntryProduct, setPriceEntryProduct] = useState<any>(null);
   const [priceEntryAmount, setPriceEntryAmount] = useState("");
 
+  // Returns true if bundle component stock is sufficient for newQty bundles.
+  // Shows a toast and returns false if any component is short.
+  const checkBundleComponentStock = (productId: string | number, newQty: number): boolean => {
+    const product = allProducts.find((p: any) => p.id === productId || p._id === productId);
+    if (!product || (product as any).type !== 'bundle') return true;
+    const bundleItemsList = (product as any).bundleItems;
+    if (!Array.isArray(bundleItemsList) || bundleItemsList.length === 0) return true;
+    const shortItems: string[] = [];
+    for (const bundleItem of bundleItemsList) {
+      const perBundle = parseFloat(String(bundleItem.quantity)) || 1;
+      const needed = perBundle * newQty;
+      const component = allProducts.find(
+        (p: any) => p.id === bundleItem.componentProduct || p._id === bundleItem.componentProduct
+      );
+      const available = component ? (parseFloat(String(component.quantity)) || 0) : 0;
+      if (available < needed) {
+        const name = bundleItem.componentName || (component as any)?.name || `Product #${bundleItem.componentProduct}`;
+        shortItems.push(`${name} (need ${needed}, have ${available})`);
+      }
+    }
+    if (shortItems.length > 0) {
+      toast({
+        title: "Insufficient Bundle Stock",
+        description: `Short on: ${shortItems.join('; ')}`,
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
+  };
+
   const handleAddToCart = (product: any) => {
     if (product.manageByPrice) {
       setPriceEntryAmount("");
       setPriceEntryProduct(product);
     } else {
-      // Bundle checks: stock validation + derive cost from components
       if (product.type === 'bundle' && Array.isArray(product.bundleItems) && product.bundleItems.length > 0) {
-        const shortItems: string[] = [];
-        let derivedBundleCost = 0;
+        const productId = product._id || product.id;
+        const currentCartQty = cartItems.find((ci) => ci.id === productId)?.quantity || 0;
 
+        // Block if adding one more would exceed component stock
+        if (!checkBundleComponentStock(productId, currentCartQty + 1)) return;
+
+        // Derive bundle cost from components for profit reporting / price floor
+        let derivedBundleCost = 0;
         for (const bundleItem of product.bundleItems) {
-          const needed = parseFloat(String(bundleItem.quantity)) || 1;
+          const perBundle = parseFloat(String(bundleItem.quantity)) || 1;
           const component = allProducts.find(
             (p: any) => p.id === bundleItem.componentProduct || p._id === bundleItem.componentProduct
           );
-          const available = component ? (parseFloat(String(component.quantity)) || 0) : 0;
-          if (available < needed) {
-            const name = bundleItem.componentName || component?.name || `Product #${bundleItem.componentProduct}`;
-            shortItems.push(`${name} (need ${needed}, have ${available})`);
-          }
-          // Accumulate component cost: buying price × qty needed
           const compBuyingPrice = component
             ? (parseFloat(String((component as any).buyingPrice || 0)) || 0)
             : 0;
-          derivedBundleCost += compBuyingPrice * needed;
+          derivedBundleCost += compBuyingPrice * perBundle;
         }
 
-        if (shortItems.length > 0) {
-          toast({
-            title: "Insufficient Bundle Stock",
-            description: `Short on: ${shortItems.join('; ')}`,
-            variant: "destructive",
-          });
-          return;
-        }
-
-        // Inject the derived cost so useCart stores it as costPrice (price floor)
         onAddToCart({ ...product, buyingPrice: derivedBundleCost });
         return;
       }
@@ -1438,6 +1457,7 @@ export default function ProductGrid({
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
+                                  if (!checkBundleComponentStock(item.id, item.quantity + 1)) return;
                                   const productData = allProducts.find(p => p._id === item.id || p.id === item.id);
                                   onUpdateQuantity(item.id, item.quantity + 1, productData);
                                 }}
@@ -1538,6 +1558,7 @@ export default function ProductGrid({
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
+                                  if (!checkBundleComponentStock(item.id, item.quantity + 1)) return;
                                   const productData = allProducts.find(p => p._id === item.id || p.id === item.id);
                                   onUpdateQuantity(item.id, item.quantity + 1, productData);
                                 }}
