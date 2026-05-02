@@ -920,11 +920,6 @@ export default function ProductGrid({
       await createTransactionMutation.mutateAsync(transactionData);
       if (isHold) {
         setShowHoldSuccessDialog(true);
-      } else if (selectedPaymentMethod === "credit") {
-        showAlert({
-          title: "Credit Sale Created",
-          description: `Credit sale created for ${selectedCustomer?.name || 'customer'} due ${creditDueDate}`,
-        });
       }
       // Receipt handling and cleanup is now done in mutation's onSuccess callback
     } catch (error: any) {
