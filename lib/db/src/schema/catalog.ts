@@ -67,6 +67,10 @@ export const products = pgTable(
     // product | bundle | virtual | service
     type: text("product_type").notNull().default("product"),
 
+    // If this product was created as a copy during a stock transfer, this holds
+    // the ID of the original source product. Used for future transfer lookups.
+    sourceProductId: integer("source_product_id").references((): any => products.id, { onDelete: "set null" }),
+
     isDeleted: boolean("is_deleted").notNull().default(false),
     manageByPrice: boolean("manage_by_price").notNull().default(false),
     isTaxable: boolean("is_taxable").notNull().default(false),

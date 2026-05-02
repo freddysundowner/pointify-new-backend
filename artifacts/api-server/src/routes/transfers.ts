@@ -157,49 +157,67 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         });
         if (!srcProd) throw badRequest(`Source product #${item.productId} not found`);
 
-        // Try to find an existing product in the destination shop
+        // ── Find or create destination product ───────────────────────────────
+        // Priority:
+        //   1. A product in the destination shop whose sourceProductId = source ID
+        //      (was previously created by a transfer from the same source product)
+        //   2. A product in the destination shop with the same name (fallback)
+        //   3. Create a new independent copy owned by the destination shop
         let destProductId: number;
-        const destMatch = await db.query.products.findFirst({
+
+        const bySourceId = await db.query.products.findFirst({
           where: and(
-            eq(products.shop, Number(toShopId)),
-            eq(products.isDeleted, false),
-            srcProd.barcode
-              ? eq(products.barcode, srcProd.barcode)
-              : eq(products.name,    srcProd.name)
+            eq(products.shop,            Number(toShopId)),
+            eq(products.sourceProductId, item.productId),
+            eq(products.isDeleted,       false),
           ),
           columns: { id: true },
         });
 
-        if (destMatch) {
-          destProductId = destMatch.id;
+        if (bySourceId) {
+          destProductId = bySourceId.id;
         } else {
-          // Create an independent copy owned by the destination shop
-          const [newProd] = await db.insert(products).values({
-            name:           srcProd.name,
-            buyingPrice:    srcProd.buyingPrice,
-            sellingPrice:   srcProd.sellingPrice,
-            wholesalePrice: srcProd.wholesalePrice,
-            dealerPrice:    srcProd.dealerPrice,
-            minSellingPrice:srcProd.minSellingPrice,
-            maxDiscount:    srcProd.maxDiscount,
-            category:       srcProd.category,
-            measureUnit:    srcProd.measureUnit,
-            manufacturer:   srcProd.manufacturer,
-            supplier:       srcProd.supplier,
-            shop:           Number(toShopId),
-            description:    srcProd.description,
-            thumbnailUrl:   srcProd.thumbnailUrl,
-            images:         srcProd.images,
-            barcode:        srcProd.barcode,
-            serialNumber:   srcProd.serialNumber,
-            // Bundles are shop-specific; the copy lands as a plain product
-            type:           srcProd.type === "bundle" ? "product" : srcProd.type,
-            isDeleted:      false,
-            manageByPrice:  srcProd.manageByPrice,
-            isTaxable:      srcProd.isTaxable,
-            expiryDate:     srcProd.expiryDate,
-          }).returning();
-          destProductId = newProd.id;
+          const byName = await db.query.products.findFirst({
+            where: and(
+              eq(products.shop,      Number(toShopId)),
+              eq(products.name,      srcProd.name),
+              eq(products.isDeleted, false),
+            ),
+            columns: { id: true },
+          });
+
+          if (byName) {
+            destProductId = byName.id;
+          } else {
+            // Create an independent copy owned by the destination shop
+            const [newProd] = await db.insert(products).values({
+              name:            srcProd.name,
+              buyingPrice:     srcProd.buyingPrice,
+              sellingPrice:    srcProd.sellingPrice,
+              wholesalePrice:  srcProd.wholesalePrice,
+              dealerPrice:     srcProd.dealerPrice,
+              minSellingPrice: srcProd.minSellingPrice,
+              maxDiscount:     srcProd.maxDiscount,
+              category:        srcProd.category,
+              measureUnit:     srcProd.measureUnit,
+              manufacturer:    srcProd.manufacturer,
+              supplier:        srcProd.supplier,
+              shop:            Number(toShopId),
+              description:     srcProd.description,
+              thumbnailUrl:    srcProd.thumbnailUrl,
+              images:          srcProd.images,
+              barcode:         srcProd.barcode,
+              serialNumber:    srcProd.serialNumber,
+              // Bundles are shop-specific; copies land as plain products
+              type:            srcProd.type === "bundle" ? "product" : srcProd.type,
+              isDeleted:       false,
+              manageByPrice:   srcProd.manageByPrice,
+              isTaxable:       srcProd.isTaxable,
+              expiryDate:      srcProd.expiryDate,
+              sourceProductId: item.productId,
+            }).returning();
+            destProductId = newProd.id;
+          }
         }
 
         return { ...item, srcProductId: item.productId, destProductId };
