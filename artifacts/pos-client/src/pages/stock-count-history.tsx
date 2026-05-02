@@ -102,24 +102,27 @@ export default function StockCountHistoryPage() {
       })).filter(s => s.stockCountItems.length > 0)
     : allSessions;
 
-  // ── Group by calendar date ───────────────────────────────────────────────
+  // ── Group by calendar date + conductedBy ────────────────────────────────
   const groupMap = new Map<string, StockCountSession[]>();
   for (const s of filteredSessions) {
-    const key = toDateKey(s.createdAt);
+    const key = `${toDateKey(s.createdAt)}|${s.conductedBy ?? "admin"}`;
     if (!groupMap.has(key)) groupMap.set(key, []);
     groupMap.get(key)!.push(s);
   }
 
   const dateGroups: DateGroup[] = Array.from(groupMap.entries())
-    .sort(([a], [b]) => b.localeCompare(a))   // newest date first
-    .map(([dateKey, sessions]) => ({
-      dateKey,
-      label: formatDateLabel(dateKey),
-      sessions,
-      totalItems:    sessions.reduce((s, c) => s + c.stockCountItems.length, 0),
-      totalVariance: sessions.reduce((s, c) =>
-        s + c.stockCountItems.reduce((ss, i) => ss + fmt(i.variance), 0), 0),
-    }));
+    .sort(([a], [b]) => b.localeCompare(a))   // newest first
+    .map(([groupKey, sessions]) => {
+      const dateKey = groupKey.split("|")[0];
+      return {
+        dateKey: groupKey,          // use full key as unique identifier
+        label: formatDateLabel(dateKey),
+        sessions,
+        totalItems:    sessions.reduce((s, c) => s + c.stockCountItems.length, 0),
+        totalVariance: sessions.reduce((s, c) =>
+          s + c.stockCountItems.reduce((ss, i) => ss + fmt(i.variance), 0), 0),
+      };
+    });
 
   // ── Summary totals ───────────────────────────────────────────────────────
   const totalSessions  = filteredSessions.length;
