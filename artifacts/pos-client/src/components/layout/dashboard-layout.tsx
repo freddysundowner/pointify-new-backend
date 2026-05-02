@@ -243,22 +243,24 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
 
       {/* Top Header */}
       <div className={`fixed top-0 w-full z-20 bg-white shadow-sm border-b ${!isAttendantRoute ? "lg:pl-60" : ""}`}>
-        <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center justify-between px-3 lg:px-4 py-2.5 lg:py-3">
           <div className="flex items-center gap-2">
-            {!isAttendantRoute && (
+            {isAttendantRoute && (
               <Button variant="ghost" size="sm" onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2">
                 <Menu className="w-5 h-5" />
               </Button>
             )}
-            {isDashboard && (
+            {isDashboard ? (
               <div>
-                <h1 className="text-base font-bold text-gray-900 leading-none">Welcome, {admin?.username}</h1>
+                <h1 className="text-sm font-bold text-gray-900 leading-none">Welcome, {admin?.username}</h1>
                 <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
                   <span>{formatDate(currentTime)}</span>
                   <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatTime(currentTime)}</span>
                 </div>
               </div>
-            )}
+            ) : title ? (
+              <h1 className="text-sm font-semibold text-gray-900 lg:hidden">{title}</h1>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-2">

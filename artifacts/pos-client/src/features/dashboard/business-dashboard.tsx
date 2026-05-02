@@ -441,7 +441,7 @@ export default function BusinessDashboard() {
 
   return (
     <DashboardLayout title="Business Dashboard">
-      <div className="space-y-6 w-full mt-6">
+      <div className="space-y-3 md:space-y-6 w-full">
         
         {/* Subscription Expiration Alert */}
         {isSubscriptionExpired && showSubscriptionAlert && (
@@ -483,92 +483,39 @@ export default function BusinessDashboard() {
         
 
         
-        {/* Dashboard Header */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 md:p-6">
-          
-          {/* Mobile Compact Layout */}
-          <div className="block md:hidden space-y-4">
-            {/* Welcome & Time Row */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <Store className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-lg font-bold text-gray-900 dark:text-white">
-                    Welcome to Pointify
-                  </h1>
-                  <div className="flex items-center gap-1 text-gray-600 dark:text-gray-300">
-                    <Clock className="h-3 w-3" />
-                    <span className="text-sm font-medium">{formatTime(currentTime)}</span>
-                  </div>
-                </div>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={refreshDashboardData}
-                className="bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 px-3"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
+        {/* Mobile: compact shop strip */}
+        <div className="md:hidden flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2.5 shadow-sm">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Store className="h-3.5 w-3.5 text-purple-600" />
             </div>
-
-            {/* Date */}
-            <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
-              {formatDate(currentTime)}
-            </p>
-
-            {/* Controls Grid */}
-            <div className="grid grid-cols-1 gap-3">
-              {/* Current Shop */}
-              <div>
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">
-                  Current Shop
-                </label>
-                <Select value={selectedShopId || ""} onValueChange={handleShopSwitch}>
-                  <SelectTrigger className="w-full bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600">
+            <Select value={selectedShopId || ""} onValueChange={handleShopSwitch}>
+              <SelectTrigger className="h-auto border-0 shadow-none bg-transparent p-0 gap-1 focus:ring-0 focus-visible:ring-0">
+                <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                  {currentShopData?.name || "My Shop"}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {availableShops.map((shop) => (
+                  <SelectItem key={shop.id} value={shop.id}>
                     <div className="flex items-center gap-2">
                       <Store className="h-4 w-4 text-purple-500" />
-                      <div className="text-left flex-1">
-                        <div className="font-medium text-sm">{currentShopData?.name}</div>
-                        <div className="text-xs text-gray-500">{currentShopData?.location}</div>
-                      </div>
+                      <span>{shop.name}</span>
                     </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableShops.map((shop) => (
-                      <SelectItem key={shop.id} value={shop.id}>
-                        <div className="flex items-center gap-2">
-                          <Store className="h-4 w-4 text-purple-500" />
-                          <div>
-                            <div className="font-medium">{shop.name}</div>
-                            <div className="text-xs text-gray-500">{shop.type} • {shop.location}</div>
-                          </div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-
-
-            </div>
-
-            {/* Status Indicators */}
-            {selectedShopId !== "main-store" && (
-              <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs">
-                  <Store className="h-3 w-3 mr-1" />
-                  {currentShopData?.name}
-                </Badge>
-              </div>
-            )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+          <Button variant="ghost" size="sm" onClick={refreshDashboardData} className="h-8 w-8 p-0 flex-shrink-0">
+            <RefreshCw className="h-4 w-4 text-gray-500" />
+          </Button>
+        </div>
 
+        {/* Dashboard Header - Desktop only */}
+        <div className="hidden md:block bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           {/* Desktop Layout */}
-          <div className="hidden md:flex md:items-center md:justify-between gap-2 flex-row top-4">
+          <div className="flex items-center justify-between gap-2 flex-row">
             
             {/* Welcome Section */}
           
@@ -669,24 +616,24 @@ export default function BusinessDashboard() {
         </div>
         
         {/* Today's Key Metrics */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 w-full">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 w-full">
           <Link href="/sales">
             <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition-all cursor-pointer transform hover:scale-105">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-blue-100">Today's Sales</CardTitle>
-                <DollarSign className="h-4 w-4 text-blue-200" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
+                <CardTitle className="text-xs md:text-sm font-medium text-blue-100">Today's Sales</CardTitle>
+                <DollarSign className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-200" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
                 {canViewSales ? (
                   <>
-                    <div className="text-2xl font-bold">{formatCurrency(todayMetrics.sales)}</div>
+                    <div className="text-lg md:text-2xl font-bold truncate">{formatCurrency(todayMetrics.sales)}</div>
                     <p className="text-xs text-blue-100">
                       {todayMetrics.transactions} transactions
                     </p>
                   </>
                 ) : (
                   <>
-                    <div className="text-2xl font-bold">•••••</div>
+                    <div className="text-lg md:text-2xl font-bold truncate">•••••</div>
                     <p className="text-xs text-blue-100">
                       Access Restricted
                     </p>
@@ -698,21 +645,21 @@ export default function BusinessDashboard() {
 
           <Link href="/reports">
             <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 transition-all cursor-pointer transform hover:scale-105">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-green-100">Today's Profit</CardTitle>
-                <TrendingUp className="h-4 w-4 text-green-200" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
+                <CardTitle className="text-xs md:text-sm font-medium text-green-100">Today's Profit</CardTitle>
+                <TrendingUp className="h-3.5 w-3.5 md:h-4 md:w-4 text-green-200" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
                 {canViewProfit ? (
                   <>
-                    <div className="text-2xl font-bold">{formatCurrency(todayMetrics.profit)}</div>
+                    <div className="text-lg md:text-2xl font-bold truncate">{formatCurrency(todayMetrics.profit)}</div>
                     <p className="text-xs text-green-100">
                       {profitMargin}% margin
                     </p>
                   </>
                 ) : (
                   <>
-                    <div className="text-2xl font-bold">•••••</div>
+                    <div className="text-lg md:text-2xl font-bold truncate">•••••</div>
                     <p className="text-xs text-green-100">
                       Access Restricted
                     </p>
@@ -724,21 +671,21 @@ export default function BusinessDashboard() {
 
           <Link href="/expenses">
             <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-all cursor-pointer transform hover:scale-105">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-red-100">Today's Expenses</CardTitle>
-                <TrendingDown className="h-4 w-4 text-red-200" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
+                <CardTitle className="text-xs md:text-sm font-medium text-red-100">Today's Expenses</CardTitle>
+                <TrendingDown className="h-3.5 w-3.5 md:h-4 md:w-4 text-red-200" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
                 {canViewExpenses ? (
                   <>
-                    <div className="text-2xl font-bold">{formatCurrency(todayMetrics.expenses)}</div>
+                    <div className="text-lg md:text-2xl font-bold truncate">{formatCurrency(todayMetrics.expenses)}</div>
                     <p className="text-xs text-red-100">
                       Operating costs
                     </p>
                   </>
                 ) : (
                   <>
-                    <div className="text-2xl font-bold">•••••</div>
+                    <div className="text-lg md:text-2xl font-bold truncate">•••••</div>
                     <p className="text-xs text-red-100">
                       Access Restricted
                     </p>
@@ -750,12 +697,12 @@ export default function BusinessDashboard() {
 
           <Link href="/stock?filter=alerts">
             <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 transition-all cursor-pointer transform hover:scale-105">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-orange-100">Stock Alerts</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-orange-200" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
+                <CardTitle className="text-xs md:text-sm font-medium text-orange-100">Stock Alerts</CardTitle>
+                <AlertTriangle className="h-3.5 w-3.5 md:h-4 md:w-4 text-orange-200" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{lowStockProducts.length}</div>
+              <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
+                <div className="text-lg md:text-2xl font-bold truncate">{lowStockProducts.length}</div>
                 <p className="text-xs text-orange-100">
                   Items need attention
                 </p>
@@ -777,7 +724,7 @@ export default function BusinessDashboard() {
                 </CardTitle>
                 <CardDescription className="text-blue-600">Latest transactions and sales activity</CardDescription>
               </CardHeader>
-              <CardContent className="p-6">
+              <CardContent className="p-3 md:p-6">
                 {/* Sales Table */}
                 {currentSales.length > 0 ? (
                 <>
