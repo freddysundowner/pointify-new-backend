@@ -172,8 +172,8 @@ export default function ShopDetails() {
       // Loyalty
       loyaltyEnabled: shop.loyaltyEnabled ?? false,
       loyaltyRedemptionEnabled: shop.loyaltyRedemptionEnabled ?? false,
-      pointsPerAmount: shop.pointsPerAmount ?? "0",
-      pointsValue: shop.pointsValue ?? "0",
+      pointsPerAmount: (() => { const v = parseFloat(shop.pointsPerAmount ?? "0"); return v > 0 ? String(v) : ""; })(),
+      pointsValue: (() => { const v = parseFloat(shop.pointsValue ?? "0"); return v > 0 ? String(v) : ""; })(),
 
       // Location
       locationLat: shop.locationLat ?? undefined,
