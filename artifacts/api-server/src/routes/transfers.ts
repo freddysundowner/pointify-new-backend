@@ -145,7 +145,68 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       });
     }
 
-    // ── Step 3: Create the transfer record and move inventory ─────────────────
+    // ── Step 3: Resolve destination products (find or create per-shop copy) ────
+    // For each source product arriving at the destination shop we either find an
+    // existing product owned by that shop (matched by barcode, then by name) or
+    // create an independent copy so that future renames in the source shop do not
+    // affect the destination shop.
+    const resolvedItems = await Promise.all(
+      expandedItems.map(async (item) => {
+        const srcProd = await db.query.products.findFirst({
+          where: eq(products.id, item.productId),
+        });
+        if (!srcProd) throw badRequest(`Source product #${item.productId} not found`);
+
+        // Try to find an existing product in the destination shop
+        let destProductId: number;
+        const destMatch = await db.query.products.findFirst({
+          where: and(
+            eq(products.shop, Number(toShopId)),
+            eq(products.isDeleted, false),
+            srcProd.barcode
+              ? eq(products.barcode, srcProd.barcode)
+              : eq(products.name,    srcProd.name)
+          ),
+          columns: { id: true },
+        });
+
+        if (destMatch) {
+          destProductId = destMatch.id;
+        } else {
+          // Create an independent copy owned by the destination shop
+          const [newProd] = await db.insert(products).values({
+            name:           srcProd.name,
+            buyingPrice:    srcProd.buyingPrice,
+            sellingPrice:   srcProd.sellingPrice,
+            wholesalePrice: srcProd.wholesalePrice,
+            dealerPrice:    srcProd.dealerPrice,
+            minSellingPrice:srcProd.minSellingPrice,
+            maxDiscount:    srcProd.maxDiscount,
+            category:       srcProd.category,
+            measureUnit:    srcProd.measureUnit,
+            manufacturer:   srcProd.manufacturer,
+            supplier:       srcProd.supplier,
+            shop:           Number(toShopId),
+            description:    srcProd.description,
+            thumbnailUrl:   srcProd.thumbnailUrl,
+            images:         srcProd.images,
+            barcode:        srcProd.barcode,
+            serialNumber:   srcProd.serialNumber,
+            // Bundles are shop-specific; the copy lands as a plain product
+            type:           srcProd.type === "bundle" ? "product" : srcProd.type,
+            isDeleted:      false,
+            manageByPrice:  srcProd.manageByPrice,
+            isTaxable:      srcProd.isTaxable,
+            expiryDate:     srcProd.expiryDate,
+          }).returning();
+          destProductId = newProd.id;
+        }
+
+        return { ...item, srcProductId: item.productId, destProductId };
+      })
+    );
+
+    // ── Step 4: Create the transfer record and move inventory ─────────────────
     const [transfer] = await db.insert(productTransfers).values({
       fromShop:     Number(fromShopId),
       toShop:       Number(toShopId),
@@ -154,70 +215,75 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       transferNo:   `TRF${Date.now()}`,
     }).returning();
 
+    // transferItems records the SOURCE product (for audit trail)
     const itemRows = await db.insert(transferItems).values(
-      expandedItems.map((item) => ({
+      resolvedItems.map((item) => ({
         transfer:  transfer.id,
-        product:   item.productId,
+        product:   item.srcProductId,
         quantity:  String(item.quantity),
         unitPrice: "0",
       }))
     ).returning();
 
     const enrichedItems = await Promise.all(
-      itemRows.map(async (itemRow) => {
-        const qty       = parseFloat(itemRow.quantity);
-        const productId = itemRow.product;
+      resolvedItems.map(async (item, idx) => {
+        const qty          = item.quantity;
+        const itemRow      = itemRows[idx];
+        const srcProductId = item.srcProductId;
+        const dstProductId = item.destProductId;
 
+        // Source shop: read before, deduct
         const fromBefore    = await db.query.inventory.findFirst({
-          where: and(eq(inventory.product, productId), eq(inventory.shop, transfer.fromShop)),
+          where: and(eq(inventory.product, srcProductId), eq(inventory.shop, transfer.fromShop)),
           columns: { quantity: true },
         });
         const fromQtyBefore = fromBefore ? String(fromBefore.quantity) : "0";
         const fromQtyAfter  = String(Math.max(0, parseFloat(fromQtyBefore) - qty));
 
+        await db.update(inventory)
+          .set({ quantity: sql`GREATEST(0, ${inventory.quantity} - ${qty}::numeric)` })
+          .where(and(eq(inventory.product, srcProductId), eq(inventory.shop, transfer.fromShop)));
+
+        // Destination shop: read before, upsert with destination product
         const toBefore    = await db.query.inventory.findFirst({
-          where: and(eq(inventory.product, productId), eq(inventory.shop, transfer.toShop)),
+          where: and(eq(inventory.product, dstProductId), eq(inventory.shop, transfer.toShop)),
           columns: { quantity: true },
         });
         const toQtyBefore = toBefore ? String(toBefore.quantity) : "0";
         const toQtyAfter  = String(parseFloat(toQtyBefore) + qty);
 
-        await db.update(inventory)
-          .set({ quantity: sql`GREATEST(0, ${inventory.quantity} - ${qty}::numeric)` })
-          .where(and(eq(inventory.product, productId), eq(inventory.shop, transfer.fromShop)));
-
         await db.insert(inventory)
-          .values({ product: productId, shop: transfer.toShop, quantity: itemRow.quantity })
+          .values({ product: dstProductId, shop: transfer.toShop, quantity: String(qty) })
           .onConflictDoUpdate({
             target: [inventory.product, inventory.shop],
             set: { quantity: sql`${inventory.quantity} + ${qty}::numeric` },
           });
 
-        return { ...itemRow, fromQtyBefore, fromQtyAfter, toQtyBefore, toQtyAfter };
+        return { itemRow, srcProductId, dstProductId, qty: String(qty), fromQtyBefore, fromQtyAfter, toQtyBefore, toQtyAfter };
       })
     );
 
     await recordProductHistory([
-      ...enrichedItems.map((itemRow) => ({
-        product:        itemRow.product,
+      ...enrichedItems.map(({ itemRow, srcProductId, qty, fromQtyBefore, fromQtyAfter }) => ({
+        product:        srcProductId,
         shop:           transfer.fromShop,
         eventType:      "transfer_out" as const,
         referenceId:    itemRow.id,
-        quantity:       itemRow.quantity,
+        quantity:       qty,
         unitPrice:      itemRow.unitPrice,
-        quantityBefore: itemRow.fromQtyBefore,
-        quantityAfter:  itemRow.fromQtyAfter,
+        quantityBefore: fromQtyBefore,
+        quantityAfter:  fromQtyAfter,
         note:           transfer.transferNo ?? undefined,
       })),
-      ...enrichedItems.map((itemRow) => ({
-        product:        itemRow.product,
+      ...enrichedItems.map(({ itemRow, dstProductId, qty, toQtyBefore, toQtyAfter }) => ({
+        product:        dstProductId,
         shop:           transfer.toShop,
         eventType:      "transfer_in" as const,
         referenceId:    itemRow.id,
-        quantity:       itemRow.quantity,
+        quantity:       qty,
         unitPrice:      itemRow.unitPrice,
-        quantityBefore: itemRow.toQtyBefore,
-        quantityAfter:  itemRow.toQtyAfter,
+        quantityBefore: toQtyBefore,
+        quantityAfter:  toQtyAfter,
         note:           transfer.transferNo ?? undefined,
       })),
     ]);
