@@ -62,7 +62,7 @@ export default function CashFlow() {
 
   const isCustom = quickDays === 0;
   const effectiveFrom = isCustom ? from : new Date(Date.now() - (quickDays - 1) * 86400000).toISOString().split("T")[0];
-  const effectiveTo = today;
+  const effectiveTo = isCustom ? to : today;
 
   // Cashflow categories
   const { data: categories = [] } = useQuery<any[]>({
