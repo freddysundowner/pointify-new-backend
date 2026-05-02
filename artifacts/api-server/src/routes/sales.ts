@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, gte, lte, sql, inArray, ilike, or } from "drizzle-orm";
-import { sales, saleItems, salePayments, saleReturns, saleReturnItems, products, inventory, customers, customerWalletTransactions, paymentMethods, batches, saleItemBatches, shops, loyaltyTransactions, cashflows } from "@workspace/db";
+import { sales, saleItems, salePayments, saleReturns, saleReturnItems, products, inventory, customers, customerWalletTransactions, paymentMethods, batches, saleItemBatches, shops, loyaltyTransactions, cashflows, bundleItems } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -444,6 +444,21 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         : [];
       const productTypeMap = new Map(productTypeRows.map((p) => [p.id, p.type ?? "product"]));
 
+      // Pre-fetch bundle component definitions for any bundle products being sold
+      const bundleProductIds = allProductIds.filter((id) => productTypeMap.get(id) === "bundle");
+      const bundleComponentMap = new Map<number, Array<{ componentProduct: number; quantity: string }>>();
+      if (bundleProductIds.length) {
+        const bundleRows = await db.select({
+          product: bundleItems.product,
+          componentProduct: bundleItems.componentProduct,
+          quantity: bundleItems.quantity,
+        }).from(bundleItems).where(inArray(bundleItems.product, bundleProductIds));
+        for (const row of bundleRows) {
+          if (!bundleComponentMap.has(row.product!)) bundleComponentMap.set(row.product!, []);
+          bundleComponentMap.get(row.product!)!.push({ componentProduct: row.componentProduct!, quantity: String(row.quantity) });
+        }
+      }
+
       const invSnapshots = new Map<number, string>();
       await Promise.all(
         itemRows.map(async (itemRow, i) => {
@@ -472,6 +487,24 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
               END`,
             })
             .where(and(eq(inventory.product, productId), eq(inventory.shop, sid)));
+
+          // If this is a bundle, also deduct each component product's inventory
+          if (pType === "bundle") {
+            const components = bundleComponentMap.get(productId) ?? [];
+            for (const comp of components) {
+              const compQty = soldQty * Number(comp.quantity);
+              await db.update(inventory)
+                .set({
+                  quantity: sql`GREATEST(0, ${inventory.quantity} - ${compQty}::numeric)`,
+                  status: sql`CASE
+                    WHEN GREATEST(0, ${inventory.quantity} - ${compQty}::numeric) <= 0 THEN 'out_of_stock'
+                    WHEN GREATEST(0, ${inventory.quantity} - ${compQty}::numeric) <= ${inventory.reorderLevel} THEN 'low'
+                    ELSE 'active'
+                  END`,
+                })
+                .where(and(eq(inventory.product, comp.componentProduct), eq(inventory.shop, sid)));
+            }
+          }
 
           const availableBatches = await db.query.batches.findMany({
             where: and(eq(batches.product, productId), eq(batches.shop, sid)),
