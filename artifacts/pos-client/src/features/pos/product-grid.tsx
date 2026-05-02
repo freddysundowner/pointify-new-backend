@@ -118,6 +118,7 @@ export default function ProductGrid({
   const [discountAmount, setDiscountAmount] = useState("");
  
   // Payment-specific input states
+  const [cashReceived, setCashReceived] = useState("");
   const [mpesaTransactionId, setMpesaTransactionId] = useState("");
   const [bankTransactionId, setBankTransactionId] = useState("");
   const [creditDueDate, setCreditDueDate] = useState("");
@@ -956,6 +957,7 @@ export default function ProductGrid({
     setSelectedPaymentMethod("");
     setShowCardInterface(false);
     setIsProcessingCard(false);
+    setCashReceived("");
     setMpesaTransactionId("");
     setBankTransactionId("");
     setCreditDueDate("");
@@ -1978,6 +1980,36 @@ export default function ProductGrid({
                 </div>
               </div>
               
+              {/* Cash received + change */}
+              {selectedPaymentMethod === "cash" && (() => {
+                const received = parseFloat(cashReceived) || 0;
+                const effectiveTotal = Math.max(0, totals.total - loyaltyRedemptionValue);
+                const change = received - effectiveTotal;
+                return (
+                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-1 block">Cash Received</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder={`${effectiveTotal.toFixed(2)}`}
+                        value={cashReceived}
+                        onChange={(e) => setCashReceived(e.target.value)}
+                        className="w-full text-lg h-11"
+                        autoFocus
+                      />
+                    </div>
+                    {received > 0 && (
+                      <div className={`flex justify-between items-center px-3 py-2 rounded-lg font-semibold text-sm ${change >= 0 ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                        <span>{change >= 0 ? "Change to give:" : "Still owed:"}</span>
+                        <span>{currency}{Math.abs(change).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Payment-specific input fields */}
               {selectedPaymentMethod === "mpesa" && (
                 <div className="bg-green-50 p-4 rounded-lg border border-green-200">
