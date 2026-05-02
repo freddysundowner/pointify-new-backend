@@ -163,6 +163,29 @@ export default function ProductGrid({
       setPriceEntryAmount("");
       setPriceEntryProduct(product);
     } else {
+      // Bundle stock check: warn if any component has insufficient stock
+      if (product.type === 'bundle' && Array.isArray(product.bundleItems) && product.bundleItems.length > 0) {
+        const shortItems: string[] = [];
+        for (const bundleItem of product.bundleItems) {
+          const needed = parseFloat(String(bundleItem.quantity)) || 1;
+          const component = allProducts.find(
+            (p: any) => p.id === bundleItem.componentProduct || p._id === bundleItem.componentProduct
+          );
+          const available = component ? (parseFloat(String(component.quantity)) || 0) : 0;
+          if (available < needed) {
+            const name = bundleItem.componentName || component?.name || `Product #${bundleItem.componentProduct}`;
+            shortItems.push(`${name} (need ${needed}, have ${available})`);
+          }
+        }
+        if (shortItems.length > 0) {
+          toast({
+            title: "Insufficient Bundle Stock",
+            description: `Short on: ${shortItems.join('; ')}`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
       onAddToCart(product);
     }
   };
