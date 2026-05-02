@@ -204,20 +204,21 @@ export default function CustomerOverview() {
     refetchOnWindowFocus: true,
   });
 
-  // Fetch shop details for PDF header
+  // Fetch shop details for PDF header (use customer's shop field as fallback)
+  const shopIdForQuery = effectiveShopId || String(customerData?.shop || '');
   const { data: shopData } = useQuery({
-    queryKey: ['shop-detail', effectiveShopId],
+    queryKey: ['shop-detail', shopIdForQuery],
     queryFn: async () => {
-      if (!effectiveShopId) return null;
+      if (!shopIdForQuery) return null;
       const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
-      const res = await fetch(ENDPOINTS.shops.getById(effectiveShopId), {
+      const res = await fetch(ENDPOINTS.shops.getById(shopIdForQuery), {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (!res.ok) return null;
       const result = await res.json();
       return result?.data ?? result;
     },
-    enabled: !!effectiveShopId,
+    enabled: !!shopIdForQuery,
     staleTime: 60000,
   });
 
@@ -473,13 +474,24 @@ export default function CustomerOverview() {
   };
 
   // Download customer statement as PDF
-  const downloadStatementPDF = () => {
+  const downloadStatementPDF = async () => {
     const customerName = customerOverviewData.name;
     const currentDate = new Date().toLocaleDateString();
-    const shopName = shopData?.name || (typeof admin?.primaryShop === 'object' ? (admin.primaryShop as any)?.name : null) || 'Shop';
-    const shopAddress = shopData?.address || shopData?.receiptAddress || '';
-    const shopPhone = shopData?.contact || shopData?.phone || '';
-    const shopEmail = shopData?.email || '';
+
+    // Fetch shop data fresh at click time to guarantee availability
+    let fetchedShop: any = shopData;
+    const sid = shopIdForQuery || String(customerData?.shop || '');
+    if (!fetchedShop && sid) {
+      try {
+        const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
+        const res = await fetch(ENDPOINTS.shops.getById(sid), { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) { const r = await res.json(); fetchedShop = r?.data ?? r; }
+      } catch { /* ignore */ }
+    }
+    const shopName = fetchedShop?.name || (typeof admin?.primaryShop === 'object' ? (admin.primaryShop as any)?.name : null) || 'Shop';
+    const shopAddress = fetchedShop?.address || fetchedShop?.receiptAddress || '';
+    const shopPhone = fetchedShop?.contact || fetchedShop?.phone || '';
+    const shopEmail = fetchedShop?.email || '';
 
     const allSales: any[] = salesData?.data || [];
     const allPayments: any[] = (customerPayments as any[]) || [];
