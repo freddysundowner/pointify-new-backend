@@ -2188,7 +2188,7 @@ export default function ProductGrid({
                     <UserCheck className="h-4 w-4 text-orange-600" />
                     <span className="text-xs font-semibold text-orange-800 uppercase tracking-wide">Credit Sale</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label className="text-xs font-medium text-gray-600 mb-1 block">Customer *</label>
                       <select 
