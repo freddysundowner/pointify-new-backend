@@ -257,19 +257,19 @@ export default function Customers() {
 
   return (
     <DashboardLayout>
-      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="space-y-2">
-            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign(dashboardRoute)}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
+      <div className="p-3 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign(dashboardRoute)}>
+              <ArrowLeft className="h-3 w-3 mr-1" />
+              Back
             </Button>
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Customer Management</h1>
+            <h1 className="text-base font-bold text-gray-900">Customers</h1>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto">
-                <Plus className="h-4 w-4 mr-2" />
+              <Button size="sm" className="h-7 px-2 text-xs">
+                <Plus className="h-3 w-3 mr-1" />
                 Add Customer
               </Button>
             </DialogTrigger>
@@ -342,63 +342,55 @@ export default function Customers() {
         </div>
 
         {/* Search */}
-        <div className="flex items-center space-x-4">
-          <div className="relative flex-1 max-w-full sm:max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Search customers..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+        <div className="relative max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 h-3 w-3" />
+          <Input
+            placeholder="Search customers..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-7 h-7 text-xs"
+          />
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-3 gap-2">
           <Card>
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center space-x-2 sm:space-x-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <CreditCard className="h-3.5 w-3.5 text-blue-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Total Customers</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                    {analysisData?.totalCustomers || customers.length}
-                  </p>
+                  <p className="text-xs text-gray-500">Customers</p>
+                  <p className="text-sm font-bold text-gray-900">{analysisData?.totalCustomers || customers.length}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center space-x-2 sm:space-x-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <CreditCard className="h-3.5 w-3.5 text-green-600" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Total Wallet Balance</p>
-                  <p className="text-sm sm:text-lg lg:text-xl font-bold text-green-600 break-words">
-                    {currency} {(analysisData?.totalWalletBalance || 0).toLocaleString()}
-                  </p>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500">Wallet Total</p>
+                  <p className="text-sm font-bold text-green-600 truncate">{currency} {(analysisData?.totalWalletBalance || 0).toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center space-x-2 sm:space-x-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <CreditCard className="h-3.5 w-3.5 text-red-600" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Total Outstanding</p>
-                  <p className="text-sm sm:text-lg lg:text-xl font-bold text-red-600 break-words">
-                    {currency} {(analysisData?.totalOutstanding || 0).toLocaleString()}
-                  </p>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500">Outstanding</p>
+                  <p className="text-sm font-bold text-red-600 truncate">{currency} {(analysisData?.totalOutstanding || 0).toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
@@ -408,68 +400,35 @@ export default function Customers() {
         {/* Top Debtors Section */}
         {analysisData?.topDebtors && analysisData.topDebtors.length > 0 && (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-orange-600">Top Debtors</CardTitle>
+            <CardHeader className="py-2 px-3">
+              <CardTitle className="text-xs font-semibold text-orange-600 uppercase tracking-wide">Top Debtors</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
+            <CardContent className="p-0">
+              <div className="divide-y divide-orange-100">
                 {analysisData.topDebtors.map((debtor: any, index: number) => (
-                  <div key={debtor.customerId} className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                    <div className="flex items-center space-x-3 min-w-0 flex-1">
-                      <div className="w-6 h-6 md:w-8 md:h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-semibold text-xs md:text-sm flex-shrink-0">
-                        {index + 1}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-gray-900 truncate">{debtor.name}</p>
-                        {debtor.phonenumber && (
-                          <p className="text-xs md:text-sm text-gray-500 truncate">{debtor.phonenumber}</p>
-                        )}
+                  <div key={debtor.customerId} className="flex items-center justify-between px-3 py-1.5 bg-orange-50">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="w-5 h-5 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-semibold text-xs flex-shrink-0">{index + 1}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-gray-900 truncate">{debtor.name}</p>
+                        {debtor.phonenumber && <p className="text-xs text-gray-400 truncate">{debtor.phonenumber}</p>}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2 md:space-x-3 flex-shrink-0">
-                      <div className="text-right">
-                        <p className="font-semibold text-orange-600 text-sm md:text-base">
-                          {currency} {debtor.totalOutstanding.toLocaleString()}
-                        </p>
-                        {debtor.totalSpent > 0 && (
-                          <p className="text-xs md:text-sm text-gray-500 hidden sm:block">
-                            Total Spent: {currency} {debtor.totalSpent.toLocaleString()}
-                          </p>
-                        )}
-                      </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-xs font-semibold text-orange-600">{currency} {debtor.totalOutstanding.toLocaleString()}</span>
                       <Link href={getCustomerOverviewUrl(debtor.customerId || debtor._id)}>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-blue-600 hover:text-blue-700 h-8 w-8 p-0"
+                        <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700"
                           onClick={() => {
-                            // Find the complete customer data from the customers array
                             const fullCustomerData = customers.find(c => c._id === (debtor.customerId || debtor._id));
-                            if (fullCustomerData) {
-                              // Pass complete customer data to customer overview
-                              (window as any).__customerData = fullCustomerData;
-                            } else {
-                              // Fallback to debtor data if customer not found in array
-                              (window as any).__customerData = {
-                                _id: debtor.customerId || debtor._id,
-                                name: debtor.name,
-                                phonenumber: debtor.phonenumber,
-                                wallet: debtor.totalOutstanding * -1 // Convert outstanding to negative wallet balance
-                              };
-                            }
+                            (window as any).__customerData = fullCustomerData || { _id: debtor.customerId || debtor._id, name: debtor.name, phonenumber: debtor.phonenumber };
                           }}
                         >
-                          <Eye className="h-3 w-3 md:h-4 md:w-4" />
+                          <Eye className="h-3 w-3" />
                         </Button>
                       </Link>
                     </div>
                   </div>
                 ))}
-                {(!analysisData?.topDebtors || analysisData.topDebtors.length === 0) && (
-                  <div className="text-center py-6 text-gray-500">
-                    <p>No customers with outstanding balances</p>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -495,87 +454,36 @@ export default function Customers() {
           <Card>
             <CardContent className="p-0">
               {/* Mobile Card View */}
-              <div className="block md:hidden">
+              <div className="block md:hidden divide-y divide-gray-100">
                 {filteredCustomers.map((customer: Customer) => {
                   const walletBalance = parseFloat(String(customer.wallet ?? 0));
                   const outstanding = parseFloat(String(customer.outstandingBalance ?? 0));
-                  
                   return (
-                    <div key={customer._id} className="border-b border-gray-200 last:border-b-0 p-4">
-                      <div className="flex items-start justify-between mb-2">
+                    <div key={customer._id} className="px-3 py-2">
+                      <div className="flex items-center justify-between">
                         <div className="min-w-0 flex-1">
-                          <h3 className="font-medium text-gray-900 truncate">{customer.name}</h3>
-                          <p className="text-sm text-gray-500">
-                            {customer.customerType?.charAt(0)?.toUpperCase() + customer.customerType?.slice(1) || 'Regular'}
-                          </p>
+                          <p className="text-xs font-medium text-gray-900 truncate">{customer.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {(customer.phonenumber || customer.phone) && (
+                              <span className="text-xs text-gray-400">{customer.phonenumber || customer.phone}</span>
+                            )}
+                            {outstanding > 0 && <span className="text-xs text-red-600 font-medium">{currency} {outstanding.toLocaleString()} owing</span>}
+                            {walletBalance > 0 && <span className="text-xs text-green-600 font-medium">{currency} {walletBalance.toLocaleString()} wallet</span>}
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2 ml-2">
+                        <div className="flex items-center gap-1 ml-2">
                           <Link href={getCustomerOverviewUrl(customer._id)}>
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="text-blue-600 hover:text-blue-700 h-8 w-8 p-0"
-                              onClick={() => {
-                                // Pass customer data to customer overview
-                                (window as any).__customerData = {
-                                  _id: customer._id,
-                                  name: customer.name,
-                                  email: customer.email,
-                                  phonenumber: customer.phonenumber || customer.phone,
-                                  address: customer.address,
-                                  wallet: customer.wallet,
-                                  customerType: customer.customerType
-                                };
-                              }}
-                            >
+                            <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-blue-600"
+                              onClick={() => { (window as any).__customerData = { _id: customer._id, name: customer.name, email: customer.email, phonenumber: customer.phonenumber || customer.phone, address: customer.address, wallet: customer.wallet, customerType: customer.customerType }; }}>
                               <Eye className="h-3 w-3" />
                             </Button>
                           </Link>
-                          <Button size="sm" variant="outline" onClick={() => handleEdit(customer)} className="h-8 w-8 p-0">
+                          <Button size="sm" variant="outline" className="h-6 w-6 p-0" onClick={() => handleEdit(customer)}>
                             <Edit className="h-3 w-3" />
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDeleteCustomer(customer._id)}
-                            className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
-                          >
+                          <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-red-600" onClick={() => handleDeleteCustomer(customer._id)}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        {(customer.phonenumber || customer.phone) && (
-                          <div className="flex items-center text-sm">
-                            <Phone className="h-3 w-3 mr-2 text-gray-400 flex-shrink-0" />
-                            <span className="truncate">{customer.phonenumber || customer.phone}</span>
-                          </div>
-                        )}
-                        {customer.email && (
-                          <div className="flex items-center text-sm">
-                            <Mail className="h-3 w-3 mr-2 text-gray-400 flex-shrink-0" />
-                            <span className="truncate">{customer.email}</span>
-                          </div>
-                        )}
-                        
-                        <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-gray-100">
-                          <div>
-                            <p className="text-xs text-gray-500">Wallet Balance</p>
-                            <p className={`font-medium text-sm ${walletBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {currency} {walletBalance.toLocaleString()}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500">Outstanding</p>
-                            {outstanding > 0 ? (
-                              <p className="font-medium text-sm text-red-600">
-                                {currency} {outstanding.toLocaleString()}
-                              </p>
-                            ) : (
-                              <p className="text-sm text-gray-500">-</p>
-                            )}
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -587,108 +495,70 @@ export default function Customers() {
               <div className="hidden md:block">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Customer Name</TableHead>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Wallet Balance</TableHead>
-                      <TableHead>Total Outstanding</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                    <TableRow className="h-7">
+                      <TableHead className="text-xs py-1 px-2">Customer</TableHead>
+                      <TableHead className="text-xs py-1 px-2">Contact</TableHead>
+                      <TableHead className="text-xs py-1 px-2">Wallet</TableHead>
+                      <TableHead className="text-xs py-1 px-2">Outstanding</TableHead>
+                      <TableHead className="text-xs py-1 px-2 text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
-                <TableBody>
-                  {filteredCustomers.map((customer: Customer) => {
-                    const walletBalance = parseFloat(String(customer.wallet ?? 0));
-                    const outstanding = parseFloat(String(customer.outstandingBalance ?? 0));
-                    
-                    return (
-                      <TableRow key={customer._id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{customer.name}</p>
-                            <p className="text-sm text-gray-500">
-                              {customer.customerType?.charAt(0)?.toUpperCase() + customer.customerType?.slice(1) || 'Regular'}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            {(customer.phonenumber || customer.phone) && (
-                              <div className="flex items-center text-sm">
-                                <Phone className="h-3 w-3 mr-1 text-gray-400" />
-                                {customer.phonenumber || customer.phone}
-                              </div>
-                            )}
-                            {customer.email && (
-                              <div className="flex items-center text-sm">
-                                <Mail className="h-3 w-3 mr-1 text-gray-400" />
-                                {customer.email}
-                              </div>
-                            )}
-                            {customer.address && (
-                              <div className="flex items-center text-sm">
-                                <MapPin className="h-3 w-3 mr-1 text-gray-400" />
-                                {customer.address}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`font-medium ${walletBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {currency} {walletBalance.toLocaleString()}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {outstanding > 0 ? (
-                            <span className="font-medium text-red-600">
-                              {currency} {outstanding.toLocaleString()}
+                  <TableBody>
+                    {filteredCustomers.map((customer: Customer) => {
+                      const walletBalance = parseFloat(String(customer.wallet ?? 0));
+                      const outstanding = parseFloat(String(customer.outstandingBalance ?? 0));
+                      return (
+                        <TableRow key={customer._id} className="h-7">
+                          <TableCell className="py-1 px-2">
+                            <p className="text-xs font-medium">{customer.name}</p>
+                          </TableCell>
+                          <TableCell className="py-1 px-2">
+                            <div className="space-y-0.5">
+                              {(customer.phonenumber || customer.phone) && (
+                                <div className="flex items-center text-xs text-gray-600">
+                                  <Phone className="h-3 w-3 mr-1 text-gray-400" />
+                                  {customer.phonenumber || customer.phone}
+                                </div>
+                              )}
+                              {customer.email && (
+                                <div className="flex items-center text-xs text-gray-600">
+                                  <Mail className="h-3 w-3 mr-1 text-gray-400" />
+                                  {customer.email}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-1 px-2">
+                            <span className={`text-xs font-medium ${walletBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {currency} {walletBalance.toLocaleString()}
                             </span>
-                          ) : (
-                            <span className="text-gray-500">-</span>
-                          )}
-                        </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end space-x-2">
+                          </TableCell>
+                          <TableCell className="py-1 px-2">
+                            {outstanding > 0 ? (
+                              <span className="text-xs font-medium text-red-600">{currency} {outstanding.toLocaleString()}</span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="py-1 px-2 text-right">
+                            <div className="flex items-center justify-end gap-1">
                               <Link href={getCustomerOverviewUrl(customer._id)}>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-blue-600 hover:text-blue-700"
-                                  onClick={() => {
-                                    // Pass customer data to customer overview
-                                    (window as any).__customerData = {
-                                      _id: customer._id,
-                                      name: customer.name,
-                                      email: customer.email,
-                                      phonenumber: customer.phonenumber || customer.phone,
-                                      address: customer.address,
-                                      wallet: customer.wallet,
-                                      customerType: customer.customerType
-                                    };
-                                  }}
-                                >
-                                  <Eye className="h-4 w-4" />
+                                <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700"
+                                  onClick={() => { (window as any).__customerData = { _id: customer._id, name: customer.name, email: customer.email, phonenumber: customer.phonenumber || customer.phone, address: customer.address, wallet: customer.wallet, customerType: customer.customerType }; }}>
+                                  <Eye className="h-3 w-3" />
                                 </Button>
                               </Link>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleEdit(customer)}
-                              >
-                                <Edit className="h-4 w-4" />
+                              <Button size="sm" variant="outline" className="h-6 w-6 p-0" onClick={() => handleEdit(customer)}>
+                                <Edit className="h-3 w-3" />
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleDeleteCustomer(customer._id)}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="h-4 w-4" />
+                              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-red-600 hover:text-red-700" onClick={() => handleDeleteCustomer(customer._id)}>
+                                <Trash2 className="h-3 w-3" />
                               </Button>
                             </div>
                           </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
