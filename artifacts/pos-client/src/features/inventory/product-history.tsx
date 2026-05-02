@@ -1,508 +1,595 @@
-import { useEffect, useState } from "react";
-import { useRoute } from "wouter";
+import { useState } from "react";
+import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ArrowLeft,
-  TrendingUp,
-  TrendingDown,
-  Package,
-  Download,
-  RefreshCw
+  ArrowLeft, TrendingUp, TrendingDown, Package, AlertTriangle,
+  ClipboardList, ArrowLeftRight, Clock, RefreshCw, ShoppingCart,
+  RotateCcw, Plus, Minus,
 } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { useLocation,useParams } from "wouter";
 import { apiCall } from "@/lib/api-config";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { navigate } from "wouter/use-browser-location";
 import { useAuth } from "@/features/auth/useAuth";
 import { useCurrency } from "@/utils";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/store";
+
+// ── Event type config ──────────────────────────────────────────────────────────
+
+const EVENT_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+  sale:               { label: "Sale",           color: "bg-green-100 text-green-700 border-green-200",   icon: TrendingDown },
+  purchase:           { label: "Purchase",       color: "bg-blue-100 text-blue-700 border-blue-200",     icon: TrendingUp },
+  adjustment_add:     { label: "Stock Added",    color: "bg-teal-100 text-teal-700 border-teal-200",     icon: Plus },
+  adjustment_remove:  { label: "Stock Removed",  color: "bg-orange-100 text-orange-700 border-orange-200", icon: Minus },
+  bad_stock:          { label: "Write-off",      color: "bg-red-100 text-red-700 border-red-200",        icon: AlertTriangle },
+  stock_count:        { label: "Stock Count",    color: "bg-purple-100 text-purple-700 border-purple-200", icon: ClipboardList },
+  transfer_in:        { label: "Transfer In",    color: "bg-indigo-100 text-indigo-700 border-indigo-200", icon: ArrowLeftRight },
+  transfer_out:       { label: "Transfer Out",   color: "bg-amber-100 text-amber-700 border-amber-200",  icon: ArrowLeftRight },
+  transfer:           { label: "Transfer",       color: "bg-indigo-100 text-indigo-700 border-indigo-200", icon: ArrowLeftRight },
+  sale_return:        { label: "Sale Return",    color: "bg-pink-100 text-pink-700 border-pink-200",     icon: RotateCcw },
+  purchase_return:    { label: "Purchase Return",color: "bg-yellow-100 text-yellow-700 border-yellow-200", icon: RotateCcw },
+};
+
+function EventBadge({ type }: { type: string }) {
+  const cfg = EVENT_CONFIG[type] ?? { label: type, color: "bg-gray-100 text-gray-700 border-gray-200", icon: Clock };
+  const Icon = cfg.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.color}`}>
+      <Icon className="h-3 w-3" />
+      {cfg.label}
+    </span>
+  );
+}
+
+function fmt(d: string | Date | null) {
+  if (!d) return "—";
+  const dt = new Date(d as any);
+  return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) +
+    " " + dt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+function Pagination({ page, totalPages, onPage }: { page: number; totalPages: number; onPage: (p: number) => void }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 text-xs text-gray-500">
+      <span>Page {page} of {totalPages}</span>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => onPage(page - 1)} disabled={page <= 1}>‹ Prev</Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => onPage(page + 1)} disabled={page >= totalPages}>Next ›</Button>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, text }: { icon: any; text: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+      <Icon className="h-10 w-10 mb-3 opacity-40" />
+      <p className="text-sm">{text}</p>
+    </div>
+  );
+}
+
+function Loading() {
+  return (
+    <div className="flex items-center justify-center py-16 text-gray-400 gap-2">
+      <RefreshCw className="h-4 w-4 animate-spin" />
+      <span className="text-sm">Loading…</span>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function ProductHistory() {
-  const [, setLocation] = useLocation();
-  const { id } = useParams<{ id: string }>();
-  const productId = id;
-  
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [activeTab, setActiveTab] = useState("sales");
+  const { id: productId } = useParams<{ id: string }>();
   const currency = useCurrency();
-  
-  // Pagination states for each tab
-  const [salesPage, setSalesPage] = useState(1);
-  const [purchasesPage, setPurchasesPage] = useState(1);
-  const [badStockPage, setBadStockPage] = useState(1);
+  const { admin } = useAuth();
+  const { selectedShopId } = useSelector((state: RootState) => state.shop);
 
-  // Reset pagination when tab changes
-  useEffect(() => {
-    setSalesPage(1);
-    setPurchasesPage(1);
-    setBadStockPage(1);
-  }, [activeTab]);
+  const isAdmin = !!admin && !localStorage.getItem("attendantData");
+  const shopId = selectedShopId || "";
 
-  // Compute month date range for API calls
-  const fromDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
-  const toDate = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
+  // Date range filter – default: last 90 days
+  const defaultFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 90); return d.toISOString().split("T")[0]; })();
+  const defaultTo   = new Date().toISOString().split("T")[0];
+  const [from, setFrom] = useState(defaultFrom);
+  const [to,   setTo]   = useState(defaultTo);
+  const [activeTab, setActiveTab] = useState("audit");
 
-  // Fetch product details
+  // Per-tab page state
+  const [auditPage,    setAuditPage]    = useState(1);
+  const [salesPage,    setSalesPage]    = useState(1);
+  const [purchasePage, setPurchasePage] = useState(1);
+  const [adjPage,      setAdjPage]      = useState(1);
+  const [badPage,      setBadPage]      = useState(1);
+  const [countPage,    setCountPage]    = useState(1);
+  const [xferPage,     setXferPage]     = useState(1);
+
+  const resetPages = () => { setAuditPage(1); setSalesPage(1); setPurchasePage(1); setAdjPage(1); setBadPage(1); setCountPage(1); setXferPage(1); };
+
+  // ── Queries ──────────────────────────────────────────────────────────────────
+
+  const qs = (extra: string, page: number) =>
+    `?shopId=${shopId}&from=${from}&to=${to}&page=${page}&limit=20${extra}`;
+
   const { data: productResp, isLoading: productLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.getById(productId || ''), productId],
-    queryFn: async () => {
-      const response = await apiCall(ENDPOINTS.products.getById(productId || ''));
-      return await response.json();
-    },
+    queryKey: ["product", productId],
+    queryFn: async () => (await apiCall(ENDPOINTS.products.getById(productId || ""))).json(),
     enabled: !!productId,
   });
   const product = productResp?.data ?? productResp;
 
-  // Fetch product summary (all-time)
-  const { data: summaryResp, isLoading: summaryLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.summary(productId || ''), productId],
-    queryFn: async () => {
-      const response = await apiCall(ENDPOINTS.products.summary(productId || ''));
-      return await response.json();
-    },
+  const { data: summaryResp } = useQuery({
+    queryKey: ["product-summary", productId, shopId],
+    queryFn: async () => (await apiCall(ENDPOINTS.products.summary(productId || ""))).json(),
     enabled: !!productId,
     staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: false,
   });
-  const summaryData = summaryResp?.data ?? summaryResp;
+  const summary = summaryResp?.data ?? summaryResp;
 
-  // Fetch sales history - only when Sales tab is active
-  const { data: salesData, isLoading: salesLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.salesHistory(productId || ''), productId, fromDate, toDate, salesPage],
-    queryFn: async () => {
-      const response = await apiCall(`${ENDPOINTS.products.salesHistory(productId || '')}?from=${fromDate}&to=${toDate}&page=${salesPage}`);
-      return await response.json();
-    },
+  const { data: auditResp, isLoading: auditLoading } = useQuery({
+    queryKey: ["audit-trail", productId, shopId, from, to, auditPage],
+    queryFn: async () => (await apiCall(`${ENDPOINTS.products.auditTrail(productId || "")}${qs("", auditPage)}`)).json(),
+    enabled: !!productId && activeTab === "audit",
+    staleTime: 0,
+  });
+
+  const { data: salesResp, isLoading: salesLoading } = useQuery({
+    queryKey: ["sales-history", productId, shopId, from, to, salesPage],
+    queryFn: async () => (await apiCall(`${ENDPOINTS.products.salesHistory(productId || "")}${qs("", salesPage)}`)).json(),
     enabled: !!productId && activeTab === "sales",
     staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: false,
   });
 
-  // Fetch purchases history - only when Stock In tab is active
-  const { data: purchasesData, isLoading: purchasesLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.purchasesHistory(productId || ''), productId, fromDate, toDate, purchasesPage],
-    queryFn: async () => {
-      const response = await apiCall(`${ENDPOINTS.products.purchasesHistory(productId || '')}?from=${fromDate}&to=${toDate}&page=${purchasesPage}`);
-      return await response.json();
-    },
-    enabled: !!productId && activeTab === "stock-in",
+  const { data: purchaseResp, isLoading: purchaseLoading } = useQuery({
+    queryKey: ["purchase-history", productId, shopId, from, to, purchasePage],
+    queryFn: async () => (await apiCall(`${ENDPOINTS.products.purchasesHistory(productId || "")}${qs("", purchasePage)}`)).json(),
+    enabled: !!productId && activeTab === "purchases",
     staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: false,
   });
 
-  // Fetch bad stock movements - only when Bad Stock tab is active
-  const { data: badStockData, isLoading: badStockLoading } = useQuery({
-    queryKey: [ENDPOINTS.products.badStockMovements, productId, fromDate, toDate, badStockPage],
-    queryFn: async () => {
-      const response = await apiCall(`${ENDPOINTS.products.badStockMovements}?productId=${productId}&from=${fromDate}&to=${toDate}&page=${badStockPage}`);
-      return await response.json();
-    },
-    enabled: !!productId && activeTab === "bad-stock",
+  const { data: adjResp, isLoading: adjLoading } = useQuery({
+    queryKey: ["stock-history", productId, shopId, adjPage],
+    queryFn: async () => (await apiCall(`${ENDPOINTS.products.stockHistory(productId || "")}?shopId=${shopId}&page=${adjPage}&limit=20`)).json(),
+    enabled: !!productId && activeTab === "adjustments",
     staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: false,
   });
 
-  // Extract data arrays with proper fallbacks
-  const sales = (salesData && salesData.data && Array.isArray(salesData.data)) ? salesData.data : [];
-  const purchases = (purchasesData && purchasesData.data && Array.isArray(purchasesData.data)) ? purchasesData.data : [];
-  const badStockMovements = (badStockData && badStockData.data && Array.isArray(badStockData.data)) ? badStockData.data : [];
-  
-  // Extract pagination info based on active tab
-  const getPaginationInfo = () => {
-    switch (activeTab) {
-      case "sales":
-        return {
-          totalPages: salesData?.meta?.totalPages || salesData?.pagination?.totalPages || 1,
-          currentPage: salesData?.meta?.page || salesData?.pagination?.page || 1,
-          setPage: setSalesPage,
-          page: salesPage
-        };
-      case "stock-in":
-        return {
-          totalPages: purchasesData?.meta?.totalPages || purchasesData?.pagination?.totalPages || 1,
-          currentPage: purchasesData?.meta?.page || purchasesData?.pagination?.page || 1,
-          setPage: setPurchasesPage,
-          page: purchasesPage
-        };
-      case "bad-stock":
-        return {
-          totalPages: badStockData?.meta?.totalPages || badStockData?.pagination?.totalPages || 1,
-          currentPage: badStockData?.meta?.page || badStockData?.pagination?.page || 1,
-          setPage: setBadStockPage,
-          page: badStockPage
-        };
-      default:
-        return { totalPages: 1, currentPage: 1, setPage: () => {}, page: 1 };
-    }
-  };
-  
-  const { totalPages, currentPage, setPage } = getPaginationInfo();
-    const { admin } = useAuth();
-  
-  const isAdmin = !!admin && !localStorage.getItem("attendantData");
+  const { data: badResp, isLoading: badLoading } = useQuery({
+    queryKey: ["bad-stock", productId, shopId, from, to, badPage],
+    queryFn: async () => (await apiCall(`${ENDPOINTS.products.badStockMovements}?productId=${productId}&shopId=${shopId}&from=${from}&to=${to}&page=${badPage}&limit=20`)).json(),
+    enabled: !!productId && activeTab === "badstock",
+    staleTime: 0,
+  });
+
+  const { data: countResp, isLoading: countLoading } = useQuery({
+    queryKey: ["stock-count-history", productId, shopId, from, to, countPage],
+    queryFn: async () => (await apiCall(`${ENDPOINTS.products.stockCountHistory(productId || "")}${qs("", countPage)}`)).json(),
+    enabled: !!productId && activeTab === "counts",
+    staleTime: 0,
+  });
+
+  const { data: xferResp, isLoading: xferLoading } = useQuery({
+    queryKey: ["transfer-history", productId, shopId, from, to, xferPage],
+    queryFn: async () => (await apiCall(`${ENDPOINTS.products.transferHistory(productId || "")}?shopId=${shopId}&page=${xferPage}&limit=20`)).json(),
+    enabled: !!productId && activeTab === "transfers",
+    staleTime: 0,
+  });
+
+  const auditEvents    = auditResp?.data    ?? [];
+  const salesEvents    = salesResp?.data    ?? [];
+  const purchaseEvents = purchaseResp?.data ?? [];
+  const adjEvents      = Array.isArray(adjResp?.data) ? adjResp.data : Array.isArray(adjResp) ? adjResp : [];
+  const badEvents      = badResp?.data      ?? [];
+  const countEvents    = countResp?.data    ?? [];
+  const xferEvents     = xferResp?.data     ?? [];
+
+  const pg = (resp: any) => ({
+    totalPages: resp?.meta?.totalPages ?? 1,
+    total: resp?.meta?.total ?? 0,
+  });
 
   const handleGoBack = () => {
-    if (window.history.length > 1) {
-      window.history.back();
-      return;
-    }
-    if (isAdmin) {
-      navigate("/products");
-    } else {
-      navigate("/attendant/products");
-    }
+    if (window.history.length > 1) { window.history.back(); return; }
+    navigate(isAdmin ? "/products" : "/attendant/products");
   };
 
-  if (!productId) {
-    return (
-      <DashboardLayout>
-        <div className="text-center py-8">
-          <p className="text-gray-500">Product not found</p>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  if (!productId) return (
+    <DashboardLayout>
+      <div className="text-center py-8 text-gray-500">Product not found</div>
+    </DashboardLayout>
+  );
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
+
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleGoBack}
-              className="shrink-0"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">
-                {productLoading ? "Loading..." : product?.name || "Product History"}
-              </h1>
-              <p className="text-gray-600">
-                {selectedMonth}/{selectedYear} • Stock movements and transactions
-              </p>
-            </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button variant="ghost" size="sm" onClick={handleGoBack} className="gap-1 px-2">
+            <ArrowLeft className="h-4 w-4" /> Back
+          </Button>
+          <div>
+            <h1 className="text-lg font-bold leading-tight">
+              {productLoading ? "Loading…" : (product?.name || "Product History")}
+            </h1>
+            <p className="text-xs text-gray-400">
+              {product?.type && <span className="capitalize">{product.type}</span>}
+              {product?.category?.name && <span> · {product.category.name}</span>}
+              {" · "}Full audit trail
+            </p>
           </div>
         </div>
 
-        {/* Summary Cards */}
-        {summaryData && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-6">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Sales</p>
-                  <p className="text-2xl font-bold">{currency} {parseFloat(summaryData?.sales?.totalSoldValue ?? "0").toFixed(2)}</p>
-                  <p className="text-xs text-gray-400">{summaryData?.sales?.saleCount ?? 0} transactions</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Units Sold</p>
-                  <p className="text-2xl font-bold">{parseFloat(summaryData?.sales?.totalSoldQty ?? "0")}</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Current Stock</p>
-                  <p className="text-2xl font-bold text-green-600">{parseFloat(summaryData?.currentStock ?? "0")}</p>
-                  <p className="text-xs text-gray-400">{currency} {parseFloat(summaryData?.stockValue ?? "0").toFixed(2)} value</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Stock Purchased</p>
-                  <p className="text-2xl font-bold text-blue-600">{parseFloat(summaryData?.purchases?.totalPurchasedQty ?? "0")}</p>
-                  <p className="text-xs text-gray-400">{summaryData?.purchases?.purchaseCount ?? 0} orders</p>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Summary cards */}
+        {summary && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Card><CardContent className="p-4">
+              <p className="text-xs text-gray-500">Total Revenue</p>
+              <p className="text-xl font-bold text-green-600">{currency} {parseFloat(summary?.sales?.totalSoldValue ?? "0").toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-xs text-gray-400">{summary?.sales?.saleCount ?? 0} sales</p>
+            </CardContent></Card>
+            <Card><CardContent className="p-4">
+              <p className="text-xs text-gray-500">Units Sold</p>
+              <p className="text-xl font-bold">{parseFloat(summary?.sales?.totalSoldQty ?? "0")}</p>
+              <p className="text-xs text-gray-400">all time</p>
+            </CardContent></Card>
+            <Card><CardContent className="p-4">
+              <p className="text-xs text-gray-500">Current Stock</p>
+              <p className="text-xl font-bold text-blue-600">{parseFloat(summary?.currentStock ?? "0")}</p>
+              <p className="text-xs text-gray-400">{currency} {parseFloat(summary?.stockValue ?? "0").toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} value</p>
+            </CardContent></Card>
+            <Card><CardContent className="p-4">
+              <p className="text-xs text-gray-500">Total Purchased</p>
+              <p className="text-xl font-bold text-indigo-600">{parseFloat(summary?.purchases?.totalPurchasedQty ?? "0")}</p>
+              <p className="text-xs text-gray-400">{summary?.purchases?.purchaseCount ?? 0} orders</p>
+            </CardContent></Card>
           </div>
         )}
 
-        {/* Tabbed History */}
-        <Card>
-          <CardHeader>
-            <h2 className="text-xl font-semibold">Product History</h2>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 bg-muted">
-                <TabsTrigger 
-                  value="stock-in" 
-                  className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  Stock In
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="sales" 
-                  className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground"
-                >
-                  <TrendingDown className="h-4 w-4" />
-                  Sales
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="bad-stock" 
-                  className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground"
-                >
-                  <Package className="h-4 w-4" />
-                  Bad Stock
-                </TabsTrigger>
-              </TabsList>
+        {/* Date range filter */}
+        <div className="flex items-center gap-2 flex-wrap bg-gray-50 rounded-lg p-3 border">
+          <span className="text-xs font-medium text-gray-600">Date range:</span>
+          <Input type="date" value={from} onChange={e => { setFrom(e.target.value); resetPages(); }} className="h-7 text-xs w-36" />
+          <span className="text-xs text-gray-400">to</span>
+          <Input type="date" value={to} onChange={e => { setTo(e.target.value); resetPages(); }} className="h-7 text-xs w-36" />
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setFrom(defaultFrom); setTo(defaultTo); resetPages(); }}>
+            Reset
+          </Button>
+        </div>
 
-              <TabsContent value="stock-in" className="space-y-4">
-                {purchasesLoading ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <div className="w-8 h-8 border-4 border-gray-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
-                    <p>Loading purchases history...</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {purchases.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>No purchases found for this period</p>
-                      </div>
-                    ) : (
-                      <div className="bg-white rounded-lg border">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b bg-gray-50">
-                              <th className="text-left p-4 font-medium">Receipt No</th>
-                              <th className="text-left p-4 font-medium">Supplier</th>
-                              <th className="text-left p-4 font-medium">Date</th>
-                              <th className="text-left p-4 font-medium">Payment Type</th>
-                              <th className="text-right p-4 font-medium">Units</th>
-                              <th className="text-right p-4 font-medium">Unit Price</th>
-                              <th className="text-right p-4 font-medium">Total</th>
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={v => { setActiveTab(v); }} className="w-full">
+          <TabsList className="flex flex-wrap h-auto gap-1 bg-muted p-1 mb-2">
+            <TabsTrigger value="audit"       className="text-xs gap-1"><Clock className="h-3 w-3" />Audit Trail</TabsTrigger>
+            <TabsTrigger value="sales"       className="text-xs gap-1"><TrendingDown className="h-3 w-3" />Sales</TabsTrigger>
+            <TabsTrigger value="purchases"   className="text-xs gap-1"><TrendingUp className="h-3 w-3" />Purchases</TabsTrigger>
+            <TabsTrigger value="adjustments" className="text-xs gap-1"><Package className="h-3 w-3" />Adjustments</TabsTrigger>
+            <TabsTrigger value="badstock"    className="text-xs gap-1"><AlertTriangle className="h-3 w-3" />Write-offs</TabsTrigger>
+            <TabsTrigger value="counts"      className="text-xs gap-1"><ClipboardList className="h-3 w-3" />Stock Counts</TabsTrigger>
+            <TabsTrigger value="transfers"   className="text-xs gap-1"><ArrowLeftRight className="h-3 w-3" />Transfers</TabsTrigger>
+          </TabsList>
+
+          {/* ── AUDIT TRAIL ── */}
+          <TabsContent value="audit">
+            <Card>
+              <CardContent className="p-0">
+                {auditLoading ? <Loading /> : auditEvents.length === 0 ? <EmptyState icon={Clock} text="No activity found for this period" /> : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                            <th className="text-left px-4 py-2">Date & Time</th>
+                            <th className="text-left px-4 py-2">Event</th>
+                            <th className="text-left px-4 py-2">Reference</th>
+                            <th className="text-right px-4 py-2">Qty</th>
+                            <th className="text-right px-4 py-2">Unit Price</th>
+                            <th className="text-left px-4 py-2">Details</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {auditEvents.map((e: any, i: number) => (
+                            <tr key={`${e.eventType}-${e.id}-${i}`} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(e.date)}</td>
+                              <td className="px-4 py-2"><EventBadge type={e.eventType} /></td>
+                              <td className="px-4 py-2 font-mono text-xs text-gray-600">{e.refNo || "—"}</td>
+                              <td className="px-4 py-2 text-right font-medium">
+                                {e.eventType === "adjustment_remove" || e.eventType === "bad_stock" || e.eventType === "transfer_out"
+                                  ? <span className="text-red-600">-{parseFloat(e.qty ?? 0)}</span>
+                                  : <span className="text-green-700">+{parseFloat(e.qty ?? 0)}</span>}
+                              </td>
+                              <td className="px-4 py-2 text-right text-gray-600">
+                                {e.price ? `${currency} ${parseFloat(e.price).toFixed(2)}` : "—"}
+                              </td>
+                              <td className="px-4 py-2 text-xs text-gray-500 max-w-[200px] truncate">
+                                {e.eventType === "stock_count"
+                                  ? `Physical: ${parseFloat(e.a ?? 0)} | System: ${parseFloat(e.b ?? 0)} | Variance: ${parseFloat(e.variance ?? 0) >= 0 ? "+" : ""}${parseFloat(e.variance ?? 0)}`
+                                  : e.eventType === "adjustment_add" || e.eventType === "adjustment_remove"
+                                  ? `${e.note || ""} (${parseFloat(e.b ?? 0)} → ${parseFloat(e.a ?? 0)})`
+                                  : e.customerName
+                                  ? `Customer: ${e.customerName}`
+                                  : e.note || "—"}
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {purchases.map((purchase: any, index: number) => (
-                              <tr key={purchase.id || index} className="border-b hover:bg-gray-50">
-                                <td className="p-4 font-mono text-sm">{purchase.purchaseNo || `#${purchase.purchaseId || purchase.id}`}</td>
-                                <td className="p-4">{purchase.supplierId ? `Supplier #${purchase.supplierId}` : 'Direct'}</td>
-                                <td className="p-4 text-sm">
-                                  {new Date(purchase.purchaseDate || purchase.createdAt).toLocaleDateString()} {new Date(purchase.purchaseDate || purchase.createdAt).toLocaleTimeString()}
-                                </td>
-                                <td className="p-4 capitalize">{purchase.batchCode || '—'}</td>
-                                <td className="p-4 text-right">{parseFloat(purchase.quantity ?? 1)}</td>
-                                <td className="p-4 text-right">{currency} {parseFloat(purchase.unitPrice ?? 0).toFixed(2)}</td>
-                                <td className="p-4 text-right font-medium">{currency} {(parseFloat(purchase.quantity ?? 1) * parseFloat(purchase.unitPrice ?? 0)).toFixed(2)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-
-                        {/* Pagination for Stock In */}
-                        {totalPages > 1 && (
-                          <div className="flex items-center justify-between p-4 border-t bg-gray-50">
-                            <p className="text-sm text-gray-600">
-                              Page {currentPage} of {totalPages}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage(Math.max(1, currentPage - 1))}
-                                disabled={currentPage <= 1}
-                              >
-                                Previous
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                                disabled={currentPage >= totalPages}
-                              >
-                                Next
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Pagination page={auditPage} totalPages={pg(auditResp).totalPages} onPage={setAuditPage} />
+                  </>
                 )}
-              </TabsContent>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-              <TabsContent value="sales" className="space-y-4">
-                {salesLoading ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <div className="w-8 h-8 border-4 border-gray-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
-                    <p>Loading sales data...</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-
-                    
-                    {sales.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <TrendingDown className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>No sales found for this period</p>
-                      </div>
-                    ) : (
-                      <div className="bg-white rounded-lg border">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b bg-gray-50">
-                              <th className="text-left p-4 font-medium">Receipt No</th>
-                              <th className="text-left p-4 font-medium">Customer</th>
-                              <th className="text-left p-4 font-medium">Date</th>
-                              <th className="text-left p-4 font-medium">Payment Type</th>
-                              <th className="text-right p-4 font-medium">Units</th>
-                              <th className="text-right p-4 font-medium">Unit Price</th>
-                              <th className="text-right p-4 font-medium">Total</th>
+          {/* ── SALES ── */}
+          <TabsContent value="sales">
+            <Card>
+              <CardContent className="p-0">
+                {salesLoading ? <Loading /> : salesEvents.length === 0 ? <EmptyState icon={ShoppingCart} text="No sales found for this period" /> : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                            <th className="text-left px-4 py-2">Date</th>
+                            <th className="text-left px-4 py-2">Receipt No</th>
+                            <th className="text-left px-4 py-2">Customer</th>
+                            <th className="text-left px-4 py-2">Type</th>
+                            <th className="text-right px-4 py-2">Qty</th>
+                            <th className="text-right px-4 py-2">Unit Price</th>
+                            <th className="text-right px-4 py-2">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {salesEvents.map((s: any, i: number) => (
+                            <tr key={s.id ?? i} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(s.saleDate ?? s.createdAt)}</td>
+                              <td className="px-4 py-2 font-mono text-xs">{s.receiptNo || `#${s.saleId || s.id}`}</td>
+                              <td className="px-4 py-2 text-xs">{s.customerId ? `Customer #${s.customerId}` : "Walk-in"}</td>
+                              <td className="px-4 py-2 text-xs capitalize">{s.saleType || "cash"}</td>
+                              <td className="px-4 py-2 text-right text-red-600 font-medium">-{parseFloat(s.quantity ?? 1)}</td>
+                              <td className="px-4 py-2 text-right text-xs">{currency} {parseFloat(s.unitPrice ?? 0).toFixed(2)}</td>
+                              <td className="px-4 py-2 text-right font-medium">{currency} {(parseFloat(s.quantity ?? 1) * parseFloat(s.unitPrice ?? 0)).toFixed(2)}</td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {sales.map((sale: any, index: number) => (
-                              <tr key={sale.id || index} className="border-b hover:bg-gray-50">
-                                <td className="p-4 font-mono text-sm">{sale.receiptNo || `#${sale.saleId || sale.id}`}</td>
-                                <td className="p-4">{sale.customerId ? `Customer #${sale.customerId}` : 'Walk-in'}</td>
-                                <td className="p-4 text-sm">
-                                  {new Date(sale.saleDate || sale.createdAt).toLocaleDateString()} {new Date(sale.saleDate || sale.createdAt).toLocaleTimeString()}
-                                </td>
-                                <td className="p-4 capitalize">{sale.saleType || '—'}</td>
-                                <td className="p-4 text-right">{parseFloat(sale.quantity ?? 1)}</td>
-                                <td className="p-4 text-right">{currency} {parseFloat(sale.unitPrice ?? 0).toFixed(2)}</td>
-                                <td className="p-4 text-right font-medium">{currency} {(parseFloat(sale.quantity ?? 1) * parseFloat(sale.unitPrice ?? 0)).toFixed(2)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        
-                        {totalPages > 1 && (
-                          <div className="flex items-center justify-between p-4 border-t">
-                            <div className="text-sm text-gray-500">
-                              Page {currentPage} of {totalPages}
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={currentPage <= 1}
-                                onClick={() => setSalesPage(Math.max(1, salesPage - 1))}
-                              >
-                                Previous
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={currentPage >= totalPages}
-                                onClick={() => setSalesPage(Math.min(totalPages, salesPage + 1))}
-                              >
-                                Next
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Pagination page={salesPage} totalPages={pg(salesResp).totalPages} onPage={setSalesPage} />
+                  </>
                 )}
-              </TabsContent>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-              <TabsContent value="bad-stock" className="space-y-4">
-                {badStockLoading ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <div className="w-8 h-8 border-4 border-gray-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
-                    <p>Loading bad stock movements...</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {badStockMovements.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>No bad stock movements found for this period</p>
-                      </div>
-                    ) : (
-                      <div className="bg-white rounded-lg border">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b bg-gray-50">
-                              <th className="text-left p-4 font-medium">Date</th>
-                              <th className="text-left p-4 font-medium">Reason</th>
-                              <th className="text-left p-4 font-medium">Performed By</th>
-                              <th className="text-right p-4 font-medium">Quantity</th>
-                              <th className="text-right p-4 font-medium">Unit Price</th>
-                              <th className="text-right p-4 font-medium">Total Loss</th>
+          {/* ── PURCHASES ── */}
+          <TabsContent value="purchases">
+            <Card>
+              <CardContent className="p-0">
+                {purchaseLoading ? <Loading /> : purchaseEvents.length === 0 ? <EmptyState icon={TrendingUp} text="No purchases found for this period" /> : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                            <th className="text-left px-4 py-2">Date</th>
+                            <th className="text-left px-4 py-2">Purchase No</th>
+                            <th className="text-left px-4 py-2">Supplier</th>
+                            <th className="text-left px-4 py-2">Batch</th>
+                            <th className="text-right px-4 py-2">Qty</th>
+                            <th className="text-right px-4 py-2">Unit Price</th>
+                            <th className="text-right px-4 py-2">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {purchaseEvents.map((p: any, i: number) => (
+                            <tr key={p.id ?? i} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(p.purchaseDate ?? p.createdAt)}</td>
+                              <td className="px-4 py-2 font-mono text-xs">{p.purchaseNo || `#${p.purchaseId || p.id}`}</td>
+                              <td className="px-4 py-2 text-xs">{p.supplierId ? `Supplier #${p.supplierId}` : "Direct"}</td>
+                              <td className="px-4 py-2 text-xs text-gray-400">{p.batchCode || "—"}</td>
+                              <td className="px-4 py-2 text-right text-green-700 font-medium">+{parseFloat(p.quantity ?? 1)}</td>
+                              <td className="px-4 py-2 text-right text-xs">{currency} {parseFloat(p.unitPrice ?? 0).toFixed(2)}</td>
+                              <td className="px-4 py-2 text-right font-medium">{currency} {(parseFloat(p.quantity ?? 1) * parseFloat(p.unitPrice ?? 0)).toFixed(2)}</td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {badStockMovements.map((movement: any, index: number) => (
-                              <tr key={movement._id || index} className="border-b hover:bg-gray-50">
-                                <td className="p-4 text-sm">
-                                  {new Date(movement.createdAt || movement.date).toLocaleDateString()} {new Date(movement.createdAt || movement.date).toLocaleTimeString()}
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Pagination page={purchasePage} totalPages={pg(purchaseResp).totalPages} onPage={setPurchasePage} />
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── ADJUSTMENTS ── */}
+          <TabsContent value="adjustments">
+            <Card>
+              <CardContent className="p-0">
+                {adjLoading ? <Loading /> : adjEvents.length === 0 ? <EmptyState icon={Package} text="No stock adjustments found" /> : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                            <th className="text-left px-4 py-2">Date</th>
+                            <th className="text-left px-4 py-2">Type</th>
+                            <th className="text-right px-4 py-2">Before</th>
+                            <th className="text-right px-4 py-2">Adjusted</th>
+                            <th className="text-right px-4 py-2">After</th>
+                            <th className="text-left px-4 py-2">Reason</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {adjEvents.map((a: any, i: number) => (
+                            <tr key={a.id ?? i} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(a.createdAt)}</td>
+                              <td className="px-4 py-2">
+                                {a.kind === "adjustment" ? (
+                                  <EventBadge type={a.type === "add" ? "adjustment_add" : "adjustment_remove"} />
+                                ) : (
+                                  <EventBadge type="bad_stock" />
+                                )}
+                              </td>
+                              <td className="px-4 py-2 text-right text-xs text-gray-500">{parseFloat(a.quantityBefore ?? 0)}</td>
+                              <td className="px-4 py-2 text-right font-medium">
+                                {a.type === "add"
+                                  ? <span className="text-teal-600">+{parseFloat(a.quantityAdjusted ?? a.quantity ?? 0)}</span>
+                                  : <span className="text-orange-600">-{parseFloat(a.quantityAdjusted ?? a.quantity ?? 0)}</span>}
+                              </td>
+                              <td className="px-4 py-2 text-right text-xs text-gray-500">{parseFloat(a.quantityAfter ?? 0)}</td>
+                              <td className="px-4 py-2 text-xs text-gray-500">{a.reason || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Pagination page={adjPage} totalPages={pg(adjResp).totalPages ?? 1} onPage={setAdjPage} />
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── BAD STOCK / WRITE-OFFS ── */}
+          <TabsContent value="badstock">
+            <Card>
+              <CardContent className="p-0">
+                {badLoading ? <Loading /> : badEvents.length === 0 ? <EmptyState icon={AlertTriangle} text="No write-offs found for this period" /> : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                            <th className="text-left px-4 py-2">Date</th>
+                            <th className="text-left px-4 py-2">Reason</th>
+                            <th className="text-right px-4 py-2">Qty Written Off</th>
+                            <th className="text-right px-4 py-2">Unit Price</th>
+                            <th className="text-right px-4 py-2">Total Loss</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {badEvents.map((b: any, i: number) => (
+                            <tr key={b.id ?? i} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(b.createdAt ?? b.date)}</td>
+                              <td className="px-4 py-2 text-xs capitalize">{b.reason || "Bad Stock"}</td>
+                              <td className="px-4 py-2 text-right text-red-600 font-medium">-{parseFloat(b.quantity ?? 1)}</td>
+                              <td className="px-4 py-2 text-right text-xs">{currency} {parseFloat(b.unitPrice ?? 0).toFixed(2)}</td>
+                              <td className="px-4 py-2 text-right font-medium text-red-600">{currency} {(parseFloat(b.quantity ?? 1) * parseFloat(b.unitPrice ?? 0)).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Pagination page={badPage} totalPages={pg(badResp).totalPages} onPage={setBadPage} />
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── STOCK COUNTS ── */}
+          <TabsContent value="counts">
+            <Card>
+              <CardContent className="p-0">
+                {countLoading ? <Loading /> : countEvents.length === 0 ? <EmptyState icon={ClipboardList} text="No stock counts recorded for this period" /> : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                            <th className="text-left px-4 py-2">Date</th>
+                            <th className="text-left px-4 py-2">Count #</th>
+                            <th className="text-right px-4 py-2">System Qty</th>
+                            <th className="text-right px-4 py-2">Physical Qty</th>
+                            <th className="text-right px-4 py-2">Variance</th>
+                            <th className="text-left px-4 py-2">Result</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {countEvents.map((c: any, i: number) => {
+                            const variance = parseFloat(c.variance ?? 0);
+                            return (
+                              <tr key={c.id ?? i} className="hover:bg-gray-50">
+                                <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(c.createdAt)}</td>
+                                <td className="px-4 py-2 font-mono text-xs text-gray-500">#{c.stockCountId}</td>
+                                <td className="px-4 py-2 text-right text-xs">{parseFloat(c.systemCount ?? 0)}</td>
+                                <td className="px-4 py-2 text-right font-medium">{parseFloat(c.physicalCount ?? 0)}</td>
+                                <td className={`px-4 py-2 text-right font-bold ${variance > 0 ? "text-green-600" : variance < 0 ? "text-red-600" : "text-gray-400"}`}>
+                                  {variance > 0 ? "+" : ""}{variance}
                                 </td>
-                                <td className="p-4 capitalize">{movement.reason || 'Bad Stock'}</td>
-                                <td className="p-4">{movement.attendantId?.username || movement.performedBy || 'System'}</td>
-                                <td className="p-4 text-right text-red-600 font-medium">-{movement.quantity || 1}</td>
-                                <td className="p-4 text-right">{currency} {parseFloat(movement.unitPrice || 0).toFixed(2)}</td>
-                                <td className="p-4 text-right font-medium text-red-600">
-                                {currency} {(parseFloat(movement.unitPrice || 0) * parseInt(movement.quantity || 1)).toFixed(2)}
+                                <td className="px-4 py-2">
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${variance === 0 ? "bg-gray-100 text-gray-600" : variance > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                                    {variance === 0 ? "Balanced" : variance > 0 ? "Surplus" : "Shortage"}
+                                  </span>
                                 </td>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-
-                        {/* Pagination for Bad Stock */}
-                        {totalPages > 1 && (
-                          <div className="flex items-center justify-between p-4 border-t bg-gray-50">
-                            <p className="text-sm text-gray-600">
-                              Page {currentPage} of {totalPages}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage(Math.max(1, currentPage - 1))}
-                                disabled={currentPage <= 1}
-                              >
-                                Previous
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                                disabled={currentPage >= totalPages}
-                              >
-                                Next
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Pagination page={countPage} totalPages={pg(countResp).totalPages} onPage={setCountPage} />
+                  </>
                 )}
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── TRANSFERS ── */}
+          <TabsContent value="transfers">
+            <Card>
+              <CardContent className="p-0">
+                {xferLoading ? <Loading /> : xferEvents.length === 0 ? <EmptyState icon={ArrowLeftRight} text="No transfers found for this product" /> : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                            <th className="text-left px-4 py-2">Date</th>
+                            <th className="text-left px-4 py-2">Transfer No</th>
+                            <th className="text-left px-4 py-2">From</th>
+                            <th className="text-left px-4 py-2">To</th>
+                            <th className="text-right px-4 py-2">Qty</th>
+                            <th className="text-right px-4 py-2">Unit Price</th>
+                            <th className="text-left px-4 py-2">Note</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {xferEvents.map((x: any, i: number) => (
+                            <tr key={x.id ?? i} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(x.createdAt)}</td>
+                              <td className="px-4 py-2 font-mono text-xs">{x.transferNo || `#${x.transferId || x.id}`}</td>
+                              <td className="px-4 py-2 text-xs">Shop #{x.fromShop}</td>
+                              <td className="px-4 py-2 text-xs">Shop #{x.toShop}</td>
+                              <td className="px-4 py-2 text-right font-medium">{parseFloat(x.quantity ?? 0)}</td>
+                              <td className="px-4 py-2 text-right text-xs">{x.unitPrice ? `${currency} ${parseFloat(x.unitPrice).toFixed(2)}` : "—"}</td>
+                              <td className="px-4 py-2 text-xs text-gray-400">{x.transferNote || x.note || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Pagination page={xferPage} totalPages={pg(xferResp).totalPages} onPage={setXferPage} />
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+        </Tabs>
       </div>
     </DashboardLayout>
   );

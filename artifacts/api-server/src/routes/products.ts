@@ -6,7 +6,8 @@ import {
   products, productSerials, inventory, productCategories,
   bundleItems, saleItems, sales, purchaseItems, purchases,
   adjustments, badStocks, transferItems, productTransfers, shops,
-  batches, productHistory, admins,
+  batches, productHistory, admins, stockCounts, stockCountItems,
+  customers, attendants,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -991,6 +992,194 @@ router.get("/:id/history", async (req, res, next) => {
 
     const total = await db.$count(productHistory, where);
     return paginated(res, rows, { total, page, limit });
+  } catch (e) { next(e); }
+});
+
+// ── Stock count history for a product ────────────────────────────────────────
+router.get("/:id/stock-count-history", async (req, res, next) => {
+  try {
+    const productId = (req as any).product.id;
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+
+    const conditions: any[] = [eq(stockCountItems.product, productId)];
+    if (shopId) conditions.push(eq(stockCounts.shop, shopId));
+    if (from) conditions.push(gte(stockCountItems.createdAt, from));
+    if (to) conditions.push(lte(stockCountItems.createdAt, new Date(to.getTime() + 86399999)));
+    const where = and(...conditions);
+
+    const rows = await db.select({
+      id: stockCountItems.id,
+      stockCountId: stockCounts.id,
+      physicalCount: stockCountItems.physicalCount,
+      systemCount: stockCountItems.systemCount,
+      variance: stockCountItems.variance,
+      createdAt: stockCountItems.createdAt,
+      conductedBy: stockCounts.conductedBy,
+    }).from(stockCountItems)
+      .leftJoin(stockCounts, eq(stockCountItems.stockCount, stockCounts.id))
+      .where(where)
+      .orderBy(sql`${stockCountItems.createdAt} DESC`)
+      .limit(limit).offset(offset);
+
+    const [{ count }] = await db.select({ count: sql<number>`COUNT(*)` })
+      .from(stockCountItems)
+      .leftJoin(stockCounts, eq(stockCountItems.stockCount, stockCounts.id))
+      .where(where);
+
+    return paginated(res, rows, { total: Number(count ?? 0), page, limit });
+  } catch (e) { next(e); }
+});
+
+// ── Unified audit trail ───────────────────────────────────────────────────────
+router.get("/:id/audit-trail", async (req, res, next) => {
+  try {
+    const productId = (req as any).product.id;
+    const { page, limit, offset } = getPagination(req);
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const toRaw = req.query["to"] ? new Date(String(req.query["to"])) : null;
+    const to = toRaw ? new Date(toRaw.getTime() + 86399999) : null;
+
+    const dc = (col: any) => [
+      ...(from ? [gte(col, from)] : []),
+      ...(to   ? [lte(col, to)]   : []),
+    ];
+
+    const [salesRows, purchaseRows, adjRows, badRows, countRows, xferRows] = await Promise.all([
+      db.select({
+        id: saleItems.id,
+        date: saleItems.createdAt,
+        qty: saleItems.quantity,
+        price: saleItems.unitPrice,
+        refNo: sales.receiptNo,
+        note: saleItems.saleType,
+        customerName: customers.name,
+        b: sql<string>`null`,
+        a: sql<string>`null`,
+        variance: sql<string>`null`,
+        fromShop: sql<number>`null`,
+        toShop: sql<number>`null`,
+        adjType: sql<string>`null`,
+      }).from(saleItems)
+        .leftJoin(sales, eq(saleItems.sale, sales.id))
+        .leftJoin(customers, eq(sales.customer, customers.id))
+        .where(and(eq(saleItems.product, productId), ...(shopId ? [eq(saleItems.shop, shopId)] : []), ...dc(saleItems.createdAt)))
+        .limit(500),
+
+      db.select({
+        id: purchaseItems.id,
+        date: purchaseItems.createdAt,
+        qty: purchaseItems.quantity,
+        price: purchaseItems.unitPrice,
+        refNo: purchases.purchaseNo,
+        note: sql<string>`null`,
+        customerName: sql<string>`null`,
+        b: sql<string>`null`,
+        a: sql<string>`null`,
+        variance: sql<string>`null`,
+        fromShop: sql<number>`null`,
+        toShop: sql<number>`null`,
+        adjType: sql<string>`null`,
+      }).from(purchaseItems)
+        .leftJoin(purchases, eq(purchaseItems.purchase, purchases.id))
+        .where(and(eq(purchaseItems.product, productId), ...(shopId ? [eq(purchaseItems.shop, shopId)] : []), ...dc(purchaseItems.createdAt)))
+        .limit(500),
+
+      db.select({
+        id: adjustments.id,
+        date: adjustments.createdAt,
+        qty: adjustments.quantityAdjusted,
+        price: sql<string>`null`,
+        refNo: sql<string>`null`,
+        note: adjustments.reason,
+        customerName: sql<string>`null`,
+        b: adjustments.quantityBefore,
+        a: adjustments.quantityAfter,
+        variance: sql<string>`null`,
+        fromShop: sql<number>`null`,
+        toShop: sql<number>`null`,
+        adjType: adjustments.type,
+      }).from(adjustments)
+        .where(and(eq(adjustments.product, productId), ...(shopId ? [eq(adjustments.shop, shopId)] : []), ...dc(adjustments.createdAt)))
+        .limit(500),
+
+      db.select({
+        id: badStocks.id,
+        date: badStocks.createdAt,
+        qty: badStocks.quantity,
+        price: badStocks.unitPrice,
+        refNo: sql<string>`null`,
+        note: badStocks.reason,
+        customerName: sql<string>`null`,
+        b: sql<string>`null`,
+        a: sql<string>`null`,
+        variance: sql<string>`null`,
+        fromShop: sql<number>`null`,
+        toShop: sql<number>`null`,
+        adjType: sql<string>`null`,
+      }).from(badStocks)
+        .where(and(eq(badStocks.product, productId), ...(shopId ? [eq(badStocks.shop, shopId)] : []), ...dc(badStocks.createdAt)))
+        .limit(500),
+
+      db.select({
+        id: stockCountItems.id,
+        date: stockCountItems.createdAt,
+        qty: stockCountItems.physicalCount,
+        price: sql<string>`null`,
+        refNo: sql<string>`null`,
+        note: sql<string>`null`,
+        customerName: sql<string>`null`,
+        b: stockCountItems.systemCount,
+        a: stockCountItems.physicalCount,
+        variance: stockCountItems.variance,
+        fromShop: sql<number>`null`,
+        toShop: sql<number>`null`,
+        adjType: sql<string>`null`,
+      }).from(stockCountItems)
+        .leftJoin(stockCounts, eq(stockCountItems.stockCount, stockCounts.id))
+        .where(and(eq(stockCountItems.product, productId), ...(shopId ? [eq(stockCounts.shop, shopId)] : []), ...dc(stockCountItems.createdAt)))
+        .limit(500),
+
+      db.select({
+        id: transferItems.id,
+        date: productTransfers.createdAt,
+        qty: transferItems.quantity,
+        price: transferItems.unitPrice,
+        refNo: productTransfers.transferNo,
+        note: productTransfers.transferNote,
+        customerName: sql<string>`null`,
+        b: sql<string>`null`,
+        a: sql<string>`null`,
+        variance: sql<string>`null`,
+        fromShop: productTransfers.fromShop,
+        toShop: productTransfers.toShop,
+        adjType: sql<string>`null`,
+      }).from(transferItems)
+        .leftJoin(productTransfers, eq(transferItems.transfer, productTransfers.id))
+        .where(and(eq(transferItems.product, productId), ...(shopId ? [or(eq(productTransfers.fromShop, shopId), eq(productTransfers.toShop, shopId))] : []), ...dc(productTransfers.createdAt)))
+        .limit(500),
+    ]);
+
+    const allEvents: any[] = [
+      ...salesRows.map(r => ({ ...r, eventType: 'sale' })),
+      ...purchaseRows.map(r => ({ ...r, eventType: 'purchase' })),
+      ...adjRows.map(r => ({ ...r, eventType: r.adjType === 'add' ? 'adjustment_add' : 'adjustment_remove' })),
+      ...badRows.map(r => ({ ...r, eventType: 'bad_stock' })),
+      ...countRows.map(r => ({ ...r, eventType: 'stock_count' })),
+      ...xferRows.map(r => ({
+        ...r,
+        eventType: shopId
+          ? (r.fromShop === shopId ? 'transfer_out' : 'transfer_in')
+          : 'transfer',
+      })),
+    ].sort((a, b) => new Date(b.date as any).getTime() - new Date(a.date as any).getTime());
+
+    const total = allEvents.length;
+    const sliced = allEvents.slice(offset, offset + limit);
+    return paginated(res, sliced, { total, page, limit });
   } catch (e) { next(e); }
 });
 
