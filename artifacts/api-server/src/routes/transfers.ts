@@ -336,6 +336,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
 
       // ── Destination: find or create bundle product copy, then upsert inv ──
       // Priority: (1) existing product linked by sourceProductId, (2) same name, (3) new copy
+      // In all cases, ensure the destination product ends up as type "bundle".
       let destBundleProductId: number;
 
       const destBySourceId = await db.query.products.findFirst({
@@ -344,11 +345,15 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
           eq(products.sourceProductId, bd.productId),
           eq(products.isDeleted,       false),
         ),
-        columns: { id: true },
+        columns: { id: true, type: true },
       });
 
       if (destBySourceId) {
         destBundleProductId = destBySourceId.id;
+        // Upgrade to bundle type if a prior transfer created it as a plain product
+        if (destBySourceId.type !== "bundle") {
+          await db.update(products).set({ type: "bundle" }).where(eq(products.id, destBundleProductId));
+        }
       } else {
         const destByName = await db.query.products.findFirst({
           where: and(
@@ -356,11 +361,14 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
             eq(products.name,      srcBundle.name),
             eq(products.isDeleted, false),
           ),
-          columns: { id: true },
+          columns: { id: true, type: true },
         });
 
         if (destByName) {
           destBundleProductId = destByName.id;
+          if (destByName.type !== "bundle") {
+            await db.update(products).set({ type: "bundle" }).where(eq(products.id, destBundleProductId));
+          }
         } else {
           const [newBundleProd] = await db.insert(products).values({
             name:            srcBundle.name,
@@ -380,7 +388,6 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
             images:          srcBundle.images,
             barcode:         srcBundle.barcode,
             serialNumber:    srcBundle.serialNumber,
-            // Arrive as a bundle — we'll recreate bundleItems below
             type:            "bundle",
             isDeleted:       false,
             manageByPrice:   srcBundle.manageByPrice,
@@ -394,13 +401,13 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
 
       // ── Recreate bundle component definitions at the destination ─────────
       // Build a lookup: srcComponentId → destComponentId from resolvedItems.
-      // Then insert bundleItems for the dest bundle (skip any already existing).
+      // Then insert any missing bundleItems for the dest bundle.
       const destCompMap = new Map(resolvedItems.map(r => [r.srcProductId, r.destProductId]));
-      const existingBundleItems = await db.query.bundleItems.findMany({
+      const existingDestBundleItems = await db.query.bundleItems.findMany({
         where: eq(bundleItems.product, destBundleProductId),
         columns: { componentProduct: true },
       });
-      const existingCompIds = new Set(existingBundleItems.map(bi => bi.componentProduct));
+      const existingCompIds = new Set(existingDestBundleItems.map(bi => bi.componentProduct));
 
       const newBundleItemRows = bd.components
         .map(c => ({ srcId: c.componentProduct, qty: c.quantity, destId: destCompMap.get(c.componentProduct) }))
