@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, or, and, sql, inArray } from "drizzle-orm";
-import { productTransfers, transferItems, inventory, products, shops } from "@workspace/db";
+import { productTransfers, transferItems, inventory, products, shops, bundleItems } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -64,51 +64,128 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     if (!fromShopId || !toShopId || !items?.length) throw badRequest("fromShopId, toShopId and items required");
     await assertShopOwnership(req, Number(fromShopId));
 
+    // ── Step 1: Expand bundle products into their components ──────────────────
+    // Each entry: { productId, quantity, fromBundleName? }
+    const expandedMap = new Map<number, { quantity: number; fromBundleName?: string }>();
+
+    for (const item of items) {
+      const productId = Number(item.productId);
+      const qty       = Number(item.quantity ?? 1);
+
+      const product = await db.query.products.findFirst({
+        where: eq(products.id, productId),
+        columns: { id: true, type: true, name: true },
+      });
+
+      if (product?.type === "bundle") {
+        // Fetch components with their names
+        const components = await db
+          .select({
+            componentProduct: bundleItems.componentProduct,
+            quantity:         bundleItems.quantity,
+            componentName:    products.name,
+          })
+          .from(bundleItems)
+          .leftJoin(products, eq(bundleItems.componentProduct, products.id))
+          .where(eq(bundleItems.product, productId));
+
+        for (const comp of components) {
+          const needed = parseFloat(comp.quantity) * qty;
+          const prev   = expandedMap.get(comp.componentProduct);
+          expandedMap.set(comp.componentProduct, {
+            quantity:        (prev?.quantity ?? 0) + needed,
+            fromBundleName:  product.name,
+          });
+        }
+      } else {
+        const prev = expandedMap.get(productId);
+        expandedMap.set(productId, { quantity: (prev?.quantity ?? 0) + qty });
+      }
+    }
+
+    const expandedItems = Array.from(expandedMap.entries()).map(([productId, v]) => ({
+      productId,
+      quantity: v.quantity,
+      fromBundleName: v.fromBundleName,
+    }));
+
+    // ── Step 2: Validate stock for all expanded items ─────────────────────────
+    const stockErrors: Array<{
+      productId: number; productName: string;
+      required: number; available: number; fromBundle?: string;
+    }> = [];
+
+    await Promise.all(expandedItems.map(async (item) => {
+      const inv = await db.query.inventory.findFirst({
+        where: and(eq(inventory.product, item.productId), eq(inventory.shop, Number(fromShopId))),
+        columns: { quantity: true },
+      });
+      const available = parseFloat(String(inv?.quantity ?? 0));
+
+      if (available < item.quantity) {
+        const prod = await db.query.products.findFirst({
+          where: eq(products.id, item.productId),
+          columns: { name: true },
+        });
+        stockErrors.push({
+          productId:   item.productId,
+          productName: prod?.name ?? `Product #${item.productId}`,
+          required:    item.quantity,
+          available,
+          fromBundle:  item.fromBundleName,
+        });
+      }
+    }));
+
+    if (stockErrors.length > 0) {
+      return res.status(422).json({
+        success: false,
+        message: "Insufficient stock for transfer",
+        errors:  stockErrors,
+      });
+    }
+
+    // ── Step 3: Create the transfer record and move inventory ─────────────────
     const [transfer] = await db.insert(productTransfers).values({
-      fromShop: Number(fromShopId),
-      toShop: Number(toShopId),
+      fromShop:     Number(fromShopId),
+      toShop:       Number(toShopId),
       transferNote: note,
-      initiatedBy: req.attendant?.id ?? undefined,
-      transferNo: `TRF${Date.now()}`,
+      initiatedBy:  req.attendant?.id ?? undefined,
+      transferNo:   `TRF${Date.now()}`,
     }).returning();
 
     const itemRows = await db.insert(transferItems).values(
-      items.map((item: any) => ({
-        transfer: transfer.id,
-        product: Number(item.productId),
-        quantity: String(item.quantity ?? 1),
-        unitPrice: String(item.unitPrice ?? 0),
+      expandedItems.map((item) => ({
+        transfer:  transfer.id,
+        product:   item.productId,
+        quantity:  String(item.quantity),
+        unitPrice: "0",
       }))
     ).returning();
 
-    // Move inventory between shops and capture before/after for each item
     const enrichedItems = await Promise.all(
       itemRows.map(async (itemRow) => {
-        const qty = parseFloat(itemRow.quantity);
+        const qty       = parseFloat(itemRow.quantity);
         const productId = itemRow.product;
 
-        // Read fromShop inventory before deduction
-        const fromBefore = await db.query.inventory.findFirst({
+        const fromBefore    = await db.query.inventory.findFirst({
           where: and(eq(inventory.product, productId), eq(inventory.shop, transfer.fromShop)),
           columns: { quantity: true },
         });
         const fromQtyBefore = fromBefore ? String(fromBefore.quantity) : "0";
         const fromQtyAfter  = String(Math.max(0, parseFloat(fromQtyBefore) - qty));
 
-        // Read toShop inventory before addition
-        const toBefore = await db.query.inventory.findFirst({
+        const toBefore    = await db.query.inventory.findFirst({
           where: and(eq(inventory.product, productId), eq(inventory.shop, transfer.toShop)),
           columns: { quantity: true },
         });
         const toQtyBefore = toBefore ? String(toBefore.quantity) : "0";
         const toQtyAfter  = String(parseFloat(toQtyBefore) + qty);
 
-        // Deduct from source shop
         await db.update(inventory)
           .set({ quantity: sql`GREATEST(0, ${inventory.quantity} - ${qty}::numeric)` })
           .where(and(eq(inventory.product, productId), eq(inventory.shop, transfer.fromShop)));
 
-        // Add to destination shop (create row if it doesn't exist)
         await db.insert(inventory)
           .values({ product: productId, shop: transfer.toShop, quantity: itemRow.quantity })
           .onConflictDoUpdate({
@@ -122,28 +199,29 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
 
     await recordProductHistory([
       ...enrichedItems.map((itemRow) => ({
-        product: itemRow.product,
-        shop: transfer.fromShop,
-        eventType: "transfer_out" as const,
-        referenceId: itemRow.id,
-        quantity: itemRow.quantity,
-        unitPrice: itemRow.unitPrice,
+        product:        itemRow.product,
+        shop:           transfer.fromShop,
+        eventType:      "transfer_out" as const,
+        referenceId:    itemRow.id,
+        quantity:       itemRow.quantity,
+        unitPrice:      itemRow.unitPrice,
         quantityBefore: itemRow.fromQtyBefore,
-        quantityAfter: itemRow.fromQtyAfter,
-        note: transfer.transferNo ?? undefined,
+        quantityAfter:  itemRow.fromQtyAfter,
+        note:           transfer.transferNo ?? undefined,
       })),
       ...enrichedItems.map((itemRow) => ({
-        product: itemRow.product,
-        shop: transfer.toShop,
-        eventType: "transfer_in" as const,
-        referenceId: itemRow.id,
-        quantity: itemRow.quantity,
-        unitPrice: itemRow.unitPrice,
+        product:        itemRow.product,
+        shop:           transfer.toShop,
+        eventType:      "transfer_in" as const,
+        referenceId:    itemRow.id,
+        quantity:       itemRow.quantity,
+        unitPrice:      itemRow.unitPrice,
         quantityBefore: itemRow.toQtyBefore,
-        quantityAfter: itemRow.toQtyAfter,
-        note: transfer.transferNo ?? undefined,
+        quantityAfter:  itemRow.toQtyAfter,
+        note:           transfer.transferNo ?? undefined,
       })),
     ]);
+
     return created(res, { ...transfer, items: itemRows });
   } catch (e) { next(e); }
 });

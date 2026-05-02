@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowRight, Plus, Trash2, Search, ArrowLeft, RefreshCw, Download, ChevronDown, ChevronUp, X } from "lucide-react";
+import { ArrowRight, Plus, Search, ArrowLeft, RefreshCw, Download, ChevronDown, ChevronUp, X, AlertTriangle } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiRequest } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
@@ -49,6 +49,10 @@ export default function StockTransfer() {
   const { shopId, adminId, userType } = usePrimaryShop();
   const goBack = useGoBack("/dashboard");
   const shopDetails = useShopDetails(shopId);
+
+  // Stock-error dialog (bundle expansion failures)
+  interface StockError { productId: number; productName: string; required: number; available: number; fromBundle?: string; }
+  const [transferErrors, setTransferErrors] = useState<StockError[]>([]);
 
   // History filters
   const [fromDate, setFromDate] = useState("");
@@ -121,8 +125,10 @@ export default function StockTransfer() {
         items: cart.map(c => ({ productId: c.productId, quantity: c.quantity })),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.message || `Error ${res.status}`);
+        const body = await res.json().catch(() => ({}));
+        const err: any = new Error(body?.message || `Error ${res.status}`);
+        if (Array.isArray(body?.errors)) err.stockErrors = body.errors;
+        throw err;
       }
       return res.json();
     },
@@ -131,7 +137,13 @@ export default function StockTransfer() {
       queryClient.invalidateQueries({ queryKey: ["transfers"] });
       resetForm();
     },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      if (e.stockErrors?.length) {
+        setTransferErrors(e.stockErrors);
+      } else {
+        toast({ title: "Transfer failed", description: e.message, variant: "destructive" });
+      }
+    },
   });
 
   const resetForm = () => {
@@ -336,6 +348,42 @@ export default function StockTransfer() {
           </div>
         )}
       </div>
+
+      {/* ── Stock Error Dialog (insufficient stock / bundle expansion failures) ── */}
+      <Dialog open={transferErrors.length > 0} onOpenChange={(open) => { if (!open) setTransferErrors([]); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base text-red-600">
+              <AlertTriangle className="h-4 w-4" />
+              Insufficient Stock
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600 mt-1">
+            The following items don't have enough stock in the source shop to complete this transfer:
+          </p>
+          <div className="mt-3 space-y-2 max-h-72 overflow-y-auto">
+            {transferErrors.map((err, i) => (
+              <div key={i} className="rounded-md border border-red-100 bg-red-50 px-3 py-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{err.productName}</p>
+                    {err.fromBundle && (
+                      <p className="text-xs text-gray-500 mt-0.5">Component of bundle: <span className="font-medium">{err.fromBundle}</span></p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-red-600 font-medium">Need {err.required}</p>
+                    <p className="text-xs text-gray-500">Have {err.available}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Button size="sm" variant="outline" onClick={() => setTransferErrors([])}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Create Transfer Dialog ── */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
