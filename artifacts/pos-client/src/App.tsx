@@ -452,6 +452,7 @@ function AppContent() {
             <Route path="/reports/products" component={ProductsReportPage} />
             <Route path="/reports" component={ReportsHubPage} />
             <Route path="/debtors" component={DebtorsPage} />
+            <Route path="/reports/debtors" component={DebtorsPage} />
             <Route path="/collected-payments" component={CollectedPaymentsPage} />
             <Route path="/printer-config" component={PrinterConfigPage} />
             <Route path="/settings" component={SettingsPage} />
