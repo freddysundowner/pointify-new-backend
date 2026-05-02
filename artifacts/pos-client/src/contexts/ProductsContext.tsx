@@ -42,6 +42,7 @@ export const ProductsProvider = ({ children }: ProductsProviderProps) => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const isFetchingMore = useRef(false);
+  const loadedShopId = useRef<string | null>(null);
 
   const getPrimaryShopId = () => {
     if (!admin?.primaryShop) return null;
@@ -64,7 +65,10 @@ export const ProductsProvider = ({ children }: ProductsProviderProps) => {
       return;
     }
 
-    if (!append) setIsLoading(true);
+    if (!append) {
+      setIsLoading(true);
+      loadedShopId.current = String(shopId);
+    }
     setError(null);
 
     try {
@@ -130,12 +134,19 @@ export const ProductsProvider = ({ children }: ProductsProviderProps) => {
     const authToken = token || attendantToken;
     const user = admin || attendant;
 
-    if (isAuthenticatedUser && user && authToken) {
-      if (products.length === 0) {
-        fetchProducts(1, false);
-      }
+    if (!isAuthenticatedUser || !user || !authToken) return;
+
+    const activeShopId = String(selectedShopId || (admin?.primaryShop ? extractId(admin.primaryShop) : '') || '');
+
+    const shopChanged = activeShopId && loadedShopId.current !== activeShopId;
+    const noProductsLoaded = products.length === 0;
+
+    if (shopChanged || noProductsLoaded) {
+      setProducts([]);
+      setPage(1);
+      fetchProducts(1, false);
     }
-  }, [isAuthenticated, isAttendantAuthenticated, admin?._id, attendant?._id, token, attendantToken, selectedShopId, fetchProducts, products.length]);
+  }, [isAuthenticated, isAttendantAuthenticated, admin?._id, attendant?._id, token, attendantToken, selectedShopId, fetchProducts]);
 
   const value: ProductsContextType = {
     products,
