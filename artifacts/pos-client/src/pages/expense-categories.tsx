@@ -120,8 +120,7 @@ export default function ExpenseCategories() {
   // Delete category mutation
   const deleteCategoryMutation = useMutation({
     mutationFn: async (categoryId: string) => {
-      const response = await apiRequest('DELETE', ENDPOINTS.expenseCategories.delete(categoryId));
-      return response.json();
+      await apiRequest('DELETE', ENDPOINTS.expenseCategories.delete(categoryId));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expense-categories'] });

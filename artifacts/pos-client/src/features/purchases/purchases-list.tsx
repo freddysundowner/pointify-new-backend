@@ -280,8 +280,7 @@ export default function PurchasesList() {
   // Delete purchase mutation
   const deletePurchaseMutation = useMutation({
     mutationFn: async (purchaseId: string) => {
-      const response = await apiRequest('DELETE', ENDPOINTS.purchases.delete(purchaseId));
-      return response.json();
+      await apiRequest('DELETE', ENDPOINTS.purchases.delete(purchaseId));
     },
     onSuccess: () => {
       toast({

@@ -170,8 +170,7 @@ export default function SuppliersPage() {
   // Delete supplier mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest('DELETE', ENDPOINTS.suppliers.delete(id));
-      return await response.json();
+      await apiRequest('DELETE', ENDPOINTS.suppliers.delete(id));
     },
     onSuccess: () => {
       toast({

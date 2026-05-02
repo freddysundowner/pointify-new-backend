@@ -232,8 +232,7 @@ export default function Expenses() {
   // Delete expense mutation
   const deleteExpenseMutation = useMutation({
     mutationFn: async (expenseId: string) => {
-      const response = await apiRequest('DELETE', ENDPOINTS.expenses.delete(expenseId));
-      return response.json();
+      await apiRequest('DELETE', ENDPOINTS.expenses.delete(expenseId));
     },
     onSuccess: () => {
       // Invalidate both expenses list and statistics cache
