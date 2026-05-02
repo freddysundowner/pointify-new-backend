@@ -429,13 +429,13 @@ export default function CustomerOverview() {
     customerPayments.forEach((payment: any) => {
       const date = new Date(payment.createdAt).toLocaleDateString();
       const type = payment.type.charAt(0).toUpperCase() + payment.type.slice(1);
-      const amount = payment.totalAmount || 0;
+      const amount = Number(payment.amount ?? payment.totalAmount ?? 0);
       const receiptNo = payment.paymentNo || 'N/A';
-      const attendant = payment.attendantId?.username || 'System';
+      const attendant = payment.attendantId?.username || (payment.handledBy ? 'Staff' : 'System');
       const balance = Number(payment.balance ?? payment.customerId?.wallet ?? 0);
       
       const sign = payment.type === 'withdraw' ? '-' : '+';
-      csvContent += `${date},"${type}",${sign}${Number(amount).toFixed(2)},"${receiptNo}","${attendant}",${balance.toFixed(2)}\n`;
+      csvContent += `${date},"${type}",${sign}${amount.toFixed(2)},"${receiptNo}","${attendant}",${balance.toFixed(2)}\n`;
     });
     
     // Create and download file
@@ -484,19 +484,21 @@ export default function CustomerOverview() {
       const attendant = sale.attendant?.username || sale.attendantId?.username || '';
       const amount = Number(sale.totalWithDiscount || sale.totalAmount || 0);
       const tag = (sale.paymentType || sale.paymentTag || '').toLowerCase();
+      const isCredit = sale.status === 'credit' || Number(sale.outstandingBalance) > 0;
       const saleItems = sale.saleItems || sale.items || [];
       const productNames = saleItems.map((i: any) => i.product?.name || i.productName || i.name || 'Item').join(', ');
       const description = `Sale${productNames ? ': ' + productNames.substring(0, 60) : ''}`;
-      const payLabel = tag === 'credit' ? 'Credit' : tag === 'wallet' ? 'Wallet' : tag === 'mpesa' ? 'M-Pesa' : tag === 'bank' ? 'Bank' : 'Cash';
+      const payLabel = isCredit ? 'Credit' : tag === 'wallet' ? 'Wallet' : tag === 'mpesa' ? 'M-Pesa' : tag === 'bank' ? 'Bank' : 'Cash';
 
-      if (tag === 'credit') {
-        // Credit sale — customer owes this amount
-        rows.push({ ts, date: new Date(ts).toLocaleDateString(), description: `${description} [${payLabel}]`, ref, attendant, debit: amount, credit: 0 });
+      if (isCredit) {
+        // Credit sale — customer owes the outstanding amount
+        const creditAmount = Number(sale.outstandingBalance) || amount;
+        rows.push({ ts, date: new Date(ts).toLocaleDateString(), description: `${description} [${payLabel}]`, ref, attendant, debit: creditAmount, credit: 0 });
       } else if (tag === 'wallet') {
         // Paid from wallet — deducted from wallet
         rows.push({ ts, date: new Date(ts).toLocaleDateString(), description: `${description} [${payLabel}]`, ref, attendant, debit: amount, credit: 0 });
       } else {
-        // Cash/M-Pesa/Bank paid sale — show as informational, 0 impact on balance
+        // Cash/M-Pesa/Bank paid sale — informational, no balance impact
         rows.push({ ts, date: new Date(ts).toLocaleDateString(), description: `${description} [${payLabel} - Paid]`, ref, attendant, debit: 0, credit: 0 });
       }
     });
@@ -505,15 +507,22 @@ export default function CustomerOverview() {
     allPayments.forEach((payment: any) => {
       const ts = new Date(payment.createdAt).getTime();
       const ref = payment.paymentNo || payment._id?.slice(-8) || 'N/A';
-      const attendant = payment.attendantId?.username || 'System';
-      const amount = Number(payment.totalAmount || 0);
-      const isDeposit = payment.type === 'deposit';
+      const attendant = payment.attendantId?.username || (payment.handledBy ? 'Staff' : 'System');
+      const amount = Number(payment.amount ?? payment.totalAmount ?? 0);
+      const pType = (payment.type || '').toLowerCase();
+      const isDebit = pType === 'withdraw';
+      const descMap: Record<string, string> = {
+        deposit: 'Wallet Deposit',
+        withdraw: 'Wallet Withdrawal',
+        payment: 'Debt Payment',
+        refund: 'Refund',
+      };
       rows.push({
         ts, date: new Date(ts).toLocaleDateString(),
-        description: isDeposit ? 'Wallet Deposit' : 'Wallet Withdrawal',
+        description: descMap[pType] || 'Wallet Transaction',
         ref, attendant,
-        debit: isDeposit ? 0 : amount,
-        credit: isDeposit ? amount : 0,
+        debit: isDebit ? amount : 0,
+        credit: isDebit ? 0 : amount,
       });
     });
 
