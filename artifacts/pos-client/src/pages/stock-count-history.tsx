@@ -321,65 +321,59 @@ export default function StockCountHistoryPage() {
                     {/* ── Expanded product list ── */}
                     {isOpen && (
                       <div className="border-l-4 border-indigo-400 ml-4 mr-4 mb-2 rounded overflow-hidden bg-white shadow-sm">
-                        {group.sessions.map((session, si) => (
-                          <div key={session.id}>
-                            {/* Session sub-header — only shown when >1 session on a day */}
-                            {group.sessions.length > 1 && (
-                              <div className="flex items-center gap-3 px-4 py-1.5 bg-indigo-50 border-b border-indigo-100 text-xs text-indigo-700">
-                                <span className="font-medium">
-                                  Session {si + 1} — {formatTime(session.createdAt)}
-                                </span>
-                                <span className="text-indigo-400">·</span>
-                                <span>{session.conductedBy ? `Attendant #${session.conductedBy}` : "Admin"}</span>
-                              </div>
-                            )}
-
-                            {session.stockCountItems.length === 0 ? (
-                              <div className="px-4 py-3 text-xs text-gray-400">No items in this session</div>
-                            ) : (
-                              <table className="w-full text-xs">
-                                <thead>
-                                  <tr className="bg-gray-50 border-b text-gray-500 uppercase tracking-wide">
-                                    <th className="text-left px-4 py-1.5 font-medium">Product</th>
-                                    {group.sessions.length === 1 && (
-                                      <th className="text-left px-3 py-1.5 font-medium">Time</th>
-                                    )}
-                                    <th className="text-center px-3 py-1.5 font-medium">System Qty</th>
-                                    <th className="text-center px-3 py-1.5 font-medium">Physical Qty</th>
-                                    <th className="text-center px-3 py-1.5 font-medium">Variance</th>
-                                    <th className="text-left px-3 py-1.5 font-medium">Result</th>
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-gray-50 border-b text-gray-500 uppercase tracking-wide">
+                              <th className="text-left px-4 py-1.5 font-medium">Product</th>
+                              <th className="text-left px-3 py-1.5 font-medium">Time</th>
+                              <th className="text-center px-3 py-1.5 font-medium">System Qty</th>
+                              <th className="text-center px-3 py-1.5 font-medium">Physical Qty</th>
+                              <th className="text-center px-3 py-1.5 font-medium">Variance</th>
+                              <th className="text-left px-3 py-1.5 font-medium">Result</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.sessions.map((session, si) => (
+                              <React.Fragment key={session.id}>
+                                {/* Session divider — only when >1 session */}
+                                {group.sessions.length > 1 && (
+                                  <tr className={si > 0 ? "border-t-2 border-indigo-100" : ""}>
+                                    <td colSpan={6} className="px-4 py-1 bg-indigo-50/60 text-indigo-600 font-medium text-xs">
+                                      Session {si + 1} — {formatTime(session.createdAt)}
+                                      <span className="text-indigo-400 font-normal ml-2">
+                                        · {session.conductedBy ? `Attendant #${session.conductedBy}` : "Admin"}
+                                      </span>
+                                    </td>
                                   </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                  {session.stockCountItems.map(item => {
-                                    const v = fmt(item.variance);
-                                    return (
-                                      <tr key={item.id} className="hover:bg-indigo-50/30 transition-colors">
-                                        <td className="px-4 py-2 font-medium text-gray-800">{item.productName}</td>
-                                        {group.sessions.length === 1 && (
-                                          <td className="px-3 py-2 text-gray-400">{formatTime(session.createdAt)}</td>
-                                        )}
-                                        <td className="text-center px-3 py-2 text-gray-500">{fmt(item.systemCount)}</td>
-                                        <td className="text-center px-3 py-2 text-gray-700 font-medium">{fmt(item.physicalCount)}</td>
-                                        <td className="text-center px-3 py-2">
-                                          <VarianceBadge v={v} />
-                                        </td>
-                                        <td className="px-3 py-2">
-                                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                            v === 0 ? "bg-green-50 text-green-700"
-                                            : v > 0  ? "bg-blue-50 text-blue-700"
-                                            :          "bg-red-50 text-red-600"}`}>
-                                            {v === 0 ? "Balanced" : v > 0 ? "Surplus" : "Shortage"}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            )}
-                          </div>
-                        ))}
+                                )}
+                                {session.stockCountItems.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={6} className="px-4 py-3 text-gray-400">No items in this session</td>
+                                  </tr>
+                                ) : session.stockCountItems.map(item => {
+                                  const v = fmt(item.variance);
+                                  return (
+                                    <tr key={item.id} className="border-t border-gray-50 hover:bg-indigo-50/20 transition-colors">
+                                      <td className="px-4 py-2 font-medium text-gray-800">{item.productName}</td>
+                                      <td className="px-3 py-2 text-gray-400">{formatTime(session.createdAt)}</td>
+                                      <td className="text-center px-3 py-2 text-gray-500">{fmt(item.systemCount)}</td>
+                                      <td className="text-center px-3 py-2 text-gray-700 font-medium">{fmt(item.physicalCount)}</td>
+                                      <td className="text-center px-3 py-2"><VarianceBadge v={v} /></td>
+                                      <td className="px-3 py-2">
+                                        <span className={`px-2 py-0.5 rounded-full font-medium ${
+                                          v === 0 ? "bg-green-50 text-green-700"
+                                          : v > 0  ? "bg-blue-50 text-blue-700"
+                                          :          "bg-red-50 text-red-600"}`}>
+                                          {v === 0 ? "Balanced" : v > 0 ? "Surplus" : "Shortage"}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </React.Fragment>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                   </div>
