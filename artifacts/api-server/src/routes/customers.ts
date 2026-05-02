@@ -7,6 +7,7 @@ import { notFound, badRequest } from "../lib/errors.js";
 import { assertShopOwnership } from "../lib/shop.js";
 import { requireAdmin, requireAdminOrAttendant } from "../middlewares/auth.js";
 import { notifyCustomerWelcome, notifyWalletTopup } from "../lib/emailEvents.js";
+import { sendRawEmail } from "../lib/email.js";
 import { getPagination, getSearch } from "../lib/paginate.js";
 
 const router = Router();
@@ -517,6 +518,38 @@ router.post("/:id/loyalty/adjust", requireAdmin, async (req, res, next) => {
     }).returning();
 
     return ok(res, { loyaltyPoints: newBalance, transaction: tx });
+  } catch (e) { next(e); }
+});
+
+// ── Email statement ───────────────────────────────────────────────────────────
+router.post("/:id/email-statement", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const customerId = Number(req.params["id"]);
+    const { subject, html, toEmail } = req.body ?? {};
+    if (!html) throw badRequest("html body required");
+
+    const customer = await db.query.customers.findFirst({
+      where: eq(customers.id, customerId),
+      columns: { id: true, name: true, email: true, shop: true },
+    });
+    if (!customer) throw notFound("Customer");
+    await assertShopOwnership(req, customer.shop);
+
+    const recipientEmail = toEmail || customer.email;
+    if (!recipientEmail) throw badRequest("Customer has no email address. Please add one first.");
+
+    const result = await sendRawEmail({
+      to: recipientEmail,
+      name: customer.name,
+      subject: subject || `Account Statement — ${customer.name}`,
+      html,
+    });
+
+    if (!result.ok) {
+      if (result.skipped) return ok(res, { sent: false, reason: result.skipped });
+      throw new Error(result.error || "Email failed to send");
+    }
+    return ok(res, { sent: true, to: recipientEmail });
   } catch (e) { next(e); }
 });
 

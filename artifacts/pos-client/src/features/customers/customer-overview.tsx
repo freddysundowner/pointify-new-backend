@@ -110,6 +110,7 @@ export default function CustomerOverview() {
   const [adjustPoints, setAdjustPoints] = useState("");
   const [adjustNote, setAdjustNote] = useState("");
   const [isAdjustDialogOpen, setIsAdjustDialogOpen] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const { toast } = useToast();
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const { admin } = useAuth();
@@ -841,6 +842,187 @@ export default function CustomerOverview() {
     });
   };
 
+  // Email statement to customer
+  const emailStatementToCustomer = async () => {
+    const customerName = customerOverviewData.name;
+    const customerEmail = (customerData as any)?.email || '';
+    const currentDate = new Date().toLocaleDateString();
+    const currency = (customerData as any)?.currency || 'KES';
+
+    // Fetch shop data
+    let fetchedShop: any = shopData;
+    const sid = String(customerData?.shop || shopIdForQuery || '');
+    if (sid) {
+      try {
+        const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
+        const res = await fetch(ENDPOINTS.shop.getAll, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const r = await res.json();
+          const list: any[] = Array.isArray(r?.data) ? r.data : (Array.isArray(r) ? r : []);
+          fetchedShop = list.find((s: any) => String(s.id) === sid) ?? fetchedShop;
+        }
+      } catch { /* ignore */ }
+    }
+    const shopName = fetchedShop?.name || 'Shop';
+    const shopAddress = fetchedShop?.address || fetchedShop?.receiptAddress || '';
+    const shopPhone = fetchedShop?.contact || fetchedShop?.phone || '';
+    const shopEmail = fetchedShop?.receiptEmail || fetchedShop?.email || '';
+
+    const allSales: any[] = salesData?.data || [];
+    const allPayments: any[] = (customerPayments as any[]) || [];
+
+    type TxRow = { ts: number; date: string; description: string; ref: string; attendant: string; debit: number; credit: number; };
+    const rows: TxRow[] = [];
+
+    allSales.forEach((sale: any) => {
+      const ts = new Date(sale.createdAt || sale.saleDate).getTime();
+      const ref = sale.receiptNo || sale.receiptno || sale._id?.slice(-8) || 'N/A';
+      const attendant = sale.attendant?.username || sale.attendantId?.username || '';
+      const amount = Number(sale.totalWithDiscount || sale.totalAmount || 0);
+      const tag = (sale.paymentType || sale.paymentTag || '').toLowerCase();
+      const isCredit = sale.status === 'credit' || Number(sale.outstandingBalance) > 0;
+      const saleItems = sale.saleItems || sale.items || [];
+      const productNames = saleItems.map((i: any) => i.product?.name || i.productName || i.name || 'Item').join(', ');
+      const description = `Sale${productNames ? ': ' + productNames.substring(0, 60) : ''}`;
+      const payLabel = isCredit ? 'Credit' : tag === 'wallet' ? 'Wallet' : tag === 'mpesa' ? 'M-Pesa' : tag === 'bank' ? 'Bank' : 'Cash';
+
+      if (isCredit) {
+        const creditAmount = Number(sale.outstandingBalance) || amount;
+        rows.push({ ts, date: new Date(ts).toLocaleDateString(), description: `${description} [${payLabel}]`, ref, attendant, debit: creditAmount, credit: 0 });
+      } else if (tag === 'wallet') {
+        rows.push({ ts, date: new Date(ts).toLocaleDateString(), description: `${description} [${payLabel}]`, ref, attendant, debit: amount, credit: 0 });
+      } else {
+        rows.push({ ts, date: new Date(ts).toLocaleDateString(), description: `${description} [${payLabel} - Paid]`, ref, attendant, debit: 0, credit: 0 });
+      }
+    });
+
+    allPayments.forEach((payment: any) => {
+      const ts = new Date(payment.createdAt).getTime();
+      const ref = payment.paymentNo || payment._id?.slice(-8) || 'N/A';
+      const attendant = payment.attendantId?.username || (payment.handledBy ? 'Staff' : 'System');
+      const amount = Number(payment.amount ?? payment.totalAmount ?? 0);
+      const pType = (payment.type || '').toLowerCase();
+      const isDebit = pType === 'withdraw';
+      const descMap: Record<string, string> = { deposit: 'Wallet Deposit', withdraw: 'Wallet Withdrawal', payment: 'Debt Payment', refund: 'Refund' };
+      rows.push({ ts, date: new Date(ts).toLocaleDateString(), description: descMap[pType] || 'Wallet Transaction', ref, attendant, debit: isDebit ? amount : 0, credit: isDebit ? 0 : amount });
+    });
+
+    rows.sort((a, b) => a.ts - b.ts);
+
+    let runningBalance = 0;
+    const transactionRows = rows.map(row => {
+      runningBalance += row.credit - row.debit;
+      const balanceColor = runningBalance < 0 ? '#dc2626' : '#059669';
+      const balanceText = `${currency} ${Math.abs(runningBalance).toFixed(2)}${runningBalance > 0 ? ' Owing' : ''}`;
+      const debitCell = row.debit > 0 ? `<span style="color:#dc2626;font-weight:600;">${currency} ${row.debit.toFixed(2)}</span>` : `<span style="color:#9ca3af;">-</span>`;
+      const creditCell = row.credit > 0 ? `<span style="color:#059669;font-weight:600;">${currency} ${row.credit.toFixed(2)}</span>` : `<span style="color:#9ca3af;">-</span>`;
+      return `<tr>
+        <td style="padding:8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${row.date}</td>
+        <td style="padding:8px;border-bottom:1px solid #e5e7eb;font-size:12px;">${row.description}</td>
+        <td style="padding:8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${row.ref}<br/><span style="font-size:11px;color:#6b7280;">${row.attendant}</span></td>
+        <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${debitCell}</td>
+        <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${creditCell}</td>
+        <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;color:${balanceColor};">${balanceText}</td>
+      </tr>`;
+    }).join('');
+
+    const totalDebits = rows.reduce((s, r) => s + r.debit, 0);
+    const totalCredits = rows.reduce((s, r) => s + r.credit, 0);
+    const closingBalance = totalCredits - totalDebits;
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+    .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2563eb; padding-bottom: 20px; }
+    .company-name { font-size: 24px; font-weight: bold; color: #2563eb; margin-bottom: 10px; }
+    .statement-title { font-size: 20px; margin-bottom: 20px; }
+    .customer-info { display: flex; justify-content: space-between; margin-bottom: 30px; background-color: #f8fafc; padding: 20px; border-radius: 8px; }
+    .info-section { flex: 1; }
+    .info-label { font-weight: bold; color: #374151; margin-bottom: 5px; }
+    .info-value { color: #6b7280; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th { background-color: #2563eb; color: white; padding: 12px 8px; text-align: left; font-weight: 600; }
+    th:last-child, td:last-child { text-align: right; }
+    .summary { margin-top: 30px; padding: 20px; background-color: #f0f9ff; border-radius: 8px; border-left: 4px solid #2563eb; }
+    .summary-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #2563eb; }
+    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .summary-item { text-align: center; }
+    .summary-value { font-size: 20px; font-weight: bold; margin-bottom: 5px; }
+    .summary-label { color: #6b7280; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="company-name">${shopName}</div>
+    ${shopAddress ? `<div style="font-size:13px;color:#4b5563;margin-top:2px;">${shopAddress}</div>` : ''}
+    ${shopPhone ? `<div style="font-size:13px;color:#4b5563;">Tel: ${shopPhone}</div>` : ''}
+    ${shopEmail ? `<div style="font-size:13px;color:#4b5563;">${shopEmail}</div>` : ''}
+    <div class="statement-title" style="margin-top:10px;">Customer Account Statement</div>
+  </div>
+  <div class="customer-info">
+    <div class="info-section"><div class="info-label">Customer Name:</div><div class="info-value">${customerName}</div></div>
+    <div class="info-section"><div class="info-label">Statement Date:</div><div class="info-value">${currentDate}</div></div>
+    <div class="info-section"><div class="info-label">Phone:</div><div class="info-value">${(customerData as any)?.phonenumber || (customerData as any)?.phone || 'N/A'}</div></div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:90px;">Date</th>
+        <th>Description</th>
+        <th style="width:120px;">Reference</th>
+        <th style="text-align:right;width:100px;">Debit</th>
+        <th style="text-align:right;width:100px;">Credit</th>
+        <th style="text-align:right;width:110px;">Balance</th>
+      </tr>
+    </thead>
+    <tbody>${transactionRows}</tbody>
+    <tfoot>
+      <tr style="background:#f1f5f9;font-weight:700;">
+        <td colspan="3" style="padding:10px 8px;border-top:2px solid #2563eb;">Totals</td>
+        <td style="padding:10px 8px;border-top:2px solid #2563eb;text-align:right;color:#dc2626;">${currency} ${totalDebits.toFixed(2)}</td>
+        <td style="padding:10px 8px;border-top:2px solid #2563eb;text-align:right;color:#059669;">${currency} ${totalCredits.toFixed(2)}</td>
+        <td style="padding:10px 8px;border-top:2px solid #2563eb;text-align:right;color:${closingBalance < 0 ? '#dc2626' : '#059669'};">${currency} ${Math.abs(closingBalance).toFixed(2)}${closingBalance < 0 ? ' Owing' : ' Credit'}</td>
+      </tr>
+    </tfoot>
+  </table>
+  <div class="summary">
+    <div class="summary-title">Account Summary</div>
+    <div class="summary-grid">
+      <div class="summary-item"><div class="summary-value" style="color:#dc2626;">${currency} ${totalDebits.toFixed(2)}</div><div class="summary-label">Total Debits</div></div>
+      <div class="summary-item"><div class="summary-value" style="color:#059669;">${currency} ${totalCredits.toFixed(2)}</div><div class="summary-label">Total Credits</div></div>
+      <div class="summary-item"><div class="summary-value" style="color:${closingBalance < 0 ? '#dc2626' : '#059669'};">${currency} ${Math.abs(closingBalance).toFixed(2)}</div><div class="summary-label">${closingBalance < 0 ? 'Amount Owing' : 'Credit Balance'}</div></div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    setIsSendingEmail(true);
+    try {
+      const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
+      const res = await fetch(ENDPOINTS.customers.emailStatement(String(customerId)), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: `Account Statement — ${customerName}`, html, toEmail: customerEmail || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error || 'Failed to send email');
+      }
+      if (data?.data?.sent === false) {
+        toast({ title: "Email Not Sent", description: data.data.reason || "Email provider is not configured.", variant: "destructive" });
+      } else {
+        toast({ title: "Statement Sent", description: `Statement emailed to ${data?.data?.to || customerEmail}` });
+      }
+    } catch (err: any) {
+      toast({ title: "Email Failed", description: err.message || "Could not send the statement.", variant: "destructive" });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-green-100 text-green-800 border-green-200';
@@ -1182,6 +1364,10 @@ export default function CustomerOverview() {
                         <Button onClick={downloadStatementPDF} variant="outline">
                           <Download className="h-4 w-4 mr-2" />
                           Download PDF
+                        </Button>
+                        <Button onClick={emailStatementToCustomer} variant="outline" disabled={isSendingEmail}>
+                          <Mail className="h-4 w-4 mr-2" />
+                          {isSendingEmail ? "Sending…" : "Email Statement"}
                         </Button>
                       </div>
                     </div>
