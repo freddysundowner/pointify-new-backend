@@ -225,7 +225,7 @@ export default function StockTransfer() {
 
           {/* ── Body ── */}
           <div className="flex-1 overflow-auto">
-            <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+            <div className="px-6 py-6 space-y-5">
 
               {/* Shop selectors */}
               <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
