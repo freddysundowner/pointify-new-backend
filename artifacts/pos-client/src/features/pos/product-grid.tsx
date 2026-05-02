@@ -2183,20 +2183,20 @@ export default function ProductGrid({
               )}
               
               {selectedPaymentMethod === "credit" && (
-                <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                  <div className="flex items-center space-x-2 mb-3">
-                    <UserCheck className="h-5 w-5 text-orange-600" />
-                    <span className="font-medium text-orange-800">Credit Sale</span>
+                <div className="bg-orange-50 px-3 py-2.5 rounded-lg border border-orange-200">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <UserCheck className="h-4 w-4 text-orange-600" />
+                    <span className="text-xs font-semibold text-orange-800 uppercase tracking-wide">Credit Sale</span>
                   </div>
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Customer *</label>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Customer *</label>
                       <select 
-                        className="w-full h-10 px-3 border border-orange-200 rounded text-sm focus:border-orange-500"
+                        className="w-full h-8 px-2 border border-orange-200 rounded text-sm focus:border-orange-500 bg-white"
                         value={selectedCustomerId}
                         onChange={(e) => setSelectedCustomerId(e.target.value)}
                       >
-                        <option value="">Select a customer...</option>
+                        <option value="">Select customer...</option>
                         {customers.map((customer: any) => {
                           const customerId = customer._id || customer.id;
                           return (
@@ -2208,31 +2208,15 @@ export default function ProductGrid({
                       </select>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Due Date *</label>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Due Date *</label>
                       <Input
                         type="date"
                         value={creditDueDate}
                         onChange={(e) => setCreditDueDate(e.target.value)}
-                        className="w-full border-orange-200 focus:border-orange-500"
+                        className="h-8 text-sm border-orange-200 focus:border-orange-500 bg-white"
                         min={new Date().toISOString().split('T')[0]}
                       />
                     </div>
-                    {selectedCustomer && (
-                      <div className="bg-white p-3 rounded border border-orange-200">
-                        <div className="text-sm">
-                          <p className="font-medium text-gray-900">{selectedCustomer.name}</p>
-                          <p className="text-gray-600">
-                            Total Outstanding: Ksh {Math.abs(selectedCustomer.totalOutstanding || selectedCustomer.balance || 0).toFixed(2)}
-                            {(selectedCustomer.totalOutstanding || selectedCustomer.balance || 0) > 0 ? ' (Owes)' : ' (Clear)'}
-                          </p>
-                          {selectedCustomer.wallet && (
-                            <p className="text-gray-500 text-xs">
-                              Wallet Balance: Ksh {parseFloat(selectedCustomer.wallet).toFixed(2)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
