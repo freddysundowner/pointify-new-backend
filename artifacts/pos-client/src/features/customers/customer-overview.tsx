@@ -204,6 +204,23 @@ export default function CustomerOverview() {
     refetchOnWindowFocus: true,
   });
 
+  // Fetch shop details for PDF header
+  const { data: shopData } = useQuery({
+    queryKey: ['shop-detail', effectiveShopId],
+    queryFn: async () => {
+      if (!effectiveShopId) return null;
+      const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
+      const res = await fetch(ENDPOINTS.shops.getById(effectiveShopId), {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      const result = await res.json();
+      return result?.data ?? result;
+    },
+    enabled: !!effectiveShopId,
+    staleTime: 60000,
+  });
+
   // Debt payment mutation
   const debtPaymentMutation = useMutation({
     mutationFn: async (paymentData: { amount: number; paymentMethod: string; notes: string }) => {
@@ -459,7 +476,10 @@ export default function CustomerOverview() {
   const downloadStatementPDF = () => {
     const customerName = customerOverviewData.name;
     const currentDate = new Date().toLocaleDateString();
-    const shopName = (typeof admin?.primaryShop === 'object' ? (admin.primaryShop as any)?.name : null) || 'Shop';
+    const shopName = shopData?.name || (typeof admin?.primaryShop === 'object' ? (admin.primaryShop as any)?.name : null) || 'Shop';
+    const shopAddress = shopData?.address || shopData?.receiptAddress || '';
+    const shopPhone = shopData?.contact || shopData?.phone || '';
+    const shopEmail = shopData?.email || '';
 
     const allSales: any[] = salesData?.data || [];
     const allPayments: any[] = (customerPayments as any[]) || [];
@@ -662,7 +682,10 @@ export default function CustomerOverview() {
         <body>
           <div class="header">
             <div class="company-name">${shopName}</div>
-            <div class="statement-title">Customer Account Statement</div>
+            ${shopAddress ? `<div style="font-size:13px;color:#4b5563;margin-top:2px;">${shopAddress}</div>` : ''}
+            ${shopPhone ? `<div style="font-size:13px;color:#4b5563;">Tel: ${shopPhone}</div>` : ''}
+            ${shopEmail ? `<div style="font-size:13px;color:#4b5563;">${shopEmail}</div>` : ''}
+            <div class="statement-title" style="margin-top:10px;">Customer Account Statement</div>
           </div>
           
           <div class="customer-info">
@@ -1023,99 +1046,137 @@ export default function CustomerOverview() {
           </TabsContent>
 
           <TabsContent value="statement" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>Account Statement</CardTitle>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Select value={statementFilter} onValueChange={setStatementFilter}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="Filter" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="deposit">Deposit</SelectItem>
-                        <SelectItem value="withdraw">Withdraw</SelectItem>
-                        <SelectItem value="payment">Payment</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={downloadStatementCSV} variant="outline">
-                      <Download className="h-4 w-4 mr-2" />
-                      Download CSV
-                    </Button>
-                    <Button onClick={downloadStatementPDF} variant="outline">
-                      <Download className="h-4 w-4 mr-2" />
-                      Download PDF
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                        <TableHead>Receipt & Attendant</TableHead>
-                        <TableHead className="text-right">Balance</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {isLoadingPayments ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center">Loading payment history...</TableCell>
-                        </TableRow>
-                      ) : customerPayments && customerPayments.length > 0 ? (
-                        customerPayments.map((payment: any) => {
-                          const date = new Date(payment.createdAt).toLocaleDateString();
-                          const type = payment.type.charAt(0).toUpperCase() + payment.type.slice(1);
-                          const amount = Number(payment.amount ?? payment.totalAmount ?? 0);
-                          const paymentNo = payment.paymentNo || 'N/A';
-                          const balance = Number(payment.balance ?? payment.customerId?.wallet ?? 0);
-                          const attendant = payment.attendantId?.username || 'System';
-                          
-                          return (
-                            <TableRow key={payment._id}>
-                              <TableCell>{date}</TableCell>
-                              <TableCell>
-                                <Badge variant={payment.type === 'deposit' ? 'default' : payment.type === 'withdraw' ? 'destructive' : 'secondary'}>
-                                  {type}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <span className={`font-medium ${payment.type === 'deposit' ? 'text-green-600' : 'text-red-600'}`}>
-                                  {payment.type === 'withdraw' ? '-' : '+'}{currency} {amount.toFixed(2)}
-                                </span>
-                              </TableCell>
+            {(() => {
+              // Build merged statement rows: credit sales + wallet transactions
+              type StmtRow = { ts: number; date: string; description: string; ref: string; attendant: string; debit: number; credit: number; };
+              const stmtRows: StmtRow[] = [];
+
+              (salesData?.data || []).forEach((sale: any) => {
+                const isCredit = sale.status === 'credit' || Number(sale.outstandingBalance) > 0;
+                if (!isCredit) return;
+                const ts = new Date(sale.createdAt || sale.saleDate).getTime();
+                const saleItems = sale.saleItems || sale.items || [];
+                const productNames = saleItems.map((i: any) => i.product?.name || i.productName || i.name || 'Item').join(', ');
+                stmtRows.push({
+                  ts,
+                  date: new Date(ts).toLocaleDateString(),
+                  description: `Credit Sale${productNames ? ': ' + productNames.substring(0, 50) : ''}`,
+                  ref: sale.receiptNo || sale.receiptno || `#${sale.id}`,
+                  attendant: sale.attendant?.username || '',
+                  debit: Number(sale.outstandingBalance) || Number(sale.totalWithDiscount || sale.totalAmount || 0),
+                  credit: 0,
+                });
+              });
+
+              (customerPayments as any[]).forEach((p: any) => {
+                const ts = new Date(p.createdAt).getTime();
+                const pType = (p.type || '').toLowerCase();
+                const isDebit = pType === 'withdraw';
+                const descMap: Record<string, string> = { deposit: 'Wallet Deposit', withdraw: 'Wallet Withdrawal', payment: 'Debt Payment', refund: 'Refund' };
+                const amount = Number(p.amount ?? p.totalAmount ?? 0);
+                stmtRows.push({
+                  ts,
+                  date: new Date(ts).toLocaleDateString(),
+                  description: descMap[pType] || 'Transaction',
+                  ref: p.paymentNo || `#${p.id}`,
+                  attendant: p.handledBy ? 'Staff' : 'System',
+                  debit: isDebit ? amount : 0,
+                  credit: isDebit ? 0 : amount,
+                });
+              });
+
+              stmtRows.sort((a, b) => a.ts - b.ts);
+
+              let runningBalance = 0;
+              const stmtWithBalance = stmtRows.map(r => {
+                runningBalance += r.debit - r.credit;
+                return { ...r, balance: runningBalance };
+              });
+
+              const totalDebits = stmtRows.reduce((s, r) => s + r.debit, 0);
+              const totalCredits = stmtRows.reduce((s, r) => s + r.credit, 0);
+
+              return (
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle>Account Statement</CardTitle>
+                      <div className="flex items-center space-x-2">
+                        <Button onClick={downloadStatementCSV} variant="outline">
+                          <Download className="h-4 w-4 mr-2" />
+                          Download CSV
+                        </Button>
+                        <Button onClick={downloadStatementPDF} variant="outline">
+                          <Download className="h-4 w-4 mr-2" />
+                          Download PDF
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Reference</TableHead>
+                            <TableHead className="text-right">Debit</TableHead>
+                            <TableHead className="text-right">Credit</TableHead>
+                            <TableHead className="text-right">Balance</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(isLoadingPayments || salesLoading) ? (
+                            <TableRow><TableCell colSpan={6} className="text-center">Loading statement...</TableCell></TableRow>
+                          ) : stmtWithBalance.length === 0 ? (
+                            <TableRow><TableCell colSpan={6} className="text-center text-gray-500">No transactions found</TableCell></TableRow>
+                          ) : stmtWithBalance.map((row, i) => (
+                            <TableRow key={i}>
+                              <TableCell className="whitespace-nowrap">{row.date}</TableCell>
+                              <TableCell className="text-sm">{row.description}</TableCell>
                               <TableCell>
                                 <div className="flex flex-col">
-                                  <span className="text-sm">{paymentNo}</span>
-                                  <span className="text-xs text-gray-500">{attendant}</span>
+                                  <span className="text-sm">{row.ref}</span>
+                                  {row.attendant && <span className="text-xs text-gray-500">{row.attendant}</span>}
                                 </div>
                               </TableCell>
                               <TableCell className="text-right font-medium">
-                                <span className={balance < 0 ? 'text-red-600' : 'text-green-600'}>
-                                  {currency} {Math.abs(balance).toFixed(2)}
-                                  {balance < 0 && <span className="text-xs ml-1">(DR)</span>}
+                                {row.debit > 0 ? <span className="text-red-600">{currency} {row.debit.toFixed(2)}</span> : <span className="text-gray-400">-</span>}
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                {row.credit > 0 ? <span className="text-green-600">{currency} {row.credit.toFixed(2)}</span> : <span className="text-gray-400">-</span>}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold">
+                                <span className={row.balance > 0 ? 'text-red-600' : 'text-green-600'}>
+                                  {currency} {Math.abs(row.balance).toFixed(2)}
+                                  {row.balance > 0 && <span className="text-xs ml-1">(DR)</span>}
                                 </span>
                               </TableCell>
                             </TableRow>
-                          );
-                        })
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center text-gray-500">No payment history found</TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
+                          ))}
+                        </TableBody>
+                        {stmtWithBalance.length > 0 && (
+                          <tfoot>
+                            <TableRow className="bg-gray-50 font-bold border-t-2">
+                              <TableCell colSpan={3}>Totals</TableCell>
+                              <TableCell className="text-right text-red-600">{currency} {totalDebits.toFixed(2)}</TableCell>
+                              <TableCell className="text-right text-green-600">{currency} {totalCredits.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">
+                                <span className={runningBalance > 0 ? 'text-red-600' : 'text-green-600'}>
+                                  {currency} {Math.abs(runningBalance).toFixed(2)}
+                                  {runningBalance > 0 ? ' (DR)' : ' (CR)'}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          </tfoot>
+                        )}
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </TabsContent>
 
 
