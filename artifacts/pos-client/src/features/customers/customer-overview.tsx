@@ -1087,79 +1087,64 @@ export default function CustomerOverview() {
 
   return (
     <DashboardLayout title="Customer Overview">
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-          <div className="space-y-2">
-            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign(customersRoute)}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Customers
-            </Button>
-            <h1 className="text-2xl sm:text-3xl font-bold">Customer Overview</h1>
-          </div>
+      <div className="space-y-3 p-3">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign(customersRoute)}>
+            <ArrowLeft className="h-3 w-3 mr-1" />
+            Back
+          </Button>
+          <h1 className="text-base font-bold">Customer Overview</h1>
         </div>
 
-        {/* Customer Header - Mobile Responsive */}
+        {/* Customer Header */}
         <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between space-y-4 sm:space-y-0">
-              <div className="flex items-center space-x-3 sm:space-x-4">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                  <User className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <User className="w-5 h-5 text-white" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-xl sm:text-2xl font-bold truncate">{customerOverviewData.name}</h2>
-                  <div className="flex flex-wrap items-center gap-2 mt-1">
-                    <Badge className={`text-xs ${getStatusColor(customerOverviewData.status || 'Active')}`}>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-bold truncate">{customerOverviewData.name}</h2>
+                  <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                    <Badge className={`text-xs py-0 ${getStatusColor(customerOverviewData.status || 'Active')}`}>
                       {(customerOverviewData.status || 'Active').charAt(0).toUpperCase() + (customerOverviewData.status || 'Active').slice(1)}
                     </Badge>
-                    <Badge className={`text-xs ${getCustomerTypeColor(customerOverviewData.customerType || 'VIP')}`}>
+                    <Badge className={`text-xs py-0 ${getCustomerTypeColor(customerOverviewData.customerType || 'VIP')}`}>
                       {(customerOverviewData.customerType || 'VIP').toUpperCase()}
                     </Badge>
                   </div>
                 </div>
               </div>
-              <div className="flex flex-row sm:flex-col gap-3 sm:gap-2 border-t sm:border-t-0 pt-4 sm:pt-0 sm:text-right">
+              <div className="flex items-center gap-3 flex-shrink-0">
                 {customerOverviewData.outstandingBalance > 0 && (
-                  <div className="flex-1 sm:flex-none">
-                    <div className="text-lg sm:text-xl font-bold text-red-600">
-                      {currency} {customerOverviewData.outstandingBalance.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-red-500">Outstanding Debt</div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-red-600">{currency} {customerOverviewData.outstandingBalance.toLocaleString()}</div>
+                    <div className="text-xs text-red-400">Owing</div>
                   </div>
                 )}
                 {customerOverviewData.walletBalance > 0 && (
-                  <div className="flex-1 sm:flex-none">
-                    <div className="text-lg sm:text-xl font-bold text-green-600">
-                      {currency} {customerOverviewData.walletBalance.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-green-500">Wallet Credit</div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-green-600">{currency} {customerOverviewData.walletBalance.toLocaleString()}</div>
+                    <div className="text-xs text-green-400">Wallet</div>
                   </div>
                 )}
                 {customerOverviewData.outstandingBalance === 0 && customerOverviewData.walletBalance === 0 && (
-                  <div className="flex-1 sm:flex-none">
-                    <div className="text-lg sm:text-xl font-bold text-gray-500">{currency} 0.00</div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-gray-400">{currency} 0.00</div>
                     <div className="text-xs text-gray-400">No balance</div>
                   </div>
                 )}
-                <div className="flex flex-col gap-1 mt-1">
+                <div className="flex gap-1">
                   {customerOverviewData.outstandingBalance > 0 && (
-                    <Button
-                      onClick={() => setIsDebtPaymentDialogOpen(true)}
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <DollarSign className="h-4 w-4 mr-1" />
+                    <Button onClick={() => setIsDebtPaymentDialogOpen(true)} size="sm" className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700 text-white">
+                      <DollarSign className="h-3 w-3 mr-1" />
                       Pay Debt
                     </Button>
                   )}
-                  <Button
-                    onClick={() => setIsDepositDialogOpen(true)}
-                    size="sm"
-                    variant="outline"
-                    className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add to Wallet
+                  <Button onClick={() => setIsDepositDialogOpen(true)} size="sm" variant="outline" className="h-7 px-2 text-xs text-blue-600 border-blue-300 hover:bg-blue-50">
+                    <Plus className="h-3 w-3 mr-1" />
+                    Wallet
                   </Button>
                 </div>
               </div>
@@ -1208,124 +1193,85 @@ export default function CustomerOverview() {
 
         {/* Detailed Information Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="sales">Sales</TabsTrigger>
-            <TabsTrigger value="statement">Statement</TabsTrigger>
-            <TabsTrigger value="loyalty">Loyalty</TabsTrigger>
-            <TabsTrigger value="contact">Contact Info</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 h-8">
+            <TabsTrigger value="sales" className="text-xs">Sales</TabsTrigger>
+            <TabsTrigger value="statement" className="text-xs">Statement</TabsTrigger>
+            <TabsTrigger value="loyalty" className="text-xs">Loyalty</TabsTrigger>
+            <TabsTrigger value="contact" className="text-xs">Contact</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="sales" className="space-y-4">
+          <TabsContent value="sales" className="space-y-2 mt-2">
             <Card>
-              <CardHeader>
+              <CardHeader className="py-2 px-3">
                 <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>Sales History</CardTitle>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Filter className="h-4 w-4 text-gray-500" />
+                  <CardTitle className="text-sm">Sales History</CardTitle>
+                  <div className="flex items-center gap-1">
+                    <Filter className="h-3 w-3 text-gray-400" />
                     <Select value={salesFilter} onValueChange={handleFilterChange}>
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-28 h-7 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Sales</SelectItem>
-                        <SelectItem value="cash">Cash Sales</SelectItem>
-                        <SelectItem value="credit">Credit Sales</SelectItem>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="credit">Credit</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Receipt No</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {salesLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8">
-                            Loading sales data...
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="h-7">
+                      <TableHead className="text-xs py-1 px-2">Date</TableHead>
+                      <TableHead className="text-xs py-1 px-2">Type</TableHead>
+                      <TableHead className="text-xs py-1 px-2">Receipt</TableHead>
+                      <TableHead className="text-xs py-1 px-2 text-right">Amount</TableHead>
+                      <TableHead className="text-xs py-1 px-2"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {salesLoading ? (
+                      <TableRow><TableCell colSpan={5} className="text-center py-4 text-xs text-gray-400">Loading...</TableCell></TableRow>
+                    ) : paginatedTransactions.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} className="text-center py-4 text-xs text-gray-400">No sales found</TableCell></TableRow>
+                    ) : (
+                      paginatedTransactions.map((transaction: any) => (
+                        <TableRow key={transaction._id} className="h-7">
+                          <TableCell className="text-xs py-1 px-2 whitespace-nowrap">{new Date(transaction.date).toLocaleDateString()}</TableCell>
+                          <TableCell className="py-1 px-2">
+                            <Badge className={`text-xs py-0 ${getTransactionTypeColor(transaction.type)}`}>
+                              {transaction.paymentMethod?.charAt(0)?.toUpperCase() + transaction.paymentMethod?.slice(1) || transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs py-1 px-2 text-gray-500">{transaction.referenceNumber}</TableCell>
+                          <TableCell className="text-xs py-1 px-2 text-right font-medium text-green-600">
+                            {transaction.currency} {transaction.amount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="py-1 px-2">
+                            <Link href={`/receipt/${transaction._id}`} onClick={() => { const s = salesData?.data?.find((sale: any) => sale._id === transaction._id); if (s) (window as any).__receiptData = s; }}>
+                              <Button variant="outline" size="sm" className="h-6 px-2 text-xs">Receipt</Button>
+                            </Link>
                           </TableCell>
                         </TableRow>
-                      ) : paginatedTransactions.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                            No sales found for this customer
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        paginatedTransactions.map((transaction: any) => (
-                          <TableRow key={transaction._id}>
-                            <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
-                            <TableCell>
-                              <Badge className={getTransactionTypeColor(transaction.type)}>
-                                {transaction.paymentMethod?.charAt(0)?.toUpperCase() + transaction.paymentMethod?.slice(1) || transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-sm text-gray-500">{transaction.referenceNumber}</TableCell>
-                            <TableCell className="text-right">
-                              <span className="font-medium text-green-600">
-                                {transaction.currency} {transaction.amount.toLocaleString()}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <Link 
-                                href={`/receipt/${transaction._id}`}
-                                onClick={() => {
-                                  const saleData = salesData?.data?.find((sale: any) => sale._id === transaction._id);
-                                  if (saleData) {
-                                    // Store in window object for immediate access
-                                    (window as any).__receiptData = saleData;
-                                  }
-                                }}
-                              >
-                                <Button variant="outline" size="sm">
-                                  View Receipt
-                                </Button>
-                              </Link>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
 
                 {/* Pagination */}
-                <div className="flex items-center justify-between pt-4">
-                  <div className="text-sm text-gray-500">
-                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, salesTransactions.length)} of {salesTransactions.length} results
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(currentPage - 1)}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Previous
+                <div className="flex items-center justify-between px-3 py-1.5 border-t">
+                  <span className="text-xs text-gray-400">
+                    {startIndex + 1}–{Math.min(startIndex + itemsPerPage, salesTransactions.length)} of {salesTransactions.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" className="h-6 w-6 p-0" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}>
+                      <ChevronLeft className="h-3 w-3" />
                     </Button>
-                    <span className="text-sm">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(currentPage + 1)}
-                      disabled={currentPage === totalPages}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4" />
+                    <span className="text-xs">{currentPage}/{totalPages}</span>
+                    <Button variant="outline" size="sm" className="h-6 w-6 p-0" onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage === totalPages}>
+                      <ChevronRight className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
@@ -1471,64 +1417,56 @@ export default function CustomerOverview() {
 
 
           {/* ── LOYALTY TAB ─────────────────────────────────────────── */}
-          <TabsContent value="loyalty" className="space-y-4">
+          <TabsContent value="loyalty" className="space-y-2 mt-2">
             {/* Balance summary card */}
             <Card>
-              <CardHeader className="pb-3">
+              <CardHeader className="py-2 px-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Star className="h-5 w-5 text-yellow-500" />
-                    <CardTitle>Loyalty Points</CardTitle>
+                  <div className="flex items-center gap-1.5">
+                    <Star className="h-3.5 w-3.5 text-yellow-500" />
+                    <CardTitle className="text-sm">Loyalty Points</CardTitle>
                   </div>
                   {loyaltyData?.shopSettings?.loyaltyEnabled === false && (
-                    <Badge variant="secondary">Programme disabled for this shop</Badge>
+                    <Badge variant="secondary" className="text-xs">Disabled</Badge>
                   )}
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-yellow-50 rounded-xl p-4 text-center">
-                    <p className="text-sm text-gray-500 mb-1">Current Balance</p>
-                    <p className="text-3xl font-bold text-yellow-600">
-                      {(loyaltyData?.loyaltyPoints ?? 0).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">points</p>
+              <CardContent className="px-3 pb-3 pt-0">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-yellow-50 rounded-lg p-2 text-center">
+                    <p className="text-xs text-gray-500">Balance</p>
+                    <p className="text-lg font-bold text-yellow-600">{(loyaltyData?.loyaltyPoints ?? 0).toLocaleString()}</p>
+                    <p className="text-xs text-gray-400">pts</p>
                   </div>
-                  <div className="bg-blue-50 rounded-xl p-4 text-center">
-                    <p className="text-sm text-gray-500 mb-1">Earn Rate</p>
-                    <p className="text-xl font-bold text-blue-600">
-                      {loyaltyData?.shopSettings?.pointsPerAmount ?? 0} pts
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">per KES spent</p>
+                  <div className="bg-blue-50 rounded-lg p-2 text-center">
+                    <p className="text-xs text-gray-500">Earn Rate</p>
+                    <p className="text-base font-bold text-blue-600">{loyaltyData?.shopSettings?.pointsPerAmount ?? 0} pts</p>
+                    <p className="text-xs text-gray-400">per {currency} spent</p>
                   </div>
-                  <div className="bg-green-50 rounded-xl p-4 text-center">
-                    <p className="text-sm text-gray-500 mb-1">Point Value</p>
-                    <p className="text-xl font-bold text-green-600">
-                      KES {loyaltyData?.shopSettings?.pointsValue ?? 0}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">per point</p>
+                  <div className="bg-green-50 rounded-lg p-2 text-center">
+                    <p className="text-xs text-gray-500">Point Value</p>
+                    <p className="text-base font-bold text-green-600">{currency} {loyaltyData?.shopSettings?.pointsValue ?? 0}</p>
+                    <p className="text-xs text-gray-400">per point</p>
                   </div>
                 </div>
 
-                {/* Redemption value summary */}
                 {(loyaltyData?.loyaltyPoints ?? 0) > 0 && (loyaltyData?.shopSettings?.pointsValue ?? 0) > 0 && (
-                  <div className="mt-4 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-xl p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Star className="h-4 w-4 text-yellow-500" />
-                      <span className="text-sm font-medium text-gray-700">Total redemption value</span>
+                  <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Star className="h-3 w-3 text-yellow-500" />
+                      <span className="text-xs text-gray-600">Redemption value</span>
                     </div>
-                    <span className="text-lg font-bold text-yellow-700">
-                      KES {((loyaltyData.loyaltyPoints ?? 0) * (loyaltyData.shopSettings.pointsValue ?? 0)).toFixed(2)}
+                    <span className="text-sm font-bold text-yellow-700">
+                      {currency} {((loyaltyData.loyaltyPoints ?? 0) * (loyaltyData.shopSettings.pointsValue ?? 0)).toFixed(2)}
                     </span>
                   </div>
                 )}
 
-                {/* Admin adjust button */}
-                <div className="mt-4 flex justify-end">
+                <div className="mt-2 flex justify-end">
                   <Dialog open={isAdjustDialogOpen} onOpenChange={setIsAdjustDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="gap-2">
-                        <Plus className="h-4 w-4" />
+                      <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1">
+                        <Plus className="h-3 w-3" />
                         Adjust Points
                       </Button>
                     </DialogTrigger>
@@ -1580,93 +1518,72 @@ export default function CustomerOverview() {
 
             {/* Transaction history */}
             <Card>
-              <CardHeader>
-                <CardTitle>Point History</CardTitle>
-                <CardDescription>Last 50 loyalty transactions</CardDescription>
+              <CardHeader className="py-2 px-3">
+                <CardTitle className="text-sm">Point History</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Points</TableHead>
-                        <TableHead className="text-right">Balance After</TableHead>
-                        <TableHead>Note</TableHead>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="h-7">
+                      <TableHead className="text-xs py-1 px-2">Date</TableHead>
+                      <TableHead className="text-xs py-1 px-2">Type</TableHead>
+                      <TableHead className="text-xs py-1 px-2 text-right">Points</TableHead>
+                      <TableHead className="text-xs py-1 px-2 text-right">Balance</TableHead>
+                      <TableHead className="text-xs py-1 px-2">Note</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {!loyaltyData && (
+                      <TableRow><TableCell colSpan={5} className="text-center text-xs text-gray-400 py-4">Loading...</TableCell></TableRow>
+                    )}
+                    {loyaltyData && loyaltyData.transactions?.length === 0 && (
+                      <TableRow><TableCell colSpan={5} className="text-center text-xs text-gray-400 py-4">No loyalty transactions yet</TableCell></TableRow>
+                    )}
+                    {loyaltyData?.transactions?.map((tx: any) => (
+                      <TableRow key={tx.id} className="h-7">
+                        <TableCell className="text-xs py-1 px-2 whitespace-nowrap text-gray-600">{new Date(tx.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell className="py-1 px-2">
+                          <Badge variant={tx.type === "earn" ? "default" : tx.type === "redeem" ? "destructive" : "secondary"} className="capitalize text-xs py-0">{tx.type}</Badge>
+                        </TableCell>
+                        <TableCell className={`text-xs py-1 px-2 text-right font-semibold ${parseFloat(tx.points) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {parseFloat(tx.points) >= 0 ? '+' : ''}{parseFloat(tx.points).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-xs py-1 px-2 text-right text-gray-700">{parseFloat(tx.balanceAfter).toLocaleString()}</TableCell>
+                        <TableCell className="text-xs py-1 px-2 text-gray-500 max-w-[160px] truncate">{tx.note || '—'}</TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {!loyaltyData && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center text-gray-400 py-8">Loading...</TableCell>
-                        </TableRow>
-                      )}
-                      {loyaltyData && loyaltyData.transactions?.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center text-gray-400 py-8">No loyalty transactions yet</TableCell>
-                        </TableRow>
-                      )}
-                      {loyaltyData?.transactions?.map((tx: any) => (
-                        <TableRow key={tx.id}>
-                          <TableCell className="text-sm text-gray-600 whitespace-nowrap">
-                            {new Date(tx.createdAt).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={
-                              tx.type === "earn" ? "default" :
-                              tx.type === "redeem" ? "destructive" : "secondary"
-                            } className="capitalize text-xs">
-                              {tx.type}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className={`text-right font-semibold ${parseFloat(tx.points) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {parseFloat(tx.points) >= 0 ? '+' : ''}{parseFloat(tx.points).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right text-gray-700">
-                            {parseFloat(tx.balanceAfter).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-500">{tx.note || '—'}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="contact" className="space-y-4">
+          <TabsContent value="contact" className="mt-2">
             <Card>
-              <CardHeader>
-                <CardTitle>Contact Information</CardTitle>
-
+              <CardHeader className="py-2 px-3">
+                <CardTitle className="text-sm">Contact Information</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <Mail className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-600">Email Address</p>
-                        <p className="font-medium">{customerOverviewData.email || 'Not provided'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <Phone className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-600">Phone Number</p>
-                        <p className="font-medium">{customerOverviewData.phone || 'Not provided'}</p>
-                      </div>
+              <CardContent className="px-3 pb-3 pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">Email</p>
+                      <p className="text-xs font-medium">{customerOverviewData.email || 'Not provided'}</p>
                     </div>
                   </div>
-                  <div className="space-y-4">
-                    <div className="flex items-start space-x-3">
-                      <MapPin className="h-5 w-5 text-gray-400 mt-1" />
-                      <div>
-                        <p className="text-sm text-gray-600">Address</p>
-                        <p className="font-medium">{customerOverviewData.address || 'Not provided'}</p>
-                      </div>
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">Phone</p>
+                      <p className="text-xs font-medium">{customerOverviewData.phone || 'Not provided'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">Address</p>
+                      <p className="text-xs font-medium">{customerOverviewData.address || 'Not provided'}</p>
                     </div>
                   </div>
                 </div>
