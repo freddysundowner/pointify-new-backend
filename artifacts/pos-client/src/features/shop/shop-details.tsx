@@ -26,7 +26,7 @@ import GooglePlacesInput from "@/components/ui/google-places-input";
 
 export default function ShopDetails() {
   const { id } = useParams();
-  const { admin } = useAuth();
+  const { admin, updateAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -290,7 +290,17 @@ export default function ShopDetails() {
             const res = await apiCall(ENDPOINTS.shop.getAll, { method: "GET" });
             const json = await res.json();
             const remaining = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
-            setPostDeleteRoute(remaining.length === 0 ? "/onboarding" : "/shops");
+            if (remaining.length === 0) {
+              setPostDeleteRoute("/onboarding");
+              // Clear primaryShop so App.tsx route guard unlocks /onboarding
+              updateAdmin({ ...(admin as any), primaryShop: null, shop: null });
+              apiCall(ENDPOINTS.auth.adminProfile, {
+                method: "PUT",
+                body: JSON.stringify({ shop: null }),
+              }).catch(() => {});
+            } else {
+              setPostDeleteRoute("/shops");
+            }
           } catch {
             setPostDeleteRoute("/shops");
           }
