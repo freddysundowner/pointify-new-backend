@@ -478,20 +478,24 @@ export default function CustomerOverview() {
     const customerName = customerOverviewData.name;
     const currentDate = new Date().toLocaleDateString();
 
-    // Fetch shop data fresh at click time to guarantee availability
+    // Fetch shop data fresh at click time using the shops list endpoint (always available)
     let fetchedShop: any = shopData;
-    const sid = shopIdForQuery || String(customerData?.shop || '');
-    if (!fetchedShop && sid) {
+    const sid = String(customerData?.shop || shopIdForQuery || '');
+    if (sid) {
       try {
         const token = localStorage.getItem('authToken') || localStorage.getItem('attendantToken');
-        const res = await fetch(ENDPOINTS.shops.getById(sid), { headers: { 'Authorization': `Bearer ${token}` } });
-        if (res.ok) { const r = await res.json(); fetchedShop = r?.data ?? r; }
+        const res = await fetch(ENDPOINTS.shop.getAll, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const r = await res.json();
+          const list: any[] = Array.isArray(r?.data) ? r.data : (Array.isArray(r) ? r : []);
+          fetchedShop = list.find((s: any) => String(s.id) === sid) ?? fetchedShop;
+        }
       } catch { /* ignore */ }
     }
-    const shopName = fetchedShop?.name || (typeof admin?.primaryShop === 'object' ? (admin.primaryShop as any)?.name : null) || 'Shop';
+    const shopName = fetchedShop?.name || 'Shop';
     const shopAddress = fetchedShop?.address || fetchedShop?.receiptAddress || '';
     const shopPhone = fetchedShop?.contact || fetchedShop?.phone || '';
-    const shopEmail = fetchedShop?.email || '';
+    const shopEmail = fetchedShop?.receiptEmail || fetchedShop?.email || '';
 
     const allSales: any[] = salesData?.data || [];
     const allPayments: any[] = (customerPayments as any[]) || [];
