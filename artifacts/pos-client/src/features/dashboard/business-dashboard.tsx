@@ -63,7 +63,7 @@ export default function BusinessDashboard() {
   const { shop } = useShop();
   const { toast } = useToast();
   const { isExpired: isSubscriptionExpired } = useSubscriptionStatus();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
 
   // Normalize admin ID — PostgreSQL returns `id`, legacy code may use `_id`
   const adminId = admin?.id ?? (admin as any)?._id;
@@ -183,9 +183,13 @@ export default function BusinessDashboard() {
     enabled: !!adminId,
   });
 
-  // Update Redux state when shops data changes
+  // Update Redux state when shops data changes; redirect to setup if no shops
   useEffect(() => {
     if (shopsData && Array.isArray(shopsData)) {
+      if (shopsData.length === 0) {
+        setLocation("/shop-setup");
+        return;
+      }
       const shops = shopsData.map((shop: any) => ({
         id: String(shop.id ?? shop._id),
         name: shop.name,
@@ -195,7 +199,7 @@ export default function BusinessDashboard() {
       }));
       dispatch(setAvailableShops(shops));
     }
-  }, [shopsData, dispatch]);
+  }, [shopsData, dispatch, setLocation]);
 
   // Function to refresh all dashboard data
   const refreshDashboardData = async () => {

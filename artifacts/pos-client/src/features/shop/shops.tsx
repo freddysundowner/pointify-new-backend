@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { extractId } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 interface Shop {
   _id: string;
@@ -39,6 +39,7 @@ interface Shop {
 export default function Shops() {
   const { admin } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [, setLocation] = useLocation();
 
   const getPrimaryShopId = () => {
     if (!admin?.primaryShop) return null;
@@ -60,6 +61,12 @@ export default function Shops() {
   });
 
   const shops = Array.isArray(shopsResponse) ? shopsResponse : [];
+
+  useEffect(() => {
+    if (!isLoading && shopsResponse !== undefined && shops.length === 0) {
+      setLocation("/shop-setup");
+    }
+  }, [isLoading, shopsResponse, shops.length, setLocation]);
 
   const filteredShops = shops.filter((shop: Shop) =>
     shop.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
