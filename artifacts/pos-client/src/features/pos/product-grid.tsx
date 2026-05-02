@@ -112,7 +112,7 @@ export default function ProductGrid({
   const [selectedPriceItem, setSelectedPriceItem] = useState<CartItem | null>(null);
   const [newPrice, setNewPrice] = useState("");
   const [showMinPriceWarning, setShowMinPriceWarning] = useState(false);
-  const [minPriceWarningData, setMinPriceWarningData] = useState<{ attempted: number; minimum: number } | null>(null);
+  const [minPriceWarningData, setMinPriceWarningData] = useState<{ attempted: number; minimum: number; reason?: 'buying' | 'min' } | null>(null);
   const [showDiscountDialog, setShowDiscountDialog] = useState(false);
   const [selectedDiscountItem, setSelectedDiscountItem] = useState<CartItem | null>(null);
   const [discountAmount, setDiscountAmount] = useState("");
@@ -551,13 +551,20 @@ export default function ProductGrid({
     const allSources = [...allProducts, ...searchResults];
     const productData = allSources.find(p => (p as any)._id === selectedPriceItem.id || p.id === selectedPriceItem.id);
     const buyingPrice = (productData as any)?.buyingPrice;
+    const buyingPriceNum = buyingPrice != null ? (parseFloat(String(buyingPrice)) || 0) : 0;
     const rawMin = (productData as any)?.minSellingPrice;
     const minSellingPrice = rawMin != null ? (parseFloat(String(rawMin)) || 0) : 0;
     const existingDiscount = parseFloat(String(selectedPriceItem.discount || 0)) || 0;
     const effectivePrice = price - existingDiscount;
 
+    if (buyingPriceNum > 0 && price < buyingPriceNum) {
+      setMinPriceWarningData({ attempted: price, minimum: buyingPriceNum, reason: 'buying' });
+      setShowMinPriceWarning(true);
+      return;
+    }
+
     if (minSellingPrice > 0 && effectivePrice < minSellingPrice) {
-      setMinPriceWarningData({ attempted: effectivePrice, minimum: minSellingPrice });
+      setMinPriceWarningData({ attempted: effectivePrice, minimum: minSellingPrice, reason: 'min' });
       setShowMinPriceWarning(true);
       return;
     }
@@ -620,9 +627,18 @@ export default function ProductGrid({
       return;
     }
 
+    const buyingPriceD = (productData as any)?.buyingPrice;
+    const buyingPriceNumD = buyingPriceD != null ? (parseFloat(String(buyingPriceD)) || 0) : 0;
     const finalPrice = selectedDiscountItem.price - discount;
+
+    if (buyingPriceNumD > 0 && finalPrice < buyingPriceNumD) {
+      setMinPriceWarningData({ attempted: finalPrice, minimum: buyingPriceNumD, reason: 'buying' });
+      setShowMinPriceWarning(true);
+      return;
+    }
+
     if (minSellingPrice > 0 && finalPrice < minSellingPrice) {
-      setMinPriceWarningData({ attempted: finalPrice, minimum: minSellingPrice });
+      setMinPriceWarningData({ attempted: finalPrice, minimum: minSellingPrice, reason: 'min' });
       setShowMinPriceWarning(true);
       return;
     }
@@ -2430,15 +2446,24 @@ export default function ProductGrid({
               <span className="font-semibold text-red-600">
                 Ksh {minPriceWarningData?.attempted.toFixed(2)}
               </span>{" "}
-              is below the minimum allowed selling price.
+              is below the{" "}
+              {minPriceWarningData?.reason === 'buying'
+                ? "buying (cost) price"
+                : "minimum allowed selling price"}.
             </p>
             <div className="bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-center">
-              <p className="text-xs text-amber-700 mb-1">Minimum selling price</p>
+              <p className="text-xs text-amber-700 mb-1">
+                {minPriceWarningData?.reason === 'buying' ? "Buying price" : "Minimum selling price"}
+              </p>
               <p className="text-xl font-bold text-amber-800">
                 Ksh {minPriceWarningData?.minimum.toFixed(2)}
               </p>
             </div>
-            <p className="text-xs text-gray-500">Please enter a price equal to or above the minimum.</p>
+            <p className="text-xs text-gray-500">
+              {minPriceWarningData?.reason === 'buying'
+                ? "Selling below cost will result in a loss. Please enter a higher price."
+                : "Please enter a price equal to or above the minimum."}
+            </p>
           </div>
           <DialogFooter>
             <Button onClick={() => setShowMinPriceWarning(false)}>
