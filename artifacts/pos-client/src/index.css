@@ -236,3 +236,11 @@ table, tr, td, th {
 .pac-item-query {
   font-size: 14px !important;
 }
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

@@ -37,7 +37,11 @@ import {
   RefreshCw,
   UserCheck,
   Settings,
-  X
+  X,
+  ScanBarcode,
+  BarChart2,
+  CreditCard,
+  Box
 } from "lucide-react";
 import { Link } from "wouter";
 import DashboardLayout from "@/components/layout/dashboard-layout";
@@ -615,100 +619,111 @@ export default function BusinessDashboard() {
           </div>
         </div>
         
-        {/* Today's Key Metrics */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 w-full">
-          <Link href="/sales">
-            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition-all cursor-pointer transform hover:scale-105">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
-                <CardTitle className="text-xs md:text-sm font-medium text-blue-100">Today's Sales</CardTitle>
-                <DollarSign className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-200" />
-              </CardHeader>
-              <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
-                {canViewSales ? (
-                  <>
-                    <div className="text-lg md:text-2xl font-bold truncate">{formatCurrency(todayMetrics.sales)}</div>
-                    <p className="text-xs text-blue-100">
-                      {todayMetrics.transactions} transactions
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-lg md:text-2xl font-bold truncate">•••••</div>
-                    <p className="text-xs text-blue-100">
-                      Access Restricted
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
+        {/* Today's Key Metrics — horizontal scroll on mobile, 4-col grid on desktop */}
+        <div className="overflow-x-auto no-scrollbar -mx-4 px-4 pb-1 lg:mx-0 lg:px-0 lg:overflow-visible">
+          <div className="flex gap-3 snap-x snap-mandatory lg:grid lg:grid-cols-4 w-max lg:w-full">
+            <Link href="/sales" className="flex-shrink-0 w-44 snap-start lg:w-auto lg:flex-shrink">
+              <Card className="h-full bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition-all cursor-pointer transform hover:scale-105">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
+                  <CardTitle className="text-xs md:text-sm font-medium text-blue-100">Today's Sales</CardTitle>
+                  <DollarSign className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-200" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
+                  {canViewSales ? (
+                    <>
+                      <div className="text-lg md:text-2xl font-bold truncate">{formatCurrency(todayMetrics.sales)}</div>
+                      <p className="text-xs text-blue-100">{todayMetrics.transactions} transactions</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-lg md:text-2xl font-bold truncate">•••••</div>
+                      <p className="text-xs text-blue-100">Access Restricted</p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
 
-          <Link href="/reports">
-            <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 transition-all cursor-pointer transform hover:scale-105">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
-                <CardTitle className="text-xs md:text-sm font-medium text-green-100">Today's Profit</CardTitle>
-                <TrendingUp className="h-3.5 w-3.5 md:h-4 md:w-4 text-green-200" />
-              </CardHeader>
-              <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
-                {canViewProfit ? (
-                  <>
-                    <div className="text-lg md:text-2xl font-bold truncate">{formatCurrency(todayMetrics.profit)}</div>
-                    <p className="text-xs text-green-100">
-                      {profitMargin}% margin
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-lg md:text-2xl font-bold truncate">•••••</div>
-                    <p className="text-xs text-green-100">
-                      Access Restricted
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
+            <Link href="/reports" className="flex-shrink-0 w-44 snap-start lg:w-auto lg:flex-shrink">
+              <Card className="h-full bg-gradient-to-br from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 transition-all cursor-pointer transform hover:scale-105">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
+                  <CardTitle className="text-xs md:text-sm font-medium text-green-100">Today's Profit</CardTitle>
+                  <TrendingUp className="h-3.5 w-3.5 md:h-4 md:w-4 text-green-200" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
+                  {canViewProfit ? (
+                    <>
+                      <div className="text-lg md:text-2xl font-bold truncate">{formatCurrency(todayMetrics.profit)}</div>
+                      <p className="text-xs text-green-100">{profitMargin}% margin</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-lg md:text-2xl font-bold truncate">•••••</div>
+                      <p className="text-xs text-green-100">Access Restricted</p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
 
-          <Link href="/expenses">
-            <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-all cursor-pointer transform hover:scale-105">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
-                <CardTitle className="text-xs md:text-sm font-medium text-red-100">Today's Expenses</CardTitle>
-                <TrendingDown className="h-3.5 w-3.5 md:h-4 md:w-4 text-red-200" />
-              </CardHeader>
-              <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
-                {canViewExpenses ? (
-                  <>
-                    <div className="text-lg md:text-2xl font-bold truncate">{formatCurrency(todayMetrics.expenses)}</div>
-                    <p className="text-xs text-red-100">
-                      Operating costs
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-lg md:text-2xl font-bold truncate">•••••</div>
-                    <p className="text-xs text-red-100">
-                      Access Restricted
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
+            <Link href="/expenses" className="flex-shrink-0 w-44 snap-start lg:w-auto lg:flex-shrink">
+              <Card className="h-full bg-gradient-to-br from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-all cursor-pointer transform hover:scale-105">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
+                  <CardTitle className="text-xs md:text-sm font-medium text-red-100">Today's Expenses</CardTitle>
+                  <TrendingDown className="h-3.5 w-3.5 md:h-4 md:w-4 text-red-200" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
+                  {canViewExpenses ? (
+                    <>
+                      <div className="text-lg md:text-2xl font-bold truncate">{formatCurrency(todayMetrics.expenses)}</div>
+                      <p className="text-xs text-red-100">Operating costs</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-lg md:text-2xl font-bold truncate">•••••</div>
+                      <p className="text-xs text-red-100">Access Restricted</p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
 
-          <Link href="/stock?filter=alerts">
-            <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 transition-all cursor-pointer transform hover:scale-105">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
-                <CardTitle className="text-xs md:text-sm font-medium text-orange-100">Stock Alerts</CardTitle>
-                <AlertTriangle className="h-3.5 w-3.5 md:h-4 md:w-4 text-orange-200" />
-              </CardHeader>
-              <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
-                <div className="text-lg md:text-2xl font-bold truncate">{lowStockProducts.length}</div>
-                <p className="text-xs text-orange-100">
-                  Items need attention
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
+            <Link href="/stock?filter=alerts" className="flex-shrink-0 w-44 snap-start lg:w-auto lg:flex-shrink">
+              <Card className="h-full bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 transition-all cursor-pointer transform hover:scale-105">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 md:p-6 md:pb-2">
+                  <CardTitle className="text-xs md:text-sm font-medium text-orange-100">Stock Alerts</CardTitle>
+                  <AlertTriangle className="h-3.5 w-3.5 md:h-4 md:w-4 text-orange-200" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3 pt-0 md:px-6 md:pb-6">
+                  <div className="text-lg md:text-2xl font-bold truncate">{lowStockProducts.length}</div>
+                  <p className="text-xs text-orange-100">Items need attention</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+        </div>
+
+        {/* Quick Actions grid — mobile only */}
+        <div className="lg:hidden">
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { href: "/pos",       Icon: ScanBarcode, label: "POS",       bg: "bg-purple-100 dark:bg-purple-900/40", color: "text-purple-600 dark:text-purple-300" },
+              { href: "/stock",     Icon: Box,         label: "Products",  bg: "bg-blue-100 dark:bg-blue-900/40",    color: "text-blue-600 dark:text-blue-300"   },
+              { href: "/sales",     Icon: ShoppingCart,label: "Sales",     bg: "bg-green-100 dark:bg-green-900/40",  color: "text-green-600 dark:text-green-300" },
+              { href: "/expenses",  Icon: CreditCard,  label: "Expenses",  bg: "bg-red-100 dark:bg-red-900/40",      color: "text-red-600 dark:text-red-300"     },
+              { href: "/customers", Icon: Users,       label: "Customers", bg: "bg-orange-100 dark:bg-orange-900/40",color: "text-orange-600 dark:text-orange-300"},
+              { href: "/reports",   Icon: BarChart2,   label: "Reports",   bg: "bg-teal-100 dark:bg-teal-900/40",    color: "text-teal-600 dark:text-teal-300"   },
+            ].map(({ href, Icon, label, bg, color }) => (
+              <Link key={href} href={href}>
+                <div className="flex flex-col items-center justify-center bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 gap-1.5 active:scale-95 transition-transform">
+                  <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center`}>
+                    <Icon className={`h-5 w-5 ${color}`} />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{label}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
 
         {/* Recent Sales and Stock Alerts */}
