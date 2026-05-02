@@ -67,6 +67,8 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     // ── Step 1: Expand bundle products into their components ──────────────────
     // Each entry: { productId, quantity, fromBundleName? }
     const expandedMap = new Map<number, { quantity: number; fromBundleName?: string }>();
+    // Track bundle products whose own inventory must also be deducted
+    const bundleDeductions: { productId: number; quantity: number }[] = [];
 
     for (const item of items) {
       const productId = Number(item.productId);
@@ -78,6 +80,9 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       });
 
       if (product?.type === "bundle") {
+        // Record the bundle itself for inventory deduction
+        bundleDeductions.push({ productId, quantity: qty });
+
         // Fetch components with their names
         const components = await db
           .select({
@@ -281,6 +286,35 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       })
     );
 
+    // ── Step 5: Deduct bundle product inventory in source shop ────────────────
+    // Bundles expand into components for the move, but the bundle's own stock
+    // counter in the source shop must also be reduced.
+    const bundleHistoryEntries: any[] = [];
+    for (const bd of bundleDeductions) {
+      const bundleInv = await db.query.inventory.findFirst({
+        where: and(eq(inventory.product, bd.productId), eq(inventory.shop, transfer.fromShop)),
+        columns: { quantity: true },
+      });
+      const bundleBefore = bundleInv ? String(bundleInv.quantity) : "0";
+      const bundleAfter  = String(Math.max(0, parseFloat(bundleBefore) - bd.quantity));
+
+      await db.update(inventory)
+        .set({ quantity: sql`GREATEST(0, ${inventory.quantity} - ${bd.quantity}::numeric)` })
+        .where(and(eq(inventory.product, bd.productId), eq(inventory.shop, transfer.fromShop)));
+
+      bundleHistoryEntries.push({
+        product:        bd.productId,
+        shop:           transfer.fromShop,
+        eventType:      "transfer_out" as const,
+        referenceId:    transfer.id,
+        quantity:       String(bd.quantity),
+        unitPrice:      "0",
+        quantityBefore: bundleBefore,
+        quantityAfter:  bundleAfter,
+        note:           transfer.transferNo ?? undefined,
+      });
+    }
+
     await recordProductHistory([
       ...enrichedItems.map(({ itemRow, srcProductId, qty, fromQtyBefore, fromQtyAfter }) => ({
         product:        srcProductId,
@@ -304,6 +338,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         quantityAfter:  toQtyAfter,
         note:           transfer.transferNo ?? undefined,
       })),
+      ...bundleHistoryEntries,
     ]);
 
     return created(res, { ...transfer, items: itemRows });
