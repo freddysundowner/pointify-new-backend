@@ -1007,9 +1007,10 @@ export default function CustomerOverview() {
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject: `Account Statement — ${customerName}`, html, toEmail: customerEmail || undefined }),
       });
-      const data = await res.json();
+      let data: any = {};
+      try { data = await res.json(); } catch { /* non-JSON response */ }
       if (!res.ok) {
-        throw new Error(data?.message || data?.error || 'Failed to send email');
+        throw new Error(data?.message || data?.error || `Server error ${res.status}`);
       }
       if (data?.data?.sent === false) {
         toast({ title: "Email Not Sent", description: data.data.reason || "Email provider is not configured.", variant: "destructive" });
