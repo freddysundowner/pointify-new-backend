@@ -62,23 +62,30 @@ export default function DebtorsPage() {
 
   const totalDebt = debtors.reduce((s, d) => s + Number(d.outstandingBalance ?? 0), 0);
 
-  const handleDownload = async () => {
-    try {
-      const token = localStorage.getItem("authToken");
-      const res = await fetch(`/api/reports/dues/detail?shopId=${shopId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `debtors-report-${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch {}
+  const handleDownload = () => {
+    if (!debtors.length) return;
+    const headers = ["Name", "Phone", "Email", "Customer No", "Type", "Outstanding Balance", "Wallet"];
+    const rows = debtors.map(d => [
+      d.name,
+      d.phone ?? "",
+      d.email ?? "",
+      d.customerNo ?? "",
+      d.type ?? "",
+      Number(d.outstandingBalance ?? 0).toFixed(2),
+      Number(d.wallet ?? 0).toFixed(2),
+    ]);
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `debtors-report-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   };
 
   return (
