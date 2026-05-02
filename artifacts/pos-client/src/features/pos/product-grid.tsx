@@ -2208,56 +2208,34 @@ export default function ProductGrid({
 
               {/* Manual Date/Time Setting - Only visible with permission */}
               {canSetSaleDate && (
-                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-5 w-5 text-purple-600" />
-                      <span className="font-medium text-purple-800">Set Custom Date/Time</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="customDateTime"
-                        checked={isCustomDateTime}
-                        onChange={(e) => setIsCustomDateTime(e.target.checked)}
-                        className="rounded"
-                      />
-                      <label htmlFor="customDateTime" className="text-sm text-purple-700">
-                        Override
-                      </label>
-                    </div>
-                  </div>
-                  
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomDateTime(!isCustomDateTime)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="flex items-center gap-2 text-gray-600">
+                      <Calendar className="h-4 w-4 text-purple-500" />
+                      Set sale date
+                    </span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isCustomDateTime ? "bg-purple-100 text-purple-700" : "text-gray-400"}`}>
+                      {isCustomDateTime ? "On" : "Off"}
+                    </span>
+                  </button>
                   {isCustomDateTime && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Date & Time (ISO Format) *
-                      </label>
+                    <div className="px-3 pb-3 pt-1 border-t border-gray-100">
                       <Input
                         type="datetime-local"
                         value={customDateTime ? new Date(customDateTime).toISOString().slice(0, 16) : ""}
                         onChange={(e) => {
                           if (e.target.value) {
-                            // Convert local datetime to ISO string
-                            const localDate = new Date(e.target.value);
-                            setCustomDateTime(localDate.toISOString());
+                            setCustomDateTime(new Date(e.target.value).toISOString());
                           } else {
                             setCustomDateTime("");
                           }
                         }}
-                        className="w-full"
+                        className="w-full h-8 text-sm"
                       />
-                      <div className="flex items-center space-x-2 text-xs text-gray-500">
-                        <Clock className="h-3 w-3" />
-                        <span>
-                          Current: {new Date().toISOString().slice(0, 19)}Z
-                        </span>
-                      </div>
-                      {customDateTime && (
-                        <div className="text-xs text-purple-600">
-                          Will save as: {customDateTime}
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
