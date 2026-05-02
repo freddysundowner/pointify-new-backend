@@ -287,6 +287,7 @@ export default function ShopDetails() {
           setDeleteResult({ type: "shop", success: true, message: "The shop and all its data have been permanently deleted." });
         } catch {
           setDeleteResult({ type: "shop", success: false, message: "Something went wrong while deleting the shop. Please try again." });
+        } finally {
           setIsDeleting(false);
         }
       },
