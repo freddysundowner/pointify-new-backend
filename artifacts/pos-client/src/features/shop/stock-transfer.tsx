@@ -180,24 +180,68 @@ export default function StockTransfer() {
 
   // ── PDF export ──
   const exportPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const startY = drawShopHeader(doc, shopDetails, "Stock Transfer Report", `Generated: ${new Date().toLocaleString()}`);
-    const rows: any[] = [];
+
+    // Build rows: one section per transfer (header row + item rows)
+    const body: any[] = [];
+    const sectionHeaderIndices: number[] = [];
+    const bundleRowIndices: number[] = [];
+    const componentRowIndices: number[] = [];
+
     transfers.forEach(t => {
-      const date = new Date(t.createdAt).toLocaleDateString();
-      if (t.transferItems.length) {
-        t.transferItems.forEach(i => rows.push([t.transferNo, i.productName, i.quantity, t.fromShopName, t.toShopName, date]));
+      const date = new Date(t.createdAt).toLocaleString();
+      const route = `${t.fromShopName}  →  ${t.toShopName}`;
+      // Transfer section header
+      sectionHeaderIndices.push(body.length);
+      body.push([{ content: t.transferNo, styles: { fontStyle: "bold" } }, route, "", "", date]);
+
+      if (t.transferItems.length === 0) {
+        body.push(["", "No items", "", "", ""]);
       } else {
-        rows.push([t.transferNo, "—", 0, t.fromShopName, t.toShopName, date]);
+        t.transferItems.forEach((item: any) => {
+          const isBundle = item.productType === "bundle";
+          if (isBundle) {
+            bundleRowIndices.push(body.length);
+            body.push(["", { content: `📦 ${item.productName}`, styles: { fontStyle: "bold" } }, { content: parseFloat(String(item.quantity)), styles: { fontStyle: "bold", halign: "center" } }, { content: "Bundle", styles: { textColor: [109, 40, 217], fontStyle: "bold" } }, ""]);
+          } else {
+            componentRowIndices.push(body.length);
+            body.push(["", `  └  ${item.productName}`, { content: parseFloat(String(item.quantity)), styles: { halign: "center" } }, { content: "Component", styles: { textColor: [107, 114, 128] } }, ""]);
+          }
+        });
+      }
+
+      if (t.transferNote) {
+        body.push(["", { content: `Note: ${t.transferNote}`, styles: { fontStyle: "italic", textColor: [107, 114, 128] } }, "", "", ""]);
       }
     });
+
     autoTable(doc, {
       startY,
-      head: [["Transfer #", "Product", "Qty", "From", "To", "Date"]],
-      body: rows,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [124, 58, 237] },
+      head: [["Transfer #", "Product", "Qty", "Type", "Date"]],
+      body,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [124, 58, 237], textColor: 255, fontStyle: "bold" },
+      columnStyles: {
+        0: { cellWidth: 32 },
+        1: { cellWidth: "auto" },
+        2: { cellWidth: 18, halign: "center" },
+        3: { cellWidth: 26 },
+        4: { cellWidth: 42 },
+      },
+      didParseCell: (data) => {
+        if (sectionHeaderIndices.includes(data.row.index)) {
+          data.cell.styles.fillColor = [237, 233, 254]; // purple-100
+          data.cell.styles.textColor = [76, 29, 149];   // purple-900
+        } else if (bundleRowIndices.includes(data.row.index)) {
+          data.cell.styles.fillColor = [248, 245, 255]; // very light purple
+        } else if (componentRowIndices.includes(data.row.index)) {
+          data.cell.styles.fillColor = [255, 255, 255];
+          data.cell.styles.textColor = [55, 65, 81];
+        }
+      },
     });
+
     doc.save(`transfers-${new Date().toISOString().split("T")[0]}.pdf`);
   };
 
