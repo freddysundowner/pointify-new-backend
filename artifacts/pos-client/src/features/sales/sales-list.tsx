@@ -958,46 +958,45 @@ function SalesList() {
 
   return (
     <DashboardLayout title="Sales Reports">
-      <div className="p-4">
-        <div className="w-full">
-          <div className="mb-6 flex justify-between items-start">
-            <div className="flex items-center gap-4">
+      <div className="w-full">
+          <div className="mb-4 flex flex-wrap justify-between items-center gap-2">
+            <div className="flex items-center gap-3">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleBackClick}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1.5"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Back
+                <span className="hidden sm:inline">Back</span>
               </Button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Sales Reports
-                </h1>
-              </div>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+                Sales
+              </h1>
             </div>
 
-            {/* Action Buttons - Permission Controlled */}
+            {/* Action Buttons */}
             <div className="flex gap-2">
               <PermissionGuard permission="create_sales">
                 <Button
-                  className="flex items-center gap-2"
+                  size="sm"
+                  className="flex items-center gap-1.5"
                   onClick={() => setLocation("/pos")}
                 >
                   <Plus className="h-4 w-4" />
-                  New Sale
+                  <span className="hidden sm:inline">New Sale</span>
                 </Button>
               </PermissionGuard>
 
               <PermissionGuard permission="sales_reports">
                 <Button
                   variant="outline"
-                  className="flex items-center gap-2"
+                  size="sm"
+                  className="flex items-center gap-1.5"
                   onClick={exportToPDF}
                 >
                   <TrendingUp className="h-4 w-4" />
-                  Export PDF
+                  <span className="hidden sm:inline">Export PDF</span>
                 </Button>
               </PermissionGuard>
             </div>
@@ -1158,7 +1157,88 @@ function SalesList() {
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="overflow-x-auto">
+              {/* Mobile Card List */}
+              <div className="sm:hidden divide-y divide-gray-100">
+                {isLoading ? (
+                  <div className="py-8 text-center text-sm text-gray-500">Loading sales data...</div>
+                ) : paginatedData.length === 0 ? (
+                  <div className="py-8 text-center text-gray-500 text-sm">No sales found for the selected filters</div>
+                ) : (
+                  paginatedData.map((sale: any) => (
+                    <div key={sale.id} className="px-1 py-3">
+                      <div className="flex items-start justify-between mb-1.5">
+                        <button
+                          onClick={() => handleViewSale(sale)}
+                          className="text-sm font-mono font-semibold text-blue-600 hover:underline"
+                        >
+                          #{sale.receiptNo}
+                        </button>
+                        <span className="text-sm font-bold text-gray-900">
+                          {getSaleCurrency(sale)} {Number(sale.totalAmount).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-gray-700 truncate">{sale.customerName}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {new Date(sale.saleDate).toLocaleDateString()}
+                            {sale.attendantName && ` · ${sale.attendantName}`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className="text-xs capitalize text-gray-500">{sale.paymentTag}</span>
+                          <Badge variant={getStatusBadgeVariant(sale.status)} className="text-[10px] px-1.5 py-0">
+                            {sale.status}
+                          </Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-7 w-7 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleViewSale(sale)}>
+                                <Eye className="mr-2 h-4 w-4" />View Receipt
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                setQuotationDialogSale(sale);
+                                setQuotationMode("options");
+                                setQuotationEmail("");
+                              }}>
+                                <FileText className="mr-2 h-4 w-4" />Print Quotation
+                              </DropdownMenuItem>
+                              {sale.status === "held" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => handleCompleteSale(sale)} className="text-green-600 focus:text-green-600">
+                                    <CheckCircle className="mr-2 h-4 w-4" />Complete Sale
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {sale.status !== "held" && (userType === 'admin' || hasAttendantPermission('sales', 'return')) && (
+                                <DropdownMenuItem onClick={() => handleReturnSale(sale)}>
+                                  <RefreshCw className="mr-2 h-4 w-4" />Return Sale
+                                </DropdownMenuItem>
+                              )}
+                              {(userType === 'admin' || hasAttendantPermission('sales', 'delete')) && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => handleDeleteSale(sale)} className="text-red-600 focus:text-red-600">
+                                    <Trash2 className="mr-2 h-4 w-4" />Delete Sale
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Desktop Table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
@@ -1410,8 +1490,6 @@ function SalesList() {
             </CardContent>
           </Card>
         </div>
-      </div>
-
       {/* Quotation Dialog */}
       <Dialog
         open={!!quotationDialogSale}

@@ -611,7 +611,7 @@ export default function BusinessDashboard() {
                     Filter by Attendant
                   </label>
                   <Select value={selectedAttendantId} onValueChange={setSelectedAttendantId}>
-                    <SelectTrigger className="w-[360px] bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600">
+                    <SelectTrigger className="w-full sm:w-[360px] bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600">
                       <div className="flex items-center gap-2">
                         <UserCheck className="h-4 w-4 text-purple-500" />
                         <div className="text-left">
@@ -779,7 +779,40 @@ export default function BusinessDashboard() {
               </CardHeader>
               <CardContent className="p-6">
                 {/* Sales Table */}
-                {currentSales.length > 0 ? <div className="overflow-x-auto">
+                {currentSales.length > 0 ? (
+                <>
+                  {/* Mobile card list */}
+                  <div className="sm:hidden -mx-6 divide-y divide-gray-100">
+                    {currentSales.map((sale: any) => (
+                      <div key={sale.id} className="px-4 py-3">
+                        <div className="flex items-start justify-between mb-1">
+                          <Link
+                            href={`/receipt/${sale.id}`}
+                            onClick={() => {
+                              const saleData = salesData?.data?.find((s: any) => s._id === sale.id);
+                              if (saleData) (window as any).__receiptData = saleData;
+                            }}
+                          >
+                            <span className="text-sm font-medium text-blue-600 hover:underline">#{sale.receiptNo}</span>
+                          </Link>
+                          <span className="text-sm font-bold text-gray-900">{formatCurrency(sale.amount)}</span>
+                        </div>
+                        {sale.outstandingBalance > 0 && (
+                          <p className="text-xs text-orange-600 mb-1">Owes {formatCurrency(sale.outstandingBalance)}</p>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-gray-700">{sale.customer}</p>
+                            <p className="text-xs text-gray-400">{sale.time} · {sale.items} item{sale.items !== 1 ? 's' : ''}</p>
+                          </div>
+                          <div>{getPaymentMethodBadge(sale.paymentMethod)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop table */}
+                  <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-gray-200">
@@ -835,7 +868,8 @@ export default function BusinessDashboard() {
                       ))}
                     </tbody>
                   </table>
-                </div>: (
+                  </div>
+                </>): (
                   <div className="text-center text-gray-600">
                     No recent sales
                   </div>

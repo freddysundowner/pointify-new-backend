@@ -312,10 +312,48 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
           </div>
         )}
 
-        <div className="flex-1 px-4 py-4 lg:px-6 lg:py-6 w-full max-w-none overflow-x-hidden">
+        <div className="flex-1 px-4 py-4 lg:px-6 lg:py-6 w-full max-w-none overflow-x-hidden pb-20 lg:pb-0">
           {children}
         </div>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      {!isAttendantRoute && (
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-xl">
+          <div className="flex items-stretch justify-around">
+            {([
+              { href: dashboardRoute, icon: Home, label: "Home" },
+              { href: posRoute, icon: ScanBarcode, label: "POS" },
+              { href: productsRoute, icon: Box, label: "Products" },
+              { href: salesRoute, icon: Receipt, label: "Sales" },
+            ] as { href: string; icon: any; label: string }[]).map((tab) => {
+              const isActive = location === tab.href ||
+                (tab.href.length > 2 && location.startsWith(tab.href));
+              return (
+                <button
+                  key={tab.href}
+                  onClick={() => setLocation(tab.href)}
+                  className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-2 min-h-[56px] transition-colors ${
+                    isActive
+                      ? "text-purple-700 bg-purple-50"
+                      : "text-gray-500 hover:text-gray-700 active:bg-gray-100"
+                  }`}
+                >
+                  <tab.icon className={`h-5 w-5 shrink-0 ${isActive ? "text-purple-700" : ""}`} />
+                  <span className="text-[10px] font-medium leading-none mt-0.5">{tab.label}</span>
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2 min-h-[56px] text-gray-500 hover:text-gray-700 active:bg-gray-100 transition-colors"
+            >
+              <Menu className="h-5 w-5 shrink-0" />
+              <span className="text-[10px] font-medium leading-none mt-0.5">More</span>
+            </button>
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
