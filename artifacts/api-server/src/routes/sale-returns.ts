@@ -219,29 +219,14 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         await db.update(sales)
           .set({ outstandingBalance: newSaleOutstanding })
           .where(eq(sales.id, Number(saleId)));
-
-        // Insert a statement ledger entry so the return shows as a credit on the
-        // customer's account statement (type "return" — does NOT change wallet balance)
-        const custRow = await db.query.customers.findFirst({
-          where: eq(customers.id, sale.customer),
-          columns: { wallet: true },
-        });
-        await db.insert(customerWalletTransactions).values({
-          customer: sale.customer,
-          shop: saleReturn.shop,
-          amount: String(debtReduction.toFixed(2)),
-          balance: custRow?.wallet ?? "0.00",   // wallet unchanged
-          type: "return",
-          paymentNo: saleReturn.returnNo,
-          paymentReference: `Debt cancelled for return ${saleReturn.returnNo} (${sale.receiptNo ?? saleId})`,
-        });
       }
 
-      // 2. Apply any already-paid credit to other outstanding credit sales
-      //    creditToApply = portion of refundAmount that was already collected
-      //    e.g. refundAmount=100, saleOutstanding=20  → 80 was paid, now credited
-      //    e.g. refundAmount=30,  saleOutstanding=50  → 0 (customer still owed 20 more)
+      // 2. Apply any already-paid credit to other outstanding credit sales.
+      //    creditToApply = portion of refundAmount that was already collected as cash.
+      //    e.g. refundAmount=100, saleOutstanding=20  → 80 was paid; apply to other debts
+      //    e.g. refundAmount=30,  saleOutstanding=50  → 0 (customer still owed net 20)
       const creditToApply = Math.min(Math.max(0, refundAmount - saleOutstanding), alreadyPaid);
+      let cashRefund = 0; // portion of creditToApply not absorbed by other debts → physical refund
       if (creditToApply > 0) {
         const otherCreditSales = await db.query.sales.findMany({
           where: and(
@@ -275,8 +260,31 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
 
           remaining -= applied;
         }
-        // `remaining` after the loop is a physical cash refund to the customer,
-        // tracked via saleReturn.refundAmount + refundMethod — no wallet balance change.
+        // Any remaining credit that couldn't offset other debts becomes a physical
+        // cash refund, tracked via saleReturn.refundAmount + refundMethod.
+        cashRefund = remaining;
+      }
+
+      // 3. Insert a statement ledger entry for the credit given to the customer.
+      //    = outstanding cancelled (debtReduction) + any cash physically refunded (cashRefund).
+      //    The paid credit that was internally transferred to other debts is NOT included
+      //    here — it will reduce those other sales' debit balances instead.
+      //    (type "return" — does NOT change wallet balance)
+      const ledgerCreditAmount = debtReduction + cashRefund;
+      if (ledgerCreditAmount > 0) {
+        const custRow = await db.query.customers.findFirst({
+          where: eq(customers.id, sale.customer),
+          columns: { wallet: true },
+        });
+        await db.insert(customerWalletTransactions).values({
+          customer: sale.customer,
+          shop: saleReturn.shop,
+          amount: String(ledgerCreditAmount.toFixed(2)),
+          balance: custRow?.wallet ?? "0.00",   // wallet unchanged
+          type: "return",
+          paymentNo: saleReturn.returnNo,
+          paymentReference: `Debt cancelled for return ${saleReturn.returnNo} (${sale.receiptNo ?? saleId})`,
+        });
       }
     }
 
