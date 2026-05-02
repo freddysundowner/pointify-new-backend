@@ -1378,6 +1378,15 @@ router.post("/:id/payments", requireAdminOrAttendant, async (req, res, next) => 
         .where(eq(customers.id, sale.customer));
     }
 
+    // Record cashflow for the cash collected on this debt payment
+    void autoRecordCashflow({
+      shopId: Number(sale.shop),
+      amount: parseFloat(String(amount)),
+      description: `Collected Debt ${sale.receiptNo ?? saleId}`,
+      categoryKey: "sales",
+      recordedBy: req.attendant?.id,
+    });
+
     return created(res, payment);
   } catch (e) { next(e); }
 });
