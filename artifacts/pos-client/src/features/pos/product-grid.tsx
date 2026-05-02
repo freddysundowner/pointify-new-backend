@@ -2402,9 +2402,6 @@ export default function ProductGrid({
                       Effective price after discount: Ksh {effectivePrice.toFixed(2)}
                     </p>
                   )}
-                  {minSp > 0 && (
-                    <p className="text-xs text-amber-600 mt-1">Minimum allowed price: Ksh {minSp.toFixed(2)}</p>
-                  )}
                 </div>
               );
             })()}
