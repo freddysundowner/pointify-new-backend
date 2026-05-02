@@ -1006,10 +1006,10 @@ export default function ProductGrid({
   return (
     <div className="h-full bg-gray-50 flex flex-col">
       {/* Mobile Navigation Bar */}
-      <div className="md:hidden bg-purple-600 text-white p-3">
+      <div className="md:hidden bg-primary text-white p-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-purple-400 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-primary/70 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">P</span>
             </div>
             <h1 className="text-lg font-semibold">POS System</h1>
@@ -1017,12 +1017,12 @@ export default function ProductGrid({
           
           <div className="flex items-center space-x-2">
             {/* Mobile View Toggle */}
-            <div className="flex bg-purple-500 rounded-md p-0.5">
+            <div className="flex bg-primary/80 rounded-md p-0.5">
               <Button
                 variant={viewMode === 'grid' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setViewMode('grid')}
-                className="h-6 px-2 text-xs bg-transparent hover:bg-purple-400"
+                className="h-6 px-2 text-xs bg-transparent hover:bg-primary/70"
               >
                 <Grid3X3 className="h-3 w-3" />
               </Button>
@@ -1030,7 +1030,7 @@ export default function ProductGrid({
                 variant={viewMode === 'table' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setViewMode('table')}
-                className="h-6 px-2 text-xs bg-transparent hover:bg-purple-400"
+                className="h-6 px-2 text-xs bg-transparent hover:bg-primary/70"
               >
                 <Table className="h-3 w-3" />
               </Button>
@@ -1039,7 +1039,7 @@ export default function ProductGrid({
             <Button 
               onClick={() => setShowCategoriesDrawer(true)}
               variant="outline"
-              className="border-purple-300 text-purple-100 hover:bg-purple-500 h-8 px-3 text-sm"
+              className="border-primary/30 text-white hover:bg-primary/80 h-8 px-3 text-sm"
             >
               Category
             </Button>
@@ -1159,7 +1159,7 @@ export default function ProductGrid({
                       {/* Add new customer shortcut at bottom of dropdown */}
                       {(hasAttendantPermission('customers', 'manage') || !!admin) && (
                         <div
-                          className="px-3 py-2 text-xs text-purple-600 font-medium cursor-pointer hover:bg-purple-50 border-t flex items-center gap-1.5"
+                          className="px-3 py-2 text-xs text-primary font-medium cursor-pointer hover:bg-primary/5 border-t flex items-center gap-1.5"
                           onMouseDown={() => {
                             setShowMainCustomerDropdown(false);
                             setNewCustomerForm(f => ({ ...f, name: mainCustomerSearch.trim() }));
@@ -1188,7 +1188,7 @@ export default function ProductGrid({
                       setNewCustomerForm({ name: '', phone: '', email: '', address: '' });
                       setShowAddCustomerDialog(true);
                     }}
-                    className="bg-purple-600 hover:bg-purple-700 text-white h-8 lg:h-10 px-2 lg:px-4"
+                    className="bg-primary hover:bg-primary/90 text-white h-8 lg:h-10 px-2 lg:px-4"
                     title="Add new customer"
                   >
                     <Plus className="h-3 w-3 lg:h-4 lg:w-4" />
@@ -1237,7 +1237,7 @@ export default function ProductGrid({
                   placeholder="Scan barcode or search products..."
                   value={searchQuery}
                   onChange={(e) => onSearchChange(e.target.value)}
-                  className="pl-10 h-10 text-sm border-gray-300 bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="pl-10 h-10 text-sm border-gray-300 bg-white focus:ring-2 focus:ring-primary focus:border-primary"
                   autoFocus
                 />
                 
@@ -1246,7 +1246,7 @@ export default function ProductGrid({
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
                     {isLoading ? (
                       <div className="text-center py-4">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500 mx-auto mb-2"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mx-auto mb-2"></div>
                         <p className="text-sm text-gray-500">Searching...</p>
                       </div>
                     ) : isSearching ? (
@@ -1283,7 +1283,7 @@ export default function ProductGrid({
                                 <span className="text-xs text-gray-500">Stock: {product.quantity || 0}</span>
                               )}
                               {product.barcode && (
-                                <span className="text-xs text-purple-600 font-mono">
+                                <span className="text-xs text-primary font-mono">
                                   {product.barcode}
                                 </span>
                               )}
@@ -1305,7 +1305,7 @@ export default function ProductGrid({
                 type="button"
                 variant="outline"
                 onClick={() => setShowCustomItemDialog(true)}
-                className="h-10 px-3 border-dashed border-purple-400 text-purple-600 hover:bg-purple-50 whitespace-nowrap shrink-0"
+                className="h-10 px-3 border-dashed border-primary/40 text-primary hover:bg-primary/5 whitespace-nowrap shrink-0"
               >
                 <PlusCircle className="h-4 w-4 mr-1.5" />
                 Custom Item
@@ -1559,7 +1559,7 @@ export default function ProductGrid({
               </div>
               
               {/* Grand Total */}
-              <div className="bg-green-600 text-white p-2 lg:p-4 rounded-lg mt-2 lg:mt-3">
+              <div className="bg-primary text-white p-2 lg:p-4 rounded-lg mt-2 lg:mt-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm lg:text-lg font-semibold">Grand Total:</span>
                   <span className="text-lg lg:text-xl font-bold">Ksh {totals.total.toFixed(2)}</span>
@@ -1572,7 +1572,7 @@ export default function ProductGrid({
               <div className="grid grid-cols-3 gap-2 lg:gap-3">
                 <Button 
                   onClick={() => setShowPaymentDialog(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white py-2 lg:py-3 text-sm lg:text-base font-semibold rounded-lg"
+                  className="bg-primary hover:bg-primary/90 text-white py-2 lg:py-3 text-sm lg:text-base font-semibold rounded-lg"
                   disabled={cartItems.length === 0}
                 >
                   Cash-In
@@ -1862,7 +1862,7 @@ export default function ProductGrid({
                 </div>
                 
                 {/* Grand Total */}
-                <div className="bg-green-600 text-white p-4 lg:p-6 rounded-lg mt-4 lg:mt-6">
+                <div className="bg-primary text-white p-4 lg:p-6 rounded-lg mt-4 lg:mt-6">
                   <div className="flex justify-between items-center">
                     <span className="text-lg lg:text-xl font-semibold">Grand Total:</span>
                     <span className="text-xl lg:text-2xl font-bold">Ksh {totals.total.toFixed(2)}</span>
@@ -1875,7 +1875,7 @@ export default function ProductGrid({
                 <div className="space-y-3">
                   <Button 
                     onClick={() => setShowPaymentDialog(true)}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white py-3 lg:py-4 text-base lg:text-lg font-semibold rounded-lg"
+                    className="w-full bg-primary hover:bg-primary/90 text-white py-3 lg:py-4 text-base lg:text-lg font-semibold rounded-lg"
                     disabled={cartItems.length === 0}
                   >
                     Cash-In
@@ -2265,10 +2265,10 @@ export default function ProductGrid({
                     className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
                   >
                     <span className="flex items-center gap-2 text-gray-600">
-                      <Calendar className="h-4 w-4 text-purple-500" />
+                      <Calendar className="h-4 w-4 text-primary" />
                       Set sale date
                     </span>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isCustomDateTime ? "bg-purple-100 text-purple-700" : "text-gray-400"}`}>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isCustomDateTime ? "bg-primary/10 text-primary" : "text-gray-400"}`}>
                       {isCustomDateTime ? "On" : "Off"}
                     </span>
                   </button>
@@ -2560,7 +2560,7 @@ export default function ProductGrid({
                 <button
                   type="button"
                   onClick={() => setShowAddCustomerDialog(true)}
-                  className="flex items-center space-x-1 text-xs text-purple-600 hover:text-purple-800 font-medium"
+                  className="flex items-center space-x-1 text-xs text-primary hover:text-primary font-medium"
                 >
                   <Plus className="h-3 w-3" />
                   <span>Add new customer</span>
@@ -2581,7 +2581,7 @@ export default function ProductGrid({
 
               {/* Selected customer pill */}
               {selectedCustomer && !holdCustomerSearch && (
-                <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 mb-2">
+                <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mb-2">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{selectedCustomer.name}</p>
                   </div>
@@ -2609,7 +2609,7 @@ export default function ProductGrid({
                         <div
                           key={customerId}
                           onClick={() => { setSelectedCustomerId(String(customerId)); setHoldCustomerSearch(''); }}
-                          className="flex items-center justify-between px-3 py-2 hover:bg-purple-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          className="flex items-center justify-between px-3 py-2 hover:bg-primary/5 cursor-pointer border-b border-gray-100 last:border-b-0"
                         >
                           <div>
                             <p className="text-sm font-medium text-gray-900">{customer.name}</p>
@@ -2685,7 +2685,7 @@ export default function ProductGrid({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-gray-900 flex items-center space-x-2">
-              <Wallet className="h-5 w-5 text-purple-500" />
+              <Wallet className="h-5 w-5 text-primary" />
               <span>Select Customer for Wallet Payment</span>
             </DialogTitle>
           </DialogHeader>
@@ -2701,7 +2701,7 @@ export default function ProductGrid({
                 <button
                   type="button"
                   onClick={() => setShowAddCustomerDialog(true)}
-                  className="flex items-center space-x-1 text-xs text-purple-600 hover:text-purple-800 font-medium"
+                  className="flex items-center space-x-1 text-xs text-primary hover:text-primary font-medium"
                 >
                   <Plus className="h-3 w-3" />
                   <span>Add new customer</span>
@@ -2720,7 +2720,7 @@ export default function ProductGrid({
               </div>
 
               {selectedCustomer && !walletCustomerSearch && (
-                <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 mb-2">
+                <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mb-2">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{selectedCustomer.name}</p>
                     <p className="text-xs text-gray-500">Wallet: {currency}{parseFloat(selectedCustomer.wallet || '0').toFixed(2)}</p>
@@ -2750,7 +2750,7 @@ export default function ProductGrid({
                         <div
                           key={cId}
                           onClick={() => sufficient ? (setSelectedCustomerId(String(cId)), setWalletCustomerSearch('')) : undefined}
-                          className={`flex items-center justify-between px-3 py-2 border-b border-gray-100 last:border-b-0 ${sufficient ? 'hover:bg-purple-50 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+                          className={`flex items-center justify-between px-3 py-2 border-b border-gray-100 last:border-b-0 ${sufficient ? 'hover:bg-primary/5 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
                         >
                           <div>
                             <p className="text-sm font-medium text-gray-900">{customer.name}</p>
@@ -2780,7 +2780,7 @@ export default function ProductGrid({
             </Button>
             <Button
               onClick={handleConfirmWalletCustomer}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-primary hover:bg-primary/90 text-white"
               disabled={!selectedCustomerId || parseFloat(selectedCustomer?.wallet || '0') < totals.total}
             >
               Confirm &amp; Pay
@@ -2882,7 +2882,7 @@ export default function ProductGrid({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-gray-900 flex items-center space-x-2">
-              <User className="h-5 w-5 text-purple-500" />
+              <User className="h-5 w-5 text-primary" />
               <span>Add New Customer</span>
             </DialogTitle>
           </DialogHeader>
@@ -2930,7 +2930,7 @@ export default function ProductGrid({
             <Button
               onClick={() => createCustomerMutation.mutate(newCustomerForm)}
               disabled={!newCustomerForm.name.trim() || createCustomerMutation.isPending}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-primary hover:bg-primary/90 text-white"
             >
               {createCustomerMutation.isPending ? 'Creating...' : 'Create Customer'}
             </Button>
@@ -3012,7 +3012,7 @@ export default function ProductGrid({
                       return (
                         <div
                           key={p.id}
-                          className={`flex items-center justify-between px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 ${outOfStock ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-purple-50'}`}
+                          className={`flex items-center justify-between px-3 py-2 text-sm border-b border-gray-100 last:border-b-0 ${outOfStock ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-primary/5'}`}
                           onMouseDown={(e) => {
                             e.preventDefault();
                             if (outOfStock) return;
@@ -3070,7 +3070,7 @@ export default function ProductGrid({
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">Product Type</label>
                   <select
-                    className="w-full h-9 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full h-9 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     value={customItemType}
                     onChange={(e) => setCustomItemType(e.target.value)}
                   >
@@ -3115,7 +3115,7 @@ export default function ProductGrid({
             <Button
               onClick={handleCreateCustomItem}
               disabled={isCreatingCustomItem || !customItemName.trim() || !customItemPrice}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-primary hover:bg-primary/90 text-white"
             >
               {isCreatingCustomItem ? 'Adding...' : 'Add'}
             </Button>
