@@ -1356,61 +1356,59 @@ export default function CustomerOverview() {
                 <Card>
                   <CardHeader>
                     <div className="flex justify-between items-center">
-                      <CardTitle>Account Statement</CardTitle>
-                      <div className="flex items-center space-x-2">
-                        <Button onClick={downloadStatementCSV} variant="outline">
-                          <Download className="h-4 w-4 mr-2" />
-                          Download CSV
+                      <CardTitle className="text-base">Account Statement</CardTitle>
+                      <div className="flex items-center gap-1">
+                        <Button onClick={downloadStatementCSV} variant="outline" size="sm" className="h-7 px-2 text-xs">
+                          <Download className="h-3 w-3 mr-1" />
+                          CSV
                         </Button>
-                        <Button onClick={downloadStatementPDF} variant="outline">
-                          <Download className="h-4 w-4 mr-2" />
-                          Download PDF
+                        <Button onClick={downloadStatementPDF} variant="outline" size="sm" className="h-7 px-2 text-xs">
+                          <Download className="h-3 w-3 mr-1" />
+                          PDF
                         </Button>
-                        <Button onClick={emailStatementToCustomer} variant="outline" disabled={isSendingEmail}>
-                          <Mail className="h-4 w-4 mr-2" />
-                          {isSendingEmail ? "Sending…" : "Email Statement"}
+                        <Button onClick={emailStatementToCustomer} variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={isSendingEmail}>
+                          <Mail className="h-3 w-3 mr-1" />
+                          {isSendingEmail ? "Sending…" : "Email"}
                         </Button>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-0">
                     <div className="rounded-md border">
                       <Table>
                         <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Reference</TableHead>
-                            <TableHead className="text-right">Debit</TableHead>
-                            <TableHead className="text-right">Credit</TableHead>
-                            <TableHead className="text-right">Balance</TableHead>
+                          <TableRow className="h-8">
+                            <TableHead className="py-1 px-2 text-xs">Date</TableHead>
+                            <TableHead className="py-1 px-2 text-xs">Description</TableHead>
+                            <TableHead className="py-1 px-2 text-xs">Ref / By</TableHead>
+                            <TableHead className="py-1 px-2 text-xs text-right">Debit</TableHead>
+                            <TableHead className="py-1 px-2 text-xs text-right">Credit</TableHead>
+                            <TableHead className="py-1 px-2 text-xs text-right">Balance</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {(isLoadingPayments || salesLoading) ? (
-                            <TableRow><TableCell colSpan={6} className="text-center">Loading statement...</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={6} className="text-center py-3 text-xs">Loading statement...</TableCell></TableRow>
                           ) : stmtWithBalance.length === 0 ? (
-                            <TableRow><TableCell colSpan={6} className="text-center text-gray-500">No transactions found</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={6} className="text-center py-3 text-xs text-gray-500">No transactions found</TableCell></TableRow>
                           ) : stmtWithBalance.map((row, i) => (
-                            <TableRow key={i}>
-                              <TableCell className="whitespace-nowrap">{row.date}</TableCell>
-                              <TableCell className="text-sm">{row.description}</TableCell>
-                              <TableCell>
-                                <div className="flex flex-col">
-                                  <span className="text-sm">{row.ref}</span>
-                                  {row.attendant && <span className="text-xs text-gray-500">{row.attendant}</span>}
-                                </div>
+                            <TableRow key={i} className="h-7 hover:bg-gray-50">
+                              <TableCell className="py-1 px-2 text-xs whitespace-nowrap">{row.date}</TableCell>
+                              <TableCell className="py-1 px-2 text-xs max-w-[180px] truncate">{row.description}</TableCell>
+                              <TableCell className="py-1 px-2 text-xs whitespace-nowrap">
+                                <span>{row.ref}</span>
+                                {row.attendant && <span className="text-gray-400 ml-1">· {row.attendant}</span>}
                               </TableCell>
-                              <TableCell className="text-right font-medium">
-                                {row.debit > 0 ? <span className="text-red-600">{currency} {row.debit.toFixed(2)}</span> : <span className="text-gray-400">-</span>}
+                              <TableCell className="py-1 px-2 text-xs text-right font-medium">
+                                {row.debit > 0 ? <span className="text-red-600">{currency} {row.debit.toFixed(2)}</span> : <span className="text-gray-300">—</span>}
                               </TableCell>
-                              <TableCell className="text-right font-medium">
-                                {row.credit > 0 ? <span className="text-green-600">{currency} {row.credit.toFixed(2)}</span> : <span className="text-gray-400">-</span>}
+                              <TableCell className="py-1 px-2 text-xs text-right font-medium">
+                                {row.credit > 0 ? <span className="text-green-600">{currency} {row.credit.toFixed(2)}</span> : <span className="text-gray-300">—</span>}
                               </TableCell>
-                              <TableCell className="text-right font-semibold">
+                              <TableCell className="py-1 px-2 text-xs text-right font-semibold">
                                 <span className={row.balance > 0 ? 'text-red-600' : 'text-green-600'}>
                                   {currency} {Math.abs(row.balance).toFixed(2)}
-                                  {row.balance > 0 && <span className="text-xs ml-1">Owing</span>}
+                                  {row.balance > 0 && <span className="ml-1 font-normal opacity-70">Owing</span>}
                                 </span>
                               </TableCell>
                             </TableRow>
@@ -1418,11 +1416,11 @@ export default function CustomerOverview() {
                         </TableBody>
                         {stmtWithBalance.length > 0 && (
                           <tfoot>
-                            <TableRow className="bg-gray-50 font-bold border-t-2">
-                              <TableCell colSpan={3}>Totals</TableCell>
-                              <TableCell className="text-right text-red-600">{currency} {totalDebits.toFixed(2)}</TableCell>
-                              <TableCell className="text-right text-green-600">{currency} {totalCredits.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">
+                            <TableRow className="bg-gray-50 border-t-2 h-8">
+                              <TableCell colSpan={3} className="py-1 px-2 text-xs font-bold">Totals</TableCell>
+                              <TableCell className="py-1 px-2 text-xs text-right font-bold text-red-600">{currency} {totalDebits.toFixed(2)}</TableCell>
+                              <TableCell className="py-1 px-2 text-xs text-right font-bold text-green-600">{currency} {totalCredits.toFixed(2)}</TableCell>
+                              <TableCell className="py-1 px-2 text-xs text-right font-bold">
                                 <span className={runningBalance > 0 ? 'text-red-600' : 'text-green-600'}>
                                   {currency} {Math.abs(runningBalance).toFixed(2)}
                                   {runningBalance > 0 ? ' Owing' : ' Credit'}
