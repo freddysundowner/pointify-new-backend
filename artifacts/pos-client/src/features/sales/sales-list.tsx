@@ -69,7 +69,7 @@ import { useNavigationRoute } from "@/lib/navigation-utils";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import type { Sale } from "@shared/schema";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { autoTable } from "jspdf-autotable";
 import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";

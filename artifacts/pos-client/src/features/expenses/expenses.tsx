@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { autoTable } from "jspdf-autotable";
 import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizeIds, extractId } from '@/lib/utils';

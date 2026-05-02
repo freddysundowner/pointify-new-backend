@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { useGoBack } from "@/hooks/useGoBack";
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { autoTable } from 'jspdf-autotable';
 import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 import { 
   Calendar, 

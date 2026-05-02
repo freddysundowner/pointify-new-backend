@@ -12,7 +12,7 @@ import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { useAuth } from "@/features/auth/useAuth";
 import { useGoBack } from "@/hooks/useGoBack";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { autoTable } from "jspdf-autotable";
 import { useCurrency } from "@/utils";
 import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 

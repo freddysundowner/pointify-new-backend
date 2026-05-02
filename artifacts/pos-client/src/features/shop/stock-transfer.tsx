@@ -13,7 +13,7 @@ import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { useGoBack } from "@/hooks/useGoBack";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { autoTable } from "jspdf-autotable";
 import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 
 interface TransferItem {

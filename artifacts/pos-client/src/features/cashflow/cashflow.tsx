@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { autoTable } from "jspdf-autotable";
 import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 
 const n = (v: any) => Number(v ?? 0);
