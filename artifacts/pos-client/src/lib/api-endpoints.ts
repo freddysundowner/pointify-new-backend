@@ -320,6 +320,7 @@ export const ENDPOINTS = {
   transfers: {
     shopTransfer:         "/api/transfers",
     filter:               "/api/transfers",
+    productSearch:        "/api/inventory/transfer-product-search",
   },
 
 };

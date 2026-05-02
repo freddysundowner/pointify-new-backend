@@ -107,7 +107,7 @@ export default function StockTransfer() {
     queryFn: async () => {
       if (!fromShopId || productSearch.length < 1) return [];
       const params = new URLSearchParams({ shopId: String(fromShopId), q: productSearch });
-      const res = await apiRequest("GET", `${ENDPOINTS.stockCounts.productSearch}?${params}`);
+      const res = await apiRequest("GET", `${ENDPOINTS.transfers.productSearch}?${params}`);
       const json = await res.json();
       return (Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : []) as ProductOption[];
     },

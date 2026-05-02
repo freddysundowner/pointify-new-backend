@@ -481,6 +481,40 @@ router.get("/stock-counts/product-search", requireAdminOrAttendant, async (req, 
   } catch (e) { next(e); }
 });
 
+// Transfer-specific product search: returns any product that has inventory in the given shop,
+// regardless of which shop originally created it.
+router.get("/transfer-product-search", requireAdminOrAttendant, async (req, res, next) => {
+  try {
+    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
+    const q      = String(req.query["q"] ?? "").trim();
+    if (!shopId) throw badRequest("shopId required");
+
+    const like = q ? `%${q}%` : "%";
+    const rows = await db
+      .select({
+        id:           products.id,
+        name:         products.name,
+        type:         products.type,
+        barcode:      products.barcode,
+        sellingPrice: products.sellingPrice,
+        measureUnit:  products.measureUnit,
+        quantity:     inventory.quantity,
+      })
+      .from(inventory)
+      .innerJoin(products, eq(inventory.product, products.id))
+      .where(
+        and(
+          eq(inventory.shop, shopId),
+          eq(products.isDeleted, false),
+          or(ilike(products.name, like), ilike(products.barcode ?? sql`''`, like))
+        )
+      )
+      .limit(50);
+
+    return ok(res, rows);
+  } catch (e) { next(e); }
+});
+
 router.get("/stock-counts/product-filter", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
