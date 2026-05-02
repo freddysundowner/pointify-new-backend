@@ -284,6 +284,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
           type: "return",
           paymentNo: saleReturn.returnNo,
           paymentReference: `Debt cancelled for return ${saleReturn.returnNo} (${sale.receiptNo ?? saleId})`,
+          saleId: Number(saleId),  // allows cascade-style cleanup when the sale is deleted
         });
       }
     }
