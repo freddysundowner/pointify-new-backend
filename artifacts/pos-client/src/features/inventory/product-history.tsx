@@ -572,8 +572,8 @@ export default function ProductHistory() {
                             <tr key={x.id ?? i} className="hover:bg-gray-50">
                               <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(x.createdAt)}</td>
                               <td className="px-4 py-2 font-mono text-xs">{x.transferNo || `#${x.transferId || x.id}`}</td>
-                              <td className="px-4 py-2 text-xs">Shop #{x.fromShop}</td>
-                              <td className="px-4 py-2 text-xs">Shop #{x.toShop}</td>
+                              <td className="px-4 py-2 text-xs">{x.fromShopName || `Shop #${x.fromShop}`}</td>
+                              <td className="px-4 py-2 text-xs">{x.toShopName || `Shop #${x.toShop}`}</td>
                               <td className="px-4 py-2 text-right font-medium">{parseFloat(x.quantity ?? 0)}</td>
                               <td className="px-4 py-2 text-right text-xs">{x.unitPrice ? `${currency} ${parseFloat(x.unitPrice).toFixed(2)}` : "—"}</td>
                               <td className="px-4 py-2 text-xs text-gray-400">{x.transferNote || x.note || "—"}</td>

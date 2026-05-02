@@ -841,7 +841,9 @@ router.get("/:id/transfer-history", async (req, res, next) => {
       transferNo: productTransfers.transferNo,
       transferNote: productTransfers.transferNote,
       fromShop: productTransfers.fromShop,
+      fromShopName: sql<string>`(SELECT name FROM shops WHERE id = ${productTransfers.fromShop})`,
       toShop: productTransfers.toShop,
+      toShopName: sql<string>`(SELECT name FROM shops WHERE id = ${productTransfers.toShop})`,
       createdAt: productTransfers.createdAt,
     }).from(transferItems)
       .leftJoin(productTransfers, eq(transferItems.transfer, productTransfers.id))
