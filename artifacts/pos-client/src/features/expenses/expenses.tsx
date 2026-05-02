@@ -511,7 +511,7 @@ export default function Expenses() {
                 <DialogTitle>{selectedExpense ? 'Edit Expense' : 'Add New Expense'}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="description">Description</Label>
                     <Input
@@ -732,41 +732,67 @@ export default function Expenses() {
         )}
 
         {/* Compact filters */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <input
-            type="date"
-            value={customStartDate}
-            onChange={(e) => setCustomStartDate(e.target.value)}
-            className="h-8 text-sm border border-gray-200 rounded-md px-2 w-36 focus:outline-none focus:ring-1 focus:ring-blue-400"
-          />
-          <span className="text-gray-400 text-xs">to</span>
-          <input
-            type="date"
-            value={customEndDate}
-            onChange={(e) => setCustomEndDate(e.target.value)}
-            className="h-8 text-sm border border-gray-200 rounded-md px-2 w-36 focus:outline-none focus:ring-1 focus:ring-blue-400"
-          />
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="h-8 text-sm w-40">
-              <SelectValue placeholder="All categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All categories</SelectItem>
-              {Array.isArray(categories) && categories.map((category: ExpenseCategory) => (
-                <SelectItem key={category._id} value={category._id}>{category.name}</SelectItem>
+        <div className="space-y-2">
+          {/* Date range row — flex-1 inputs on mobile */}
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              className="h-8 text-xs border border-gray-200 rounded-md px-2 flex-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+            <span className="text-gray-400 text-xs flex-shrink-0">–</span>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              className="h-8 text-xs border border-gray-200 rounded-md px-2 flex-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+            {(customStartDate || customEndDate || selectedCategory !== 'all') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-red-400 hover:text-red-600 px-2 flex-shrink-0"
+                onClick={() => { setCustomStartDate(''); setCustomEndDate(''); setSelectedCategory('all'); }}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {/* Category pills (mobile) / select (desktop) */}
+          <div className="sm:hidden overflow-x-auto no-scrollbar -mx-1 px-1">
+            <div className="flex gap-1.5 pb-0.5">
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={`flex-shrink-0 h-7 px-3 text-xs rounded-full font-medium transition-colors ${selectedCategory === 'all' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >
+                All
+              </button>
+              {Array.isArray(categories) && categories.map((cat: ExpenseCategory) => (
+                <button
+                  key={cat._id}
+                  onClick={() => setSelectedCategory(cat._id)}
+                  className={`flex-shrink-0 h-7 px-3 text-xs rounded-full font-medium transition-colors ${selectedCategory === cat._id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  {cat.name}
+                </button>
               ))}
-            </SelectContent>
-          </Select>
-          {(customStartDate || customEndDate || selectedCategory !== 'all') && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs text-gray-400 hover:text-gray-600"
-              onClick={() => { setCustomStartDate(''); setCustomEndDate(''); setSelectedCategory('all'); }}
-            >
-              Clear
-            </Button>
-          )}
+            </div>
+          </div>
+          <div className="hidden sm:block">
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="h-8 text-sm w-40">
+                <SelectValue placeholder="All categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {Array.isArray(categories) && categories.map((category: ExpenseCategory) => (
+                  <SelectItem key={category._id} value={category._id}>{category.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Compact table */}
@@ -779,42 +805,32 @@ export default function Expenses() {
             ) : paginatedExpenses.data.length === 0 ? (
               <div className="text-center py-10 text-sm text-gray-400">No expenses found.</div>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-gray-400 border-b">
-                    <th className="text-left px-3 py-2 font-medium">Description</th>
-                    <th className="text-left px-3 py-2 font-medium">Category</th>
-                    <th className="text-left px-3 py-2 font-medium">Date</th>
-                    <th className="text-right px-3 py-2 font-medium">Amount</th>
-                    <th className="px-3 py-2 w-14"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
+              <>
+                {/* Mobile card list */}
+                <div className="sm:hidden space-y-2 p-3">
                   {paginatedExpenses.data.map((expense) => (
-                    <tr key={expense._id} className="hover:bg-gray-50/70">
-                      <td className="px-3 py-2.5">
-                        <span className="font-medium text-gray-800">{expense.description}</span>
-                        {expense.frequency && (
-                          <span className="ml-1.5 text-xs text-blue-500 capitalize">{expense.frequency}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-gray-500">
-                        {expense.category && typeof expense.category === 'object'
-                          ? expense.category?.name || '—'
-                          : expense.category
-                            ? getCategoryName(expense.category as any)
+                    <div key={expense._id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                      <div className="flex items-start justify-between px-3 pt-3 pb-2">
+                        <div className="min-w-0 flex-1 mr-3">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{expense.description}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {expense.category && typeof expense.category === 'object'
+                              ? (expense.category as any)?.name || '—'
+                              : expense.category ? getCategoryName(expense.category as any) : '—'}
+                            {expense.frequency && <span className="ml-1.5 text-blue-500 capitalize">{expense.frequency}</span>}
+                          </p>
+                        </div>
+                        <span className="text-base font-bold text-red-600 flex-shrink-0">
+                          {currency} {parseFloat(String(expense.amount ?? 0)).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-3 pb-3 pt-2 border-t border-gray-50">
+                        <p className="text-xs text-gray-400">
+                          {(expense.createdAt || expense.createAt)
+                            ? format(new Date((expense.createdAt || expense.createAt) as string), 'MMM d, yyyy')
                             : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">
-                        {(expense.createdAt || expense.createAt)
-                          ? format(new Date((expense.createdAt || expense.createAt) as string), 'MMM d, yyyy')
-                          : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-semibold text-red-600 whitespace-nowrap">
-                        {currency} {parseFloat(String(expense.amount ?? 0)).toLocaleString()}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-0.5 justify-end">
+                        </p>
+                        <div className="flex items-center gap-0.5">
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleEdit(expense)}>
                             <Edit2 className="h-3.5 w-3.5" />
                           </Button>
@@ -827,38 +843,108 @@ export default function Expenses() {
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Delete Expense</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete this expense? This action cannot be undone.
-                                </AlertDialogDescription>
+                                <AlertDialogDescription>Are you sure you want to delete this expense? This action cannot be undone.</AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => deleteExpenseMutation.mutate(expense._id)}
-                                  className="bg-red-600 hover:bg-red-700"
-                                >
-                                  Delete
-                                </AlertDialogAction>
+                                <AlertDialogAction onClick={() => deleteExpenseMutation.mutate(expense._id)} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
                         </div>
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t">
-                    <td colSpan={3} className="px-3 py-2 text-xs text-gray-400">
-                      {sortedExpenses.length} expense{sortedExpenses.length !== 1 ? 's' : ''}
-                    </td>
-                    <td className="px-3 py-2 text-right text-sm font-bold text-gray-800">
-                      {currency} {totalAmount.toLocaleString()}
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                    <span className="text-xs text-gray-400">{sortedExpenses.length} expense{sortedExpenses.length !== 1 ? 's' : ''}</span>
+                    <span className="text-sm font-bold text-gray-800">{currency} {totalAmount.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden sm:block">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs text-gray-400 border-b">
+                        <th className="text-left px-3 py-2 font-medium">Description</th>
+                        <th className="text-left px-3 py-2 font-medium">Category</th>
+                        <th className="text-left px-3 py-2 font-medium">Date</th>
+                        <th className="text-right px-3 py-2 font-medium">Amount</th>
+                        <th className="px-3 py-2 w-14"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {paginatedExpenses.data.map((expense) => (
+                        <tr key={expense._id} className="hover:bg-gray-50/70">
+                          <td className="px-3 py-2.5">
+                            <span className="font-medium text-gray-800">{expense.description}</span>
+                            {expense.frequency && (
+                              <span className="ml-1.5 text-xs text-blue-500 capitalize">{expense.frequency}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-gray-500">
+                            {expense.category && typeof expense.category === 'object'
+                              ? (expense.category as any)?.name || '—'
+                              : expense.category
+                                ? getCategoryName(expense.category as any)
+                                : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">
+                            {(expense.createdAt || expense.createAt)
+                              ? format(new Date((expense.createdAt || expense.createAt) as string), 'MMM d, yyyy')
+                              : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-semibold text-red-600 whitespace-nowrap">
+                            {currency} {parseFloat(String(expense.amount ?? 0)).toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center gap-0.5 justify-end">
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleEdit(expense)}>
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Expense</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete this expense? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteExpenseMutation.mutate(expense._id)}
+                                      className="bg-red-600 hover:bg-red-700"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t">
+                        <td colSpan={3} className="px-3 py-2 text-xs text-gray-400">
+                          {sortedExpenses.length} expense{sortedExpenses.length !== 1 ? 's' : ''}
+                        </td>
+                        <td className="px-3 py-2 text-right text-sm font-bold text-gray-800">
+                          {currency} {totalAmount.toLocaleString()}
+                        </td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
