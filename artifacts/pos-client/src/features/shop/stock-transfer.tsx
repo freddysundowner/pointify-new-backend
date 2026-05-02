@@ -160,8 +160,12 @@ export default function StockTransfer() {
   const exportPDF = () => {
     const doc = new jsPDF();
     const pw = doc.internal.pageSize.width;
-    doc.setFontSize(16); doc.text("Stock Transfer Report", pw / 2, 16, { align: "center" });
-    doc.setFontSize(10); doc.text(`Generated: ${new Date().toLocaleString()}`, pw / 2, 23, { align: "center" });
+    const shopName = shopOptions.find(s => s.id === Number(shopId))?.name || "Shop";
+    doc.setFontSize(18); doc.setFont("helvetica", "bold");
+    doc.text(shopName, pw / 2, 14, { align: "center" });
+    doc.setFontSize(13); doc.setFont("helvetica", "normal");
+    doc.text("Stock Transfer Report", pw / 2, 22, { align: "center" });
+    doc.setFontSize(9); doc.text(`Generated: ${new Date().toLocaleString()}`, pw / 2, 29, { align: "center" });
     const rows: any[] = [];
     transfers.forEach(t => {
       const date = new Date(t.createdAt).toLocaleDateString();
@@ -172,7 +176,7 @@ export default function StockTransfer() {
       }
     });
     autoTable(doc, {
-      startY: 30,
+      startY: 35,
       head: [["Transfer #", "Product", "Qty", "From", "To", "Date"]],
       body: rows,
       styles: { fontSize: 8 },

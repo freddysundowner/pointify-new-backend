@@ -453,15 +453,18 @@ export default function PurchasesList() {
     const currentDate = new Date().toLocaleDateString();
     
     // Header styling
-    doc.setFontSize(20);
+    const shopName = (primaryShop as any)?.name || 'Shop';
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('PURCHASE REPORT', 105, 25, { align: 'center' });
+    doc.text(shopName, 105, 18, { align: 'center' });
+    doc.setFontSize(16);
+    doc.text('PURCHASE REPORT', 105, 27, { align: 'center' });
     
     // Company info section
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.text(`Generated: ${currentDate}`, 20, 45);
-    doc.text(`Shop: ${selectedShopId ? 'Shop One' : 'All Shops'}`, 20, 55);
+    doc.text(`Shop: ${shopName}`, 20, 55);
     doc.text(`Report Period: ${startDate} to ${endDate}`, 20, 65);
     
     // Summary section

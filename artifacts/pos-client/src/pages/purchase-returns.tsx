@@ -182,11 +182,16 @@ export default function PurchaseReturns() {
       
       const doc = new jsPDF();
       
-      // Header
-      doc.setFontSize(20);
-      doc.text('Purchase Returns Report', 105, 20, { align: 'center' });
+      // Header — shop name first
+      const shopName = (admin?.primaryShop as any)?.name || returns[0]?.shopId?.name || 'Shop';
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text(shopName, 105, 14, { align: 'center' });
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Purchase Returns Report', 105, 22, { align: 'center' });
       
-      doc.setFontSize(12);
+      doc.setFontSize(10);
       doc.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 30, { align: 'center' });
       
       // Filters applied

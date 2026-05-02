@@ -477,10 +477,16 @@ export default function SupplierHistoryPage() {
       }
       
       const doc = new jsPDF();
+      const pw = doc.internal.pageSize.width;
       
-      // Header
-      doc.setFontSize(20);
-      doc.text('Payment History Report', 20, 20);
+      // Header — shop name first
+      const shopNameHeader = adminData?.primaryShop?.name || 'Shop';
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text(shopNameHeader, pw / 2, 14, { align: 'center' });
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Payment History Report', pw / 2, 22, { align: 'center' });
       
       // Purchase details
       doc.setFontSize(12);

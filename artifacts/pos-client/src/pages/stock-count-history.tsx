@@ -83,10 +83,15 @@ export default function StockCountHistoryPage() {
   const exportPDF = () => {
     const doc = new jsPDF();
     const pw = doc.internal.pageSize.width;
-    doc.setFontSize(16);
-    doc.text("Stock Count History", pw / 2, 16, { align: "center" });
-    doc.setFontSize(10);
-    doc.text(`${fromDate} → ${toDate}`, pw / 2, 23, { align: "center" });
+    const shopName = (admin?.primaryShop as any)?.name || "Shop";
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text(shopName, pw / 2, 14, { align: "center" });
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "normal");
+    doc.text("Stock Count History", pw / 2, 22, { align: "center" });
+    doc.setFontSize(9);
+    doc.text(`${fromDate} → ${toDate}`, pw / 2, 29, { align: "center" });
     const rows: any[] = [];
     filtered.forEach((c) => {
       const date = new Date(c.createdAt).toLocaleString();
@@ -101,7 +106,7 @@ export default function StockCountHistoryPage() {
       }
     });
     autoTable(doc, {
-      startY: 30,
+      startY: 35,
       head: [["Date", "By", "Product", "System", "Physical", "Variance"]],
       body: rows,
       styles: { fontSize: 8 },
