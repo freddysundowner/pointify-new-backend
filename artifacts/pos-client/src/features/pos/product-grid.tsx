@@ -163,9 +163,11 @@ export default function ProductGrid({
       setPriceEntryAmount("");
       setPriceEntryProduct(product);
     } else {
-      // Bundle stock check: warn if any component has insufficient stock
+      // Bundle checks: stock validation + derive cost from components
       if (product.type === 'bundle' && Array.isArray(product.bundleItems) && product.bundleItems.length > 0) {
         const shortItems: string[] = [];
+        let derivedBundleCost = 0;
+
         for (const bundleItem of product.bundleItems) {
           const needed = parseFloat(String(bundleItem.quantity)) || 1;
           const component = allProducts.find(
@@ -176,7 +178,13 @@ export default function ProductGrid({
             const name = bundleItem.componentName || component?.name || `Product #${bundleItem.componentProduct}`;
             shortItems.push(`${name} (need ${needed}, have ${available})`);
           }
+          // Accumulate component cost: buying price × qty needed
+          const compBuyingPrice = component
+            ? (parseFloat(String((component as any).buyingPrice || 0)) || 0)
+            : 0;
+          derivedBundleCost += compBuyingPrice * needed;
         }
+
         if (shortItems.length > 0) {
           toast({
             title: "Insufficient Bundle Stock",
@@ -185,6 +193,10 @@ export default function ProductGrid({
           });
           return;
         }
+
+        // Inject the derived cost so useCart stores it as costPrice (price floor)
+        onAddToCart({ ...product, buyingPrice: derivedBundleCost });
+        return;
       }
       onAddToCart(product);
     }
