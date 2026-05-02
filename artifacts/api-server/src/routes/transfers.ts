@@ -238,7 +238,19 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       transferNo:   `TRF${Date.now()}`,
     }).returning();
 
-    // transferItems records the SOURCE product (for audit trail)
+    // transferItems records the SOURCE product (for audit trail).
+    // Bundle products are inserted first, then their expanded components.
+    const bundleItemRows = bundleDeductions.length > 0
+      ? await db.insert(transferItems).values(
+          bundleDeductions.map((bd) => ({
+            transfer:  transfer.id,
+            product:   bd.productId,
+            quantity:  String(bd.quantity),
+            unitPrice: "0",
+          }))
+        ).returning()
+      : [];
+
     const itemRows = await db.insert(transferItems).values(
       resolvedItems.map((item) => ({
         transfer:  transfer.id,
@@ -433,7 +445,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       ...bundleHistoryEntries,
     ]);
 
-    return created(res, { ...transfer, items: itemRows });
+    return created(res, { ...transfer, items: [...bundleItemRows, ...itemRows] });
   } catch (e) { next(e); }
 });
 
