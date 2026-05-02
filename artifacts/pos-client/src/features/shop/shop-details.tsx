@@ -255,7 +255,7 @@ export default function ShopDetails() {
         setIsDeleting(true);
         try {
           await apiCall(ENDPOINTS.shop.getData(id), { method: "DELETE" });
-          queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getById(id!)] });
+          queryClient.resetQueries();
           setDeleteResult({ type: "data", success: true, message: "All products, sales, purchases, customers, expenses and loyalty data have been permanently cleared." });
         } catch {
           setDeleteResult({ type: "data", success: false, message: "Something went wrong while deleting shop data. Please try again." });
@@ -283,7 +283,7 @@ export default function ShopDetails() {
         setIsDeleting(true);
         try {
           await apiCall(ENDPOINTS.shop.getById(id), { method: "DELETE" });
-          queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getAll] });
+          queryClient.resetQueries();
           setDeleteResult({ type: "shop", success: true, message: "The shop and all its data have been permanently deleted." });
         } catch {
           setDeleteResult({ type: "shop", success: false, message: "Something went wrong while deleting the shop. Please try again." });
