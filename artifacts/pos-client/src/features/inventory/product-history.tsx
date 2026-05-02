@@ -273,7 +273,7 @@ export default function ProductHistory() {
             <TabsTrigger value="sales"       className="text-sm gap-1.5"><TrendingDown className="h-3.5 w-3.5" />Sales</TabsTrigger>
             <TabsTrigger value="purchases"   className="text-sm gap-1.5"><TrendingUp className="h-3.5 w-3.5" />Purchases</TabsTrigger>
             <TabsTrigger value="adjustments" className="text-sm gap-1.5"><Package className="h-3.5 w-3.5" />Adjustments</TabsTrigger>
-            <TabsTrigger value="badstock"    className="text-sm gap-1.5"><AlertTriangle className="h-3.5 w-3.5" />Write-offs</TabsTrigger>
+            <TabsTrigger value="badstock"    className="text-sm gap-1.5"><AlertTriangle className="h-3.5 w-3.5" />Bad Stock</TabsTrigger>
             <TabsTrigger value="counts"      className="text-sm gap-1.5"><ClipboardList className="h-3.5 w-3.5" />Stock Counts</TabsTrigger>
             <TabsTrigger value="transfers"   className="text-sm gap-1.5"><ArrowLeftRight className="h-3.5 w-3.5" />Transfers</TabsTrigger>
             <TabsTrigger value="audit"       className="text-sm gap-1.5"><Clock className="h-3.5 w-3.5" />Audit Trail</TabsTrigger>
