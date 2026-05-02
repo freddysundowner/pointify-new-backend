@@ -1014,13 +1014,17 @@ router.post("/:id/checkout", requireAdminOrAttendant, async (req, res, next) => 
 
     void notifySaleReceipt(saleId);
     void notifySaleReceiptSms(saleId);
-    void autoRecordCashflow({
-      shopId: existing.shop,
-      amount: parseFloat(existing.totalWithDiscount),
-      description: `Sale ${existing.receiptNo ?? saleId}`,
-      categoryKey: "sales",
-      recordedBy: req.attendant?.id,
-    });
+    // Only record cashflow for the cash actually collected at checkout.
+    // If checked out on credit (paid < total), only the paid portion is cash-in.
+    if (paid > 0) {
+      void autoRecordCashflow({
+        shopId: existing.shop,
+        amount: paid,
+        description: `Sale ${existing.receiptNo ?? saleId}`,
+        categoryKey: "sales",
+        recordedBy: req.attendant?.id,
+      });
+    }
     return ok(res, updated);
   } catch (e) { next(e); }
 });
