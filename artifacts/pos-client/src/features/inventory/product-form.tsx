@@ -262,17 +262,23 @@ export default function ProductForm() {
       if (editData.passedBundleItems && editData.bundleItems) {
         setSelectedBundleProducts(
           editData.bundleItems.reduce((acc: any, item: any) => {
-            // Handle new API structure where item_product contains the product data
-            if (item.item_product && item.item_product._id) {
-              const productId = item.item_product._id;
-              const productName = item.item_product.name || "";
-
-              acc[productId] = {
-                quantity: item.quantity || 1,
-                productId: productId,
+            // New API shape: { componentProduct, componentName, componentSellingPrice, quantity }
+            if (item.componentProduct) {
+              acc[item.componentProduct] = {
+                quantity: Number(item.quantity) || 1,
+                productId: item.componentProduct,
+                productName: item.componentName || "",
+                sellingPrice: Number(item.componentSellingPrice) || 0,
+              };
+            // Legacy shape: { item_product: { _id, name, sellingPrice } }
+            } else if (item.item_product && item.item_product._id) {
+              const pid = item.item_product._id;
+              acc[pid] = {
+                quantity: Number(item.quantity) || 1,
+                productId: pid,
                 inventoryId: item._id,
-                productName: productName,
-                sellingPrice: item.item_product.sellingPrice || 0,
+                productName: item.item_product.name || "",
+                sellingPrice: Number(item.item_product.sellingPrice) || 0,
               };
             }
             return acc;
@@ -347,6 +353,25 @@ export default function ProductForm() {
   useEffect(() => {
     if (product && isEditMode && !(window as any).productEditData) {
       const productData = (product as any).data || product;
+
+      // Populate bundle component selector from API response bundleItems
+      const apiBundleItems: any[] = productData.bundleItems || [];
+      if (apiBundleItems.length > 0) {
+        setSelectedBundleProducts(
+          apiBundleItems.reduce((acc: any, item: any) => {
+            if (item.componentProduct) {
+              acc[item.componentProduct] = {
+                quantity: Number(item.quantity) || 1,
+                productId: item.componentProduct,
+                productName: item.componentName || "",
+                sellingPrice: Number(item.componentSellingPrice) || 0,
+              };
+            }
+            return acc;
+          }, {}),
+        );
+      }
+
       const formData = {
         name: productData.name || "",
         unitOfMeasure: productData.measureUnit || productData.measure || productData.unitOfMeasure || "",
