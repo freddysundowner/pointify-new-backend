@@ -260,16 +260,20 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
 
           remaining -= applied;
         }
-        // Any remaining credit that couldn't offset other debts becomes a physical
-        // cash refund, tracked via saleReturn.refundAmount + refundMethod.
+        // Any remaining credit that couldn't offset other debts is refunded to
+        // the customer's wallet automatically.
         cashRefund = remaining;
       }
 
-      // 3. Insert a statement ledger entry for the credit given to the customer.
-      //    = outstanding cancelled (debtReduction) + any cash physically refunded (cashRefund).
-      //    The paid credit that was internally transferred to other debts is NOT included
-      //    here — it will reduce those other sales' debit balances instead.
-      //    (type "return" — does NOT change wallet balance)
+      // 3. Credit cashRefund back to customer's wallet automatically.
+      if (cashRefund > 0) {
+        await db.update(customers)
+          .set({ wallet: sql`${customers.wallet}::numeric + ${cashRefund}::numeric` })
+          .where(eq(customers.id, sale.customer));
+      }
+
+      // 4. Insert a statement ledger entry for the credit given to the customer.
+      //    = outstanding cancelled (debtReduction) + amount refunded to wallet (cashRefund).
       const ledgerCreditAmount = debtReduction + cashRefund;
       if (ledgerCreditAmount > 0) {
         const custRow = await db.query.customers.findFirst({
@@ -280,11 +284,11 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
           customer: sale.customer,
           shop: saleReturn.shop,
           amount: String(ledgerCreditAmount.toFixed(2)),
-          balance: custRow?.wallet ?? "0.00",   // wallet unchanged
+          balance: custRow?.wallet ?? "0.00",
           type: "return",
           paymentNo: saleReturn.returnNo,
           paymentReference: `Debt cancelled for return ${saleReturn.returnNo} (${sale.receiptNo ?? saleId})`,
-          saleId: Number(saleId),  // allows cascade-style cleanup when the sale is deleted
+          saleId: Number(saleId),
         });
       }
     }
