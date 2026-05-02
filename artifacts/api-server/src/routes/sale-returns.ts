@@ -335,13 +335,24 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     }
 
     void notifySaleRefund(saleReturn.id);
-    void autoRecordCashflow({
-      shopId: Number(shopId),
-      amount: refundAmount,
-      description: `Sale Return ${sale.receiptNo ?? saleId}`,
-      categoryKey: "sale_return",
-      recordedBy: req.attendant?.id,
-    });
+
+    // Only record cashflow for the cash actually refunded.
+    // If the original sale was on credit (amountPaid < totalWithDiscount),
+    // the return cashflow should reflect only the proportional cash portion,
+    // not the full product value being returned.
+    const saleTotalPaid = parseFloat(String(sale.amountPaid ?? "0"));
+    const saleTotalValue = parseFloat(String(sale.totalWithDiscount ?? sale.totalAmount ?? "0"));
+    const cashProportion = saleTotalValue > 0 ? Math.min(1, saleTotalPaid / saleTotalValue) : 0;
+    const cashRefundAmount = parseFloat((refundAmount * cashProportion).toFixed(2));
+    if (cashRefundAmount > 0) {
+      void autoRecordCashflow({
+        shopId: Number(shopId),
+        amount: cashRefundAmount,
+        description: `Sale Return ${sale.receiptNo ?? saleId}`,
+        categoryKey: "sale_return",
+        recordedBy: req.attendant?.id,
+      });
+    }
     return created(res, { ...saleReturn, items: itemRows });
   } catch (e) { next(e); }
 });
