@@ -550,8 +550,8 @@ export default function ProductGrid({
     const price = parseFloat(newPrice);
     const allSources = [...allProducts, ...searchResults];
     const productData = allSources.find(p => (p as any)._id === selectedPriceItem.id || p.id === selectedPriceItem.id);
-    const buyingPrice = (productData as any)?.buyingPrice;
-    const buyingPriceNum = buyingPrice != null ? (parseFloat(String(buyingPrice)) || 0) : 0;
+    // Use costPrice stored on the cart item as the authoritative buying price floor
+    const buyingPriceNum = parseFloat(String((selectedPriceItem as any).costPrice || (productData as any)?.buyingPrice || 0)) || 0;
     const rawMin = (productData as any)?.minSellingPrice;
     const minSellingPrice = rawMin != null ? (parseFloat(String(rawMin)) || 0) : 0;
     const existingDiscount = parseFloat(String(selectedPriceItem.discount || 0)) || 0;
@@ -569,7 +569,7 @@ export default function ProductGrid({
       return;
     }
 
-    onUpdatePrice(selectedPriceItem.id, price, buyingPrice);
+    onUpdatePrice(selectedPriceItem.id, price, buyingPriceNum || undefined);
 
     setShowPriceDialog(false);
     setSelectedPriceItem(null);
@@ -627,8 +627,8 @@ export default function ProductGrid({
       return;
     }
 
-    const buyingPriceD = (productData as any)?.buyingPrice;
-    const buyingPriceNumD = buyingPriceD != null ? (parseFloat(String(buyingPriceD)) || 0) : 0;
+    // Use costPrice stored on the cart item as the authoritative buying price floor
+    const buyingPriceNumD = parseFloat(String((selectedDiscountItem as any).costPrice || (productData as any)?.buyingPrice || 0)) || 0;
     const finalPrice = selectedDiscountItem.price - discount;
 
     if (buyingPriceNumD > 0 && finalPrice < buyingPriceNumD) {
