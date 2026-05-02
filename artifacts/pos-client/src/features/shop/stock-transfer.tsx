@@ -118,19 +118,31 @@ export default function StockTransfer() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!fromShopId || !toShopId || !cart.length) throw new Error("Missing fields");
-      const res = await apiRequest("POST", ENDPOINTS.transfers.shopTransfer, {
-        fromShopId: Number(fromShopId),
-        toShopId: Number(toShopId),
-        note: note || undefined,
-        items: cart.map(c => ({ productId: c.productId, quantity: c.quantity })),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        const err: any = new Error(body?.message || `Error ${res.status}`);
-        if (Array.isArray(body?.errors)) err.stockErrors = body.errors;
-        throw err;
+      // apiRequest auto-throws on non-OK responses as `"${status}: ${rawText}"`.
+      // We catch that, parse the JSON body out of the message, and if it contains
+      // a structured `errors` array we re-throw a typed error for the dialog.
+      try {
+        const res = await apiRequest("POST", ENDPOINTS.transfers.shopTransfer, {
+          fromShopId: Number(fromShopId),
+          toShopId: Number(toShopId),
+          note: note || undefined,
+          items: cart.map(c => ({ productId: c.productId, quantity: c.quantity })),
+        });
+        return res.json();
+      } catch (rawErr: any) {
+        const bodyText = rawErr.message?.replace(/^\d+:\s*/, "") ?? "";
+        try {
+          const body = JSON.parse(bodyText);
+          if (Array.isArray(body?.errors) && body.errors.length) {
+            const err: any = new Error(body?.message || rawErr.message);
+            err.stockErrors = body.errors;
+            throw err;
+          }
+        } catch (inner: any) {
+          if (inner.stockErrors) throw inner;
+        }
+        throw rawErr;
       }
-      return res.json();
     },
     onSuccess: () => {
       toast({ title: "Transfer created", description: "Inventory has been moved between shops" });
