@@ -1416,7 +1416,7 @@ export default function ProductGrid({
                               <p className="font-semibold text-gray-800 text-sm truncate">{item.name}</p>
                               <p className="text-gray-500 text-xs">
                                 Ksh {(+item.price).toFixed(2)} × {item.quantity}
-                                {item.discount && item.discount > 0 && (
+                                {(item.discount || 0) > 0 && (
                                   <span className="text-green-600"> (-Ksh {(+item.discount).toFixed(2)})</span>
                                 )}
                               </p>
@@ -1527,7 +1527,7 @@ export default function ProductGrid({
                           {/* Column 2: Unit Price */}
                           <div className="text-right">
                             <p className="font-semibold text-gray-800">Ksh {(+item.price).toFixed(2)}</p>
-                            {item.discount && item.discount > 0 && (
+                            {(item.discount || 0) > 0 && (
                               <p className="text-xs text-green-600">-Ksh {(+item.discount).toFixed(2)}</p>
                             )}
                           </div>
