@@ -1081,6 +1081,14 @@ async function restoreSaleInventory(saleId: number): Promise<void> {
     }
   }
 
+  // Helper: compute inventory status after restoring qty to an existing row
+  const restoredStatus = (currentQty: string, addQty: number, reorderLevel: string) => {
+    const newQty = parseFloat(currentQty) + addQty;
+    if (newQty <= 0) return "out_of_stock";
+    if (newQty <= parseFloat(reorderLevel)) return "low";
+    return "active";
+  };
+
   const enriched: Array<typeof items[number] & { netQty: number; qtyBefore: string; qtyAfter: string }> = [];
   await Promise.all(
     items.map(async (item) => {
@@ -1091,15 +1099,19 @@ async function restoreSaleInventory(saleId: number): Promise<void> {
 
       const existing = await db.query.inventory.findFirst({
         where: and(eq(inventory.product, item.product), eq(inventory.shop, item.shop)),
-        columns: { quantity: true },
+        columns: { quantity: true, reorderLevel: true },
       });
       const qtyBefore = existing?.quantity ?? "0";
       const qtyAfter = String(parseFloat(qtyBefore) + netQty);
+      const newStatus = restoredStatus(qtyBefore, netQty, existing?.reorderLevel ?? "0");
       await db.insert(inventory)
         .values({ product: item.product, shop: item.shop, quantity: String(netQty) })
         .onConflictDoUpdate({
           target: [inventory.product, inventory.shop],
-          set: { quantity: sql`${inventory.quantity} + ${netQty}::numeric` },
+          set: {
+            quantity: sql`${inventory.quantity} + ${netQty}::numeric`,
+            status: newStatus,
+          },
         });
       enriched.push({ ...item, netQty, qtyBefore, qtyAfter });
 
@@ -1108,11 +1120,19 @@ async function restoreSaleInventory(saleId: number): Promise<void> {
         const components = bundleComponentMap.get(item.product) ?? [];
         for (const comp of components) {
           const compRestoreQty = netQty * Number(comp.quantity);
+          const compExisting = await db.query.inventory.findFirst({
+            where: and(eq(inventory.product, comp.componentProduct), eq(inventory.shop, item.shop)),
+            columns: { quantity: true, reorderLevel: true },
+          });
+          const compStatus = restoredStatus(compExisting?.quantity ?? "0", compRestoreQty, compExisting?.reorderLevel ?? "0");
           await db.insert(inventory)
             .values({ product: comp.componentProduct, shop: item.shop, quantity: String(compRestoreQty) })
             .onConflictDoUpdate({
               target: [inventory.product, inventory.shop],
-              set: { quantity: sql`${inventory.quantity} + ${compRestoreQty}::numeric` },
+              set: {
+                quantity: sql`${inventory.quantity} + ${compRestoreQty}::numeric`,
+                status: compStatus,
+              },
             });
         }
       }
