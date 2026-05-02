@@ -132,11 +132,50 @@ router.get("/expenses", requireAdminOrAttendant, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+function computeNextOccurrence(frequency: string): Date {
+  const now = new Date();
+  const next = new Date(now);
+  switch (frequency) {
+    case "daily":
+      next.setDate(next.getDate() + 1);
+      break;
+    case "friday": {
+      const dow = now.getDay(); // 0=Sun … 5=Fri
+      const daysUntilFriday = (5 - dow + 7) % 7 || 7;
+      next.setDate(next.getDate() + daysUntilFriday);
+      break;
+    }
+    case "saturday": {
+      const dow = now.getDay();
+      const daysUntilSaturday = (6 - dow + 7) % 7 || 7;
+      next.setDate(next.getDate() + daysUntilSaturday);
+      break;
+    }
+    case "start_of_month":
+      next.setMonth(next.getMonth() + 1, 1);
+      break;
+    case "end_of_month":
+      // last day of current month; if today IS the last day, use last day of next month
+      next.setDate(0); // last day of current month
+      if (next <= now) {
+        next.setMonth(now.getMonth() + 2, 0);
+      }
+      break;
+    default:
+      next.setDate(next.getDate() + 1);
+  }
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
 router.post("/expenses", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { shopId, description, amount, categoryId, isRecurring, frequency } = req.body;
     if (!shopId || !amount) throw badRequest("shopId and amount required");
     await assertShopOwnership(req, Number(shopId));
+
+    const recurring = Boolean(isRecurring);
+    const nextOccurrenceAt = recurring && frequency ? computeNextOccurrence(frequency) : null;
 
     const [row] = await db.insert(expenses).values({
       shop: Number(shopId),
@@ -144,8 +183,9 @@ router.post("/expenses", requireAdminOrAttendant, async (req, res, next) => {
       amount: String(amount),
       category: categoryId ? Number(categoryId) : null,
       recordedBy: req.attendant?.id ?? undefined,
-      isRecurring: Boolean(isRecurring),
-      frequency,
+      isRecurring: recurring,
+      frequency: recurring ? frequency : null,
+      nextOccurrenceAt,
       expenseNo: `EXP${Date.now()}`,
     }).returning();
     void autoRecordCashflow({

@@ -187,7 +187,7 @@ export default function Expenses() {
         categoryId: data.category,
         shopId: effectiveShopId,
         frequency: data.frequency || null,
-        autoSave: data.autoSave,
+        isRecurring: Boolean(data.autoSave),
       };
       
       const response = await apiRequest('POST', ENDPOINTS.expenses.create, expenseData);

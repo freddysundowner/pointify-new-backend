@@ -24,6 +24,7 @@ import {
 } from "./scheduledNotifications.js";
 import { jobDailyReport, jobDailySummarySms } from "./dailyReport.js";
 import { jobBackup } from "./backup.js";
+import { jobRecurringExpenses } from "./recurringExpenses.js";
 
 let started = false;
 
@@ -73,5 +74,10 @@ export function startScheduler() {
     void jobBackup();
   });
 
-  logger.info("scheduler: registered 11 daily jobs (morning nudges + SMS jobs + 20:00 daily report + 20:05 daily SMS summary + 02:00 backup)");
+  // Recurring expenses — runs at midnight every day, clones any due entries.
+  cron.schedule("0 0 * * *", () => {
+    void jobRecurringExpenses();
+  });
+
+  logger.info("scheduler: registered 12 daily jobs (morning nudges + SMS jobs + 20:00 daily report + 20:05 daily SMS summary + 02:00 backup + 00:00 recurring expenses)");
 }
