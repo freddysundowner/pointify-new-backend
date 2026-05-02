@@ -265,14 +265,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
         cashRefund = remaining;
       }
 
-      // 3. Credit cashRefund back to customer's wallet automatically.
-      if (cashRefund > 0) {
-        await db.update(customers)
-          .set({ wallet: sql`${customers.wallet}::numeric + ${cashRefund}::numeric` })
-          .where(eq(customers.id, sale.customer));
-      }
-
-      // 4. Insert a statement ledger entry for the credit given to the customer.
+      // 3. Insert a statement ledger entry for the credit given to the customer.
       //    = outstanding cancelled (debtReduction) + amount refunded to wallet (cashRefund).
       const ledgerCreditAmount = debtReduction + cashRefund;
       if (ledgerCreditAmount > 0) {
