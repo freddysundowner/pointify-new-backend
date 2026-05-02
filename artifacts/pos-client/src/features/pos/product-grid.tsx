@@ -967,6 +967,41 @@ export default function ProductGrid({
     setRedeemPointsStr("");
   };
 
+  // ── Payment dialog keyboard shortcuts ──────────────────────────────────────
+  useEffect(() => {
+    if (!showPaymentDialog) return;
+
+    const PAYMENT_KEYS: Record<string, string> = {
+      "1": "cash",
+      "2": "wallet",
+      "3": "mpesa",
+      "4": "bank",
+      "5": "card",
+      "6": "split",
+      "7": "credit",
+    };
+
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      const isInputFocused = tag === "input" || tag === "textarea" || tag === "select";
+
+      if (e.key === "Enter" && !isInputFocused) {
+        e.preventDefault();
+        handleCompletePayment();
+        return;
+      }
+
+      if (isInputFocused) return;
+
+      if (PAYMENT_KEYS[e.key]) {
+        e.preventDefault();
+        handlePaymentMethodSelect(PAYMENT_KEYS[e.key]);
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [showPaymentDialog, selectedPaymentMethod, selectedCustomerId, creditDueDate]);
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
@@ -1955,14 +1990,14 @@ export default function ProductGrid({
                 <h3 className="text-sm font-medium text-gray-700">Select Payment Method:</h3>
                 <div className="flex flex-wrap gap-2">
                   {([
-                    { key: "cash",   label: "Cash",   icon: <Banknote className="h-3.5 w-3.5" /> },
-                    { key: "wallet", label: "Wallet", icon: <Wallet className="h-3.5 w-3.5" /> },
-                    { key: "mpesa",  label: "M-Pesa", icon: <Smartphone className="h-3.5 w-3.5" /> },
-                    { key: "bank",   label: "Bank",   icon: <Building className="h-3.5 w-3.5" /> },
-                    { key: "card",   label: "Card",   icon: <CreditCard className="h-3.5 w-3.5" /> },
-                    { key: "split",  label: "Split",  icon: <Split className="h-3.5 w-3.5" /> },
-                    { key: "credit", label: "Credit", icon: <UserCheck className="h-3.5 w-3.5" /> },
-                  ] as const).map(({ key, label, icon }) => (
+                    { key: "cash",   label: "Cash",   icon: <Banknote className="h-3.5 w-3.5" />,   shortcut: "1" },
+                    { key: "wallet", label: "Wallet", icon: <Wallet className="h-3.5 w-3.5" />,     shortcut: "2" },
+                    { key: "mpesa",  label: "M-Pesa", icon: <Smartphone className="h-3.5 w-3.5" />, shortcut: "3" },
+                    { key: "bank",   label: "Bank",   icon: <Building className="h-3.5 w-3.5" />,   shortcut: "4" },
+                    { key: "card",   label: "Card",   icon: <CreditCard className="h-3.5 w-3.5" />, shortcut: "5" },
+                    { key: "split",  label: "Split",  icon: <Split className="h-3.5 w-3.5" />,      shortcut: "6" },
+                    { key: "credit", label: "Credit", icon: <UserCheck className="h-3.5 w-3.5" />,  shortcut: "7" },
+                  ] as const).map(({ key, label, icon, shortcut }) => (
                     <button
                       key={key}
                       type="button"
@@ -1975,6 +2010,9 @@ export default function ProductGrid({
                     >
                       {icon}
                       {label}
+                      <span className={`text-[10px] font-bold rounded px-1 py-px leading-none ${
+                        selectedPaymentMethod === key ? "bg-white/20 text-white" : "bg-gray-100 text-gray-400"
+                      }`}>{shortcut}</span>
                     </button>
                   ))}
                 </div>
