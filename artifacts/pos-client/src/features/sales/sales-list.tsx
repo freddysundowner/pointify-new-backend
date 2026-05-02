@@ -823,88 +823,95 @@ function SalesList() {
   // PDF Export function
   const exportToPDF = () => {
     try {
-      const doc = new jsPDF();
-
-      // Add title
-      doc.setFontSize(20);
-      doc.text("Sales Report", 20, 20);
-
-      // Add shop and date information
-      doc.setFontSize(12);
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pw = doc.internal.pageSize.width;
       const shopName = (primaryShop as any)?.name || "Shop";
-      doc.text(`Shop: ${shopName}`, 20, 35);
+      const reportData = (salesReportData as any) || {};
+      const statsD = reportData?.data || reportData;
+
+      // ── Header ──
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text(shopName, pw / 2, 14, { align: "center" });
+      doc.setFontSize(14);
+      doc.text("SALES REPORT", pw / 2, 22, { align: "center" });
 
       const dateRange =
         !startDate && !endDate
-          ? `Date: ${new Date().toLocaleDateString()}`
+          ? new Date().toLocaleDateString()
           : startDate === endDate
-            ? `Date: ${new Date(startDate).toLocaleDateString()}`
-            : `Date Range: ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`;
-      doc.text(dateRange, 20, 45);
+            ? new Date(startDate).toLocaleDateString()
+            : `${new Date(startDate).toLocaleDateString()} – ${new Date(endDate).toLocaleDateString()}`;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text(dateRange, pw / 2, 28, { align: "center" });
+      doc.text(`Generated: ${new Date().toLocaleString()}`, pw / 2, 33, { align: "center" });
 
-      // Add summary statistics
-      const reportData = salesReportData || {};
-      doc.text(
-        `Total Sales: ${primaryShopCurrency} ${Number((reportData as any).totalSales || 0).toFixed(2)}`,
-        20,
-        60,
-      );
-      doc.text(`Total Transactions: ${totalCount}`, 20, 70);
+      // ── Summary boxes ──
+      const totalSalesAmt = Number(statsD?.totalSales ?? 0);
+      const totalTxns = totalCount;
+      const totalReturns = Number(statsD?.returns ?? 0);
+      const totalCredit = Number(statsD?.credit ?? 0);
 
-      // Add transaction details manually without autoTable
-      doc.setFontSize(10);
-      let currentY = 90;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      const col1 = 14, col2 = pw / 4 + 5, col3 = pw / 2 + 5, col4 = (pw * 3) / 4 + 5;
+      const sy = 40;
+      doc.text("Total Revenue", col1, sy);
+      doc.text("Transactions", col2, sy);
+      doc.text("Returns", col3, sy);
+      doc.text("Credit Sales", col4, sy);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.text(`${primaryShopCurrency} ${totalSalesAmt.toFixed(2)}`, col1, sy + 6);
+      doc.text(String(totalTxns), col2, sy + 6);
+      doc.text(`${primaryShopCurrency} ${totalReturns.toFixed(2)}`, col3, sy + 6);
+      doc.text(`${primaryShopCurrency} ${totalCredit.toFixed(2)}`, col4, sy + 6);
 
-      // Table headers
-      doc.text("#", 20, currentY);
-      doc.text("Receipt No.", 35, currentY);
-      doc.text("Customer", 75, currentY);
-      doc.text("Date", 120, currentY);
-      doc.text("Status", 155, currentY);
-      doc.text("Amount", 180, currentY);
+      // ── Table ──
+      const rows = transformedSales.map((sale: any, idx: number) => [
+        idx + 1,
+        sale.receiptNo || "N/A",
+        sale.customerName || "Walk-in",
+        new Date(sale.saleDate).toLocaleDateString(),
+        (sale.paymentMethod || sale.status || "N/A").toUpperCase(),
+        sale.status || "N/A",
+        `${getSaleCurrency(sale)} ${Number(sale.totalAmount).toFixed(2)}`,
+      ]);
 
-      // Draw header line
-      doc.line(20, currentY + 2, 200, currentY + 2);
-      currentY += 10;
-
-      // Add transaction rows
-      transformedSales.slice(0, 30).forEach((sale: any, index: number) => {
-        if (currentY > 270) return; // Stop if page is full
-
-        doc.text(String(index + 1), 20, currentY);
-        doc.text(sale.receiptNo || "N/A", 35, currentY);
-        doc.text(
-          (sale.customerName || "Walk-in").substring(0, 15),
-          75,
-          currentY,
-        );
-        doc.text(new Date(sale.saleDate).toLocaleDateString(), 120, currentY);
-        doc.text(sale.status || "N/A", 155, currentY);
-        doc.text(
-          `${getSaleCurrency(sale)} ${Number(sale.totalAmount).toFixed(2)}`,
-          180,
-          currentY,
-        );
-
-        currentY += 8;
+      (doc as any).autoTable({
+        startY: sy + 12,
+        head: [["#", "Receipt No.", "Customer", "Date", "Payment", "Status", "Amount"]],
+        body: rows,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [245, 245, 250] },
+        columnStyles: {
+          0: { cellWidth: 10, halign: "center" },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 24 },
+          5: { cellWidth: 22 },
+          6: { halign: "right", cellWidth: 32 },
+        },
+        didDrawPage: (data: any) => {
+          const pageCount = (doc as any).internal.getNumberOfPages();
+          doc.setFontSize(7);
+          doc.setFont("helvetica", "normal");
+          doc.text(
+            `${shopName} — Sales Report  |  Page ${data.pageNumber} of ${pageCount}`,
+            pw / 2,
+            doc.internal.pageSize.height - 5,
+            { align: "center" }
+          );
+        },
       });
 
-      // Add footer
-      if (transformedSales.length > 30) {
-        doc.text(
-          `... and ${transformedSales.length - 30} more transactions`,
-          20,
-          currentY + 10,
-        );
-      }
-
-      // Save the PDF
       const fileName = `sales-report-${new Date().toISOString().split("T")[0]}.pdf`;
       doc.save(fileName);
 
       toast({
-        title: "PDF Generated",
-        description: "Sales report has been downloaded successfully.",
+        title: "PDF Downloaded",
+        description: `Sales report with ${transformedSales.length} transactions saved.`,
       });
     } catch (error) {
       console.error("PDF Export Error:", error);
