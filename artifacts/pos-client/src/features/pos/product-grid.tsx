@@ -143,6 +143,7 @@ export default function ProductGrid({
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table'); // Default to restaurant grid view
+  const [mobileView, setMobileView] = useState<'products' | 'cart'>('products');
 
   // Custom item states
   const [showCustomItemDialog, setShowCustomItemDialog] = useState(false);
@@ -1072,46 +1073,67 @@ export default function ProductGrid({
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
-      {/* Mobile Navigation Bar */}
-      <div className="md:hidden bg-primary text-white p-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-primary/70 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
+      {/* Mobile App Header */}
+      <div className="md:hidden bg-white border-b border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-bold text-xs">P</span>
             </div>
-            <h1 className="text-lg font-semibold">POS System</h1>
+            <span className="font-semibold text-gray-900 text-sm">Point of Sale</span>
           </div>
-          
-          <div className="flex items-center space-x-2">
-            {/* Mobile View Toggle */}
-            <div className="flex bg-primary/80 rounded-md p-0.5">
-              <Button
-                variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                size="sm"
+          <div className="flex items-center gap-1.5">
+            <div className="flex bg-gray-100 rounded-lg p-0.5">
+              <button
                 onClick={() => setViewMode('grid')}
-                className="h-6 px-2 text-xs bg-transparent hover:bg-primary/70"
+                className={`px-2 py-1 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-white text-primary shadow-sm' : 'text-gray-500'}`}
               >
                 <Grid3X3 className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={viewMode === 'table' ? 'default' : 'ghost'}
-                size="sm"
+              </button>
+              <button
                 onClick={() => setViewMode('table')}
-                className="h-6 px-2 text-xs bg-transparent hover:bg-primary/70"
+                className={`px-2 py-1 rounded-md transition-colors ${viewMode === 'table' ? 'bg-white text-primary shadow-sm' : 'text-gray-500'}`}
               >
                 <Table className="h-3 w-3" />
-              </Button>
+              </button>
             </div>
-            
-            <Button 
+            <button
               onClick={() => setShowCategoriesDrawer(true)}
-              variant="outline"
-              className="border-primary/30 text-white hover:bg-primary/80 h-8 px-3 text-sm"
+              className="h-8 px-2.5 text-xs font-medium bg-gray-100 rounded-lg text-gray-700 hover:bg-gray-200 flex items-center gap-1"
             >
-              Category
-            </Button>
+              <Package className="h-3 w-3" />
+              Filter
+            </button>
           </div>
         </div>
+        {/* Products / Cart tabs — grid mode only */}
+        {viewMode === 'grid' ? (
+          <div className="flex border-t border-gray-100">
+            <button
+              onClick={() => setMobileView('products')}
+              className={`flex-1 py-2 text-xs font-semibold text-center transition-colors border-b-2 ${mobileView === 'products' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-gray-500'}`}
+            >
+              Products
+            </button>
+            <button
+              onClick={() => setMobileView('cart')}
+              className={`flex-1 py-2 text-xs font-semibold text-center transition-colors border-b-2 ${mobileView === 'cart' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-gray-500'}`}
+            >
+              Cart
+              {cartItems.length > 0 && (
+                <span className="ml-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full">
+                  {cartItems.length > 9 ? '9+' : cartItems.length}
+                </span>
+              )}
+            </button>
+          </div>
+        ) : (
+          <div className="flex border-t border-gray-100">
+            <div className="flex-1 py-2 text-xs font-semibold text-center text-primary border-b-2 border-primary bg-primary/5">
+              Scanner Mode
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Desktop Header Bar - No search on mobile */}
@@ -1158,7 +1180,7 @@ export default function ProductGrid({
 
       <div className="flex flex-1 flex-col lg:flex-row overflow-hidden">
         {/* Left Panel - Transaction Form */}
-        <div className={`w-full ${viewMode === 'table' ? 'lg:w-2/3' : 'lg:w-2/3'} p-2 lg:p-6 bg-white order-2 lg:order-1 overflow-y-auto`}>
+        <div className={`${viewMode === 'grid' ? (mobileView === 'products' ? 'hidden lg:block' : 'block') : 'block'} w-full lg:w-2/3 p-2 lg:p-6 bg-white lg:order-1 overflow-y-auto`}>
           {/* Mobile: Stack vertically, Desktop: 2 columns */}
           <div className="mb-3 lg:mb-6">
             <label className="text-xs lg:text-sm font-medium text-gray-700 block mb-1 lg:mb-2">Date</label>
@@ -1682,7 +1704,7 @@ export default function ProductGrid({
 
         {/* Right Panel - Products */}
         {viewMode === 'grid' && (
-          <div className="w-full lg:w-1/3 bg-gray-50 p-2 lg:p-6 order-1 lg:order-2 flex flex-col lg:h-full lg:overflow-hidden">
+          <div className={`${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-1/3 bg-gray-50 p-2 lg:p-6 lg:order-2 lg:h-full lg:overflow-hidden`}>
           
           {/* Mobile View Mode */}
           <div className="lg:hidden mb-2">
@@ -1781,7 +1803,7 @@ export default function ProductGrid({
           </div>
 
           {/* Desktop Product Grid */}
-          <div className="hidden lg:flex lg:flex-col bg-white rounded-2xl p-4 shadow-lg h-full">
+          <div className="flex flex-col bg-white rounded-xl lg:rounded-2xl p-2 lg:p-4 shadow-sm lg:shadow-lg h-full">
             {viewMode === 'grid' && (
               /* Desktop Search Bar - Only in Cards Mode */
               <div className="mb-4">
@@ -1799,7 +1821,7 @@ export default function ProductGrid({
             )}
             
             {/* Product Display - Grid or Table View */}
-            <div className="flex-1 min-h-0 overflow-y-auto max-h-[calc(100vh-232px)]">
+            <div className="flex-1 min-h-0 overflow-y-auto pb-16 lg:pb-0">
               {isLoading ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
@@ -1807,7 +1829,7 @@ export default function ProductGrid({
                 </div>
               ) : viewMode === 'grid' ? (
                 /* Grid View - Restaurant Style Cards */
-                <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 pb-4">
+                <div className="grid grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2 lg:gap-3 pb-4">
                   {products.map((product: any) => {
                     const price = getPriceForSaleType(product, saleType);
                     const productId = product._id || product.id;
@@ -1821,7 +1843,7 @@ export default function ProductGrid({
                     return (
                       <div
                         key={productId}
-                        className={`p-3 rounded-xl cursor-pointer transition-all duration-300 text-center shadow-sm hover:shadow-lg hover:scale-105 ${
+                        className={`p-1.5 lg:p-3 rounded-xl cursor-pointer transition-all duration-200 text-center shadow-sm active:scale-95 hover:shadow-md hover:scale-105 ${
                           isOutOfStock 
                             ? "bg-red-100 hover:bg-red-200" 
                             : isLowStock 
@@ -1830,28 +1852,20 @@ export default function ProductGrid({
                         }`}
                         onClick={() => handleAddToCart(product)}
                       >
-                        <div className="w-12 h-12 bg-gray-200 rounded mx-auto mb-2"></div>
-                        <p className="text-xs font-medium text-gray-800 truncate">{productName}</p>
-                        <p className="text-xs text-gray-500">Ksh {(+price).toFixed(2)}</p>
-                        <div className="mt-1 flex items-center justify-center space-x-1">
+                        <div className="w-8 h-8 lg:w-12 lg:h-12 bg-gray-200 rounded-lg mx-auto mb-1 lg:mb-2"></div>
+                        <p className="text-[10px] lg:text-xs font-semibold text-gray-800 truncate leading-tight">{productName}</p>
+                        <p className="text-[10px] lg:text-xs text-primary font-bold mt-0.5">{currency} {(+price).toFixed(2)}</p>
+                        <div className="mt-0.5 flex items-center justify-center">
                           {isVirtual ? (
-                            <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                            <span className="text-[9px] lg:text-xs font-medium text-blue-600 bg-blue-100 px-1 py-0.5 rounded">
                               Service
                             </span>
                           ) : (
-                            <>
-                              <span className={`text-xs font-medium ${
-                                isOutOfStock ? "text-red-600" : isLowStock ? "text-orange-600" : "text-green-600"
-                              }`}>
-                                Qty: {quantity}
-                              </span>
-                              {isOutOfStock && (
-                                <span className="text-xs text-red-600 font-medium">(Out of Stock)</span>
-                              )}
-                              {isLowStock && (
-                                <span className="text-xs text-orange-600 font-medium">(Low Stock)</span>
-                              )}
-                            </>
+                            <span className={`text-[9px] lg:text-xs font-medium ${
+                              isOutOfStock ? "text-red-600" : isLowStock ? "text-orange-500" : "text-green-600"
+                            }`}>
+                              {isOutOfStock ? "Out" : isLowStock ? `Low: ${quantity}` : `${quantity}`}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -1912,7 +1926,7 @@ export default function ProductGrid({
 
         {/* Table Mode - Right Panel for Totals */}
         {viewMode === 'table' && (
-          <div className="w-full lg:w-1/3 bg-white p-2 lg:p-6 order-1 lg:order-2 flex flex-col">
+          <div className="w-full lg:w-1/3 bg-white p-2 lg:p-6 lg:order-2 flex flex-col">
             <div className="flex-1 flex flex-col">
               {/* Summary Section */}
               <div className="bg-gray-50 p-4 lg:p-6 rounded-lg">
@@ -1985,6 +1999,42 @@ export default function ProductGrid({
           </div>
         )}
       </div>
+
+      {/* Mobile: Sticky bottom checkout bar — only visible in products view */}
+      {viewMode === 'grid' && mobileView === 'products' && (
+        <div className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 shadow-2xl z-30 flex items-center gap-3 px-3 py-2.5 safe-bottom">
+          <button
+            onClick={() => setMobileView('cart')}
+            className="flex flex-1 items-center gap-3 min-w-0 active:opacity-70"
+          >
+            <div className="relative flex-shrink-0">
+              <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              {cartItems.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {cartItems.length > 9 ? '9+' : cartItems.length}
+                </span>
+              )}
+            </div>
+            <div className="text-left min-w-0 flex-1">
+              <div className="text-xs text-gray-500 leading-none mb-0.5">
+                {cartItems.length === 0 ? 'Cart is empty' : `${cartItems.length} item${cartItems.length !== 1 ? 's' : ''} in cart`}
+              </div>
+              <div className="text-sm font-bold text-gray-900">{currency} {totals.total.toFixed(2)}</div>
+            </div>
+          </button>
+          <Button
+            onClick={() => cartItems.length > 0 && setShowPaymentDialog(true)}
+            className="bg-primary hover:bg-primary/90 text-white font-semibold px-6 h-11 rounded-xl flex-shrink-0 text-sm"
+            disabled={cartItems.length === 0}
+          >
+            Charge
+          </Button>
+        </div>
+      )}
 
       {/* Payment Dialog */}
       <Dialog open={showPaymentDialog} onOpenChange={resetPaymentDialog}>

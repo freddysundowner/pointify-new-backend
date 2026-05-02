@@ -121,7 +121,7 @@ export default function POS() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <div className="flex items-center gap-3 px-4 py-1.5 bg-gray-50 border-b border-gray-200 shrink-0 text-xs text-gray-500 select-none flex-wrap">
+      <div className="hidden md:flex items-center gap-3 px-4 py-1.5 bg-gray-50 border-b border-gray-200 shrink-0 text-xs text-gray-500 select-none flex-wrap">
         <Button
           onClick={handleBackToDashboard}
           variant="outline"
