@@ -224,7 +224,7 @@ export default function StockTransfer() {
           </div>
 
           {/* ── Body ── */}
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1">
             <div className="px-4 py-3 space-y-3">
 
               {/* Route + Note in one row */}
@@ -278,7 +278,7 @@ export default function StockTransfer() {
               </div>
 
               {/* Product search + cart */}
-              <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 space-y-2">
+              <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 space-y-2 overflow-visible">
                 <div className="flex items-center gap-3">
                   <div className="relative flex-1">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
