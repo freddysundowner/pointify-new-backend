@@ -974,10 +974,10 @@ export default function ProductGrid({
     const PAYMENT_KEYS: Record<string, string> = {
       "1": "cash",
       "2": "wallet",
-      "3": "mpesa",
-      "4": "bank",
-      "5": "card",
-      "6": "split",
+      "3": "split",
+      "4": "mpesa",
+      "5": "bank",
+      "6": "card",
       "7": "credit",
     };
 
@@ -1909,7 +1909,7 @@ export default function ProductGrid({
       <Dialog open={showPaymentDialog} onOpenChange={resetPaymentDialog}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-primary text-center">Payment</DialogTitle>
+            <DialogTitle className="text-2xl font-bold text-primary">Payment</DialogTitle>
           </DialogHeader>
           
           {showCardInterface ? (
@@ -1917,7 +1917,7 @@ export default function ProductGrid({
             <div className="space-y-8 py-6">
               <div className="text-center">
                 <div className="text-5xl font-bold text-primary mb-2">
-                  Ksh {totals.total.toFixed(2)}
+                  {currency} {totals.total.toFixed(2)}
                 </div>
                 <p className="text-gray-600 text-lg">Total Amount Due</p>
               </div>
@@ -1949,17 +1949,13 @@ export default function ProductGrid({
               </div>
               
               <div className="flex gap-4">
-                <Button 
-                  variant="outline" 
-                  onClick={resetPaymentDialog}
-                  className="flex-1 py-4 text-lg"
-                >
+                <Button variant="outline" onClick={resetPaymentDialog} className="flex-1 py-4 text-lg">
                   Cancel
                 </Button>
                 <Button 
                   onClick={handleCompletePayment}
                   disabled={isProcessingCard || createTransactionMutation.isPending}
-                  className="flex-1 py-4 text-lg bg-green-500 hover:bg-green-600 text-white"
+                  className="flex-1 py-4 text-lg bg-primary hover:bg-primary/90 text-white"
                 >
                   {createTransactionMutation.isPending ? "Processing..." : "Complete Payment"}
                 </Button>
@@ -1968,82 +1964,98 @@ export default function ProductGrid({
           ) : (
             /* Payment Method Selection */
             <div className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-lg font-semibold">Total Amount:</span>
-                  <div className="text-right">
-                    {loyaltyRedemptionValue > 0 ? (
-                      <>
-                        <span className="text-lg line-through text-gray-400 mr-2">Ksh {totals.total.toFixed(2)}</span>
-                        <span className="text-2xl font-bold text-green-600">
-                          Ksh {Math.max(0, totals.total - loyaltyRedemptionValue).toFixed(2)}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-2xl font-bold text-green-600">Ksh {totals.total.toFixed(2)}</span>
-                    )}
-                  </div>
+              {/* Total */}
+              <div className="flex justify-between items-center py-1">
+                <span className="text-base font-semibold text-gray-700">Total Amount:</span>
+                <div className="text-right">
+                  {loyaltyRedemptionValue > 0 ? (
+                    <>
+                      <span className="text-base line-through text-gray-400 mr-2">{currency} {totals.total.toFixed(2)}</span>
+                      <span className="text-2xl font-bold text-primary">
+                        {currency} {Math.max(0, totals.total - loyaltyRedemptionValue).toFixed(2)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-2xl font-bold text-primary">{currency} {totals.total.toFixed(2)}</span>
+                  )}
                 </div>
               </div>
-              
+
+              {/* Payment method chips */}
               <div className="space-y-2">
-                <h3 className="text-sm font-medium text-gray-700">Select Payment Method:</h3>
+                <h3 className="text-sm text-gray-500">Select Payment Method:</h3>
                 <div className="flex flex-wrap gap-2">
                   {([
-                    { key: "cash",   label: "Cash",   icon: <Banknote className="h-3.5 w-3.5" />,   shortcut: "1" },
-                    { key: "wallet", label: "Wallet", icon: <Wallet className="h-3.5 w-3.5" />,     shortcut: "2" },
-                    { key: "mpesa",  label: "M-Pesa", icon: <Smartphone className="h-3.5 w-3.5" />, shortcut: "3" },
-                    { key: "bank",   label: "Bank",   icon: <Building className="h-3.5 w-3.5" />,   shortcut: "4" },
-                    { key: "card",   label: "Card",   icon: <CreditCard className="h-3.5 w-3.5" />, shortcut: "5" },
-                    { key: "split",  label: "Split",  icon: <Split className="h-3.5 w-3.5" />,      shortcut: "6" },
-                    { key: "credit", label: "Credit", icon: <UserCheck className="h-3.5 w-3.5" />,  shortcut: "7" },
-                  ] as const).map(({ key, label, icon, shortcut }) => (
+                    { key: "cash",   label: "Cash",   icon: <Banknote className="h-4 w-4" />,   shortcut: "1" },
+                    { key: "wallet", label: "Wallet", icon: <Wallet className="h-4 w-4" />,     shortcut: "2" },
+                    { key: "split",  label: "Split",  icon: <Split className="h-4 w-4" />,      shortcut: "3" },
+                    { key: "mpesa",  label: "M-Pesa", icon: <Smartphone className="h-4 w-4" />, shortcut: "4" },
+                    { key: "bank",   label: "Bank",   icon: <Building className="h-4 w-4" />,   shortcut: "5" },
+                    { key: "card",   label: "Card",   icon: <CreditCard className="h-4 w-4" />, shortcut: "6" },
+                    { key: "credit", label: "Credit", icon: <UserCheck className="h-4 w-4" />,  shortcut: "7" },
+                  ] as const).map(({ key, label, icon }) => (
                     <button
                       key={key}
                       type="button"
                       onClick={() => handlePaymentMethodSelect(key)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border-2 transition-colors ${
                         selectedPaymentMethod === key
                           ? "bg-primary text-white border-primary"
-                          : "bg-white text-gray-700 border-gray-300 hover:border-primary hover:text-primary"
+                          : "bg-white text-gray-700 border-gray-200 hover:border-primary hover:text-primary"
                       }`}
                     >
                       {icon}
                       {label}
-                      <span className={`text-[10px] font-bold rounded px-1 py-px leading-none ${
-                        selectedPaymentMethod === key ? "bg-white/20 text-white" : "bg-gray-100 text-gray-400"
-                      }`}>{shortcut}</span>
                     </button>
                   ))}
                 </div>
               </div>
-              
-              {/* Cash received + change */}
+
+              {/* Cash received + quick amounts + change */}
               {selectedPaymentMethod === "cash" && (() => {
                 const received = parseFloat(cashReceived) || 0;
                 const effectiveTotal = Math.max(0, totals.total - loyaltyRedemptionValue);
                 const change = received - effectiveTotal;
+                const quickAmounts = [
+                  Math.ceil(effectiveTotal),
+                  ...([500, 1000, 2000].filter(a => a > effectiveTotal)),
+                ].slice(0, 3);
                 return (
-                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-3">
+                  <div className="space-y-3">
                     <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1 block">Cash Received</label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder={`${effectiveTotal.toFixed(2)}`}
-                        value={cashReceived}
-                        onChange={(e) => setCashReceived(e.target.value)}
-                        className="w-full text-lg h-11"
-                        autoFocus
-                      />
-                    </div>
-                    {received > 0 && (
-                      <div className={`flex justify-between items-center px-3 py-2 rounded-lg font-semibold text-sm ${change >= 0 ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
-                        <span>{change >= 0 ? "Change to give:" : "Still owed:"}</span>
-                        <span>{currency}{Math.abs(change).toFixed(2)}</span>
+                      <label className="text-sm font-semibold text-gray-700 mb-1.5 block">Cash Received</label>
+                      <div className="flex items-center border-2 border-primary rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary/20">
+                        <span className="px-3 text-gray-500 text-sm font-medium bg-gray-50 border-r border-gray-200 h-12 flex items-center">{currency}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={cashReceived}
+                          onChange={(e) => setCashReceived(e.target.value)}
+                          className="flex-1 h-12 px-3 text-lg outline-none bg-white"
+                          autoFocus
+                        />
                       </div>
-                    )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {quickAmounts.map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setCashReceived(String(amt))}
+                          className="py-2 text-sm font-medium border border-gray-200 rounded-lg hover:border-primary hover:text-primary transition-colors"
+                        >
+                          {amt.toLocaleString()}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex justify-between items-center px-4 py-3 rounded-lg border border-gray-200 bg-gray-50">
+                      <span className="font-semibold text-gray-700">Change Due:</span>
+                      <span className={`text-lg font-bold ${change > 0 ? "text-primary" : "text-gray-400"}`}>
+                        {currency} {Math.max(0, change).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 );
               })()}
@@ -2279,11 +2291,11 @@ export default function ProductGrid({
                 </div>
               )}
               
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3 pt-2">
                 <Button 
                   variant="outline" 
                   onClick={resetPaymentDialog}
-                  className="flex-1"
+                  className="flex-1 h-12 rounded-xl"
                 >
                   Cancel
                 </Button>
@@ -2291,7 +2303,7 @@ export default function ProductGrid({
                   onClick={handleCompletePayment}
                   disabled={!selectedPaymentMethod || createTransactionMutation.isPending ||
                     (selectedPaymentMethod === "credit" && (!selectedCustomerId || !creditDueDate))}
-                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  className="flex-1 h-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold"
                 >
                   {createTransactionMutation.isPending ? "Processing..." : 
                    selectedPaymentMethod === "credit" ? "Create Credit Sale" : "Complete Payment"}
