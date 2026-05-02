@@ -135,6 +135,8 @@ export default function ProductGrid({
   const [customDateTime, setCustomDateTime] = useState("");
   const [alertDialog, setAlertDialog] = useState<{ title: string; description?: string; variant?: string } | null>(null);
   const showAlert = (opts: { title: string; description?: string; variant?: string }) => setAlertDialog(opts);
+  // Draft qty values while user is typing — keyed by cart item id
+  const [qtyDraft, setQtyDraft] = useState<Record<string | number, string>>({});
   const { hasAttendantPermission } = usePermissions();
   const queryClient = useQueryClient();
   const { products: allProducts, isLoading, refreshProducts,hasMore,fetchMoreProducts } = useProducts();
@@ -1444,11 +1446,17 @@ export default function ProductGrid({
                               </Button>
                               <Input
                                 type="number"
-                                value={item.quantity}
-                                onChange={(e) => {
-                                  const newQuantity = parseInt(e.target.value) || 1;
+                                value={qtyDraft[item.id] ?? String(item.quantity)}
+                                onFocus={() => setQtyDraft(d => ({ ...d, [item.id]: String(item.quantity) }))}
+                                onChange={(e) => setQtyDraft(d => ({ ...d, [item.id]: e.target.value }))}
+                                onBlur={() => {
+                                  const newQuantity = parseInt(qtyDraft[item.id] ?? "") || 1;
                                   const productData = allProducts.find(p => p._id === item.id || p.id === item.id);
                                   onUpdateQuantity(item.id, Math.max(1, newQuantity), productData);
+                                  setQtyDraft(d => { const n = { ...d }; delete n[item.id]; return n; });
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                                 }}
                                 className="w-12 h-6 p-1 text-center text-xs font-semibold border-gray-300"
                                 min="1"
@@ -1545,11 +1553,17 @@ export default function ProductGrid({
                               </Button>
                               <Input
                                 type="number"
-                                value={item.quantity}
-                                onChange={(e) => {
-                                  const newQuantity = parseInt(e.target.value) || 1;
+                                value={qtyDraft[item.id] ?? String(item.quantity)}
+                                onFocus={() => setQtyDraft(d => ({ ...d, [item.id]: String(item.quantity) }))}
+                                onChange={(e) => setQtyDraft(d => ({ ...d, [item.id]: e.target.value }))}
+                                onBlur={() => {
+                                  const newQuantity = parseInt(qtyDraft[item.id] ?? "") || 1;
                                   const productData = allProducts.find(p => p._id === item.id || p.id === item.id);
                                   onUpdateQuantity(item.id, Math.max(1, newQuantity), productData);
+                                  setQtyDraft(d => { const n = { ...d }; delete n[item.id]; return n; });
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                                 }}
                                 className="w-12 h-7 p-1 text-center text-sm font-semibold border-gray-300"
                                 min="1"
