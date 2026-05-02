@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 
 const n = (v: any) => Number(v ?? 0);
 const fmt = (v: any, cur: string) => {
@@ -146,27 +147,19 @@ export default function CashFlow() {
 
   const handleQuick = (days: number) => setQuickDays(days);
 
-  const shopName: string =
-    (admin?.primaryShop as any)?.name ||
-    (attendant?.shopId as any)?.name ||
-    "Shop";
+  const shopDetails = useShopDetails(shopId);
 
   const exportCashflowPDF = () => {
-    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-    const pageW = doc.internal.pageSize.getWidth();
-
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text(shopName, pageW / 2, 36, { align: "center" });
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("Cash Flow Report", pageW / 2, 52, { align: "center" });
-    doc.text(`Period: ${effectiveFrom} – ${effectiveTo}`, pageW / 2, 66, { align: "center" });
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageW / 2, 80, { align: "center" });
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const startY = drawShopHeader(
+      doc,
+      shopDetails,
+      "Cash Flow Report",
+      `Period: ${effectiveFrom} – ${effectiveTo}   Generated: ${new Date().toLocaleDateString()}`,
+    );
 
     autoTable(doc, {
-      startY: 100,
+      startY,
       head: [["Category", "Type", "Entries", "Total"]],
       body: rows.map((r: any) => [
         r.categoryName ?? "Uncategorized",
@@ -193,15 +186,15 @@ export default function CashFlow() {
       },
     });
 
-    const finalY = (doc as any).lastAutoTable?.finalY ?? 200;
+    const finalY = (doc as any).lastAutoTable?.finalY ?? 80;
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
-    const summaryY = finalY + 24;
-    doc.text(`Cash In: ${currency} ${n(n(summary.totalCashIn) + n(summary.totalUncategorized)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 40, summaryY);
-    doc.text(`Cash Out: ${currency} ${n(summary.totalCashOut).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 40, summaryY + 16);
+    const summaryY = finalY + 8;
+    doc.text(`Cash In: ${currency} ${n(n(summary.totalCashIn) + n(summary.totalUncategorized)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 14, summaryY);
+    doc.text(`Cash Out: ${currency} ${n(summary.totalCashOut).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 14, summaryY + 6);
     const netLabel = `Net: ${n(net) >= 0 ? "+" : ""}${currency} ${n(net).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
     doc.setTextColor(n(net) >= 0 ? 21 : 185, n(net) >= 0 ? 128 : 28, n(net) >= 0 ? 61 : 28);
-    doc.text(netLabel, 40, summaryY + 32);
+    doc.text(netLabel, 14, summaryY + 12);
     doc.setTextColor(0, 0, 0);
 
     doc.save(`cashflow-${effectiveFrom}-to-${effectiveTo}.pdf`);

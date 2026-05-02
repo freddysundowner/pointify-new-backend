@@ -14,6 +14,7 @@ import { useGoBack } from "@/hooks/useGoBack";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useCurrency } from "@/utils";
+import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 
 interface StockCountItem {
   id: number;
@@ -49,6 +50,7 @@ export default function StockCountHistoryPage() {
   const { shopId, adminId, attendantId } = usePrimaryShop();
   const goBack = useGoBack("/stock/count");
   const currency = useCurrency();
+  const shopDetails = useShopDetails(shopId);
 
   const { data: historyData, isLoading, refetch } = useQuery({
     queryKey: [ENDPOINTS.stockCounts.getAll, shopId, adminId, attendantId, fromDate, toDate],
@@ -82,16 +84,7 @@ export default function StockCountHistoryPage() {
 
   const exportPDF = () => {
     const doc = new jsPDF();
-    const pw = doc.internal.pageSize.width;
-    const shopName = (admin?.primaryShop as any)?.name || "Shop";
-    doc.setFontSize(18);
-    doc.setFont("helvetica", "bold");
-    doc.text(shopName, pw / 2, 14, { align: "center" });
-    doc.setFontSize(13);
-    doc.setFont("helvetica", "normal");
-    doc.text("Stock Count History", pw / 2, 22, { align: "center" });
-    doc.setFontSize(9);
-    doc.text(`${fromDate} → ${toDate}`, pw / 2, 29, { align: "center" });
+    const startY = drawShopHeader(doc, shopDetails, "Stock Count History", `${fromDate} → ${toDate}`);
     const rows: any[] = [];
     filtered.forEach((c) => {
       const date = new Date(c.createdAt).toLocaleString();
@@ -106,7 +99,7 @@ export default function StockCountHistoryPage() {
       }
     });
     autoTable(doc, {
-      startY: 35,
+      startY,
       head: [["Date", "By", "Product", "System", "Physical", "Variance"]],
       body: rows,
       styles: { fontSize: 8 },

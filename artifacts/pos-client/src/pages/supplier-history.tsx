@@ -6,7 +6,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { useGoBack } from "@/hooks/useGoBack";
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
+import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 import { 
   Calendar, 
   Download, 
@@ -96,6 +97,7 @@ export default function SupplierHistoryPage() {
   const adminData = JSON.parse(localStorage.getItem('adminData') || '{}');
   const shopId = selectedShopId || String(extractId(adminData?.primaryShop) ?? '');
   const shopCurrency = selectedShopData?.currency || adminData?.primaryShop?.currency || 'KES';
+  const shopDetails = useShopDetails(shopId);
 
   // Fetch purchase analytics for summary cards
   const { data: analyticsData } = useQuery({
@@ -230,54 +232,25 @@ export default function SupplierHistoryPage() {
       console.log('Total outstanding:', totalOutstanding);
       
       const doc = new jsPDF();
-      
-      // Professional Header
-      // Company/Shop name
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text(adminData?.primaryShop?.name || 'Business Name', 20, 20);
-      
-      // Document title
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'normal');
-      doc.text('SUPPLIER STATEMENT', 20, 30);
-      
-      // Add horizontal line
-      doc.setLineWidth(0.5);
-      doc.line(20, 35, 190, 35);
+      let headerY = drawShopHeader(doc, shopDetails, "Supplier Statement", `Statement Date: ${new Date().toLocaleDateString()}`);
       
       // Supplier information section
-      doc.setFontSize(12);
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.text('SUPPLIER DETAILS', 20, 50);
+      doc.text('SUPPLIER DETAILS', 20, headerY);
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Name: ${supplierName || 'Supplier'}`, 20, 60);
-      doc.text(`Statement Period: ${dateFrom || new Date().toISOString().split('T')[0]} to ${dateTo || new Date().toISOString().split('T')[0]}`, 20, 68);
-      
-      // Statement info (right side)
-      doc.text(`Statement Date: ${new Date().toLocaleDateString()}`, 120, 60);
-      doc.text(`Currency: ${shopCurrency}`, 120, 68);
-      doc.text(`Total Orders: ${statementPurchases.length}`, 120, 76);
+      doc.text(`Name: ${supplierName || 'Supplier'}`, 20, headerY + 6);
+      doc.text(`Period: ${dateFrom || new Date().toISOString().split('T')[0]} – ${dateTo || new Date().toISOString().split('T')[0]}`, 20, headerY + 12);
+      doc.text(`Currency: ${shopCurrency}  |  Total Orders: ${statementPurchases.length}`, 20, headerY + 18);
+      headerY += 26;
       
       // Financial Summary section
-      doc.setFontSize(12);
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
-      doc.text('FINANCIAL SUMMARY', 20, 85);
-      
-      // Add summary box background
-      doc.setFillColor(245, 245, 245);
-      doc.rect(20, 90, 170, 25, 'F');
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Total Amount: ${shopCurrency} ${(totalAmount || 0).toFixed(2)}`, 25, 100);
-      doc.text(`Amount Paid: ${shopCurrency} ${(totalPaid || 0).toFixed(2)}`, 25, 108);
-      
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Outstanding Balance: ${shopCurrency} ${(totalOutstanding || 0).toFixed(2)}`, 120, 100);
-      doc.text(`Status: ${(totalOutstanding || 0) > 0 ? 'PENDING PAYMENT' : 'FULLY PAID'}`, 120, 108);
+      doc.text(`Total Amount: ${shopCurrency} ${(totalAmount || 0).toFixed(2)}   Paid: ${shopCurrency} ${(totalPaid || 0).toFixed(2)}   Outstanding: ${shopCurrency} ${(totalOutstanding || 0).toFixed(2)}   Status: ${(totalOutstanding || 0) > 0.01 ? 'PENDING PAYMENT' : 'FULLY PAID'}`, 20, headerY);
+      headerY += 6;
       
       // Table data
       if (statementPurchases.length > 0) {
@@ -307,12 +280,12 @@ export default function SupplierHistoryPage() {
         
         console.log('Table data prepared:', tableData);
         
-        // Check if autoTable is available
-        if (typeof (doc as any).autoTable === 'function') {
-          (doc as any).autoTable({
+        // Use imported autoTable
+        if (true) {
+          autoTable(doc, {
             head: [['Purchase No', 'Date', 'Total Amount', 'Amount Paid', 'Outstanding', 'Status']],
             body: tableData,
-            startY: 115,
+            startY: headerY,
             styles: { fontSize: 8 },
             headStyles: { fillColor: [66, 139, 202] },
             columnStyles: {
@@ -479,23 +452,13 @@ export default function SupplierHistoryPage() {
       const doc = new jsPDF();
       const pw = doc.internal.pageSize.width;
       
-      // Header — shop name first
-      const shopNameHeader = adminData?.primaryShop?.name || 'Shop';
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text(shopNameHeader, pw / 2, 14, { align: 'center' });
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Payment History Report', pw / 2, 22, { align: 'center' });
+      let phY = drawShopHeader(doc, shopDetails, "Payment History Report", `Generated: ${new Date().toLocaleDateString()}`);
       
       // Purchase details
-      doc.setFontSize(12);
-      doc.text(`Purchase No: ${purchase.purchaseNo}`, 20, 40);
-      doc.text(`Supplier: ${purchase.supplier?.name || 'N/A'}`, 20, 50);
-      doc.text(`Total Amount: ${shopCurrency} ${totalAmount.toFixed(2)}`, 20, 60);
-      doc.text(`Amount Paid: ${shopCurrency} ${amountPaid.toFixed(2)}`, 20, 70);
-      doc.text(`Outstanding Balance: ${shopCurrency} ${finalBalance.toFixed(2)}`, 20, 80);
-      doc.text(`Report Generated: ${new Date().toLocaleString()}`, 20, 90);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Purchase No: ${purchase.purchaseNo}   Supplier: ${purchase.supplier?.name || 'N/A'}`, 20, phY); phY += 5;
+      doc.text(`Total: ${shopCurrency} ${totalAmount.toFixed(2)}   Paid: ${shopCurrency} ${amountPaid.toFixed(2)}   Outstanding: ${shopCurrency} ${finalBalance.toFixed(2)}`, 20, phY); phY += 6;
       
       // Payment history table
       if (purchase.payments && purchase.payments.length > 0) {
@@ -506,10 +469,10 @@ export default function SupplierHistoryPage() {
           `${shopCurrency} ${(payment.balance || 0).toFixed(2)}`
         ]);
         
-        (doc as any).autoTable({
+        autoTable(doc, {
           head: [['Payment No', 'Date', 'Amount', 'Balance After']],
           body: tableData,
-          startY: 105,
+          startY: phY,
           styles: { fontSize: 8 },
           headStyles: { fillColor: [66, 139, 202] },
           columnStyles: {

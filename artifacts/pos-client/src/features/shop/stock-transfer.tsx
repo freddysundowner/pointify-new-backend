@@ -14,6 +14,7 @@ import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { useGoBack } from "@/hooks/useGoBack";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 
 interface TransferItem {
   id: number;
@@ -47,6 +48,7 @@ export default function StockTransfer() {
   const { attendant } = useAttendantAuth();
   const { shopId, adminId, userType } = usePrimaryShop();
   const goBack = useGoBack("/dashboard");
+  const shopDetails = useShopDetails(shopId);
 
   // History filters
   const [fromDate, setFromDate] = useState("");
@@ -159,13 +161,7 @@ export default function StockTransfer() {
   // ── PDF export ──
   const exportPDF = () => {
     const doc = new jsPDF();
-    const pw = doc.internal.pageSize.width;
-    const shopName = shopOptions.find(s => s.id === Number(shopId))?.name || "Shop";
-    doc.setFontSize(18); doc.setFont("helvetica", "bold");
-    doc.text(shopName, pw / 2, 14, { align: "center" });
-    doc.setFontSize(13); doc.setFont("helvetica", "normal");
-    doc.text("Stock Transfer Report", pw / 2, 22, { align: "center" });
-    doc.setFontSize(9); doc.text(`Generated: ${new Date().toLocaleString()}`, pw / 2, 29, { align: "center" });
+    const startY = drawShopHeader(doc, shopDetails, "Stock Transfer Report", `Generated: ${new Date().toLocaleString()}`);
     const rows: any[] = [];
     transfers.forEach(t => {
       const date = new Date(t.createdAt).toLocaleDateString();
@@ -176,7 +172,7 @@ export default function StockTransfer() {
       }
     });
     autoTable(doc, {
-      startY: 35,
+      startY,
       head: [["Transfer #", "Product", "Qty", "From", "To", "Date"]],
       body: rows,
       styles: { fontSize: 8 },

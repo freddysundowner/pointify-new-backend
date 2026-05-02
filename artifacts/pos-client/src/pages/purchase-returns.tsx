@@ -16,6 +16,7 @@ import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useNavigationRoute } from "@/lib/navigation-utils";
 import { useLocation } from "wouter";
 import { useCurrency } from "@/utils";
+import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 
 interface PurchaseReturn {
   _id: string;
@@ -56,6 +57,7 @@ export default function PurchaseReturns() {
   const { admin } = useAuth();
   const { attendant } = useAttendantAuth();
   const { shopId, adminId, attendantId } = usePrimaryShop();
+  const shopDetails = useShopDetails(shopId);
   const [, setLocation] = useLocation();
   const purchasesRoute = useNavigationRoute('purchases');
     const currency = useCurrency()
@@ -181,21 +183,9 @@ export default function PurchaseReturns() {
       const totalAmount = returns.reduce((sum: number, ret: PurchaseReturn) => sum + (ret.refundAmount || ret.totalAmount || 0), 0);
       
       const doc = new jsPDF();
-      
-      // Header — shop name first
-      const shopName = (admin?.primaryShop as any)?.name || returns[0]?.shopId?.name || 'Shop';
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text(shopName, 105, 14, { align: 'center' });
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Purchase Returns Report', 105, 22, { align: 'center' });
-      
-      doc.setFontSize(10);
-      doc.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 30, { align: 'center' });
+      let yPos = drawShopHeader(doc, shopDetails, "Purchase Returns Report", `Generated on ${new Date().toLocaleDateString()}`);
       
       // Filters applied
-      let yPos = 45;
       doc.setFontSize(10);
       let filtersText = 'Filters Applied: ';
       if (searchTerm) filtersText += `Search: ${searchTerm} | `;

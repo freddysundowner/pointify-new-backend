@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizeIds, extractId } from '@/lib/utils';
 import { Plus, Edit2, Trash2, Filter, Download, Calendar, Clock, RefreshCw, ChevronDown, ChevronUp, Settings } from 'lucide-react';
@@ -422,31 +423,21 @@ export default function Expenses() {
 
   const totalAmount = sortedExpenses.reduce((sum, expense) => sum + parseFloat(String(expense.amount ?? 0)), 0);
 
-  const shopName: string =
-    (admin?.primaryShop as any)?.name ||
-    (attendant?.shopId as any)?.name ||
-    "Shop";
+  const shopDetails = useShopDetails(effectiveShopId);
 
   const exportExpensesPDF = () => {
-    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-    const pageW = doc.internal.pageSize.getWidth();
-
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text(shopName, pageW / 2, 36, { align: "center" });
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("Expenses Report", pageW / 2, 52, { align: "center" });
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
     const periodParts: string[] = [];
     if (customStartDate) periodParts.push(`From: ${customStartDate}`);
     if (customEndDate) periodParts.push(`To: ${customEndDate}`);
-    if (periodParts.length > 0) doc.text(periodParts.join("   "), pageW / 2, 66, { align: "center" });
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageW / 2, periodParts.length > 0 ? 80 : 66, { align: "center" });
+    const subtitle = periodParts.length > 0
+      ? periodParts.join("   ") + `   Generated: ${new Date().toLocaleDateString()}`
+      : `Generated: ${new Date().toLocaleDateString()}`;
+    const startY = drawShopHeader(doc, shopDetails, "Expenses Report", subtitle);
 
     autoTable(doc, {
-      startY: 100,
+      startY,
       head: [["#", "Description", "Category", "Date", "Amount"]],
       body: sortedExpenses.map((exp, i) => [
         i + 1,
@@ -464,18 +455,19 @@ export default function Expenses() {
       footStyles: { fillColor: [243, 244, 246], textColor: [30, 30, 30], fontStyle: "bold", fontSize: 9 },
       bodyStyles: { fontSize: 8.5 },
       columnStyles: {
-        0: { cellWidth: 25, halign: "center" },
+        0: { cellWidth: 12, halign: "center" },
         3: { halign: "center" },
         4: { halign: "right" },
       },
     });
 
+    const pageW = doc.internal.pageSize.getWidth();
     const totalPages = (doc as any).internal.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
       doc.setPage(p);
       doc.setFontSize(8);
       doc.setTextColor(150);
-      doc.text(`Page ${p} of ${totalPages}`, pageW / 2, doc.internal.pageSize.getHeight() - 10, { align: "center" });
+      doc.text(`Page ${p} of ${totalPages}`, pageW / 2, doc.internal.pageSize.getHeight() - 5, { align: "center" });
       doc.setTextColor(0);
     }
 

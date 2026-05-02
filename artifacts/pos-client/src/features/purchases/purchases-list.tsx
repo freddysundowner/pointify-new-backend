@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ENDPOINTS } from "@/lib/api-endpoints";
+import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 import {
   Select,
   SelectContent,
@@ -110,6 +111,7 @@ export default function PurchasesList() {
   const primaryShop =
     typeof admin?.primaryShop === "object" ? admin.primaryShop : null;
   const shopId = selectedShopId || (primaryShop as any)?._id;
+  const shopDetails = useShopDetails(shopId);
 
   // Get attendant ID properly: for attendants use attendant._id, for admins use admin data
   const attendantId =
@@ -451,34 +453,19 @@ export default function PurchasesList() {
   const exportToPDF = () => {
     const doc = new jsPDF();
     const currentDate = new Date().toLocaleDateString();
-    
-    // Header styling
-    const shopName = (primaryShop as any)?.name || 'Shop';
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text(shopName, 105, 18, { align: 'center' });
-    doc.setFontSize(16);
-    doc.text('PURCHASE REPORT', 105, 27, { align: 'center' });
-    
-    // Company info section
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated: ${currentDate}`, 20, 45);
-    doc.text(`Shop: ${shopName}`, 20, 55);
-    doc.text(`Report Period: ${startDate} to ${endDate}`, 20, 65);
+    let y = drawShopHeader(doc, shopDetails, "Purchase Report", `Period: ${startDate} to ${endDate}   Generated: ${currentDate}`);
     
     // Summary section
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('SUMMARY', 20, 85);
-    
     doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SUMMARY', 20, y);
+    y += 6;
     doc.setFont('helvetica', 'normal');
-    doc.text(`Total Purchases: ${filteredOrdersCount}`, 20, 95);
-    doc.text(`Total Amount: ${filteredPurchases[0]?.currency || 'KES'} ${filteredTotalAmount.toLocaleString()}`, 20, 105);
-    doc.text(`Paid Amount: ${filteredPurchases[0]?.currency || 'KES'} ${filteredSpent.toLocaleString()}`, 20, 115);
-    doc.text(`Unpaid Count: ${filteredUnpaidCount}`, 20, 125);
-    doc.text(`Unique Suppliers: ${filteredSuppliers}`, 20, 135);
+    doc.text(`Total Purchases: ${filteredOrdersCount}`, 20, y); y += 5;
+    doc.text(`Total Amount: ${filteredPurchases[0]?.currency || 'KES'} ${filteredTotalAmount.toLocaleString()}`, 20, y); y += 5;
+    doc.text(`Paid Amount: ${filteredPurchases[0]?.currency || 'KES'} ${filteredSpent.toLocaleString()}`, 20, y); y += 5;
+    doc.text(`Unpaid Count: ${filteredUnpaidCount}`, 20, y); y += 5;
+    doc.text(`Unique Suppliers: ${filteredSuppliers}`, 20, y); y += 8;
     
     // Prepare table data
     const tableData = filteredPurchases.map((purchase: any) => [
@@ -492,7 +479,7 @@ export default function PurchasesList() {
     
     // Add table
     autoTable(doc, {
-      startY: 150,
+      startY: y,
       head: [['PO Number', 'Supplier', 'Date', 'Amount', 'Status', 'Items']],
       body: tableData,
       styles: { 

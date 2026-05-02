@@ -69,7 +69,8 @@ import { useNavigationRoute } from "@/lib/navigation-utils";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import type { Sale } from "@shared/schema";
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
+import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
@@ -152,6 +153,7 @@ function SalesList() {
   const primaryShop =
     typeof admin?.primaryShop === "object" ? admin.primaryShop : null;
   const primaryShopCurrency = (primaryShop as any)?.currency || "KES";
+  const shopDetails = useShopDetails(shopId);
 
   // Function to get currency for a sale - extract from shopId object
   const getSaleCurrency = (sale: any) => {
@@ -825,16 +827,8 @@ function SalesList() {
     try {
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       const pw = doc.internal.pageSize.width;
-      const shopName = (primaryShop as any)?.name || "Shop";
       const reportData = (salesReportData as any) || {};
       const statsD = reportData?.data || reportData;
-
-      // ── Header ──
-      doc.setFontSize(18);
-      doc.setFont("helvetica", "bold");
-      doc.text(shopName, pw / 2, 14, { align: "center" });
-      doc.setFontSize(14);
-      doc.text("SALES REPORT", pw / 2, 22, { align: "center" });
 
       const dateRange =
         !startDate && !endDate
@@ -842,10 +836,8 @@ function SalesList() {
           : startDate === endDate
             ? new Date(startDate).toLocaleDateString()
             : `${new Date(startDate).toLocaleDateString()} – ${new Date(endDate).toLocaleDateString()}`;
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.text(dateRange, pw / 2, 28, { align: "center" });
-      doc.text(`Generated: ${new Date().toLocaleString()}`, pw / 2, 33, { align: "center" });
+
+      const headerEndY = drawShopHeader(doc, shopDetails, "Sales Report", `${dateRange}   Generated: ${new Date().toLocaleDateString()}`);
 
       // ── Summary boxes ──
       const totalSalesAmt = Number(statsD?.totalSales ?? 0);
@@ -856,7 +848,7 @@ function SalesList() {
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       const col1 = 14, col2 = pw / 4 + 5, col3 = pw / 2 + 5, col4 = (pw * 3) / 4 + 5;
-      const sy = 40;
+      const sy = headerEndY;
       doc.text("Total Revenue", col1, sy);
       doc.text("Transactions", col2, sy);
       doc.text("Returns", col3, sy);
@@ -879,7 +871,7 @@ function SalesList() {
         `${getSaleCurrency(sale)} ${Number(sale.totalAmount).toFixed(2)}`,
       ]);
 
-      (doc as any).autoTable({
+      autoTable(doc, {
         startY: sy + 12,
         head: [["#", "Receipt No.", "Customer", "Date", "Payment", "Status", "Amount"]],
         body: rows,
@@ -898,7 +890,7 @@ function SalesList() {
           doc.setFontSize(7);
           doc.setFont("helvetica", "normal");
           doc.text(
-            `${shopName} — Sales Report  |  Page ${data.pageNumber} of ${pageCount}`,
+            `${shopDetails.name || "Shop"} — Sales Report  |  Page ${data.pageNumber} of ${pageCount}`,
             pw / 2,
             doc.internal.pageSize.height - 5,
             { align: "center" }
