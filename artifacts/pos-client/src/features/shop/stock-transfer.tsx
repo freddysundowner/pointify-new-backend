@@ -225,102 +225,100 @@ export default function StockTransfer() {
 
           {/* ── Body ── */}
           <div className="flex-1 overflow-auto">
-            <div className="px-6 py-6 space-y-5">
+            <div className="px-4 py-3 space-y-3">
 
-              {/* Shop selectors */}
-              <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Route</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 mb-1.5 block">From Shop</label>
-                    <Select
-                      value={fromShopId ? String(fromShopId) : ""}
-                      onValueChange={(v) => { setFromShopId(Number(v)); setCart([]); setProductSearch(""); }}
-                    >
-                      <SelectTrigger className="h-10 border-gray-300 text-sm">
-                        <SelectValue placeholder="Select source…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {shopOptions.map(s => (
-                          <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 mb-1.5 block">To Shop</label>
-                    <Select
-                      value={toShopId ? String(toShopId) : ""}
-                      onValueChange={(v) => setToShopId(Number(v))}
-                      disabled={!fromShopId}
-                    >
-                      <SelectTrigger className="h-10 border-gray-300 text-sm">
-                        <SelectValue placeholder="Select destination…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {shopOptions.filter(s => s.id !== fromShopId).map(s => (
-                          <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+              {/* Route + Note in one row */}
+              <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-36">
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">From Shop</label>
+                  <Select
+                    value={fromShopId ? String(fromShopId) : ""}
+                    onValueChange={(v) => { setFromShopId(Number(v)); setCart([]); setProductSearch(""); }}
+                  >
+                    <SelectTrigger className="h-8 text-xs border-gray-300">
+                      <SelectValue placeholder="Select source…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shopOptions.map(s => (
+                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                {fromShopId && toShopId && (
-                  <div className="flex items-center gap-2 text-xs text-purple-700 bg-purple-50 border border-purple-100 rounded-lg px-3 py-2">
-                    <span className="font-medium">{fromShopName}</span>
-                    <ArrowRight className="h-3 w-3 text-purple-400" />
-                    <span className="font-medium">{toShopName}</span>
-                  </div>
-                )}
+                <ArrowRight className="h-3.5 w-3.5 text-gray-400 mb-2 shrink-0" />
+
+                <div className="flex-1 min-w-36">
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">To Shop</label>
+                  <Select
+                    value={toShopId ? String(toShopId) : ""}
+                    onValueChange={(v) => setToShopId(Number(v))}
+                    disabled={!fromShopId}
+                  >
+                    <SelectTrigger className="h-8 text-xs border-gray-300">
+                      <SelectValue placeholder="Select destination…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shopOptions.filter(s => s.id !== fromShopId).map(s => (
+                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex-1 min-w-48">
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Note (optional)</label>
+                  <Input
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Transfer reason…"
+                    className="h-8 text-xs border-gray-300 focus:border-purple-500"
+                  />
+                </div>
               </div>
 
               {/* Product search + cart */}
-              <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Products</p>
-
-                {fromShopId ? (
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                     <Input
-                      placeholder="Search product name…"
+                      placeholder={fromShopId ? "Search product name…" : "Select a source shop first…"}
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
-                      className="pl-9 h-10 text-sm border-gray-300 focus:border-purple-500"
+                      disabled={!fromShopId}
+                      className="pl-8 h-8 text-xs border-gray-300 focus:border-purple-500"
                     />
                     {productResults && productResults.length > 0 && (
-                      <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border rounded-lg shadow-lg max-h-56 overflow-auto">
+                      <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-auto">
                         {productResults.map((p) => (
                           <button
                             key={p.id}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between border-b last:border-0"
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center justify-between border-b last:border-0"
                             onClick={() => addToCart(p)}
                           >
                             <span className="font-medium">{p.name}</span>
                             {p.quantity !== undefined && (
-                              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                                Stock: {parseFloat(String(p.quantity))}
-                              </span>
+                              <span className="text-xs text-gray-400">Stock: {parseFloat(String(p.quantity))}</span>
                             )}
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-400 text-center py-4">Select a source shop first</p>
-                )}
+                  {cart.length > 0 && (
+                    <span className="text-xs text-gray-500 shrink-0">{cart.length} item{cart.length !== 1 ? "s" : ""}</span>
+                  )}
+                </div>
 
                 {cart.length > 0 && (
-                  <div className="space-y-2 pt-1">
-                    <p className="text-xs text-gray-500 font-medium">{cart.length} item{cart.length !== 1 ? "s" : ""} to transfer</p>
+                  <div className="space-y-1">
                     {cart.map((item) => (
-                      <div key={item.productId} className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-lg px-4 py-2.5">
-                        <Package className="h-4 w-4 text-gray-400 shrink-0" />
-                        <span className="flex-1 text-sm font-medium text-gray-800">{item.productName}</span>
-                        <div className="flex items-center gap-2">
+                      <div key={item.productId} className="flex items-center gap-2 bg-gray-50 rounded px-3 py-1.5">
+                        <span className="flex-1 text-xs font-medium text-gray-800">{item.productName}</span>
+                        <div className="flex items-center gap-1">
                           <button
-                            className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-bold flex items-center justify-center"
+                            className="w-5 h-5 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold flex items-center justify-center"
                             onClick={() => updateCartQty(item.productId, item.quantity - 1)}
                           >−</button>
                           <input
@@ -333,16 +331,16 @@ export default function StockTransfer() {
                               setDraftQty(d => { const next = { ...d }; delete next[item.productId]; return next; });
                               updateCartQty(item.productId, qty);
                             }}
-                            className="w-14 h-7 text-center text-sm font-semibold border border-gray-300 rounded-md bg-white outline-none focus:border-purple-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-12 h-6 text-center text-xs font-semibold border border-gray-300 rounded bg-white outline-none focus:border-purple-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             min="1"
                           />
                           <button
-                            className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-bold flex items-center justify-center"
+                            className="w-5 h-5 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold flex items-center justify-center"
                             onClick={() => updateCartQty(item.productId, item.quantity + 1)}
                           >+</button>
                         </div>
-                        <button className="text-gray-300 hover:text-red-500 ml-1" onClick={() => setCart(prev => prev.filter(c => c.productId !== item.productId))}>
-                          <X className="h-4 w-4" />
+                        <button className="text-gray-300 hover:text-red-500" onClick={() => setCart(prev => prev.filter(c => c.productId !== item.productId))}>
+                          <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     ))}
@@ -350,48 +348,28 @@ export default function StockTransfer() {
                 )}
               </div>
 
-              {/* Note */}
-              <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Note</p>
-                <Input
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Transfer reason or notes (optional)…"
-                  className="h-10 text-sm border-gray-300 focus:border-purple-500"
-                />
-              </div>
-
               {/* Summary + submit */}
               {fromShopId && toShopId && cart.length > 0 && (
-                <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 space-y-4">
-                  <div className="space-y-1.5 text-sm text-purple-800">
-                    <div className="flex justify-between">
-                      <span className="text-purple-600">From</span>
-                      <span className="font-semibold">{fromShopName}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-purple-600">To</span>
-                      <span className="font-semibold">{toShopName}</span>
-                    </div>
-                    <div className="flex justify-between border-t border-purple-200 pt-1.5 mt-1.5">
-                      <span className="text-purple-600">Total units</span>
-                      <span className="font-bold">{totalUnits}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-purple-600">Products</span>
-                      <span className="font-bold">{cart.length}</span>
-                    </div>
+                <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 text-xs text-gray-600 flex-wrap">
+                    <span><span className="font-semibold text-gray-900">{fromShopName}</span></span>
+                    <ArrowRight className="h-3 w-3 text-gray-400" />
+                    <span><span className="font-semibold text-gray-900">{toShopName}</span></span>
+                    <span className="text-gray-400">·</span>
+                    <span><span className="font-semibold text-gray-900">{totalUnits}</span> unit{totalUnits !== 1 ? "s" : ""}</span>
+                    <span className="text-gray-400">·</span>
+                    <span><span className="font-semibold text-gray-900">{cart.length}</span> product{cart.length !== 1 ? "s" : ""}</span>
                   </div>
                   <Button
-                    className="w-full h-11 text-sm font-semibold bg-purple-600 hover:bg-purple-700"
+                    size="sm"
+                    className="h-8 px-4 text-xs font-semibold bg-purple-600 hover:bg-purple-700 shrink-0 gap-1.5"
                     onClick={() => createMutation.mutate()}
                     disabled={createMutation.isPending}
                   >
-                    {createMutation.isPending ? (
-                      <span className="flex items-center gap-2"><RefreshCw className="h-4 w-4 animate-spin" /> Transferring…</span>
-                    ) : (
-                      <span className="flex items-center gap-2"><ArrowRight className="h-4 w-4" /> Confirm Transfer</span>
-                    )}
+                    {createMutation.isPending
+                      ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Transferring…</>
+                      : <><ArrowRight className="h-3.5 w-3.5" /> Confirm Transfer</>
+                    }
                   </Button>
                 </div>
               )}
