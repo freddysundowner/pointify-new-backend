@@ -126,8 +126,8 @@ router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
 
     const [[result], [returnsResult], creditCollectedRows] = await Promise.all([
       db.select({
-        grossSales: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} NOT IN ('voided','refunded','returned') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
-        totalCount: sql<number>`COUNT(CASE WHEN ${sales.status} NOT IN ('voided','refunded','returned') THEN 1 END)`,
+        grossSales: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} NOT IN ('voided','held') THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
+        totalCount: sql<number>`COUNT(CASE WHEN ${sales.status} NOT IN ('voided','held') THEN 1 END)`,
         cash: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) IN ('cash') AND ${sales.status} = 'cashed' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
         mpesa: sql<string>`COALESCE(SUM(CASE WHEN lower(${sales.paymentType}) SIMILAR TO '%(mpesa|m-pesa)%' AND ${sales.status} = 'cashed' THEN ${sales.totalWithDiscount}::numeric ELSE 0 END), 0)`,
         credit: sql<string>`COALESCE(SUM(CASE WHEN ${sales.status} = 'credit' AND ${sales.outstandingBalance}::numeric > 0 THEN ${sales.outstandingBalance}::numeric ELSE 0 END), 0)`,
@@ -140,7 +140,7 @@ router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
       }).from(saleReturns)
         .innerJoin(sales, and(
           eq(saleReturns.sale, sales.id),
-          sql`${sales.status} NOT IN ('voided', 'held', 'refunded', 'returned')`,
+          sql`${sales.status} NOT IN ('voided', 'held')`,
         ))
         .where(returnsWhere),
       // Raw SQL for debt collections — payments recorded via POST /:id/payments are

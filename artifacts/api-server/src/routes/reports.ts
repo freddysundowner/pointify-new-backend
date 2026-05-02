@@ -878,7 +878,7 @@ router.get("/sales/daily", requireAdminOrAttendant, async (req, res, next) => {
 
     const conditions = [
       gte(sales.createdAt, since),
-      sql`${sales.status} NOT IN ('voided', 'refunded', 'held', 'returned')`,
+      sql`${sales.status} NOT IN ('voided', 'held')`,
     ];
     if (shopId) conditions.push(eq(sales.shop, shopId));
     if (req.attendant) conditions.push(eq(sales.attendant, req.attendant.id));
