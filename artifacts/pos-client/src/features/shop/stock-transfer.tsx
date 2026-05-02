@@ -532,14 +532,33 @@ export default function StockTransfer() {
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-purple-50">
-                                    {t.transferItems.map((item) => (
-                                      <tr key={item.id} className="bg-white">
-                                        <td className="px-4 py-1.5 font-medium text-gray-800">{item.productName}</td>
-                                        <td className="text-center px-3 py-1.5 text-gray-700 font-semibold">
-                                          {parseFloat(String(item.quantity))}
-                                        </td>
-                                      </tr>
-                                    ))}
+                                    {t.transferItems.map((item) => {
+                                      const isBundle = (item as any).productType === "bundle";
+                                      return (
+                                        <tr key={item.id} className={isBundle ? "bg-purple-50/60" : "bg-white"}>
+                                          <td className="px-4 py-1.5">
+                                            <div className="flex items-center gap-2">
+                                              {isBundle ? (
+                                                <>
+                                                  <Package className="h-3 w-3 text-purple-500 shrink-0" />
+                                                  <span className="font-semibold text-gray-800">{item.productName}</span>
+                                                  <span className="text-[10px] font-medium bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">Bundle</span>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <span className="ml-4 text-gray-400 shrink-0">└</span>
+                                                  <span className="font-medium text-gray-700">{item.productName}</span>
+                                                  <span className="text-[10px] text-gray-400">component</span>
+                                                </>
+                                              )}
+                                            </div>
+                                          </td>
+                                          <td className="text-center px-3 py-1.5 text-gray-700 font-semibold">
+                                            {parseFloat(String(item.quantity))}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               )}

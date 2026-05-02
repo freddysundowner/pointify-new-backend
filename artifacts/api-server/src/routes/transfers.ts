@@ -33,17 +33,17 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     const allProductIds = [...new Set(rows.flatMap(r => r.transferItems.map(i => i.product)))];
     const allShopIds = [...new Set(rows.flatMap(r => [r.fromShop, r.toShop]))];
 
-    const [productNames, shopNames] = await Promise.all([
+    const [productRows, shopNames] = await Promise.all([
       allProductIds.length
-        ? db.select({ id: products.id, name: products.name }).from(products).where(inArray(products.id, allProductIds))
+        ? db.select({ id: products.id, name: products.name, type: products.type }).from(products).where(inArray(products.id, allProductIds))
         : Promise.resolve([]),
       allShopIds.length
         ? db.select({ id: shops.id, name: shops.name }).from(shops).where(inArray(shops.id, allShopIds))
         : Promise.resolve([]),
     ]);
 
-    const pMap: Record<number, string> = {};
-    productNames.forEach(p => { pMap[p.id] = p.name; });
+    const pMap: Record<number, { name: string; type: string }> = {};
+    productRows.forEach(p => { pMap[p.id] = { name: p.name, type: p.type ?? "product" }; });
     const sMap: Record<number, string> = {};
     shopNames.forEach(s => { sMap[s.id] = s.name; });
 
@@ -51,7 +51,11 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
       ...r,
       fromShopName: sMap[r.fromShop] ?? `Shop #${r.fromShop}`,
       toShopName: sMap[r.toShop] ?? `Shop #${r.toShop}`,
-      transferItems: r.transferItems.map(i => ({ ...i, productName: pMap[i.product] ?? `Product #${i.product}` })),
+      transferItems: r.transferItems.map(i => ({
+        ...i,
+        productName: pMap[i.product]?.name ?? `Product #${i.product}`,
+        productType: pMap[i.product]?.type ?? "product",
+      })),
     }));
 
     return paginated(res, enriched, { total, page, limit });
@@ -67,8 +71,13 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     // ── Step 1: Expand bundle products into their components ──────────────────
     // Each entry: { productId, quantity, fromBundleName? }
     const expandedMap = new Map<number, { quantity: number; fromBundleName?: string }>();
-    // Track bundle products whose own inventory must also be deducted
-    const bundleDeductions: { productId: number; quantity: number }[] = [];
+    // Track bundle products whose own inventory must also be deducted,
+    // along with the component definitions needed to recreate the bundle at the destination.
+    const bundleDeductions: {
+      productId:  number;
+      quantity:   number;
+      components: { componentProduct: number; quantity: string }[];
+    }[] = [];
 
     for (const item of items) {
       const productId = Number(item.productId);
@@ -80,9 +89,6 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       });
 
       if (product?.type === "bundle") {
-        // Record the bundle itself for inventory deduction
-        bundleDeductions.push({ productId, quantity: qty });
-
         // Fetch components with their names
         const components = await db
           .select({
@@ -93,6 +99,13 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
           .from(bundleItems)
           .leftJoin(products, eq(bundleItems.componentProduct, products.id))
           .where(eq(bundleItems.product, productId));
+
+        // Record the bundle itself for inventory deduction + bundle recreation at dest
+        bundleDeductions.push({
+          productId,
+          quantity: qty,
+          components: components.map(c => ({ componentProduct: c.componentProduct, quantity: c.quantity })),
+        });
 
         for (const comp of components) {
           const needed = parseFloat(comp.quantity) * qty;
@@ -367,8 +380,8 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
             images:          srcBundle.images,
             barcode:         srcBundle.barcode,
             serialNumber:    srcBundle.serialNumber,
-            // Copy as a plain product — bundle definitions are shop-specific
-            type:            "product",
+            // Arrive as a bundle — we'll recreate bundleItems below
+            type:            "bundle",
             isDeleted:       false,
             manageByPrice:   srcBundle.manageByPrice,
             isTaxable:       srcBundle.isTaxable,
@@ -377,6 +390,30 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
           }).returning();
           destBundleProductId = newBundleProd.id;
         }
+      }
+
+      // ── Recreate bundle component definitions at the destination ─────────
+      // Build a lookup: srcComponentId → destComponentId from resolvedItems.
+      // Then insert bundleItems for the dest bundle (skip any already existing).
+      const destCompMap = new Map(resolvedItems.map(r => [r.srcProductId, r.destProductId]));
+      const existingBundleItems = await db.query.bundleItems.findMany({
+        where: eq(bundleItems.product, destBundleProductId),
+        columns: { componentProduct: true },
+      });
+      const existingCompIds = new Set(existingBundleItems.map(bi => bi.componentProduct));
+
+      const newBundleItemRows = bd.components
+        .map(c => ({ srcId: c.componentProduct, qty: c.quantity, destId: destCompMap.get(c.componentProduct) }))
+        .filter(r => r.destId !== undefined && !existingCompIds.has(r.destId!));
+
+      if (newBundleItemRows.length > 0) {
+        await db.insert(bundleItems).values(
+          newBundleItemRows.map(r => ({
+            product:          destBundleProductId,
+            componentProduct: r.destId!,
+            quantity:         r.qty,
+          }))
+        );
       }
 
       const destBundleInv = await db.query.inventory.findFirst({
