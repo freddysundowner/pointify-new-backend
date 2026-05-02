@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -48,6 +49,12 @@ export default function ShopDetails() {
   });
 
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteResult, setDeleteResult] = useState<{
+    type: "data" | "shop";
+    success: boolean;
+    message: string;
+  } | null>(null);
 
   const [formData, setFormData] = useState({
     // General
@@ -244,20 +251,24 @@ export default function ShopDetails() {
       confirmText: "Delete All Data",
       requiredInput: "DELETE",
       inputPlaceholder: "Type DELETE to confirm",
-      onConfirm: () => {
-        apiCall(ENDPOINTS.shop.getData(id), { method: "DELETE" })
-          .then(() => {
-            toast({ title: "Shop data deleted", description: "All shop data has been permanently cleared." });
-            queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getById(id!)] });
-          })
-          .catch(() => toast({ title: "Error", description: "Failed to delete shop data.", variant: "destructive" }));
+      onConfirm: async () => {
+        setIsDeleting(true);
+        try {
+          await apiCall(ENDPOINTS.shop.getData(id), { method: "DELETE" });
+          queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getById(id!)] });
+          setDeleteResult({ type: "data", success: true, message: "All products, sales, purchases, customers, expenses and loyalty data have been permanently cleared." });
+        } catch {
+          setDeleteResult({ type: "data", success: false, message: "Something went wrong while deleting shop data. Please try again." });
+        } finally {
+          setIsDeleting(false);
+        }
       },
     });
   };
 
   const handleDeleteShop = () => {
     if (String(admin?.primaryShop) === String(id)) {
-      toast({ title: "Cannot Delete Primary Shop", description: "Set another shop as primary first.", variant: "destructive" });
+      setDeleteResult({ type: "shop", success: false, message: "This is your primary shop. Set another shop as primary before deleting this one." });
       return;
     }
     setAlertModal({
@@ -268,16 +279,16 @@ export default function ShopDetails() {
       confirmText: "Delete Shop",
       requiredInput: "DELETE SHOP",
       inputPlaceholder: "Type DELETE SHOP to confirm",
-      onConfirm: () => {
-        apiCall(ENDPOINTS.shop.getById(id), { method: "DELETE" })
-          .then(() => {
-            toast({ title: "Shop deleted", description: "The shop has been permanently deleted." });
-            setTimeout(() => {
-              queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getAll] });
-              setLocation("/");
-            }, 1000);
-          })
-          .catch(() => toast({ title: "Error", description: "Failed to delete shop.", variant: "destructive" }));
+      onConfirm: async () => {
+        setIsDeleting(true);
+        try {
+          await apiCall(ENDPOINTS.shop.getById(id), { method: "DELETE" });
+          queryClient.invalidateQueries({ queryKey: [ENDPOINTS.shop.getAll] });
+          setDeleteResult({ type: "shop", success: true, message: "The shop and all its data have been permanently deleted." });
+        } catch {
+          setDeleteResult({ type: "shop", success: false, message: "Something went wrong while deleting the shop. Please try again." });
+          setIsDeleting(false);
+        }
       },
     });
   };
@@ -767,6 +778,67 @@ export default function ShopDetails() {
         inputPlaceholder={alertModal.inputPlaceholder}
         requiredInput={alertModal.requiredInput}
       />
+
+      {/* ── Full-screen loading overlay shown while deletion is in progress ── */}
+      {isDeleting && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 p-8 rounded-2xl bg-white shadow-xl border border-gray-100 max-w-xs w-full mx-4 text-center">
+            <div className="w-12 h-12 rounded-full border-4 border-red-200 border-t-red-600 animate-spin" />
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Deleting…</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Sending backup email then clearing data. This may take a moment.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Result dialog shown after deletion completes ── */}
+      <Dialog
+        open={deleteResult !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            const wasShopDeleted = deleteResult?.type === "shop" && deleteResult.success;
+            setDeleteResult(null);
+            if (wasShopDeleted) setLocation("/shops");
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2 ${
+              deleteResult?.success ? "bg-green-100" : "bg-red-100"
+            }`}>
+              {deleteResult?.success ? (
+                <Check className="w-6 h-6 text-green-600" />
+              ) : (
+                <Trash2 className="w-6 h-6 text-red-600" />
+              )}
+            </div>
+            <DialogTitle className="text-center">
+              {deleteResult?.success
+                ? deleteResult.type === "shop" ? "Shop Deleted" : "Data Cleared"
+                : "Could Not Delete"}
+            </DialogTitle>
+            <DialogDescription className="text-center text-sm">
+              {deleteResult?.message}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button
+              className={deleteResult?.success ? "bg-gray-900 hover:bg-gray-800" : "bg-red-600 hover:bg-red-700"}
+              onClick={() => {
+                const wasShopDeleted = deleteResult?.type === "shop" && deleteResult.success;
+                setDeleteResult(null);
+                if (wasShopDeleted) setLocation("/shops");
+              }}
+            >
+              {deleteResult?.type === "shop" && deleteResult?.success ? "Back to Shops" : "OK"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
