@@ -452,7 +452,7 @@ export default function CustomerOverview() {
     const rows: CsvRow[] = [];
 
     (salesData?.data || []).forEach((sale: any) => {
-      const isCredit = sale.status === 'credit' || Number(sale.outstandingBalance) > 0;
+      const isCredit = sale.status === 'credit' || sale.status === 'returned' || Number(sale.outstandingBalance) > 0;
       if (!isCredit) return;
       const ts = new Date(sale.createdAt || sale.saleDate).getTime();
       const saleItems = sale.saleItems || sale.items || [];
@@ -578,14 +578,14 @@ export default function CustomerOverview() {
       const attendant = sale.attendant?.username || sale.attendantId?.username || '';
       const amount = Number(sale.totalWithDiscount || sale.totalAmount || 0);
       const tag = (sale.paymentType || sale.paymentTag || '').toLowerCase();
-      const isCredit = sale.status === 'credit' || Number(sale.outstandingBalance) > 0;
+      const isCredit = sale.status === 'credit' || sale.status === 'returned' || Number(sale.outstandingBalance) > 0;
       const saleItems = sale.saleItems || sale.items || [];
       const productNames = saleItems.map((i: any) => i.product?.name || i.productName || i.name || 'Item').join(', ');
       const description = `Sale${productNames ? ': ' + productNames.substring(0, 60) : ''}`;
       const payLabel = isCredit ? 'Credit' : tag === 'wallet' ? 'Wallet' : tag === 'mpesa' ? 'M-Pesa' : tag === 'bank' ? 'Bank' : 'Cash';
 
       if (isCredit) {
-        // Credit sale — customer owes the outstanding amount
+        // Credit sale (including returned) — show original debit amount
         const creditAmount = Number(sale.outstandingBalance) || amount;
         rows.push({ ts, date: new Date(ts).toLocaleDateString(), description: `${description} [${payLabel}]`, ref, attendant, debit: creditAmount, credit: 0 });
       } else if (tag === 'wallet') {
@@ -880,7 +880,7 @@ export default function CustomerOverview() {
       const attendant = sale.attendant?.username || sale.attendantId?.username || '';
       const amount = Number(sale.totalWithDiscount || sale.totalAmount || 0);
       const tag = (sale.paymentType || sale.paymentTag || '').toLowerCase();
-      const isCredit = sale.status === 'credit' || Number(sale.outstandingBalance) > 0;
+      const isCredit = sale.status === 'credit' || sale.status === 'returned' || Number(sale.outstandingBalance) > 0;
       const saleItems = sale.saleItems || sale.items || [];
       const productNames = saleItems.map((i: any) => i.product?.name || i.productName || i.name || 'Item').join(', ');
       const description = `Sale${productNames ? ': ' + productNames.substring(0, 60) : ''}`;
@@ -1286,7 +1286,7 @@ export default function CustomerOverview() {
               const stmtRows: StmtRow[] = [];
 
               (salesData?.data || []).forEach((sale: any) => {
-                const isCredit = sale.status === 'credit' || Number(sale.outstandingBalance) > 0;
+                const isCredit = sale.status === 'credit' || sale.status === 'returned' || Number(sale.outstandingBalance) > 0;
                 if (!isCredit) return;
                 const ts = new Date(sale.createdAt || sale.saleDate).getTime();
                 const saleItems = sale.saleItems || sale.items || [];
