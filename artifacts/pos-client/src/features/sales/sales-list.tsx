@@ -1005,9 +1005,9 @@ function SalesList() {
           {/* Filters */}
           <Card className="mb-3">
             <CardContent className="p-3 space-y-2">
-              {/* Row 1 — search, type, attendant, clear */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative min-w-[180px] flex-1">
+              {/* Row 1 — search + desktop filters */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
                     type="text"
@@ -1017,39 +1017,38 @@ function SalesList() {
                     className="pl-7 h-8 text-xs"
                   />
                 </div>
-
-                <Select value={statusFilter} onValueChange={handleStatusFilter}>
-                  <SelectTrigger className="h-8 text-xs w-[130px]">
-                    <SelectValue placeholder="All types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="held">Hold</SelectItem>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="mpesa">M-Pesa</SelectItem>
-                    <SelectItem value="credit">Credit</SelectItem>
-                    <SelectItem value="wallet">Wallet</SelectItem>
-                    <SelectItem value="bank">Bank</SelectItem>
-                    <SelectItem value="returned">Returns</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                {userType === "admin" && (
-                  <Select value={attendantFilter} onValueChange={handleAttendantFilter}>
-                    <SelectTrigger className="h-8 text-xs w-[140px]">
-                      <SelectValue placeholder="All attendants" />
+                <div className="hidden sm:flex items-center gap-2">
+                  <Select value={statusFilter} onValueChange={handleStatusFilter}>
+                    <SelectTrigger className="h-8 text-xs w-[130px]">
+                      <SelectValue placeholder="All types" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Attendants</SelectItem>
-                      {uniqueAttendants.map((att: any) => (
-                        <SelectItem key={att._id} value={att._id}>
-                          {att.username}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="held">Hold</SelectItem>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="mpesa">M-Pesa</SelectItem>
+                      <SelectItem value="credit">Credit</SelectItem>
+                      <SelectItem value="wallet">Wallet</SelectItem>
+                      <SelectItem value="bank">Bank</SelectItem>
+                      <SelectItem value="returned">Returns</SelectItem>
                     </SelectContent>
                   </Select>
-                )}
-
+                  {userType === "admin" && (
+                    <Select value={attendantFilter} onValueChange={handleAttendantFilter}>
+                      <SelectTrigger className="h-8 text-xs w-[140px]">
+                        <SelectValue placeholder="All attendants" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Attendants</SelectItem>
+                        {uniqueAttendants.map((att: any) => (
+                          <SelectItem key={att._id} value={att._id}>
+                            {att.username}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1062,61 +1061,104 @@ function SalesList() {
                     setDateFilter("all");
                     setCurrentPage(1);
                   }}
-                  className="h-8 text-xs px-3 text-muted-foreground ml-auto"
+                  className="h-8 text-xs px-2 text-muted-foreground"
                 >
-                  Clear all
+                  Clear
                 </Button>
               </div>
 
-              {/* Row 2 — date range + quick shortcuts */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground whitespace-nowrap font-medium">Date:</span>
+              {/* Mobile status filter pills */}
+              <div className="sm:hidden overflow-x-auto no-scrollbar -mx-3 px-3">
+                <div className="flex gap-1.5 pb-0.5">
+                  {[
+                    { value: "all", label: "All" },
+                    { value: "cash", label: "Cash" },
+                    { value: "mpesa", label: "M-Pesa" },
+                    { value: "credit", label: "Credit" },
+                    { value: "held", label: "Hold" },
+                    { value: "wallet", label: "Wallet" },
+                    { value: "bank", label: "Bank" },
+                    { value: "returned", label: "Returns" },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => handleStatusFilter(value)}
+                      className={`flex-shrink-0 h-7 px-3 text-xs rounded-full font-medium transition-colors ${
+                        statusFilter === value
+                          ? "bg-primary text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Row 2 — date range inputs */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground whitespace-nowrap font-medium hidden sm:inline">Date:</span>
                 <Input
                   type="date"
                   value={startDate}
                   onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
-                  className="h-8 text-xs w-[140px]"
+                  className="h-8 text-xs flex-1 sm:flex-none sm:w-[140px]"
                 />
                 <span className="text-xs text-muted-foreground">–</span>
                 <Input
                   type="date"
                   value={endDate}
                   onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
-                  className="h-8 text-xs w-[140px]"
+                  className="h-8 text-xs flex-1 sm:flex-none sm:w-[140px]"
                 />
-                <div className="flex items-center gap-2 ml-2">
-                  <Button variant="outline" size="sm" onClick={() => setDateRange(1)} className="h-8 text-xs px-4">Today</Button>
-                  <Button variant="outline" size="sm" onClick={() => setDateRange(7)} className="h-8 text-xs px-4">Last 7 Days</Button>
-                  <Button variant="outline" size="sm" onClick={() => setDateRange(30)} className="h-8 text-xs px-4">Last 30 Days</Button>
-                  <Button variant="outline" size="sm" onClick={() => setDateRange(90)} className="h-8 text-xs px-4">Last 90 Days</Button>
-                  {(startDate || endDate) && (
-                    <Button variant="ghost" size="sm" onClick={clearDateFilters} className="h-8 text-xs px-3 text-muted-foreground">Clear dates</Button>
-                  )}
-                </div>
+              </div>
+              {/* Quick date chips — horizontal scroll on mobile */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mx-0.5 px-0.5 pb-0.5">
+                {[
+                  { label: "Today", days: 1 },
+                  { label: "7 Days", days: 7 },
+                  { label: "30 Days", days: 30 },
+                  { label: "90 Days", days: 90 },
+                ].map(({ label, days }) => (
+                  <button
+                    key={label}
+                    onClick={() => setDateRange(days)}
+                    className="flex-shrink-0 h-7 px-3 text-xs rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-primary/10 hover:border-primary hover:text-primary transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+                {(startDate || endDate) && (
+                  <button onClick={clearDateFilters} className="flex-shrink-0 h-7 px-3 text-xs rounded-full text-red-500 bg-red-50 hover:bg-red-100 transition-colors">
+                    ✕ Clear
+                  </button>
+                )}
               </div>
             </CardContent>
           </Card>
 
           {/* Summary Stats — compact */}
           {(isAdmin || hasAttendantPermission("sales", "view_summary")) && (
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 mb-3">
-              {[
-                { label: "Total", value: filteredStatsTotal.toFixed(2), currency: true },
-                { label: "Count", value: String(filteredSalesCount), currency: false },
-                { label: "Cash", value: Number(salesReportData?.data?.cashtransactions ?? 0).toFixed(2), currency: true },
-                { label: "M-Pesa", value: Number(salesReportData?.data?.mpesa ?? 0).toFixed(2), currency: true },
-                { label: "Credit", value: Number(salesReportData?.data?.credit ?? 0).toFixed(2), currency: true },
-                { label: "Wallet", value: Number(salesReportData?.data?.wallet ?? 0).toFixed(2), currency: true },
-                { label: "Hold", value: Number(salesReportData?.data?.hold ?? 0).toFixed(2), currency: true },
-                { label: "Bank", value: Number(salesReportData?.data?.bank ?? 0).toFixed(2), currency: true },
-              ].map((stat) => (
-                <Card key={stat.label} className="p-2">
-                  <p className="text-[10px] text-muted-foreground leading-tight">{stat.label}</p>
-                  <p className="text-xs font-bold mt-0.5 truncate">
-                    {stat.currency ? `${primaryShopCurrency} ` : ""}{stat.value}
-                  </p>
-                </Card>
-              ))}
+            <div className="overflow-x-auto no-scrollbar mb-3">
+              <div className="grid grid-cols-8 gap-2 min-w-[480px] sm:min-w-0">
+                {[
+                  { label: "Total", value: filteredStatsTotal.toFixed(2), currency: true },
+                  { label: "Count", value: String(filteredSalesCount), currency: false },
+                  { label: "Cash", value: Number(salesReportData?.data?.cashtransactions ?? 0).toFixed(2), currency: true },
+                  { label: "M-Pesa", value: Number(salesReportData?.data?.mpesa ?? 0).toFixed(2), currency: true },
+                  { label: "Credit", value: Number(salesReportData?.data?.credit ?? 0).toFixed(2), currency: true },
+                  { label: "Wallet", value: Number(salesReportData?.data?.wallet ?? 0).toFixed(2), currency: true },
+                  { label: "Hold", value: Number(salesReportData?.data?.hold ?? 0).toFixed(2), currency: true },
+                  { label: "Bank", value: Number(salesReportData?.data?.bank ?? 0).toFixed(2), currency: true },
+                ].map((stat) => (
+                  <Card key={stat.label} className="p-2">
+                    <p className="text-[10px] text-muted-foreground leading-tight">{stat.label}</p>
+                    <p className="text-xs font-bold mt-0.5 truncate">
+                      {stat.currency ? `${primaryShopCurrency} ` : ""}{stat.value}
+                    </p>
+                  </Card>
+                ))}
+              </div>
             </div>
           )}
 
@@ -1158,35 +1200,37 @@ function SalesList() {
             </CardHeader>
             <CardContent className="pt-0">
               {/* Mobile Card List */}
-              <div className="sm:hidden divide-y divide-gray-100">
+              <div className="sm:hidden space-y-2 -mx-1">
                 {isLoading ? (
                   <div className="py-8 text-center text-sm text-gray-500">Loading sales data...</div>
                 ) : paginatedData.length === 0 ? (
                   <div className="py-8 text-center text-gray-500 text-sm">No sales found for the selected filters</div>
                 ) : (
                   paginatedData.map((sale: any) => (
-                    <div key={sale.id} className="px-1 py-3">
-                      <div className="flex items-start justify-between mb-1.5">
+                    <div key={sale.id} className="bg-white rounded-xl border border-gray-100 shadow-sm mx-1 overflow-hidden">
+                      {/* Top row: receipt number + amount */}
+                      <div className="flex items-center justify-between px-3 pt-3 pb-2">
                         <button
                           onClick={() => handleViewSale(sale)}
-                          className="text-sm font-mono font-semibold text-blue-600 hover:underline"
+                          className="text-sm font-mono font-semibold text-primary hover:underline"
                         >
                           #{sale.receiptNo}
                         </button>
-                        <span className="text-sm font-bold text-gray-900">
+                        <span className="text-base font-bold text-gray-900">
                           {getSaleCurrency(sale)} {Number(sale.totalAmount).toFixed(2)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between gap-2">
+                      {/* Bottom row: meta info + actions */}
+                      <div className="flex items-center justify-between gap-2 px-3 pb-3 border-t border-gray-50 pt-2">
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs text-gray-700 truncate">{sale.customerName}</p>
+                          <p className="text-xs font-medium text-gray-700 truncate">{sale.customerName}</p>
                           <p className="text-xs text-gray-400 mt-0.5">
                             {new Date(sale.saleDate).toLocaleDateString()}
                             {sale.attendantName && ` · ${sale.attendantName}`}
                           </p>
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span className="text-xs capitalize text-gray-500">{sale.paymentTag}</span>
+                          <span className="text-[10px] capitalize text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{sale.paymentTag}</span>
                           <Badge variant={getStatusBadgeVariant(sale.status)} className="text-[10px] px-1.5 py-0">
                             {sale.status}
                           </Badge>
