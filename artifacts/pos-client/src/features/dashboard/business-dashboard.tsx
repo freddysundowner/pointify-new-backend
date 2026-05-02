@@ -187,7 +187,7 @@ export default function BusinessDashboard() {
   useEffect(() => {
     if (shopsData && Array.isArray(shopsData)) {
       if (shopsData.length === 0) {
-        setLocation("/shop-setup");
+        setLocation("/onboarding");
         return;
       }
       const shops = shopsData.map((shop: any) => ({

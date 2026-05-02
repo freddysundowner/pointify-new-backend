@@ -64,7 +64,7 @@ export default function Shops() {
 
   useEffect(() => {
     if (!isLoading && shopsResponse !== undefined && shops.length === 0) {
-      setLocation("/shop-setup");
+      setLocation("/onboarding");
     }
   }, [isLoading, shopsResponse, shops.length, setLocation]);
 
