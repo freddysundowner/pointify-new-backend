@@ -180,7 +180,7 @@ export default function IncomeReports() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -239,18 +239,18 @@ export default function IncomeReports() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-4">
-              <div className="flex gap-2">
+            <div className="flex flex-col gap-3">
+              <div className="overflow-x-auto no-scrollbar flex gap-2">
                 {['today', 'thisWeek', 'thisMonth', 'thisYear'].map((period) => (
-                  <Button 
+                  <Button
                     key={period}
-                    variant={dateFilter === period ? 'default' : 'outline'} 
+                    variant={dateFilter === period ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setDateFilter(period)}
-                    className="capitalize"
+                    className="shrink-0 whitespace-nowrap"
                   >
-                    {period === 'thisWeek' ? 'This Week' : 
-                     period === 'thisMonth' ? 'This Month' : 
+                    {period === 'thisWeek' ? 'This Week' :
+                     period === 'thisMonth' ? 'This Month' :
                      period === 'thisYear' ? 'This Year' : period}
                   </Button>
                 ))}
@@ -259,7 +259,7 @@ export default function IncomeReports() {
                 placeholder="Search by date..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64"
+                className="w-full sm:w-64"
               />
             </div>
           </CardContent>

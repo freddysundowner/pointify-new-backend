@@ -608,42 +608,39 @@ export default function PurchasesList() {
   return (
     <DashboardLayout title="Purchase Reports">
       <div className="p-4 w-full">
-        <div className="mb-6">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleBackClick}
-                className="flex items-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Purchase Reports
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-1">
-                  Shop One
-                </p>
-              </div>
+        <div className="mb-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBackClick}
+              className="flex items-center gap-1 h-8 shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Back</span>
+            </Button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                Purchase Reports
+              </h1>
             </div>
-            <div className="flex gap-2">
-              <Button 
+            <div className="flex gap-2 shrink-0">
+              <Button
                 onClick={exportToPDF}
                 variant="outline"
-                className="flex items-center gap-2"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
               >
                 <Download className="h-4 w-4" />
-                Export PDF
+                <span className="hidden sm:inline">Export PDF</span>
               </Button>
               {(isAdmin || hasAttendantPermission("stocks", "add_purchases")) && (
                 <Link href={addPurchasesRoute}>
-                  <Button onClick={handleCreatePurchase}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Purchase Order
-                </Button></Link>
+                  <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={handleCreatePurchase}>
+                    <Plus className="h-4 w-4" />
+                    <span className="hidden sm:inline">New Order</span>
+                  </Button>
+                </Link>
               )}
             </div>
           </div>
@@ -849,78 +846,66 @@ export default function PurchasesList() {
 
         {/* Summary Stats */}
         {!isLoading && !error && analyticsData && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-            <Card className="p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
+            <Card className="p-3">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Total Purchases
-                  </p>
-                  <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground truncate">Total Purchases</p>
+                  <p className="text-base font-bold text-blue-600 dark:text-blue-400 truncate">
                     {currency} {parseFloat(String(analyticsData?.totalAmount || 0)).toFixed(2)}
                   </p>
                 </div>
-                <TrendingDown className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <TrendingDown className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
               </div>
             </Card>
 
-            <Card className="p-4">
+            <Card className="p-3">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Cash Purchases
-                  </p>
-                  <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground truncate">Cash Purchases</p>
+                  <p className="text-base font-bold text-green-600 dark:text-green-400 truncate">
                     {currency} {parseFloat(String(analyticsData?.totalPaid || 0)).toFixed(2)}
                   </p>
                 </div>
-                <TrendingDown className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <TrendingDown className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
               </div>
             </Card>
 
-            <Card className="p-4">
+            <Card className="p-3">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Unpaid Purchases
-                  </p>
-                  <p className="text-xl font-bold text-orange-600 dark:text-orange-400">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground truncate">Unpaid</p>
+                  <p className="text-base font-bold text-orange-600 dark:text-orange-400 truncate">
                     {currency} {parseFloat(String(analyticsData?.totalOutstanding || 0)).toFixed(2)}
                   </p>
                 </div>
-                <Package className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                <Package className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0" />
               </div>
             </Card>
 
-            <Card className="p-4">
+            <Card className="p-3">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Amount Paid
-                  </p>
-                  <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground truncate">Amount Paid</p>
+                  <p className="text-base font-bold text-blue-600 dark:text-blue-400 truncate">
                     {currency} {parseFloat(String(analyticsData?.totalPaid || 0)).toFixed(2)}
                   </p>
                 </div>
-                <Truck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <Truck className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
               </div>
             </Card>
 
-            <Card className="p-4">
+            <Card className="p-3">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Returns
-                  </p>
-                  <p className="text-xl font-bold text-red-600 dark:text-red-400">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground truncate">Returns</p>
+                  <p className="text-base font-bold text-red-600 dark:text-red-400 truncate">
                     {currency} {parseFloat(String(analyticsData?.totalOutstanding || 0)).toFixed(2)}
                   </p>
                 </div>
-                <Package className="h-4 w-4 text-red-600 dark:text-red-400" />
+                <Package className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
               </div>
             </Card>
-
-
           </div>
         )}
 
@@ -962,7 +947,86 @@ export default function PurchasesList() {
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="overflow-x-auto">
+              {/* Mobile Cards */}
+              <div className="sm:hidden space-y-2 py-2">
+                {paginatedData.length === 0 ? (
+                  <div className="text-center py-10 text-muted-foreground text-sm">No purchase orders found for the selected filters.</div>
+                ) : paginatedData.map((purchase) => (
+                  <div key={purchase.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-3 py-3 flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-semibold text-gray-800">{purchase.invoiceNumber}</span>
+                          <Badge variant={getStatusBadgeVariant(purchase.status)} className="text-xs px-1.5 py-0">{purchase.status}</Badge>
+                        </div>
+                        <p className="text-sm font-medium text-gray-700 mt-0.5 truncate">{purchase.supplierName}</p>
+                        <p className="text-xs text-gray-400">{new Date(purchase.orderDate).toLocaleDateString()}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <p className="text-sm font-bold text-gray-900">{purchase.currency} {parseFloat(String(purchase.totalAmount || 0)).toFixed(2)}</p>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => toggleRowExpansion(purchase.id)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              {expandedRows.has(purchase.id) ? "Hide Items" : "View Items"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleViewPurchase(purchase)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditPurchase(purchase)} disabled={purchase.status === "received" || purchase.status === "cancelled"}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit Order
+                            </DropdownMenuItem>
+                            {parseFloat(String(purchase.outstandingBalance || 0)) > 0 && (
+                              <DropdownMenuItem onClick={() => handlePayPurchase(purchase)}>
+                                <DollarSign className="mr-2 h-4 w-4" />
+                                Make Payment
+                              </DropdownMenuItem>
+                            )}
+                            {(purchase.status === "received" || purchase.status === "paid" || purchase.status === "completed") && (
+                              <DropdownMenuItem onClick={() => handleReturnPurchase(purchase)}>
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Return Items
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            {(isAdmin || hasAttendantPermission('stocks', 'delete_purchase_invoice')) && (
+                              <DropdownMenuItem onClick={() => handleDeletePurchase(purchase)} className="text-red-600 focus:text-red-600">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete Purchase
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                    {expandedRows.has(purchase.id) && (
+                      <div className="border-t bg-blue-50 px-3 py-2">
+                        <p className="text-xs font-semibold text-gray-700 mb-1.5">Order Items</p>
+                        <div className="space-y-1">
+                          {purchase.items.map((item: any, index: number) => (
+                            <div key={index} className="flex justify-between items-center text-xs bg-white rounded p-2 border border-gray-100">
+                              <div>
+                                <p className="font-medium">{item.productName}</p>
+                                <p className="text-gray-400">{purchase.currency} {parseFloat(String(item.unitCost || 0)).toFixed(2)} /unit</p>
+                              </div>
+                              <p className="font-medium">×{item.quantity}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {/* Desktop Table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">

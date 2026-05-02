@@ -326,28 +326,32 @@ export default function CashFlow() {
         </div>
 
         {/* Period selector */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {QUICK.map(q => (
-            <Button
-              key={q.days}
-              variant={quickDays === q.days ? "default" : "outline"}
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() => handleQuick(q.days)}
-            >
-              {q.label}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-1.5">
+            <div className="flex-1 overflow-x-auto no-scrollbar flex gap-1.5 pb-0.5">
+              {QUICK.map(q => (
+                <Button
+                  key={q.days}
+                  variant={quickDays === q.days ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 text-xs shrink-0 whitespace-nowrap"
+                  onClick={() => handleQuick(q.days)}
+                >
+                  {q.label}
+                </Button>
+              ))}
+            </div>
+            <Button size="sm" variant="outline" className="h-8 gap-1 text-xs shrink-0" onClick={() => refetch()} disabled={isLoading}>
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
             </Button>
-          ))}
+          </div>
           {isCustom && (
-            <>
-              <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="h-8 text-sm w-36" />
-              <span className="text-gray-400 text-xs">to</span>
-              <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="h-8 text-sm w-36" />
-            </>
+            <div className="flex items-center gap-2">
+              <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="h-8 text-sm flex-1 min-w-0" />
+              <span className="text-gray-400 text-xs shrink-0">to</span>
+              <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="h-8 text-sm flex-1 min-w-0" />
+            </div>
           )}
-          <Button size="sm" variant="outline" className="h-8 gap-1 text-xs ml-auto" onClick={() => refetch()} disabled={isLoading}>
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-          </Button>
         </div>
 
         {/* Summary strip */}

@@ -381,7 +381,7 @@ export default function SuppliersPage() {
 
         {/* Search */}
         <div className="flex items-center space-x-2">
-          <div className="relative flex-1 max-w-sm">
+          <div className="relative flex-1">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search suppliers..."
@@ -419,109 +419,146 @@ export default function SuppliersPage() {
                 )}
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Credit Limit</TableHead>
-                    <TableHead>Wallet</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Mobile Cards */}
+                <div className="sm:hidden space-y-2">
                   {filteredSuppliers.map((supplier: Supplier) => (
-                    <TableRow key={supplier._id ?? supplier.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{supplier.name}</p>
-                          {supplier.address && (
-                            <p className="text-sm text-muted-foreground">{supplier.address}</p>
+                    <div key={supplier._id ?? supplier.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{supplier.name}</p>
+                          {supplier.address && <p className="text-xs text-gray-400 truncate">{supplier.address}</p>}
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                            {supplier.phoneNumber && (
+                              <span className="text-xs text-gray-500 flex items-center gap-0.5">
+                                <Phone className="h-3 w-3" />{supplier.phoneNumber}
+                              </span>
+                            )}
+                            {supplier.email && (
+                              <span className="text-xs text-gray-500 flex items-center gap-0.5">
+                                <Mail className="h-3 w-3" />{supplier.email}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {supplier.wallet !== undefined && supplier.wallet !== null && (
+                            <Badge variant={supplier.wallet > 0 ? "destructive" : "default"} className="text-xs">
+                              {supplier.wallet.toFixed(2)}
+                            </Badge>
                           )}
                         </div>
-                      </TableCell>
-                      <TableCell>{supplier.contact}</TableCell>
-                      <TableCell>
-                        {supplier.email && (
-                          <div className="flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {supplier.email}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {supplier.phoneNumber && (
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            {supplier.phoneNumber}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {supplier.creditLimit ? (
-                          <div className="flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            {supplier.creditLimit.toFixed(2)}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">No limit</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {supplier.wallet !== undefined && supplier.wallet !== null ? (
-                          <Badge variant={supplier.wallet > 0 ? "destructive" : "default"}>
-                            {supplier.wallet.toFixed(2)}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">0.00</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {/* Pay Debt button - only show if supplier has debt */}
-                          {supplier.wallet && supplier.wallet < 0 && (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handlePayDebt(supplier)}
-                              title={`Pay Debt: ${Math.abs(supplier.wallet).toFixed(2)}`}
-                              className="bg-green-600 hover:bg-green-700"
-                            >
-                              <CreditCard className="h-3 w-3" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewHistory(supplier)}
-                            title="View Purchase History"
-                          >
-                            <History className="h-3 w-3" />
+                      </div>
+                      <div className="flex items-center gap-1 mt-2 pt-2 border-t border-gray-50">
+                        {supplier.wallet && supplier.wallet < 0 && (
+                          <Button variant="default" size="sm" onClick={() => handlePayDebt(supplier)} className="h-7 text-xs bg-green-600 hover:bg-green-700 gap-1">
+                            <CreditCard className="h-3 w-3" /> Pay Debt
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(supplier)}
-                            title="Edit Supplier"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDelete(supplier)}
-                            title="Delete Supplier"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={() => handleViewHistory(supplier)} className="h-7 w-7 p-0 text-gray-400">
+                          <History className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(supplier)} className="h-7 w-7 p-0 text-gray-400">
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(supplier)} className="h-7 w-7 p-0 text-red-400 hover:text-red-600">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+                {/* Desktop Table */}
+                <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Credit Limit</TableHead>
+                      <TableHead>Wallet</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredSuppliers.map((supplier: Supplier) => (
+                      <TableRow key={supplier._id ?? supplier.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{supplier.name}</p>
+                            {supplier.address && (
+                              <p className="text-sm text-muted-foreground">{supplier.address}</p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>{supplier.contact}</TableCell>
+                        <TableCell>
+                          {supplier.email && (
+                            <div className="flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              {supplier.email}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {supplier.phoneNumber && (
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {supplier.phoneNumber}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {supplier.creditLimit ? (
+                            <div className="flex items-center gap-1">
+                              <DollarSign className="h-3 w-3" />
+                              {supplier.creditLimit.toFixed(2)}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">No limit</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {supplier.wallet !== undefined && supplier.wallet !== null ? (
+                            <Badge variant={supplier.wallet > 0 ? "destructive" : "default"}>
+                              {supplier.wallet.toFixed(2)}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0.00</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {supplier.wallet && supplier.wallet < 0 && (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handlePayDebt(supplier)}
+                                title={`Pay Debt: ${Math.abs(supplier.wallet).toFixed(2)}`}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                <CreditCard className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <Button variant="outline" size="sm" onClick={() => handleViewHistory(supplier)} title="View Purchase History">
+                              <History className="h-3 w-3" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleEdit(supplier)} title="Edit Supplier">
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleDelete(supplier)} title="Delete Supplier">
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

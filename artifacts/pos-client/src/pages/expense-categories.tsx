@@ -294,11 +294,12 @@ export default function ExpenseCategories() {
                 )}
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Category Name</TableHead>
-                    <TableHead>Created</TableHead>
+                    <TableHead className="hidden sm:table-cell">Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -307,12 +308,12 @@ export default function ExpenseCategories() {
                     <TableRow key={category._id}>
                       <TableCell>
                         <div className="flex items-center">
-                          <Tag className="h-4 w-4 text-gray-400 mr-2" />
+                          <Tag className="h-4 w-4 text-gray-400 mr-2 shrink-0" />
                           <span className="font-medium">{category.name}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        {category.createdAt 
+                      <TableCell className="hidden sm:table-cell">
+                        {category.createdAt
                           ? new Date(category.createdAt).toLocaleDateString()
                           : '-'
                         }
@@ -360,6 +361,7 @@ export default function ExpenseCategories() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>

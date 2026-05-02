@@ -326,27 +326,27 @@ export default function ProfitAnalysis() {
 
   return (
     <DashboardLayout title="Profit Analysis">
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardTitle className="text-xs font-medium">Total Revenue</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
+            <CardContent className="px-3 pb-3">
+              <div className="text-lg font-bold truncate">{formatCurrency(totalRevenue)}</div>
               <p className="text-xs text-muted-foreground">From {filteredData.length} products</p>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Gross Profit</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardTitle className="text-xs font-medium">Gross Profit</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{formatCurrency(totalGrossProfit)}</div>
+            <CardContent className="px-3 pb-3">
+              <div className="text-lg font-bold text-green-600 truncate">{formatCurrency(totalGrossProfit)}</div>
               <p className="text-xs text-muted-foreground">
                 {((totalGrossProfit / totalRevenue) * 100).toFixed(1)}% margin
               </p>
@@ -354,23 +354,23 @@ export default function ProfitAnalysis() {
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Costs</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardTitle className="text-xs font-medium">Total Costs</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{formatCurrency(totalCosts)}</div>
+            <CardContent className="px-3 pb-3">
+              <div className="text-lg font-bold text-red-600 truncate">{formatCurrency(totalCosts)}</div>
               <p className="text-xs text-muted-foreground">Cost of goods sold</p>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Profit Margin</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardTitle className="text-xs font-medium">Avg Profit Margin</CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{averageProfitMargin.toFixed(1)}%</div>
+            <CardContent className="px-3 pb-3">
+              <div className="text-lg font-bold">{averageProfitMargin.toFixed(1)}%</div>
               <p className="text-xs text-muted-foreground">Across all products</p>
             </CardContent>
           </Card>
@@ -442,19 +442,19 @@ export default function ProfitAnalysis() {
                   </div>
                 </div>
 
-                <div className="rounded-md border">
+                <div className="rounded-md border overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Product</TableHead>
-                        <TableHead>Category</TableHead>
+                        <TableHead className="hidden sm:table-cell">Category</TableHead>
                         <TableHead className="text-right">Sales</TableHead>
-                        <TableHead className="text-right">Costs</TableHead>
+                        <TableHead className="text-right hidden sm:table-cell">Costs</TableHead>
                         <TableHead className="text-right">Gross Profit</TableHead>
                         <TableHead className="text-right">Margin %</TableHead>
-                        <TableHead className="text-right">Units Sold</TableHead>
-                        <TableHead className="text-right">Profit/Unit</TableHead>
-                        <TableHead className="text-right">Trend</TableHead>
+                        <TableHead className="text-right hidden md:table-cell">Units Sold</TableHead>
+                        <TableHead className="text-right hidden md:table-cell">Profit/Unit</TableHead>
+                        <TableHead className="text-right hidden lg:table-cell">Trend</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -462,32 +462,33 @@ export default function ProfitAnalysis() {
                         <TableRow key={item.id}>
                           <TableCell className="font-medium">
                             <div>
-                              <div>{item.productName}</div>
-                              <div className="text-sm text-gray-500">Last sold: {item.lastSold}</div>
+                              <div className="text-sm">{item.productName}</div>
+                              <div className="text-xs text-gray-500 sm:hidden">{item.category}</div>
+                              <div className="text-xs text-gray-500 hidden sm:block">Last sold: {item.lastSold}</div>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden sm:table-cell">
                             <Badge variant="outline">{item.category}</Badge>
                           </TableCell>
-                          <TableCell className="text-right font-medium">
+                          <TableCell className="text-right font-medium text-sm">
                             {formatCurrency(item.totalSales)}
                           </TableCell>
-                          <TableCell className="text-right text-red-600">
+                          <TableCell className="text-right text-red-600 hidden sm:table-cell">
                             {formatCurrency(item.totalCost)}
                           </TableCell>
-                          <TableCell className="text-right font-medium text-green-600">
+                          <TableCell className="text-right font-medium text-green-600 text-sm">
                             {formatCurrency(item.grossProfit)}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Badge variant={item.profitMargin >= 40 ? "default" : item.profitMargin >= 30 ? "secondary" : "destructive"}>
+                            <Badge variant={item.profitMargin >= 40 ? "default" : item.profitMargin >= 30 ? "secondary" : "destructive"} className="text-xs">
                               {item.profitMargin.toFixed(1)}%
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">{item.unitsSold}</TableCell>
-                          <TableCell className="text-right text-green-600">
+                          <TableCell className="text-right hidden md:table-cell">{item.unitsSold}</TableCell>
+                          <TableCell className="text-right text-green-600 hidden md:table-cell">
                             {formatCurrency(item.profitPerUnit)}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right hidden lg:table-cell">
                             <div className={`flex items-center justify-end gap-1 ${getTrendColor(item.trend)}`}>
                               {getTrendIcon(item.trend)}
                               <span className="text-sm font-medium">{item.trendPercentage}%</span>

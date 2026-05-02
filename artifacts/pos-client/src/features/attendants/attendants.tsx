@@ -498,49 +498,50 @@ export default function Attendants() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
-            <p className="text-gray-600">
-              Manage attendants for {selectedShop?.name || 'your shops'}
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold text-gray-900 leading-tight">Staff Management</h1>
+            <p className="text-xs text-gray-500 truncate">
+              {selectedShop?.name || 'Your shops'}
             </p>
           </div>
-          <Button onClick={handleCreate} className="flex items-center gap-2">
+          <Button onClick={handleCreate} size="sm" className="flex items-center gap-1.5 shrink-0 h-9">
             <UserPlus className="h-4 w-4" />
-            Add Attendant
+            <span className="hidden sm:inline">Add Attendant</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Card>
-            <CardContent className="p-4">
-              <div className="text-2xl font-bold text-purple-600">{filteredAttendants.length}</div>
-              <div className="text-sm text-gray-600">Total Staff</div>
+            <CardContent className="p-3">
+              <div className="text-xl font-bold text-purple-600">{filteredAttendants.length}</div>
+              <div className="text-xs text-gray-500">Total Staff</div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
-              <div className="text-2xl font-bold text-green-600">{activeAttendants}</div>
-              <div className="text-sm text-gray-600">Active Staff</div>
+            <CardContent className="p-3">
+              <div className="text-xl font-bold text-green-600">{activeAttendants}</div>
+              <div className="text-xs text-gray-500">Active</div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
-              <div className="text-2xl font-bold text-orange-600">
+            <CardContent className="p-3">
+              <div className="text-xl font-bold text-orange-600">
                 {attendants.filter((a: Attendant) => a.status === 'on_leave').length}
               </div>
-              <div className="text-sm text-gray-600">On Leave</div>
+              <div className="text-xs text-gray-500">On Leave</div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
-              <div className="text-2xl font-bold text-red-600">
+            <CardContent className="p-3">
+              <div className="text-xl font-bold text-red-600">
                 {attendants.filter((a: Attendant) => a.status === 'inactive').length}
               </div>
-              <div className="text-sm text-gray-600">Inactive</div>
+              <div className="text-xs text-gray-500">Inactive</div>
             </CardContent>
           </Card>
         </div>
@@ -573,7 +574,41 @@ export default function Attendants() {
                 {searchQuery ? 'No attendants found matching your search' : 'No attendants found for this shop'}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                {/* Mobile Cards */}
+                <div className="sm:hidden space-y-2">
+                  {filteredAttendants.map((attendant: Attendant) => (
+                    <div key={attendant._id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-gray-900">{attendant.username}</span>
+                          <span className="font-mono text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{attendant.uniqueDigits}</span>
+                          <Badge
+                            variant={attendant.status === 'active' || !attendant.status ? 'default' : attendant.status === 'on_leave' ? 'secondary' : 'destructive'}
+                            className="text-xs px-1.5 py-0"
+                          >
+                            {attendant.status || 'active'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">{getShopName(attendant.shopId)}</p>
+                        <p className="text-xs text-gray-400">{attendant.last_seen ? new Date(attendant.last_seen).toLocaleDateString() : 'Never seen'}</p>
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button variant="ghost" size="sm" onClick={() => handleEditPermissions(attendant)} className="h-8 w-8 p-0 text-blue-600 hover:text-blue-900">
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(attendant)} className="h-8 w-8 p-0 text-blue-600 hover:text-blue-900">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(attendant)} className="h-8 w-8 p-0 text-red-600 hover:text-red-900">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Desktop Table */}
+                <div className="hidden sm:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -603,7 +638,7 @@ export default function Attendants() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge 
+                          <Badge
                             variant={
                               attendant.status === 'active' || !attendant.status ? 'default' :
                               attendant.status === 'on_leave' ? 'secondary' : 'destructive'
@@ -644,7 +679,8 @@ export default function Attendants() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

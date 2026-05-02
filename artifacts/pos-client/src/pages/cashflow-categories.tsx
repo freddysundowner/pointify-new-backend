@@ -259,7 +259,7 @@ export default function CashflowCategories() {
                   <tr className="text-xs text-gray-400 border-b">
                     <th className="text-left px-3 py-2 font-medium">Name</th>
                     <th className="text-left px-3 py-2 font-medium">Type</th>
-                    <th className="text-left px-3 py-2 font-medium">Created</th>
+                    <th className="text-left px-3 py-2 font-medium hidden sm:table-cell">Created</th>
                     <th className="px-3 py-2 w-16"></th>
                   </tr>
                 </thead>
@@ -274,7 +274,7 @@ export default function CashflowCategories() {
                           {category.type === 'cashin' ? '↑ Cash In' : '↓ Cash Out'}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-gray-400">
+                      <td className="px-3 py-2.5 text-xs text-gray-400 hidden sm:table-cell">
                         {category.createdAt ? new Date(category.createdAt).toLocaleDateString() : '—'}
                       </td>
                       <td className="px-3 py-2.5">
