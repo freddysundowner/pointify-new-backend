@@ -11,7 +11,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiCall } from "@/lib/api-config";
 import { ENDPOINTS } from "@/lib/api-endpoints";
-import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useProducts } from "@/contexts/ProductsContext";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
@@ -134,7 +133,8 @@ export default function ProductGrid({
   // Date/time override states
   const [isCustomDateTime, setIsCustomDateTime] = useState(false);
   const [customDateTime, setCustomDateTime] = useState("");
-  const { toast } = useToast();
+  const [alertDialog, setAlertDialog] = useState<{ title: string; description?: string; variant?: string } | null>(null);
+  const showAlert = (opts: { title: string; description?: string; variant?: string }) => setAlertDialog(opts);
   const { hasAttendantPermission } = usePermissions();
   const queryClient = useQueryClient();
   const { products: allProducts, isLoading, refreshProducts,hasMore,fetchMoreProducts } = useProducts();
@@ -179,7 +179,7 @@ export default function ProductGrid({
       }
     }
     if (shortItems.length > 0) {
-      toast({
+      showAlert({
         title: "Insufficient Bundle Stock",
         description: `Short on: ${shortItems.join('; ')}`,
         variant: "destructive",
@@ -561,7 +561,7 @@ export default function ProductGrid({
         errorMessage = `Not enough stock for ${productName}. Please check inventory levels.`;
       }
       
-      toast({
+      showAlert({
         title: "Payment Failed",
         description: errorMessage,
         variant: "destructive",
@@ -585,7 +585,7 @@ export default function ProductGrid({
 
   const handlePriceChange = (item: CartItem) => {
     if (!canEditPrice) {
-      toast({
+      showAlert({
         title: "Permission Denied",
         description: "You don't have permission to edit prices",
         variant: "destructive",
@@ -638,7 +638,7 @@ export default function ProductGrid({
 
   const handleDiscountChange = (item: CartItem) => {
     if (!canDiscount) {
-      toast({
+      showAlert({
         title: "Permission Denied",
         description: "You don't have permission to apply discounts",
         variant: "destructive",
@@ -664,7 +664,7 @@ export default function ProductGrid({
     const maxAllowedDiscount = parseFloat(String(rawMax ?? 0)) || 0;
 
     if (maxAllowedDiscount > 0 && discount > maxAllowedDiscount) {
-      toast({
+      showAlert({
         title: "Discount Too High",
         description: `Maximum allowed discount for this product is Ksh ${maxAllowedDiscount.toFixed(2)}.`,
         variant: "destructive",
@@ -673,7 +673,7 @@ export default function ProductGrid({
     }
 
     if (maxAllowedDiscount === 0 && discount > 0) {
-      toast({
+      showAlert({
         title: "Discount Not Allowed",
         description: "This product does not allow any discount.",
         variant: "destructive",
@@ -713,11 +713,11 @@ export default function ProductGrid({
   const handleCreateCustomItem = async () => {
     const price = parseFloat(customItemPrice);
     if (!customItemName.trim()) {
-      toast({ title: "Item name required", variant: "destructive" });
+      showAlert({ title: "Item name required", variant: "destructive" });
       return;
     }
     if (!customItemPrice || isNaN(price) || price <= 0) {
-      toast({ title: "Enter a valid price", variant: "destructive" });
+      showAlert({ title: "Enter a valid price", variant: "destructive" });
       return;
     }
     setIsCreatingCustomItem(true);
@@ -748,9 +748,9 @@ export default function ProductGrid({
       setCustomItemBuyingPrice("");
       setCustomItemQuantity("1");
       setShowCustomItemOptions(false);
-      toast({ title: "Custom item added", description: `"${product.name}" added to cart` });
+      showAlert({ title: "Custom item added", description: `"${product.name}" added to cart` });
     } catch (err: any) {
-      toast({ title: "Failed to add item", description: err.message || "Could not create custom item", variant: "destructive" });
+      showAlert({ title: "Failed to add item", description: err.message || "Could not create custom item", variant: "destructive" });
     } finally {
       setIsCreatingCustomItem(false);
     }
@@ -766,7 +766,7 @@ export default function ProductGrid({
       
       if (selectedPaymentMethod === "credit") {
         if (!selectedCustomerId) {
-          toast({
+          showAlert({
             title: "Customer Required",
             description: "Please select a customer for credit sale",
             variant: "destructive",
@@ -775,7 +775,7 @@ export default function ProductGrid({
         }
         
         if (!creditDueDate) {
-          toast({
+          showAlert({
             title: "Due Date Required",
             description: "Please select a due date for credit sale",
             variant: "destructive",
@@ -791,7 +791,7 @@ export default function ProductGrid({
         }
         const walletBalance = parseFloat(selectedCustomer?.wallet || "0");
         if (walletBalance < totals.total) {
-          toast({
+          showAlert({
             title: "Insufficient Wallet Balance",
             description: `Customer's wallet balance (${currency}${walletBalance.toFixed(2)}) is less than the sale total (${currency}${totals.total.toFixed(2)}).`,
             variant: "destructive",
@@ -803,7 +803,7 @@ export default function ProductGrid({
       if (selectedPaymentMethod === "split") {
         const totalSplit = splitAmounts.cash + splitAmounts.mpesa + splitAmounts.bank;
         if (Math.abs(totalSplit - totals.total) > 0.01) {
-          toast({
+          showAlert({
             title: "Amount Mismatch",
             description: `Split amounts (${totalSplit.toFixed(2)}) must equal total (${totals.total.toFixed(2)})`,
             variant: "destructive",
@@ -844,7 +844,7 @@ export default function ProductGrid({
 
     // Validate required fields
     if (!shopId) {
-      toast({
+      showAlert({
         title: "Shop ID Missing",
         description: "Unable to determine shop ID. Please contact administrator.",
         variant: "destructive",
@@ -853,7 +853,7 @@ export default function ProductGrid({
     }
 
     if (!attendantId) {
-      toast({
+      showAlert({
         title: "Attendant ID Missing", 
         description: "Unable to determine attendant ID. Please re-login.",
         variant: "destructive",
@@ -919,7 +919,7 @@ export default function ProductGrid({
       if (isHold) {
         setShowHoldSuccessDialog(true);
       } else if (selectedPaymentMethod === "credit") {
-        toast({
+        showAlert({
           title: "Credit Sale Created",
           description: `Credit sale created for ${selectedCustomer?.name || 'customer'} due ${creditDueDate}`,
         });
@@ -927,7 +927,7 @@ export default function ProductGrid({
       // Receipt handling and cleanup is now done in mutation's onSuccess callback
     } catch (error: any) {
       console.error(`${isHold ? 'Hold' : 'Payment'} transaction failed:`, error);
-      toast({
+      showAlert({
         title: `${isHold ? 'Hold' : 'Payment'} Failed`,
         description: error.message || `Failed to ${isHold ? 'hold' : 'process'} transaction`,
         variant: "destructive",
@@ -976,10 +976,10 @@ export default function ProductGrid({
       if (newId) setSelectedCustomerId(String(newId));
       setNewCustomerForm({ name: '', phone: '', email: '', address: '' });
       setShowAddCustomerDialog(false);
-      toast({ title: 'Customer added', description: `${variables.name} has been added and selected.` });
+      showAlert({ title: 'Customer added', description: `${variables.name} has been added and selected.` });
     },
     onError: () => {
-      toast({ title: 'Failed to create customer', variant: 'destructive' });
+      showAlert({ title: 'Failed to create customer', variant: 'destructive' });
     },
   });
 
@@ -999,7 +999,7 @@ export default function ProductGrid({
 
   const handleConfirmHoldWithCustomer = async () => {
     if (!selectedCustomerId) {
-      toast({
+      showAlert({
         title: "Customer Required",
         description: "Please select a customer to place this sale on hold.",
         variant: "destructive",
@@ -1014,7 +1014,7 @@ export default function ProductGrid({
 
   const handleConfirmWalletCustomer = async () => {
     if (!selectedCustomerId) {
-      toast({ title: "Customer Required", description: "Please select a customer.", variant: "destructive" });
+      showAlert({ title: "Customer Required", description: "Please select a customer.", variant: "destructive" });
       return;
     }
     setShowWalletCustomerDialog(false);
@@ -3102,7 +3102,7 @@ export default function ProductGrid({
                             setCustomItemBuyingPrice("");
                             setCustomItemQuantity("1");
                             setShowCustomItemOptions(false);
-                            toast({ title: "Added to cart", description: `"${p.name}" added` });
+                            showAlert({ title: "Added to cart", description: `"${p.name}" added` });
                           }}
                         >
                           <div>
@@ -3196,6 +3196,28 @@ export default function ProductGrid({
               className="bg-primary hover:bg-primary/90 text-white"
             >
               {isCreatingCustomItem ? 'Adding...' : 'Add'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shared alert dialog — replaces all toast notifications */}
+      <Dialog open={!!alertDialog} onOpenChange={() => setAlertDialog(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className={alertDialog?.variant === "destructive" ? "text-red-600" : "text-gray-900"}>
+              {alertDialog?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {alertDialog?.description && (
+            <p className="text-sm text-gray-600 py-2">{alertDialog.description}</p>
+          )}
+          <DialogFooter>
+            <Button
+              className={alertDialog?.variant === "destructive" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-primary hover:bg-primary/90 text-white"}
+              onClick={() => setAlertDialog(null)}
+            >
+              OK
             </Button>
           </DialogFooter>
         </DialogContent>
