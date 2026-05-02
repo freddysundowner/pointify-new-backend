@@ -62,7 +62,7 @@ import { PermissionGuard } from "@/components/PermissionGuard";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/features/auth/useAuth";
 import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { useNavigationRoute } from "@/lib/navigation-utils";
@@ -81,6 +81,7 @@ function SalesList() {
   const { hasPermission, user, hasAttendantPermission } = usePermissions();
   const { admin } = useAuth();
   const { refreshProducts } = useProducts();
+  const queryClient = useQueryClient();
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const [location, setLocation] = useLocation();
   const salesRoute = useNavigationRoute("sales");
@@ -396,6 +397,13 @@ function SalesList() {
         refetch();
         refetchReport();
         refreshProducts();
+        // Invalidate customer statement queries so the ledger reflects the deletion
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = String(query.queryKey[0] ?? "");
+            return key.includes("/api/customers/") && key.includes("/wallet-transactions");
+          },
+        });
         toast({
           title: "Sale Deleted",
           description: `Sale #${saleToDelete.receiptNo} has been successfully deleted.`,
