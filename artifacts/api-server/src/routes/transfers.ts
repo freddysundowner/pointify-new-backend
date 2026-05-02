@@ -286,33 +286,125 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       })
     );
 
-    // ── Step 5: Deduct bundle product inventory in source shop ────────────────
-    // Bundles expand into components for the move, but the bundle's own stock
-    // counter in the source shop must also be reduced.
+    // ── Step 5: Move bundle product inventory (source deduct + dest upsert) ──
+    // Bundles expand into components for stock validation and component movement,
+    // but the bundle unit itself must also be deducted from the source shop and
+    // added to the destination shop as its own inventory line.
     const bundleHistoryEntries: any[] = [];
     for (const bd of bundleDeductions) {
-      const bundleInv = await db.query.inventory.findFirst({
+      const srcBundle = await db.query.products.findFirst({
+        where: eq(products.id, bd.productId),
+      });
+      if (!srcBundle) continue;
+
+      // ── Source: deduct bundle inventory ───────────────────────────────────
+      const srcBundleInv = await db.query.inventory.findFirst({
         where: and(eq(inventory.product, bd.productId), eq(inventory.shop, transfer.fromShop)),
         columns: { quantity: true },
       });
-      const bundleBefore = bundleInv ? String(bundleInv.quantity) : "0";
-      const bundleAfter  = String(Math.max(0, parseFloat(bundleBefore) - bd.quantity));
+      const srcBefore = srcBundleInv ? String(srcBundleInv.quantity) : "0";
+      const srcAfter  = String(Math.max(0, parseFloat(srcBefore) - bd.quantity));
 
       await db.update(inventory)
         .set({ quantity: sql`GREATEST(0, ${inventory.quantity} - ${bd.quantity}::numeric)` })
         .where(and(eq(inventory.product, bd.productId), eq(inventory.shop, transfer.fromShop)));
 
-      bundleHistoryEntries.push({
-        product:        bd.productId,
-        shop:           transfer.fromShop,
-        eventType:      "transfer_out" as const,
-        referenceId:    transfer.id,
-        quantity:       String(bd.quantity),
-        unitPrice:      "0",
-        quantityBefore: bundleBefore,
-        quantityAfter:  bundleAfter,
-        note:           transfer.transferNo ?? undefined,
+      // ── Destination: find or create bundle product copy, then upsert inv ──
+      // Priority: (1) existing product linked by sourceProductId, (2) same name, (3) new copy
+      let destBundleProductId: number;
+
+      const destBySourceId = await db.query.products.findFirst({
+        where: and(
+          eq(products.shop,            Number(toShopId)),
+          eq(products.sourceProductId, bd.productId),
+          eq(products.isDeleted,       false),
+        ),
+        columns: { id: true },
       });
+
+      if (destBySourceId) {
+        destBundleProductId = destBySourceId.id;
+      } else {
+        const destByName = await db.query.products.findFirst({
+          where: and(
+            eq(products.shop,      Number(toShopId)),
+            eq(products.name,      srcBundle.name),
+            eq(products.isDeleted, false),
+          ),
+          columns: { id: true },
+        });
+
+        if (destByName) {
+          destBundleProductId = destByName.id;
+        } else {
+          const [newBundleProd] = await db.insert(products).values({
+            name:            srcBundle.name,
+            buyingPrice:     srcBundle.buyingPrice,
+            sellingPrice:    srcBundle.sellingPrice,
+            wholesalePrice:  srcBundle.wholesalePrice,
+            dealerPrice:     srcBundle.dealerPrice,
+            minSellingPrice: srcBundle.minSellingPrice,
+            maxDiscount:     srcBundle.maxDiscount,
+            category:        srcBundle.category,
+            measureUnit:     srcBundle.measureUnit,
+            manufacturer:    srcBundle.manufacturer,
+            supplier:        srcBundle.supplier,
+            shop:            Number(toShopId),
+            description:     srcBundle.description,
+            thumbnailUrl:    srcBundle.thumbnailUrl,
+            images:          srcBundle.images,
+            barcode:         srcBundle.barcode,
+            serialNumber:    srcBundle.serialNumber,
+            // Copy as a plain product — bundle definitions are shop-specific
+            type:            "product",
+            isDeleted:       false,
+            manageByPrice:   srcBundle.manageByPrice,
+            isTaxable:       srcBundle.isTaxable,
+            expiryDate:      srcBundle.expiryDate,
+            sourceProductId: bd.productId,
+          }).returning();
+          destBundleProductId = newBundleProd.id;
+        }
+      }
+
+      const destBundleInv = await db.query.inventory.findFirst({
+        where: and(eq(inventory.product, destBundleProductId), eq(inventory.shop, transfer.toShop)),
+        columns: { quantity: true },
+      });
+      const destBefore = destBundleInv ? String(destBundleInv.quantity) : "0";
+      const destAfter  = String(parseFloat(destBefore) + bd.quantity);
+
+      await db.insert(inventory)
+        .values({ product: destBundleProductId, shop: transfer.toShop, quantity: String(bd.quantity) })
+        .onConflictDoUpdate({
+          target: [inventory.product, inventory.shop],
+          set: { quantity: sql`${inventory.quantity} + ${bd.quantity}::numeric` },
+        });
+
+      bundleHistoryEntries.push(
+        {
+          product:        bd.productId,
+          shop:           transfer.fromShop,
+          eventType:      "transfer_out" as const,
+          referenceId:    transfer.id,
+          quantity:       String(bd.quantity),
+          unitPrice:      "0",
+          quantityBefore: srcBefore,
+          quantityAfter:  srcAfter,
+          note:           transfer.transferNo ?? undefined,
+        },
+        {
+          product:        destBundleProductId,
+          shop:           transfer.toShop,
+          eventType:      "transfer_in" as const,
+          referenceId:    transfer.id,
+          quantity:       String(bd.quantity),
+          unitPrice:      "0",
+          quantityBefore: destBefore,
+          quantityAfter:  destAfter,
+          note:           transfer.transferNo ?? undefined,
+        },
+      );
     }
 
     await recordProductHistory([
