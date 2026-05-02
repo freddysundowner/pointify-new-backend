@@ -432,10 +432,10 @@ export default function CustomerOverview() {
       const amount = payment.totalAmount || 0;
       const receiptNo = payment.paymentNo || 'N/A';
       const attendant = payment.attendantId?.username || 'System';
-      const balance = payment.balance !== undefined ? payment.balance : (payment.customerId?.wallet || 0);
+      const balance = Number(payment.balance ?? payment.customerId?.wallet ?? 0);
       
       const sign = payment.type === 'withdraw' ? '-' : '+';
-      csvContent += `${date},"${type}",${sign}${amount.toFixed(2)},"${receiptNo}","${attendant}",${balance.toFixed(2)}\n`;
+      csvContent += `${date},"${type}",${sign}${Number(amount).toFixed(2)},"${receiptNo}","${attendant}",${balance.toFixed(2)}\n`;
     });
     
     // Create and download file
@@ -481,10 +481,11 @@ export default function CustomerOverview() {
     allSales.forEach((sale: any) => {
       const ts = new Date(sale.createdAt || sale.saleDate).getTime();
       const ref = sale.receiptNo || sale.receiptno || sale._id?.slice(-8) || 'N/A';
-      const attendant = sale.attendantId?.username || '';
+      const attendant = sale.attendant?.username || sale.attendantId?.username || '';
       const amount = Number(sale.totalWithDiscount || sale.totalAmount || 0);
-      const tag = (sale.paymentTag || '').toLowerCase();
-      const productNames = (sale.items || []).map((i: any) => i.productName || i.name || 'Item').join(', ');
+      const tag = (sale.paymentType || sale.paymentTag || '').toLowerCase();
+      const saleItems = sale.saleItems || sale.items || [];
+      const productNames = saleItems.map((i: any) => i.product?.name || i.productName || i.name || 'Item').join(', ');
       const description = `Sale${productNames ? ': ' + productNames.substring(0, 60) : ''}`;
       const payLabel = tag === 'credit' ? 'Credit' : tag === 'wallet' ? 'Wallet' : tag === 'mpesa' ? 'M-Pesa' : tag === 'bank' ? 'Bank' : 'Cash';
 
