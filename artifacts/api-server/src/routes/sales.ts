@@ -1059,6 +1059,28 @@ async function restoreSaleInventory(saleId: number): Promise<void> {
     .groupBy(saleReturnItems.saleItem);
   const returnedMap = new Map(returnedRows.map(r => [r.saleItem, parseFloat(r.returned)]));
 
+  // Fetch product types so we know which are bundles
+  const productIds = [...new Set(items.map(i => i.product).filter((x): x is number => !!x))];
+  const productTypeRows = productIds.length
+    ? await db.query.products.findMany({ where: inArray(products.id, productIds), columns: { id: true, type: true } })
+    : [];
+  const productTypeMap = new Map(productTypeRows.map(p => [p.id, p.type ?? "product"]));
+
+  // Pre-fetch bundle component definitions for any bundle products
+  const bundleProductIds = productIds.filter(id => productTypeMap.get(id) === "bundle");
+  const bundleComponentMap = new Map<number, Array<{ componentProduct: number; quantity: string }>>();
+  if (bundleProductIds.length) {
+    const bundleRows = await db.select({
+      product: bundleItems.product,
+      componentProduct: bundleItems.componentProduct,
+      quantity: bundleItems.quantity,
+    }).from(bundleItems).where(inArray(bundleItems.product, bundleProductIds));
+    for (const row of bundleRows) {
+      if (!bundleComponentMap.has(row.product!)) bundleComponentMap.set(row.product!, []);
+      bundleComponentMap.get(row.product!)!.push({ componentProduct: row.componentProduct!, quantity: String(row.quantity) });
+    }
+  }
+
   const enriched: Array<typeof items[number] & { netQty: number; qtyBefore: string; qtyAfter: string }> = [];
   await Promise.all(
     items.map(async (item) => {
@@ -1080,6 +1102,20 @@ async function restoreSaleInventory(saleId: number): Promise<void> {
           set: { quantity: sql`${inventory.quantity} + ${netQty}::numeric` },
         });
       enriched.push({ ...item, netQty, qtyBefore, qtyAfter });
+
+      // If this is a bundle, also restore each component product's inventory
+      if (productTypeMap.get(item.product) === "bundle") {
+        const components = bundleComponentMap.get(item.product) ?? [];
+        for (const comp of components) {
+          const compRestoreQty = netQty * Number(comp.quantity);
+          await db.insert(inventory)
+            .values({ product: comp.componentProduct, shop: item.shop, quantity: String(compRestoreQty) })
+            .onConflictDoUpdate({
+              target: [inventory.product, inventory.shop],
+              set: { quantity: sql`${inventory.quantity} + ${compRestoreQty}::numeric` },
+            });
+        }
+      }
     })
   );
   if (enriched.length) {
