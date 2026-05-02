@@ -101,7 +101,7 @@ export default function ProductHistory() {
   const defaultTo   = new Date().toISOString().split("T")[0];
   const [from, setFrom] = useState(defaultFrom);
   const [to,   setTo]   = useState(defaultTo);
-  const [activeTab, setActiveTab] = useState("audit");
+  const [activeTab, setActiveTab] = useState("sales");
 
   // Per-tab page state
   const [auditPage,    setAuditPage]    = useState(1);
@@ -270,13 +270,13 @@ export default function ProductHistory() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={v => { setActiveTab(v); }} className="w-full">
           <TabsList className="flex flex-wrap h-auto gap-1 bg-muted p-1 mb-2">
-            <TabsTrigger value="audit"       className="text-xs gap-1"><Clock className="h-3 w-3" />Audit Trail</TabsTrigger>
-            <TabsTrigger value="sales"       className="text-xs gap-1"><TrendingDown className="h-3 w-3" />Sales</TabsTrigger>
-            <TabsTrigger value="purchases"   className="text-xs gap-1"><TrendingUp className="h-3 w-3" />Purchases</TabsTrigger>
-            <TabsTrigger value="adjustments" className="text-xs gap-1"><Package className="h-3 w-3" />Adjustments</TabsTrigger>
-            <TabsTrigger value="badstock"    className="text-xs gap-1"><AlertTriangle className="h-3 w-3" />Write-offs</TabsTrigger>
-            <TabsTrigger value="counts"      className="text-xs gap-1"><ClipboardList className="h-3 w-3" />Stock Counts</TabsTrigger>
-            <TabsTrigger value="transfers"   className="text-xs gap-1"><ArrowLeftRight className="h-3 w-3" />Transfers</TabsTrigger>
+            <TabsTrigger value="sales"       className="text-sm gap-1.5"><TrendingDown className="h-3.5 w-3.5" />Sales</TabsTrigger>
+            <TabsTrigger value="purchases"   className="text-sm gap-1.5"><TrendingUp className="h-3.5 w-3.5" />Purchases</TabsTrigger>
+            <TabsTrigger value="adjustments" className="text-sm gap-1.5"><Package className="h-3.5 w-3.5" />Adjustments</TabsTrigger>
+            <TabsTrigger value="badstock"    className="text-sm gap-1.5"><AlertTriangle className="h-3.5 w-3.5" />Write-offs</TabsTrigger>
+            <TabsTrigger value="counts"      className="text-sm gap-1.5"><ClipboardList className="h-3.5 w-3.5" />Stock Counts</TabsTrigger>
+            <TabsTrigger value="transfers"   className="text-sm gap-1.5"><ArrowLeftRight className="h-3.5 w-3.5" />Transfers</TabsTrigger>
+            <TabsTrigger value="audit"       className="text-sm gap-1.5"><Clock className="h-3.5 w-3.5" />Audit Trail</TabsTrigger>
           </TabsList>
 
           {/* ── AUDIT TRAIL ── */}
