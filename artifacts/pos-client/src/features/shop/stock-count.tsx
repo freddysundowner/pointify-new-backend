@@ -76,8 +76,9 @@ export default function StockCount() {
     refetchOnWindowFocus: false,
   });
 
-  const products: Product[] = Array.isArray(productsResponse?.data) ? productsResponse.data : [];
-  const totalProducts = productsResponse?.count || 0;
+  const allProducts: Product[] = Array.isArray(productsResponse?.data) ? productsResponse.data : [];
+  const products: Product[] = allProducts.filter(p => p.type !== "service" && p.type !== "virtual" && p.productType !== "service" && p.productType !== "virtual");
+  const totalProducts = products.length;
   const totalPages = productsResponse?.totalPages || 1;
   const countedProducts = Object.keys(preservedCounts).length;
 
