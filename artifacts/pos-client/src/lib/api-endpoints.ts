@@ -190,6 +190,7 @@ export const ENDPOINTS = {
     netProfit:            "/api/reports/profit-loss",
     profitLoss:           "/api/reports/profit-loss",
     profitLossDetail:     "/api/reports/profit-loss/detail",
+    profitLossEmail:      "/api/reports/profit-loss/email",
     profitYearly:         (year: number) => `/api/reports/profit/yearly/${year}`,
     salesReport:          "/api/reports/sales",
     salesByProduct:       "/api/reports/sales/by-product",

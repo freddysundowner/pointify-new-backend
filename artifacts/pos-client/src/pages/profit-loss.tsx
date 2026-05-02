@@ -4,19 +4,24 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import {
   ArrowLeft, RefreshCw, FileText, TrendingUp, TrendingDown,
-  ShoppingCart, Package, Banknote, CreditCard, AlertTriangle, Download,
+  ShoppingCart, Package, Banknote, AlertTriangle, Download, Mail, Loader2,
 } from "lucide-react";
 import { RootState } from "@/store";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
-import { useLocation } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { jsPDF } from "jspdf";
+import { autoTable } from "jspdf-autotable";
+import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 
 interface Attendant { _id: string; username: string; }
 
@@ -36,7 +41,6 @@ export default function ProfitLossPage() {
   const { user } = useSelector((state: RootState) => state.auth);
   const { attendant } = useAttendantAuth();
   const { primaryShop } = usePrimaryShop();
-  const [, setLocation] = useLocation();
   const goBack = useGoBack("/reports");
 
   const effectiveShopId = selectedShopId || primaryShop?.shopId;
@@ -101,165 +105,160 @@ export default function ProfitLossPage() {
   const grossMarginPct = revenue > 0 ? ((grossProfit / revenue) * 100).toFixed(1) : "0.0";
   const netMarginPct = revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : "0.0";
 
+  const shopDetails = useShopDetails(effectiveShopId);
+  const { toast } = useToast();
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+
+  const periodLabel = `${new Date(from).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })} – ${new Date(to).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })}`;
+
+  const buildPdf = () => {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    let y = drawShopHeader(doc, shopDetails, "Profit & Loss Statement", `Period: ${periodLabel}`);
+
+    // KPI summary row
+    const kpiData = [
+      ["Net " + (isProfit ? "Profit" : "Loss"), fmt(Math.abs(netProfit)) + " (" + netMarginPct + "% of revenue)"],
+      ["Gross Profit", fmt(grossProfit) + " (" + grossMarginPct + "% margin)"],
+      ["Transactions", saleCount + " (avg " + fmt(avgOrder) + " each)"],
+    ];
+    autoTable(doc, {
+      startY: y,
+      body: kpiData,
+      theme: "plain",
+      styles: { fontSize: 9, cellPadding: 2 },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 50 }, 1: { halign: "right" } },
+    });
+    y = (doc as any).lastAutoTable.finalY + 6;
+
+    // Income section
+    const incomeRows: any[] = [["Revenue from Sales", fmt(revenue)]];
+    if (totalDiscount > 0) incomeRows.push(["  — Discounts given", `(${fmt(totalDiscount)})`]);
+    if (voidedAmount + refundedAmount > 0) incomeRows.push(["  — Voided / Refunded", `(${fmt(voidedAmount + refundedAmount)})`]);
+    if (returnsAmount > 0) incomeRows.push(["  — Sale Returns", `(${fmt(returnsAmount)})`]);
+    autoTable(doc, {
+      startY: y,
+      head: [["INCOME", ""]],
+      body: incomeRows,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [107, 33, 168], fontSize: 8, fontStyle: "bold" },
+      columnStyles: { 1: { halign: "right" } },
+    });
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    // COGS section
+    autoTable(doc, {
+      startY: y,
+      head: [["COST OF GOODS SOLD", ""]],
+      body: [
+        ["Cost of stock sold", `(${fmt(cost)})`],
+        ["Gross Profit  (" + grossMarginPct + "% margin)", fmt(grossProfit)],
+      ],
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [107, 33, 168], fontSize: 8, fontStyle: "bold" },
+      columnStyles: { 1: { halign: "right" } },
+      didParseCell: (d: any) => {
+        if (d.section === "body" && d.row.index === 1) d.cell.styles.textColor = [21, 128, 61];
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    // Expenses section
+    const expRows: any[] = (exp.byCategory ?? []).map((c: any) => [
+      `  — ${c.categoryName ?? "Other"}`, `(${fmt(c.total)})`,
+    ]);
+    expRows.push(["Total Expenses", `(${fmt(expTotal)})`]);
+    autoTable(doc, {
+      startY: y,
+      head: [["OPERATING EXPENSES", ""]],
+      body: expRows,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [107, 33, 168], fontSize: 8, fontStyle: "bold" },
+      columnStyles: { 1: { halign: "right" } },
+      didParseCell: (d: any) => {
+        if (d.section === "body" && d.row.index === expRows.length - 1) {
+          d.cell.styles.fontStyle = "bold";
+          d.cell.styles.textColor = [180, 83, 9];
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    // Stock purchases
+    if (n(purchases.total) > 0) {
+      autoTable(doc, {
+        startY: y,
+        head: [["STOCK PURCHASES", ""]],
+        body: [["Stock restocked this period", fmt(purchases.total)]],
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [107, 33, 168], fontSize: 8, fontStyle: "bold" },
+        columnStyles: { 1: { halign: "right" } },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+    }
+
+    // Net profit total
+    autoTable(doc, {
+      startY: y,
+      body: [["Net " + (isProfit ? "Profit" : "Loss"), (isProfit ? "" : "(") + fmt(Math.abs(netProfit)) + (isProfit ? "" : ")")]],
+      styles: { fontSize: 11, fontStyle: "bold", fillColor: isProfit ? [240, 253, 244] : [254, 242, 242], textColor: isProfit ? [21, 128, 61] : [220, 38, 38] },
+      columnStyles: { 1: { halign: "right" } },
+    });
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    // Payment breakdown
+    if (byPayment.length > 0) {
+      autoTable(doc, {
+        startY: y,
+        head: [["PAYMENT BREAKDOWN", ""]],
+        body: [
+          ...byPayment.map(r => [METHOD_LABELS[r.paymentType] ?? r.paymentType, fmt(n(r.total))]),
+          ["Total Collected", fmt(revenue)],
+        ],
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [107, 33, 168], fontSize: 8, fontStyle: "bold" },
+        columnStyles: { 1: { halign: "right" } },
+        didParseCell: (d: any) => {
+          if (d.section === "body" && d.row.index === byPayment.length) d.cell.styles.fontStyle = "bold";
+        },
+      });
+    }
+
+    return doc;
+  };
+
   const handleDownload = () => {
     if (!raw) return;
-    const generatedAt = new Date().toLocaleString("en-KE", { dateStyle: "long", timeStyle: "short" });
-    const periodLabel = `${new Date(from).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })} – ${new Date(to).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })}`;
+    buildPdf().save(`profit-loss-${from}-to-${to}.pdf`);
+  };
 
-    const expCategoryRows = (exp.byCategory ?? []).map((c: any) =>
-      `<tr><td class="label indent">— ${c.categoryName ?? "Other"}</td><td class="num debit">(${fmt(c.total)})</td></tr>`
-    ).join("");
-
-    const paymentRows = byPayment.map(row =>
-      `<tr><td class="label indent">— ${METHOD_LABELS[row.paymentType] ?? row.paymentType}</td><td class="num">${fmt(n(row.total))}</td></tr>`
-    ).join("");
-
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<title>Profit & Loss — ${shopName}</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; padding: 48px 56px; max-width: 680px; margin: 0 auto; }
-
-  .header { text-align: center; margin-bottom: 32px; }
-  .header .shop { font-size: 22px; font-weight: 700; color: #111; letter-spacing: -0.3px; }
-  .header .title { font-size: 14px; font-weight: 600; color: #6b21a8; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.6px; }
-  .header .period { font-size: 12px; color: #555; margin-top: 6px; }
-  .header .generated { font-size: 11px; color: #999; margin-top: 2px; }
-  .divider { border: none; border-top: 2px solid #6b21a8; margin: 20px 0 24px; }
-
-  .section-title { font-size: 10px; font-weight: 700; color: #6b21a8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #e9d5ff; }
-
-  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  tr td { padding: 5px 2px; vertical-align: top; }
-  td.label { color: #374151; }
-  td.label.bold { font-weight: 600; color: #111; }
-  td.label.indent { padding-left: 18px; color: #6b7280; font-size: 12px; }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  td.num.credit { color: #15803d; font-weight: 600; }
-  td.num.debit { color: #b45309; }
-  td.num.bold { font-weight: 700; color: #111; }
-
-  .subtotal td { border-top: 1px solid #e5e7eb; font-weight: 600; padding-top: 7px; }
-  .total-row td { background: ${isProfit ? "#f0fdf4" : "#fef2f2"}; padding: 10px 6px; font-weight: 700; font-size: 14px; color: ${isProfit ? "#15803d" : "#dc2626"}; border-radius: 4px; }
-  .gross-row td { background: #f0fdf4; padding: 8px 6px; font-weight: 700; color: #15803d; border-radius: 4px; }
-
-  .kpi-strip { display: flex; gap: 16px; margin-bottom: 28px; }
-  .kpi { flex: 1; background: #faf5ff; border-radius: 8px; padding: 12px 14px; }
-  .kpi .kpi-label { font-size: 10px; font-weight: 700; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.6px; }
-  .kpi .kpi-value { font-size: 18px; font-weight: 800; color: #111; margin-top: 2px; }
-  .kpi .kpi-sub { font-size: 11px; color: #888; margin-top: 1px; }
-
-  .note { font-size: 11px; color: #888; background: #f9fafb; border-radius: 6px; padding: 10px 12px; margin-top: 8px; }
-  .note.warn { background: #fff7ed; color: #92400e; border: 1px solid #fed7aa; }
-
-  .footer { margin-top: 36px; text-align: center; font-size: 10px; color: #bbb; border-top: 1px solid #f3f4f6; padding-top: 14px; }
-  @media print {
-    body { padding: 24px 32px; }
-    @page { margin: 16mm; size: A4 portrait; }
-  }
-</style>
-</head>
-<body>
-
-<div class="header">
-  <div class="shop">${shopName}</div>
-  <div class="title">Profit &amp; Loss Statement</div>
-  <div class="period">${periodLabel}</div>
-  <div class="generated">Generated ${generatedAt}</div>
-</div>
-<hr class="divider"/>
-
-<div class="kpi-strip">
-  <div class="kpi">
-    <div class="kpi-label">Net ${isProfit ? "Profit" : "Loss"}</div>
-    <div class="kpi-value" style="color:${isProfit ? "#15803d" : "#dc2626"}">${fmt(Math.abs(netProfit))}</div>
-    <div class="kpi-sub">${netMarginPct}% of revenue</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Gross Profit</div>
-    <div class="kpi-value">${fmt(grossProfit)}</div>
-    <div class="kpi-sub">${grossMarginPct}% margin</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Transactions</div>
-    <div class="kpi-value">${saleCount}</div>
-    <div class="kpi-sub">avg ${fmt(avgOrder)} per sale</div>
-  </div>
-</div>
-
-<div class="section-title">Income</div>
-<table>
-  <tr>
-    <td class="label bold">Revenue from Sales</td>
-    <td class="num credit">${fmt(revenue)}</td>
-  </tr>
-  ${totalDiscount > 0 ? `<tr><td class="label indent">— Discounts given</td><td class="num debit">(${fmt(totalDiscount)})</td></tr>` : ""}
-  ${(voidedAmount + refundedAmount) > 0 ? `<tr><td class="label indent">— Voided / Refunded</td><td class="num debit">(${fmt(voidedAmount + refundedAmount)})</td></tr>` : ""}
-  ${returnsAmount > 0 ? `<tr><td class="label indent">— Sale Returns</td><td class="num debit">(${fmt(returnsAmount)})</td></tr>` : ""}
-</table>
-
-<div class="section-title">Cost of Goods Sold</div>
-<table>
-  <tr>
-    <td class="label bold">Cost of stock sold</td>
-    <td class="num debit">(${fmt(cost)})</td>
-  </tr>
-  <tr class="gross-row">
-    <td class="label">Gross Profit &nbsp;<span style="font-size:11px;font-weight:400;color:#4ade80">${grossMarginPct}% margin</span></td>
-    <td class="num">${fmt(grossProfit)}</td>
-  </tr>
-</table>
-
-<div class="section-title">Operating Expenses</div>
-<table>
-  ${expCategoryRows || `<tr><td class="label indent">No expenses recorded</td><td class="num">—</td></tr>`}
-  <tr class="subtotal">
-    <td class="label bold">Total Expenses</td>
-    <td class="num debit bold">(${fmt(expTotal)})</td>
-  </tr>
-</table>
-
-${n(purchases.total) > 0 ? `
-<div class="section-title">Stock Purchases (Cash Out)</div>
-<table>
-  <tr>
-    <td class="label bold">Stock restocked this period</td>
-    <td class="num debit">${fmt(purchases.total)}</td>
-  </tr>
-</table>` : ""}
-
-<table>
-  <tr class="total-row">
-    <td class="label">Net ${isProfit ? "Profit" : "Loss"}</td>
-    <td class="num">${isProfit ? "" : "("}${fmt(Math.abs(netProfit))}${isProfit ? "" : ")"}</td>
-  </tr>
-</table>
-
-${byPayment.length > 0 ? `
-<div class="section-title" style="margin-top:8px">Payment Breakdown</div>
-<table>
-  ${paymentRows}
-  <tr class="subtotal">
-    <td class="label bold">Total Collected</td>
-    <td class="num bold">${fmt(revenue)}</td>
-  </tr>
-</table>` : ""}
-
-${!isProfit ? `<p class="note warn">&#9888; Expenses exceeded gross profit this period. Consider reviewing recurring costs.</p>` : ""}
-
-<div class="footer">Prepared by Pointify &nbsp;·&nbsp; Confidential &nbsp;·&nbsp; ${generatedAt}</div>
-
-<script>window.onload = function(){ window.print(); }</script>
-</body>
-</html>`;
-
-    const win = window.open("", "_blank", "width=760,height=900");
-    if (win) {
-      win.document.write(html);
-      win.document.close();
+  const handleEmailPdf = async () => {
+    if (!emailTo.trim()) return toast({ title: "Enter a recipient email", variant: "destructive" });
+    setEmailSending(true);
+    try {
+      const doc = buildPdf();
+      const pdfBase64 = doc.output("datauristring").split(",")[1];
+      const res = await apiRequest("POST", ENDPOINTS.analytics.profitLossEmail, {
+        to: emailTo.trim(),
+        pdfBase64,
+        filename: `profit-loss-${from}-to-${to}.pdf`,
+        from,
+        toDate: to,
+        shopName,
+      });
+      const json = await res.json();
+      if (json.ok === false) {
+        toast({ title: "Could not send", description: json.message ?? "Email provider not configured", variant: "destructive" });
+      } else {
+        toast({ title: "Report sent", description: `Sent to ${emailTo}` });
+        setEmailOpen(false);
+        setEmailTo("");
+      }
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setEmailSending(false);
     }
   };
 
@@ -299,16 +298,60 @@ ${!isProfit ? `<p class="note warn">&#9888; Expenses exceeded gross profit this 
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Apply
           </Button>
           {raw && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1 border-purple-200 text-purple-700 hover:bg-purple-50"
-              onClick={handleDownload}
-            >
-              <Download className="h-3.5 w-3.5" /> Download PDF
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1 border-purple-200 text-purple-700 hover:bg-purple-50"
+                onClick={handleDownload}
+              >
+                <Download className="h-3.5 w-3.5" /> PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                onClick={() => setEmailOpen(true)}
+              >
+                <Mail className="h-3.5 w-3.5" /> Email
+              </Button>
+            </>
           )}
         </div>
+
+        {/* Email dialog */}
+        <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Email Profit & Loss Report</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 pt-1">
+              <p className="text-sm text-gray-500">
+                The PDF will be generated for <span className="font-medium text-gray-700">{periodLabel}</span> and sent as an attachment.
+              </p>
+              <div className="space-y-1">
+                <Label htmlFor="email-to" className="text-sm">Recipient email</Label>
+                <Input
+                  id="email-to"
+                  type="email"
+                  placeholder="e.g. owner@mybusiness.com"
+                  value={emailTo}
+                  onChange={e => setEmailTo(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleEmailPdf()}
+                  className="h-9"
+                />
+              </div>
+              <Button
+                className="w-full h-9 bg-blue-600 hover:bg-blue-700 gap-2"
+                onClick={handleEmailPdf}
+                disabled={emailSending || !emailTo.trim()}
+              >
+                {emailSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                {emailSending ? "Sending…" : "Send Report"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {error && (
           <div className="text-center py-6 text-red-500 text-sm">
