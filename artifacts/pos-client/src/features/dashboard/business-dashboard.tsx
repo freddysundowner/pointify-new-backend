@@ -317,7 +317,7 @@ export default function BusinessDashboard() {
       // Update primary shop on the server so it persists across sessions
       await apiCall(ENDPOINTS.auth.adminProfile, {
         method: "PUT",
-        body: JSON.stringify({ primaryShop: shopId }),
+        body: JSON.stringify({ shop: shopId }),
       });
     } catch (error) {
       console.error("Error switching shop on server:", error);
