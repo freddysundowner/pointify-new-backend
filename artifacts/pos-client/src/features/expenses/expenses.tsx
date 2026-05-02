@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizeIds, extractId } from '@/lib/utils';
 import { Plus, Edit2, Trash2, Filter, Download, Calendar, Clock, RefreshCw, ChevronDown, ChevronUp, Settings } from 'lucide-react';
@@ -420,6 +422,66 @@ export default function Expenses() {
 
   const totalAmount = sortedExpenses.reduce((sum, expense) => sum + parseFloat(String(expense.amount ?? 0)), 0);
 
+  const shopName: string =
+    (admin?.primaryShop as any)?.name ||
+    (attendant?.shopId as any)?.name ||
+    "Shop";
+
+  const exportExpensesPDF = () => {
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text(shopName, pageW / 2, 36, { align: "center" });
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("Expenses Report", pageW / 2, 52, { align: "center" });
+
+    const periodParts: string[] = [];
+    if (customStartDate) periodParts.push(`From: ${customStartDate}`);
+    if (customEndDate) periodParts.push(`To: ${customEndDate}`);
+    if (periodParts.length > 0) doc.text(periodParts.join("   "), pageW / 2, 66, { align: "center" });
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageW / 2, periodParts.length > 0 ? 80 : 66, { align: "center" });
+
+    autoTable(doc, {
+      startY: 100,
+      head: [["#", "Description", "Category", "Date", "Amount"]],
+      body: sortedExpenses.map((exp, i) => [
+        i + 1,
+        exp.description || "—",
+        exp.category && typeof exp.category === "object"
+          ? (exp.category as any)?.name || "—"
+          : getCategoryName(exp.category as any),
+        (exp.createdAt || exp.createAt)
+          ? new Date((exp.createdAt || exp.createAt) as string).toLocaleDateString()
+          : "—",
+        `${currency} ${parseFloat(String(exp.amount ?? 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      ]),
+      foot: [["", "", "", "Total", `${currency} ${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]],
+      headStyles: { fillColor: [37, 99, 235], fontSize: 9, fontStyle: "bold" },
+      footStyles: { fillColor: [243, 244, 246], textColor: [30, 30, 30], fontStyle: "bold", fontSize: 9 },
+      bodyStyles: { fontSize: 8.5 },
+      columnStyles: {
+        0: { cellWidth: 25, halign: "center" },
+        3: { halign: "center" },
+        4: { halign: "right" },
+      },
+    });
+
+    const totalPages = (doc as any).internal.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text(`Page ${p} of ${totalPages}`, pageW / 2, doc.internal.pageSize.getHeight() - 10, { align: "center" });
+      doc.setTextColor(0);
+    }
+
+    doc.save(`expenses-report-${new Date().toISOString().split("T")[0]}.pdf`);
+  };
+
   return (
     <DashboardLayout title="Expenses">
       <div className="space-y-3">
@@ -433,6 +495,15 @@ export default function Expenses() {
             </Link>
           )}
           <h2 className="text-lg font-bold text-gray-900 flex-1">Expenses</h2>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1 text-xs"
+            onClick={exportExpensesPDF}
+            disabled={sortedExpenses.length === 0}
+          >
+            <Download className="h-3.5 w-3.5" /> PDF
+          </Button>
           <Link href={window.location.pathname.includes('/attendant/') ? '/attendant/expense-categories' : '/expense-categories'}>
             <Button variant="outline" size="sm" className="h-8 gap-1 text-xs">
               <Settings className="h-3.5 w-3.5" /> Categories

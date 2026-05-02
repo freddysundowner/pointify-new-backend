@@ -22,9 +22,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  ArrowLeft, Plus, RefreshCw, ArrowUpRight, ArrowDownRight, Settings,
+  ArrowLeft, Plus, RefreshCw, ArrowUpRight, ArrowDownRight, Settings, Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const n = (v: any) => Number(v ?? 0);
 const fmt = (v: any, cur: string) => {
@@ -144,6 +146,67 @@ export default function CashFlow() {
 
   const handleQuick = (days: number) => setQuickDays(days);
 
+  const shopName: string =
+    (admin?.primaryShop as any)?.name ||
+    (attendant?.shopId as any)?.name ||
+    "Shop";
+
+  const exportCashflowPDF = () => {
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text(shopName, pageW / 2, 36, { align: "center" });
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("Cash Flow Report", pageW / 2, 52, { align: "center" });
+    doc.text(`Period: ${effectiveFrom} – ${effectiveTo}`, pageW / 2, 66, { align: "center" });
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageW / 2, 80, { align: "center" });
+
+    autoTable(doc, {
+      startY: 100,
+      head: [["Category", "Type", "Entries", "Total"]],
+      body: rows.map((r: any) => [
+        r.categoryName ?? "Uncategorized",
+        r.type === "cashin" ? "Cash In" : r.type === "cashout" ? "Cash Out" : "—",
+        r.count,
+        `${currency} ${parseFloat(String(r.total ?? 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      ]),
+      foot: [[
+        "Net",
+        "",
+        rows.reduce((s: number, r: any) => s + (r.count ?? 0), 0),
+        `${currency} ${n(net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      ]],
+      headStyles: { fillColor: [37, 99, 235], fontSize: 9, fontStyle: "bold" },
+      footStyles: { fillColor: [243, 244, 246], textColor: [30, 30, 30], fontStyle: "bold", fontSize: 9 },
+      bodyStyles: { fontSize: 9 },
+      columnStyles: { 2: { halign: "center" }, 3: { halign: "right" } },
+      didParseCell: (data) => {
+        if (data.section === "body") {
+          const row = rows[data.row.index];
+          if (row?.type === "cashin") data.cell.styles.textColor = [21, 128, 61];
+          else if (row?.type === "cashout") data.cell.styles.textColor = [185, 28, 28];
+        }
+      },
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY ?? 200;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    const summaryY = finalY + 24;
+    doc.text(`Cash In: ${currency} ${n(n(summary.totalCashIn) + n(summary.totalUncategorized)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 40, summaryY);
+    doc.text(`Cash Out: ${currency} ${n(summary.totalCashOut).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 40, summaryY + 16);
+    const netLabel = `Net: ${n(net) >= 0 ? "+" : ""}${currency} ${n(net).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    doc.setTextColor(n(net) >= 0 ? 21 : 185, n(net) >= 0 ? 128 : 28, n(net) >= 0 ? 61 : 28);
+    doc.text(netLabel, 40, summaryY + 32);
+    doc.setTextColor(0, 0, 0);
+
+    doc.save(`cashflow-${effectiveFrom}-to-${effectiveTo}.pdf`);
+  };
+
   return (
     <DashboardLayout title="Cash Flow">
       <div className="w-full space-y-3">
@@ -158,6 +221,15 @@ export default function CashFlow() {
             </Link>
           )}
           <h2 className="text-lg font-bold text-gray-900 flex-1">Cash Flow</h2>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1 text-xs"
+            onClick={exportCashflowPDF}
+            disabled={rows.length === 0}
+          >
+            <Download className="h-3.5 w-3.5" /> PDF
+          </Button>
           <Link href={window.location.pathname.includes("/attendant/") ? "/attendant/cashflow-categories" : "/cashflow-categories"}>
             <Button variant="outline" size="sm" className="h-8 gap-1 text-xs">
               <Settings className="h-3.5 w-3.5" /> Categories
