@@ -316,6 +316,14 @@ export default function StockCountHistoryPage() {
                       <span className="text-xs">
                         Net variance: <VarianceBadge v={group.totalVariance} />
                       </span>
+
+                      <span className="text-xs text-gray-400">·</span>
+
+                      <span className="text-xs text-gray-500">
+                        {group.sessions[0]?.conductedBy
+                          ? `Attendant #${group.sessions[0].conductedBy}`
+                          : "Admin"}
+                      </span>
                     </button>
 
                     {/* ── Expanded product list ── */}
@@ -333,19 +341,8 @@ export default function StockCountHistoryPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {group.sessions.map((session, si) => (
+                            {group.sessions.map((session) => (
                               <React.Fragment key={session.id}>
-                                {/* Session divider — only when >1 session */}
-                                {group.sessions.length > 1 && (
-                                  <tr className={si > 0 ? "border-t-2 border-indigo-100" : ""}>
-                                    <td colSpan={6} className="px-4 py-1 bg-indigo-50/60 text-indigo-600 font-medium text-xs">
-                                      Session {si + 1} — {formatTime(session.createdAt)}
-                                      <span className="text-indigo-400 font-normal ml-2">
-                                        · {session.conductedBy ? `Attendant #${session.conductedBy}` : "Admin"}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                )}
                                 {session.stockCountItems.length === 0 ? (
                                   <tr>
                                     <td colSpan={6} className="px-4 py-3 text-gray-400">No items in this session</td>
