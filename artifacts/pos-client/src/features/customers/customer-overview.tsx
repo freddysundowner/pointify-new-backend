@@ -463,7 +463,7 @@ export default function CustomerOverview() {
         description: `Credit Sale${productNames ? ': ' + productNames : ''}`,
         ref: sale.receiptNo || sale.receiptno || `#${sale.id}`,
         attendant: sale.attendant?.username || '',
-        debit: Number(sale.outstandingBalance) || Number(sale.totalWithDiscount || sale.totalAmount || 0),
+        debit: Number(sale.totalWithDiscount || sale.totalAmount || 0),
         credit: 0,
       });
     });
@@ -1297,7 +1297,7 @@ export default function CustomerOverview() {
                   description: `Credit Sale${productNames ? ': ' + productNames.substring(0, 50) : ''}`,
                   ref: sale.receiptNo || sale.receiptno || `#${sale.id}`,
                   attendant: sale.attendant?.username || '',
-                  debit: Number(sale.outstandingBalance) || Number(sale.totalWithDiscount || sale.totalAmount || 0),
+                  debit: Number(sale.totalWithDiscount || sale.totalAmount || 0),
                   credit: 0,
                 });
               });
