@@ -1360,7 +1360,7 @@ export default function CustomerOverview() {
                 const ts = new Date(p.createdAt).getTime();
                 const pType = (p.type || '').toLowerCase();
                 const isDebit = pType === 'withdraw';
-                const descMap: Record<string, string> = { deposit: 'Wallet Deposit', withdraw: 'Wallet Withdrawal', payment: 'Debt Payment', refund: 'Refund' };
+                const descMap: Record<string, string> = { deposit: 'Wallet Deposit', withdraw: 'Wallet Withdrawal', payment: 'Debt Payment', refund: 'Refund', return: 'Sale Return' };
                 const amount = Number(p.amount ?? p.totalAmount ?? 0);
                 stmtRows.push({
                   ts,

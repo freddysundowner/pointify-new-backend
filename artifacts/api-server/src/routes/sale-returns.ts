@@ -209,19 +209,36 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       const saleOutstanding = parseFloat(String(sale.outstandingBalance ?? "0"));
       const alreadyPaid     = parseFloat(String((sale as any).amountPaid ?? "0"));
 
-      // 1. Cancel remaining debt on this sale
+      // 1. Cancel remaining debt on this sale (correctly handles partial returns)
       const debtReduction = Math.min(refundAmount, saleOutstanding);
       if (debtReduction > 0) {
+        const newSaleOutstanding = Math.max(0, saleOutstanding - debtReduction).toFixed(2);
         await db.update(customers)
           .set({ outstandingBalance: sql`GREATEST(0, ${customers.outstandingBalance}::numeric - ${debtReduction}::numeric)` })
           .where(eq(customers.id, sale.customer));
         await db.update(sales)
-          .set({ outstandingBalance: "0" })
+          .set({ outstandingBalance: newSaleOutstanding })
           .where(eq(sales.id, Number(saleId)));
+
+        // Insert a statement ledger entry so the return shows as a credit on the
+        // customer's account statement (type "return" — does NOT change wallet balance)
+        const custRow = await db.query.customers.findFirst({
+          where: eq(customers.id, sale.customer),
+          columns: { wallet: true },
+        });
+        await db.insert(customerWalletTransactions).values({
+          customer: sale.customer,
+          shop: saleReturn.shop,
+          amount: String(debtReduction.toFixed(2)),
+          balance: custRow?.wallet ?? "0.00",   // wallet unchanged
+          type: "return",
+          paymentNo: saleReturn.returnNo,
+          paymentReference: `Debt cancelled for return ${saleReturn.returnNo} (${sale.receiptNo ?? saleId})`,
+        });
       }
 
       // 2. Apply any already-paid credit to other outstanding credit sales
-      //    alreadyCredited = the portion of refundAmount that was already collected
+      //    creditToApply = portion of refundAmount that was already collected
       //    e.g. refundAmount=100, saleOutstanding=20  → 80 was paid, now credited
       //    e.g. refundAmount=30,  saleOutstanding=50  → 0 (customer still owed 20 more)
       const creditToApply = Math.min(Math.max(0, refundAmount - saleOutstanding), alreadyPaid);
@@ -258,8 +275,8 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
 
           remaining -= applied;
         }
-        // `remaining` after the loop is a cash refund to the customer.
-        // It is tracked via saleReturn.refundAmount + refundMethod — no wallet entry needed.
+        // `remaining` after the loop is a physical cash refund to the customer,
+        // tracked via saleReturn.refundAmount + refundMethod — no wallet balance change.
       }
     }
 
