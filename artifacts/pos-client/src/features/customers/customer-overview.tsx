@@ -507,7 +507,7 @@ export default function CustomerOverview() {
 
     rows.forEach(row => {
       runningBalance += row.debit - row.credit;
-      const balanceStr = runningBalance > 0 ? `${runningBalance.toFixed(2)} DR` : runningBalance < 0 ? `${Math.abs(runningBalance).toFixed(2)} CR` : '0.00';
+      const balanceStr = runningBalance > 0 ? `${runningBalance.toFixed(2)} Owing` : runningBalance < 0 ? `${Math.abs(runningBalance).toFixed(2)} Credit` : '0.00';
       csv += `${q(row.date)},${q(row.description)},${q(row.ref)},${q(row.attendant)},`;
       csv += `${row.debit > 0 ? row.debit.toFixed(2) : ''},${row.credit > 0 ? row.credit.toFixed(2) : ''},${q(balanceStr)}\n`;
     });
@@ -515,7 +515,7 @@ export default function CustomerOverview() {
     // Summary footer
     const totalDebits = rows.reduce((s, r) => s + r.debit, 0);
     const totalCredits = rows.reduce((s, r) => s + r.credit, 0);
-    const closing = runningBalance > 0 ? `${runningBalance.toFixed(2)} DR` : `${Math.abs(runningBalance).toFixed(2)} CR`;
+    const closing = runningBalance > 0 ? `${runningBalance.toFixed(2)} Owing` : `${Math.abs(runningBalance).toFixed(2)} Credit`;
     csv += `\n`;
     csv += `Totals,,,,${totalDebits.toFixed(2)},${totalCredits.toFixed(2)},${q(closing)}\n`;
 
@@ -627,7 +627,7 @@ export default function CustomerOverview() {
     const transactionRows = rows.map(row => {
       runningBalance += row.credit - row.debit;
       const balanceColor = runningBalance < 0 ? '#dc2626' : '#059669';
-      const balanceText = `${currency} ${Math.abs(runningBalance).toFixed(2)}${runningBalance < 0 ? ' (DR)' : ''}`;
+      const balanceText = `${currency} ${Math.abs(runningBalance).toFixed(2)}${runningBalance > 0 ? ' Owing' : ''}`;
       const debitCell = row.debit > 0
         ? `<span style="color:#dc2626;font-weight:600;">${currency} ${row.debit.toFixed(2)}</span>`
         : `<span style="color:#9ca3af;">-</span>`;
@@ -796,7 +796,7 @@ export default function CustomerOverview() {
                 <td style="padding:10px 8px;border-top:2px solid #2563eb;text-align:right;color:#dc2626;">${currency} ${totalDebits.toFixed(2)}</td>
                 <td style="padding:10px 8px;border-top:2px solid #2563eb;text-align:right;color:#059669;">${currency} ${totalCredits.toFixed(2)}</td>
                 <td style="padding:10px 8px;border-top:2px solid #2563eb;text-align:right;color:${closingBalance < 0 ? '#dc2626' : '#059669'};">
-                  ${currency} ${Math.abs(closingBalance).toFixed(2)}${closingBalance < 0 ? ' (DR)' : ' (CR)'}
+                  ${currency} ${Math.abs(closingBalance).toFixed(2)}${closingBalance < 0 ? ' Owing' : ' Credit'}
                 </td>
               </tr>
             </tfoot>
@@ -817,7 +817,7 @@ export default function CustomerOverview() {
                 <div class="summary-value" style="color:${closingBalance < 0 ? '#dc2626' : '#059669'};">
                   ${currency} ${Math.abs(closingBalance).toFixed(2)}
                 </div>
-                <div class="summary-label">${closingBalance < 0 ? 'Outstanding (DR)' : 'Credit Balance (CR)'}</div>
+                <div class="summary-label">${closingBalance < 0 ? 'Amount Owing' : 'Credit Balance'}</div>
               </div>
             </div>
           </div>
@@ -1223,7 +1223,7 @@ export default function CustomerOverview() {
                               <TableCell className="text-right font-semibold">
                                 <span className={row.balance > 0 ? 'text-red-600' : 'text-green-600'}>
                                   {currency} {Math.abs(row.balance).toFixed(2)}
-                                  {row.balance > 0 && <span className="text-xs ml-1">(DR)</span>}
+                                  {row.balance > 0 && <span className="text-xs ml-1">Owing</span>}
                                 </span>
                               </TableCell>
                             </TableRow>
@@ -1238,7 +1238,7 @@ export default function CustomerOverview() {
                               <TableCell className="text-right">
                                 <span className={runningBalance > 0 ? 'text-red-600' : 'text-green-600'}>
                                   {currency} {Math.abs(runningBalance).toFixed(2)}
-                                  {runningBalance > 0 ? ' (DR)' : ' (CR)'}
+                                  {runningBalance > 0 ? ' Owing' : ' Credit'}
                                 </span>
                               </TableCell>
                             </TableRow>
