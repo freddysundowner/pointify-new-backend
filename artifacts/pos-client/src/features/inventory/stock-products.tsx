@@ -88,6 +88,11 @@ export default function StockProducts() {
 
   const [isAdjusting, setIsAdjusting] = useState(false);
 
+  // Delete product state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Note: Adjustment history now uses standalone page instead of dialog
 
   // Check if user is an attendant
@@ -403,6 +408,33 @@ export default function StockProducts() {
       toast({ title: "Email failed", description: err instanceof Error ? err.message : "Error", variant: "destructive" });
     } finally {
       setIsEmailing(false);
+    }
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!productToDelete) return;
+    setIsDeleting(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const id = productToDelete._id ?? productToDelete.id;
+      const response = await apiCall(ENDPOINTS.products.delete(String(id)), {
+        method: "DELETE",
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+        credentials: "include",
+      });
+      if (!response.ok && response.status !== 204) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.message ?? `Error ${response.status}`);
+      }
+      toast({ title: "Deleted", description: `"${productToDelete.name}" has been removed.` });
+      setDeleteDialogOpen(false);
+      setProductToDelete(null);
+      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.products.getAll] });
+      refreshProducts();
+    } catch (err) {
+      toast({ title: "Delete failed", description: err instanceof Error ? err.message : "Could not delete product.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -835,7 +867,10 @@ export default function StockProducts() {
                                     </DropdownMenuItem>
                                   )}
                                   {(hasPermission("inventory_delete") || hasAttendantPermission("products", "delete")) && (
-                                    <DropdownMenuItem className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600">
+                                    <DropdownMenuItem
+                                      className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600"
+                                      onClick={() => { setProductToDelete(product); setDeleteDialogOpen(true); }}
+                                    >
                                       <Trash2 className="h-3.5 w-3.5" />
                                       Delete
                                     </DropdownMenuItem>
@@ -944,6 +979,26 @@ export default function StockProducts() {
         </DialogContent>
       </Dialog>
 
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => { if (!isDeleting) { setDeleteDialogOpen(open); if (!open) setProductToDelete(null); } }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Delete Product</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{productToDelete?.name}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteDialogOpen(false); setProductToDelete(null); }} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteProduct} disabled={isDeleting}>
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </DashboardLayout>
   );
