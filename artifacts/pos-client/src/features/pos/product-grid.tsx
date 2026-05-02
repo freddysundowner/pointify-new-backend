@@ -1704,10 +1704,10 @@ export default function ProductGrid({
 
         {/* Right Panel - Products */}
         {viewMode === 'grid' && (
-          <div className={`${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-1/3 bg-gray-50 p-2 lg:p-6 lg:order-2 lg:h-full lg:overflow-hidden`}>
+          <div className={`${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'} flex-col flex-1 w-full lg:w-1/3 bg-gray-50 p-2 lg:p-6 lg:order-2 overflow-hidden`}>
           
-          {/* Mobile View Mode */}
-          <div className="lg:hidden mb-2">
+          {/* Mobile View Mode — hidden now that grid is visible on mobile */}
+          <div className="hidden">
             {viewMode === 'grid' ? (
               /* Mobile Product Search for Cards Mode */
               <div className="relative">
@@ -1803,7 +1803,7 @@ export default function ProductGrid({
           </div>
 
           {/* Desktop Product Grid */}
-          <div className="flex flex-col bg-white rounded-xl lg:rounded-2xl p-2 lg:p-4 shadow-sm lg:shadow-lg h-full">
+          <div className="flex flex-col flex-1 bg-white rounded-xl lg:rounded-2xl p-2 lg:p-4 shadow-sm lg:shadow-lg min-h-0">
             {viewMode === 'grid' && (
               /* Desktop Search Bar - Only in Cards Mode */
               <div className="mb-4">
