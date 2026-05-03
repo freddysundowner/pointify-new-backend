@@ -1,3 +1,4 @@
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -115,6 +116,7 @@ export default function PurchasesList() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [purchaseToDelete, setPurchaseToDelete] = useState<any>(null);
   const currency = useCurrency();
 
   const activeFilterCount = [
@@ -460,13 +462,7 @@ export default function PurchasesList() {
   };
 
   const handleDeletePurchase = (purchase: any) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete purchase ${purchase.invoiceNumber}? This action cannot be undone.`,
-      )
-    ) {
-      deletePurchaseMutation.mutate(purchase.id);
-    }
+    setPurchaseToDelete(purchase);
   };
 
   const handleCreatePurchase = () => {
@@ -1334,6 +1330,29 @@ export default function PurchasesList() {
         />
         </div>{/* end space-y-3 inner */}
       </div>{/* end outer -mx-4 */}
+
+      <AlertDialog open={!!purchaseToDelete} onOpenChange={(open) => { if (!open) setPurchaseToDelete(null); }}>
+        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-sm rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base">Delete Purchase</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              Are you sure you want to delete purchase <span className="font-medium text-gray-900">{purchaseToDelete?.invoiceNumber}</span>? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel className="h-9 text-sm">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="h-9 text-sm bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (purchaseToDelete) deletePurchaseMutation.mutate(purchaseToDelete.id);
+                setPurchaseToDelete(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
