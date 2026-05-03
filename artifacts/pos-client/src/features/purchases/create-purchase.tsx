@@ -91,9 +91,9 @@ export default function CreatePurchase() {
       const newItem: PurchaseItem & { sellingPrice?: number } = {
         productName: product.name || product.title,
         quantity: 1,
-        unitCost: product.buyingPrice || 0,
-        totalCost: product.buyingPrice || 0,
-        sellingPrice: product.sellingPrice || 0
+        unitCost: parseFloat(String(product.buyingPrice || 0)),
+        totalCost: parseFloat(String(product.buyingPrice || 0)),
+        sellingPrice: parseFloat(String(product.sellingPrice || 0)),
       };
       setItems([...items, newItem]);
     }
@@ -346,7 +346,7 @@ export default function CreatePurchase() {
                             <div className="flex flex-col">
                               <span className="font-medium">{product.name || product.title}</span>
                               <span className="text-sm text-muted-foreground">
-                                {product.shopId?.currency || 'KES'} {(product.buyingPrice || 0).toFixed(2)} per unit
+                                {product.shopId?.currency || 'KES'} {parseFloat(String(product.buyingPrice || 0)).toFixed(2)} per unit
                               </span>
                             </div>
                           </CommandItem>
