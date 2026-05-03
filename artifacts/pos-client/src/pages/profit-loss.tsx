@@ -268,7 +268,7 @@ export default function ProfitLossPage() {
 
         {/* Header + filters */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={goBack} className="hidden sm:flex gap-1 px-2">
+          <Button variant="ghost" size="sm" onClick={goBack} className="hidden lg:flex gap-1 px-2">
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
           <div className="flex items-center gap-2">

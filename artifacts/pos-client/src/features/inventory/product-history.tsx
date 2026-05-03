@@ -215,7 +215,7 @@ export default function ProductHistory() {
 
         {/* Header */}
         <div className="flex items-center gap-3 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={handleGoBack} className="hidden sm:flex gap-1 px-2">
+          <Button variant="ghost" size="sm" onClick={handleGoBack} className="hidden lg:flex gap-1 px-2">
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
           <div>

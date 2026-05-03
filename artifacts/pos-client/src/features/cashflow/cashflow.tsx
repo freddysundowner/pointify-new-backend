@@ -207,7 +207,7 @@ export default function CashFlow() {
         {/* Header */}
         <div className="flex items-center gap-2 flex-wrap">
           {attendant && (
-            <Link href={dashboardRoute}>
+            <Link href={dashboardRoute} className="hidden lg:block">
               <Button variant="ghost" size="sm" className="gap-1 px-2 h-8">
                 <ArrowLeft className="h-4 w-4" /> Back
               </Button>

@@ -157,7 +157,7 @@ export default function StockBadStock() {
       <div className="flex flex-col h-full">
         {/* ── Top bar ── */}
         <div className="flex items-center gap-3 px-4 py-3 border-b bg-white flex-wrap">
-          <Button variant="ghost" size="sm" onClick={() => setLocation(attendant ? "/attendant/dashboard" : "/stock")} className="hidden sm:flex h-8 px-2 gap-1 text-xs">
+          <Button variant="ghost" size="sm" onClick={() => setLocation(attendant ? "/attendant/dashboard" : "/stock")} className="hidden lg:flex h-8 px-2 gap-1 text-xs">
             <ArrowLeft className="h-3.5 w-3.5" /> Back
           </Button>
           <span className="font-semibold text-sm">Bad Stock</span>

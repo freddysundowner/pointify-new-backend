@@ -191,7 +191,7 @@ export default function CashflowCategories() {
 
         {/* Header */}
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="gap-1 px-2 h-8" onClick={goBack}>
+          <Button variant="ghost" size="sm" className="hidden lg:flex gap-1 px-2 h-8" onClick={goBack}>
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
           <h2 className="text-lg font-bold text-gray-900 flex-1">Cash Flow Categories</h2>

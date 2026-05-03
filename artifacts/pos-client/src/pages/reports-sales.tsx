@@ -203,7 +203,7 @@ export default function SalesReportPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={goBack} className="hidden sm:flex gap-1 px-2">
+            <Button variant="ghost" size="sm" onClick={goBack} className="hidden lg:flex gap-1 px-2">
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
             <h1 className="text-lg font-bold text-gray-900">Sales Report</h1>

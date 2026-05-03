@@ -223,7 +223,7 @@ export default function StockReport() {
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <Link href="/reports" className="hidden sm:block">
+            <Link href="/reports" className="hidden lg:block">
               <Button variant="outline" size="sm" className="h-8 shrink-0">
                 <ArrowLeft className="h-4 w-4 mr-1" />
                 Back

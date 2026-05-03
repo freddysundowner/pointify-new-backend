@@ -151,7 +151,7 @@ export default function IncomeReports() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign("/reports")}>
+            <Button variant="outline" size="sm" className="hidden lg:inline-flex" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign("/reports")}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Reports
             </Button>
