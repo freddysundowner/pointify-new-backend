@@ -3,14 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, Plus, Trash2, Package, Search, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, Package, Search, ShoppingCart, X } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useLocation } from "wouter";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { normalizeIds } from "@/lib/utils";
 import { useAuth } from "@/features/auth/useAuth";
@@ -60,11 +58,29 @@ export default function CreatePurchase() {
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setInvoiceNumber(generateInvoiceNumber()); }, []);
   useEffect(() => {
     if (shop?.trackBatches !== undefined) setTrackBatches(shop.trackBatches);
   }, [shop?.trackBatches]);
+
+  // Auto-focus search input when overlay opens
+  useEffect(() => {
+    if (productSearchOpen) {
+      setTimeout(() => searchInputRef.current?.focus(), 80);
+    } else {
+      setSearchTerm("");
+    }
+  }, [productSearchOpen]);
+
+  const filteredProducts = useMemo(() =>
+    products.filter((p: any) =>
+      !searchTerm ||
+      (p.name || p.title || '').toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+    [products, searchTerm]
+  );
 
   const addProductToOrder = (product: any) => {
     const existingIndex = items.findIndex(item => item.productName === (product.name || product.title));
@@ -264,52 +280,15 @@ export default function CreatePurchase() {
                     <Badge variant="secondary" className="text-xs px-1.5 py-0">{items.length}</Badge>
                   )}
                 </CardTitle>
-                <Dialog open={productSearchOpen} onOpenChange={setProductSearchOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="outline" className="h-8 gap-1 text-xs px-2.5">
-                      <Plus className="h-3.5 w-3.5" />
-                      Add Product
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-xl">
-                    <DialogHeader>
-                      <DialogTitle>Add Product</DialogTitle>
-                    </DialogHeader>
-                    <Command>
-                      <CommandInput
-                        placeholder="Search products…"
-                        value={searchTerm}
-                        onValueChange={setSearchTerm}
-                      />
-                      <CommandList className="max-h-64">
-                        <CommandEmpty>
-                          {productsLoading ? "Loading products…" : "No products found."}
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {products
-                            .filter((product: any) =>
-                              !searchTerm ||
-                              (product.name || product.title || '').toLowerCase().includes(searchTerm.toLowerCase())
-                            )
-                            .map((product: any) => (
-                              <CommandItem
-                                key={product._id || product.id}
-                                onSelect={() => addProductToOrder(product)}
-                                className="cursor-pointer"
-                              >
-                                <div className="flex items-center justify-between w-full gap-3">
-                                  <span className="font-medium text-sm truncate">{product.name || product.title}</span>
-                                  <span className="text-xs text-muted-foreground shrink-0">
-                                    {currency} {parseFloat(String(product.buyingPrice || 0)).toFixed(2)}
-                                  </span>
-                                </div>
-                              </CommandItem>
-                            ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </DialogContent>
-                </Dialog>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1 text-xs px-2.5"
+                  onClick={() => setProductSearchOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Product
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-4">
@@ -404,6 +383,97 @@ export default function CreatePurchase() {
 
         </div>
       </div>
+
+      {/* Full-screen product search overlay */}
+      {productSearchOpen && (
+        <div className="fixed inset-0 z-50 bg-white flex flex-col animate-in slide-in-from-bottom-4 duration-200">
+          {/* Search bar header */}
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b bg-white">
+            <button
+              onClick={() => setProductSearchOpen(false)}
+              className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-gray-100 shrink-0 text-gray-600"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search products…"
+                className="w-full h-10 pl-9 pr-9 rounded-full border border-gray-200 bg-gray-50 text-sm outline-none focus:border-purple-400 focus:bg-white transition-colors"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Results count */}
+          {searchTerm && (
+            <div className="px-4 py-2 text-xs text-gray-400 border-b bg-gray-50">
+              {filteredProducts.length} product{filteredProducts.length !== 1 ? "s" : ""} found
+            </div>
+          )}
+
+          {/* Scrollable product list */}
+          <div className="flex-1 overflow-y-auto">
+            {productsLoading ? (
+              <div className="flex flex-col items-center justify-center h-40 gap-2 text-gray-400">
+                <div className="h-6 w-6 rounded-full border-2 border-gray-200 border-t-purple-500 animate-spin" />
+                <p className="text-sm">Loading products…</p>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-40 gap-2 text-gray-400">
+                <Package className="h-8 w-8 opacity-30" />
+                <p className="text-sm">{searchTerm ? "No products match your search" : "No products available"}</p>
+              </div>
+            ) : (
+              <ul>
+                {filteredProducts.map((product: any, idx: number) => {
+                  const alreadyAdded = items.some(i => i.productName === (product.name || product.title));
+                  return (
+                    <li key={product._id || product.id}>
+                      <button
+                        onClick={() => addProductToOrder(product)}
+                        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-50"
+                      >
+                        {/* Icon */}
+                        <div className="h-9 w-9 rounded-full bg-purple-50 flex items-center justify-center shrink-0">
+                          <Package className="h-4 w-4 text-purple-500" />
+                        </div>
+                        {/* Name + price */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{product.name || product.title}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {currency} {parseFloat(String(product.buyingPrice || 0)).toFixed(2)} buying
+                            {product.sellingPrice ? ` · ${currency} ${parseFloat(String(product.sellingPrice)).toFixed(2)} selling` : ""}
+                          </p>
+                        </div>
+                        {/* Added badge / plus */}
+                        {alreadyAdded ? (
+                          <Badge variant="secondary" className="text-xs shrink-0">Added</Badge>
+                        ) : (
+                          <div className="h-7 w-7 rounded-full border border-gray-200 flex items-center justify-center shrink-0 text-gray-400">
+                            <Plus className="h-3.5 w-3.5" />
+                          </div>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
