@@ -126,6 +126,9 @@ function SalesList() {
     urlParams.get("startDate") && urlParams.get("endDate") ? "custom" : "all",
   );
   const [attendantFilter, setAttendantFilter] = useState<string>("all");
+  const [showCustomDates, setShowCustomDates] = useState<boolean>(
+    !!(urlParams.get("startDate") || urlParams.get("endDate")),
+  );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [saleToDelete, setSaleToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -323,6 +326,7 @@ function SalesList() {
   const clearDateFilters = () => {
     setStartDate("");
     setEndDate("");
+    setShowCustomDates(false);
   };
 
   const setDateRange = (days: number) => {
@@ -332,7 +336,8 @@ function SalesList() {
 
     setStartDate(startDate.toISOString().split("T")[0]);
     setEndDate(today.toISOString().split("T")[0]);
-    setCurrentPage(1); // Reset to first page when filtering
+    setShowCustomDates(false);
+    setCurrentPage(1);
   };
 
   // Use API data directly (no client-side pagination since API handles it)
@@ -1095,23 +1100,6 @@ function SalesList() {
                 </div>
               </div>
 
-              {/* Row 2 — date range inputs */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground whitespace-nowrap font-medium hidden sm:inline">Date:</span>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
-                  className="h-8 text-xs flex-1 sm:flex-none sm:w-[140px]"
-                />
-                <span className="text-xs text-muted-foreground">–</span>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
-                  className="h-8 text-xs flex-1 sm:flex-none sm:w-[140px]"
-                />
-              </div>
               {/* Quick date chips — horizontal scroll on mobile */}
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mx-0.5 px-0.5 pb-0.5">
                 {[
@@ -1128,12 +1116,50 @@ function SalesList() {
                     {label}
                   </button>
                 ))}
-                {(startDate || endDate) && (
+                <button
+                  onClick={() => {
+                    setShowCustomDates((v) => !v);
+                    if (showCustomDates) { setStartDate(""); setEndDate(""); setCurrentPage(1); }
+                  }}
+                  className={`flex-shrink-0 h-7 px-3 text-xs rounded-full border transition-colors ${
+                    showCustomDates
+                      ? "bg-primary text-white border-primary"
+                      : "border-gray-200 bg-white text-gray-600 hover:bg-primary/10 hover:border-primary hover:text-primary"
+                  }`}
+                >
+                  Custom
+                </button>
+                {(startDate || endDate) && !showCustomDates && (
                   <button onClick={clearDateFilters} className="flex-shrink-0 h-7 px-3 text-xs rounded-full text-red-500 bg-red-50 hover:bg-red-100 transition-colors">
                     ✕ Clear
                   </button>
                 )}
               </div>
+
+              {/* Custom date inputs — shown only when Custom is active */}
+              {showCustomDates && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap font-medium hidden sm:inline">From:</span>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+                    className="h-8 text-xs flex-1 sm:flex-none sm:w-[140px]"
+                  />
+                  <span className="text-xs text-muted-foreground">–</span>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+                    className="h-8 text-xs flex-1 sm:flex-none sm:w-[140px]"
+                  />
+                  {(startDate || endDate) && (
+                    <button onClick={clearDateFilters} className="flex-shrink-0 h-7 px-2 text-xs rounded-full text-red-500 bg-red-50 hover:bg-red-100 transition-colors">
+                      ✕
+                    </button>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
