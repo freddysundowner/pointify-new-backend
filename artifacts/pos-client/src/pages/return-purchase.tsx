@@ -184,8 +184,8 @@ export default function ReturnPurchase() {
           description: "Purchase return processed successfully!",
         });
         
-        // Navigate back to purchases list without page reload
-        setLocation(purchasesRoute);
+        // Navigate back to purchases list (replace so return page isn't in history)
+        setLocation(purchasesRoute, { replace: true });
       } else {
         const error = await response.text();
         console.error('Purchase return processing failed:', error);

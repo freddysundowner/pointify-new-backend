@@ -93,7 +93,7 @@ export default function PurchaseEditPage() {
       toast({ title: "Purchase updated successfully." });
       queryClient.invalidateQueries({ queryKey: [ENDPOINTS.purchases.getAll] });
       queryClient.invalidateQueries({ queryKey: [ENDPOINTS.purchases.reportFilter] });
-      setLocation(purchasesRoute);
+      setLocation(purchasesRoute, { replace: true });
     },
     onError: (error: any) => {
       toast({ title: "Update failed", description: error.message || "Please try again.", variant: "destructive" });

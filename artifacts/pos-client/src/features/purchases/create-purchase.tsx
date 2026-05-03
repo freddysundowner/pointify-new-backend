@@ -117,7 +117,7 @@ export default function CreatePurchase() {
   const calculateTotal = () => items.reduce((sum, item) => sum + item.totalCost, 0);
 
   const handleBack = () => {
-    setLocation(isAttendant ? "/attendant/purchases" : "/purchases");
+    setLocation(isAttendant ? "/attendant/purchases" : "/purchases", { replace: true });
   };
 
   const handleSave = async () => {
@@ -146,7 +146,7 @@ export default function CreatePurchase() {
       };
       const response = await apiRequest('POST', ENDPOINTS.purchases.create, payload);
       if (response.ok) {
-        setLocation(isAttendant ? "/attendant/purchases" : "/purchases");
+        setLocation(isAttendant ? "/attendant/purchases" : "/purchases", { replace: true });
       } else {
         const error = await response.text();
         alert(`Failed to create purchase order: ${error}`);

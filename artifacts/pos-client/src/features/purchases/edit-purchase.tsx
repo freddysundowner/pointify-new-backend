@@ -146,11 +146,11 @@ export default function EditPurchase() {
       items: items.filter(item => item.productName && item.quantity > 0),
       totalAmount: calculateTotal()
     });
-    setLocation(purchasesRoute);
+    setLocation(purchasesRoute, { replace: true });
   };
 
   const handleCancel = () => {
-    setLocation(purchasesRoute);
+    setLocation(purchasesRoute, { replace: true });
   };
 
   const canSave = supplierName.trim() && items.some(item => item.productName && item.quantity > 0);

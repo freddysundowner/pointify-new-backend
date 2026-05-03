@@ -121,8 +121,8 @@ export default function PurchaseOrderPage() {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       refreshProducts();
       
-      // Navigate back to purchases list
-      setLocation('/purchases');
+      // Navigate back to purchases list (replace so the order page isn't in history)
+      setLocation('/purchases', { replace: true });
     },
     onError: (error: any) => {
       toast({
@@ -275,7 +275,7 @@ export default function PurchaseOrderPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setLocation('/purchases')}
+              onClick={() => setLocation('/purchases', { replace: true })}
               className="flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -555,7 +555,7 @@ export default function PurchaseOrderPage() {
             <Button 
               type="button" 
               variant="outline"
-              onClick={() => setLocation('/purchases')}
+              onClick={() => setLocation('/purchases', { replace: true })}
             >
               Cancel
             </Button>

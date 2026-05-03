@@ -76,15 +76,11 @@ export default function CancelPurchase() {
 
   const handleConfirmCancel = () => {
     console.log("Cancelling purchase order:", purchase.id);
-    setLocation(purchasesRoute);
+    setLocation(purchasesRoute, { replace: true });
   };
 
   const handleGoBack = () => {
-    if (window.history.length > 1) {
-      window.history.back();
-      return;
-    }
-    setLocation(purchasesRoute);
+    setLocation(purchasesRoute, { replace: true });
   };
 
   const getStatusBadge = (status: string) => {

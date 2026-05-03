@@ -70,8 +70,8 @@ export default function PurchasePaymentPage() {
         }
       });
       
-      // Go back to purchases list
-      setLocation(purchasesRoute);
+      // Go back to purchases list (replace so payment page isn't in history)
+      setLocation(purchasesRoute, { replace: true });
     },
     onError: (error: any) => {
       toast({
@@ -87,7 +87,7 @@ export default function PurchasePaymentPage() {
       <DashboardLayout title="Make Payment">
         <div className="text-center py-12">
           <p className="text-muted-foreground">Purchase data not found. Please go back and try again.</p>
-          <Button onClick={() => setLocation(purchasesRoute)} className="mt-4">
+          <Button onClick={() => setLocation(purchasesRoute, { replace: true })} className="mt-4">
             Back to Purchases
           </Button>
         </div>
@@ -134,7 +134,7 @@ export default function PurchasePaymentPage() {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => setLocation(purchasesRoute)}
+            onClick={() => setLocation(purchasesRoute, { replace: true })}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Purchases
@@ -257,7 +257,7 @@ export default function PurchasePaymentPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setLocation(purchasesRoute)}
+                  onClick={() => setLocation(purchasesRoute, { replace: true })}
                   className="flex-1"
                 >
                   Cancel

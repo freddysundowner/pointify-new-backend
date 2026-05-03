@@ -102,11 +102,11 @@ export default function ReceivePurchase() {
       }))
     });
     
-    setLocation("/purchases");
+    setLocation("/purchases", { replace: true });
   };
 
   const handleCancel = () => {
-    setLocation("/purchases");
+    setLocation("/purchases", { replace: true });
   };
 
   const totalReceivingNow = receiveItems.reduce((sum, item) => sum + item.receivingNow, 0);
