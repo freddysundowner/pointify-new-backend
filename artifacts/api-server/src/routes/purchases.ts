@@ -258,15 +258,20 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
     const totalAmount = (items ?? []).reduce(
       (sum: number, it: any) => sum + parseFloat(String(it.quantity ?? 1)) * parseFloat(String(it.unitPrice ?? 0)), 0
     );
-    const amountPaid = parseFloat(String(existing.amountPaid ?? 0));
+    // Cash = always fully paid; credit/other = keep whatever was already paid
+    const resolvedPaymentType = paymentType ?? "cash";
+    const amountPaid = resolvedPaymentType === "cash"
+      ? totalAmount
+      : parseFloat(String(existing.amountPaid ?? 0));
     const outstandingBalance = Math.max(0, totalAmount - amountPaid);
 
     // Update purchase header
     const [updated] = await db.update(purchases)
       .set({
         supplier: supplierId ? Number(supplierId) : null,
-        paymentType: paymentType ?? "cash",
+        paymentType: resolvedPaymentType,
         totalAmount: String(totalAmount),
+        amountPaid: String(amountPaid),
         outstandingBalance: String(outstandingBalance),
       })
       .where(eq(purchases.id, id))
