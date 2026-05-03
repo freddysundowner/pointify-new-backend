@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { purchases, purchaseItems, purchasePayments, batches, inventory, shops } from "@workspace/db";
+import { purchases, purchaseItems, purchasePayments, batches, inventory, shops, products } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -188,12 +188,28 @@ router.get("/:id", requireAdmin, async (req, res, next) => {
     const purchase = await db.query.purchases.findFirst({
       where: eq(purchases.id, Number(req.params["id"])),
       with: {
-        purchaseItems: { with: { product: true } },
+        purchaseItems: true,
         purchasePayments: true,
       },
     });
     if (!purchase) throw notFound("Purchase not found");
-    return ok(res, purchase);
+
+    // Enrich purchase items with product names
+    const productIds = [...new Set((purchase.purchaseItems ?? []).map((i: any) => i.product).filter(Boolean))];
+    let productMap: Record<number, any> = {};
+    if (productIds.length > 0) {
+      const productRows = await db.select({ id: products.id, name: products.name, sellingPrice: products.sellingPrice })
+        .from(products)
+        .where(sql`${products.id} = ANY(ARRAY[${sql.join(productIds.map(id => sql`${id}`), sql`, `)}]::int[])`);
+      productMap = Object.fromEntries(productRows.map(p => [p.id, p]));
+    }
+
+    const enrichedItems = (purchase.purchaseItems ?? []).map((item: any) => ({
+      ...item,
+      product: productMap[item.product] ?? { id: item.product, name: `Product #${item.product}` },
+    }));
+
+    return ok(res, { ...purchase, purchaseItems: enrichedItems });
   } catch (e) { next(e); }
 });
 
