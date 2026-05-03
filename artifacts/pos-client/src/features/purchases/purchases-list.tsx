@@ -159,12 +159,12 @@ export default function PurchasesList() {
       params.append("attendantId", attendantFilter);
     }
 
-    // Date filtering - use wider range if no dates set to catch recent purchases
+    // Date filtering
     if (startDate) {
-      params.append("start", startDate);
+      params.append("from", startDate);
     }
     if (endDate) {
-      params.append("end", endDate);
+      params.append("to", endDate);
     }
 
     // Add payment type filter if needed
@@ -558,42 +558,13 @@ export default function PurchasesList() {
   // Show error state if API is down
   if (error) {
     return (
-      <DashboardLayout title="Purchase Reports">
-        <div className="p-4 w-full">
-          <div className="mb-6">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBackClick}
-                  className="flex items-center gap-2"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back
-                </Button>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    Purchase Reports
-                  </h1>
-                  <p className="text-gray-600 dark:text-gray-400 mt-1">
-                    Shop One
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
+      <DashboardLayout title="Purchases">
+        <div className="p-4">
           <Card>
             <CardContent className="p-8 text-center">
               <Package className="h-12 w-12 mx-auto mb-4 text-red-400" />
-              <h3 className="text-lg font-semibold mb-2">
-                Service Temporarily Unavailable
-              </h3>
-              <p className="text-gray-600 mb-4">
-                The external API is experiencing issues. Please try again in a
-                few moments.
-              </p>
+              <h3 className="text-lg font-semibold mb-2">Service Temporarily Unavailable</h3>
+              <p className="text-gray-600 mb-4">The API is experiencing issues. Please try again.</p>
               <Button onClick={() => refetch()} variant="outline">
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Try Again
@@ -606,39 +577,28 @@ export default function PurchasesList() {
   }
 
   return (
-    <DashboardLayout title="Purchase Reports">
-      <div className="p-4 w-full">
-        <div className="mb-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBackClick}
-              className="hidden sm:flex items-center gap-1 h-8 shrink-0"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
-                Purchase Reports
-              </h1>
+    <DashboardLayout title="Purchases">
+      <div className="-mx-4 sm:mx-0 px-0 sm:px-0 py-0">
+        {/* Sticky header */}
+        <div className="sticky top-0 z-10 bg-white border-b">
+          <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <button onClick={handleBackClick} className="hidden lg:flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0">
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <h1 className="text-base font-bold text-gray-900 leading-tight truncate">Purchases</h1>
             </div>
-            <div className="flex gap-2 shrink-0">
-              <Button
-                onClick={exportToPDF}
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 text-xs"
-              >
-                <Download className="h-4 w-4" />
-                <span className="hidden sm:inline">Export PDF</span>
+            <div className="flex gap-1.5 shrink-0">
+              <Button onClick={exportToPDF} variant="outline" size="sm" className="h-8 gap-1 text-xs px-2">
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Export</span>
               </Button>
               {(isAdmin || hasAttendantPermission("stocks", "add_purchases")) && (
                 <Link href={addPurchasesRoute}>
-                  <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={handleCreatePurchase}>
-                    <Plus className="h-4 w-4" />
+                  <Button size="sm" className="h-8 gap-1 text-xs px-2.5" onClick={handleCreatePurchase}>
+                    <Plus className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">New Order</span>
+                    <span className="sm:hidden">New</span>
                   </Button>
                 </Link>
               )}
@@ -646,183 +606,80 @@ export default function PurchasesList() {
           </div>
         </div>
 
-        {/* Filters Section */}
-        <Card className="mb-4">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                <span className="font-medium">Filters</span>
+        <div className="px-3 sm:px-4 py-3 space-y-3">
+
+        {/* Compact Filters */}
+        <Card>
+          <CardContent className="p-3 space-y-2">
+            {/* Row 1: search + clear */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search by purchase number..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="pl-8 h-8 text-sm"
+                />
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearAllFilters}
-                className="h-8 px-3"
-              >
-                <RotateCcw className="h-3 w-3 mr-1" />
-                Clear All
+              <Button variant="outline" size="sm" onClick={clearAllFilters} className="h-8 px-2 shrink-0">
+                <RotateCcw className="h-3 w-3" />
               </Button>
             </div>
-
-            <div className="space-y-4">
-              {/* Search Bar - Full Width */}
-              <div>
-                <Label className="text-sm font-medium mb-2 block">Search</Label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Search by purchase number..."
-                      value={searchQuery}
-                      onChange={(e) => handleSearchChange(e.target.value)}
-                      className="pl-10 h-9"
-                    />
-                  </div>
-                  {searchQuery && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSearchChange("")}
-                      className="h-9 px-3"
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </div>
-                {searchQuery && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Found {filteredPurchases.length} results for "{searchQuery}"
-                  </p>
-                )}
-              </div>
-
-              {/* Filter Row - Horizontal Layout */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {/* Status Filter */}
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Status
-                  </Label>
-                  <Select
-                    value={statusFilter}
-                    onValueChange={handleStatusFilter}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="All Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                      <SelectItem value="unpaid">Unpaid</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Supplier Filter */}
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Supplier
-                  </Label>
-                  <Select
-                    value={supplierFilter}
-                    onValueChange={handleSupplierFilter}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="All Suppliers" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Suppliers</SelectItem>
-                      {(Array.isArray(suppliersData) ? suppliersData : []).map((supplier: any) => (
-                        <SelectItem key={supplier._id || supplier.id} value={supplier._id || supplier.id}>
-                          {supplier.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Attendant Filter - Only show for admins */}
-                {isAdmin && (
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">
-                      Attendant
-                    </Label>
-                    <Select
-                      value={attendantFilter}
-                      onValueChange={handleAttendantFilter}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="All Attendants" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Attendants</SelectItem>
-                        {(Array.isArray(attendantsData) ? attendantsData : []).map((attendant: any) => (
-                          <SelectItem key={attendant._id || attendant.id} value={attendant._id || attendant.id}>
-                            {attendant.username || attendant.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-
-              {/* Date Range Section */}
-              <div>
-                <Label className="text-sm font-medium mb-2 block">
-                  Date Range
-                </Label>
-                <div className="flex flex-col lg:flex-row gap-4">
-                  <div className="flex flex-col sm:flex-row gap-3 flex-1">
-                    <div className="flex-1">
-                      <Label
-                        htmlFor="start-date"
-                        className="text-xs text-muted-foreground mb-1 block"
-                      >
-                        Start Date
-                      </Label>
-                      <Input
-                        id="start-date"
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <Label
-                        htmlFor="end-date"
-                        className="text-xs text-muted-foreground mb-1 block"
-                      >
-                        End Date
-                      </Label>
-                      <Input
-                        id="end-date"
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {(startDate || endDate) && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Showing {filteredPurchases.length} results from{" "}
-                    {startDate || "beginning"} to {endDate || "now"}
-                  </p>
-                )}
-              </div>
+            {/* Row 2: dropdowns */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              <Select value={statusFilter} onValueChange={handleStatusFilter}>
+                <SelectTrigger className="h-8 text-xs min-w-[110px]">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="unpaid">Unpaid</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={supplierFilter} onValueChange={handleSupplierFilter}>
+                <SelectTrigger className="h-8 text-xs min-w-[120px]">
+                  <SelectValue placeholder="All Suppliers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Suppliers</SelectItem>
+                  {(Array.isArray(suppliersData) ? suppliersData : []).map((supplier: any) => (
+                    <SelectItem key={supplier._id || supplier.id} value={supplier._id || supplier.id}>
+                      {supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {isAdmin && (
+                <Select value={attendantFilter} onValueChange={handleAttendantFilter}>
+                  <SelectTrigger className="h-8 text-xs min-w-[120px]">
+                    <SelectValue placeholder="All Attendants" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Attendants</SelectItem>
+                    {(Array.isArray(attendantsData) ? attendantsData : []).map((attendant: any) => (
+                      <SelectItem key={attendant._id || attendant.id} value={attendant._id || attendant.id}>
+                        {attendant.username || attendant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            {/* Row 3: date range */}
+            <div className="flex gap-2 items-center">
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 text-xs flex-1" />
+              <span className="text-xs text-gray-400 shrink-0">–</span>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 text-xs flex-1" />
             </div>
           </CardContent>
         </Card>
 
         {/* Loading State */}
         {isLoading && (
-          <Card className="mb-4">
+          <Card>
             <CardContent className="p-8 text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
               <p className="text-gray-600">Loading purchases data...</p>
@@ -832,7 +689,7 @@ export default function PurchasesList() {
 
         {/* Error State */}
         {error && (
-          <Card className="mb-4">
+          <Card>
             <CardContent className="p-8 text-center">
               <div className="text-red-500 mb-4">
                 Error loading purchases data
@@ -846,7 +703,7 @@ export default function PurchasesList() {
 
         {/* Summary Stats */}
         {!isLoading && !error && analyticsData && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             <Card className="p-3">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
@@ -1321,7 +1178,8 @@ export default function PurchasesList() {
             });
           }}
         />
-      </div>
+        </div>{/* end space-y-3 inner */}
+      </div>{/* end outer -mx-4 */}
     </DashboardLayout>
   );
 }
