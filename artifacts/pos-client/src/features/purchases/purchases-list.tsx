@@ -493,34 +493,77 @@ export default function PurchasesList() {
     doc.text(`Unpaid Count: ${filteredUnpaidCount}`, 20, y); y += 5;
     doc.text(`Unique Suppliers: ${filteredSuppliers}`, 20, y); y += 8;
     
-    // Prepare table data
-    const tableData = filteredPurchases.map((purchase: any) => [
-      purchase.invoiceNumber || 'N/A',
-      purchase.supplierName || 'N/A',
-      new Date(purchase.orderDate).toLocaleDateString(),
-      `${purchase.currency || cur} ${parseFloat(String(purchase.totalAmount || 0)).toFixed(2)}`,
-      purchase.status.toUpperCase(),
-      (purchase.items?.length ?? 0).toString()
-    ]);
-    
+    // Build flat table: one purchase header row + item rows beneath it
+    type RowMeta = { type: 'purchase' | 'item-header' | 'item' };
+    const tableBody: string[][] = [];
+    const rowMeta: RowMeta[] = [];
+
+    for (const purchase of filteredPurchases) {
+      const shortNo = (() => {
+        const s = purchase.invoiceNumber || '';
+        const digits = s.replace(/\D/g, '');
+        return digits.length >= 6 ? 'PUR-' + digits.slice(-6) : s || 'N/A';
+      })();
+      tableBody.push([
+        shortNo,
+        purchase.supplierName || 'Direct Purchase',
+        new Date(purchase.orderDate).toLocaleDateString(),
+        `${cur} ${parseFloat(String(purchase.totalAmount || 0)).toFixed(2)}`,
+        purchase.status.toUpperCase(),
+        `${purchase.items?.length ?? 0} item(s)`,
+      ]);
+      rowMeta.push({ type: 'purchase' });
+
+      const items: any[] = purchase.items || [];
+      if (items.length > 0) {
+        tableBody.push(['  Product', 'Qty', 'Unit Price', 'Line Total', '', '']);
+        rowMeta.push({ type: 'item-header' });
+        for (const item of items) {
+          tableBody.push([
+            `  ${item.productName || 'Unknown'}`,
+            String(item.quantity ?? ''),
+            `${cur} ${parseFloat(String(item.unitCost || 0)).toFixed(2)}`,
+            `${cur} ${parseFloat(String(item.totalCost || 0)).toFixed(2)}`,
+            '', '',
+          ]);
+          rowMeta.push({ type: 'item' });
+        }
+      }
+    }
+
     // Add table
     autoTable(doc, {
       startY: y,
       head: [['PO Number', 'Supplier', 'Date', 'Amount', 'Status', 'Items']],
-      body: tableData,
-      styles: { 
+      body: tableBody,
+      styles: {
         fontSize: 8,
-        cellPadding: 3
+        cellPadding: 3,
       },
-      headStyles: { 
+      headStyles: {
         fillColor: [66, 139, 202],
         textColor: 255,
-        fontStyle: 'bold'
+        fontStyle: 'bold',
       },
-      alternateRowStyles: {
-        fillColor: [245, 245, 245]
+      margin: { left: 20, right: 20 },
+      didParseCell: (data) => {
+        if (data.section !== 'body') return;
+        const meta = rowMeta[data.row.index];
+        if (!meta) return;
+        if (meta.type === 'purchase') {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [235, 242, 252];
+        } else if (meta.type === 'item-header') {
+          data.cell.styles.fontSize = 7;
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [248, 248, 248];
+          data.cell.styles.textColor = [100, 100, 100];
+        } else if (meta.type === 'item') {
+          data.cell.styles.fontSize = 7.5;
+          data.cell.styles.fillColor = [252, 252, 252];
+          data.cell.styles.textColor = [60, 60, 60];
+        }
       },
-      margin: { left: 20, right: 20 }
     });
     
     // Save the PDF
