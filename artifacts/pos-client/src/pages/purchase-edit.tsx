@@ -117,19 +117,20 @@ export default function PurchaseEditPage() {
   );
 
   const addProduct = (product: any) => {
-    const existing = formData.items.find(i => i.productId === (product._id || product.id));
+    const productId = String(product._id || product.id);
+    const existing = formData.items.find(i => String(i.productId) === productId);
     if (existing) {
       setFormData({
         ...formData,
         items: formData.items.map(i =>
-          i.productId === (product._id || product.id) ? { ...i, quantity: i.quantity + 1 } : i
+          String(i.productId) === productId ? { ...i, quantity: i.quantity + 1 } : i
         ),
       });
     } else {
       setFormData({
         ...formData,
         items: [...formData.items, {
-          productId: product._id || product.id,
+          productId: productId,
           productName: product.name || product.title,
           quantity: 1,
           unitPrice: parseFloat(String(product.buyingPrice || product.sellingPrice || 0)),
