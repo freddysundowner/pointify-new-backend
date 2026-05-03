@@ -77,11 +77,7 @@ export default function PurchaseViewPage() {
   return (
     <DashboardLayout title="Purchase Details">
       <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center justify-between mb-6">
-          <Button variant="outline" size="sm" onClick={goBack}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Purchases
-          </Button>
+        <div className="flex justify-end mb-2">
           <Badge variant={getStatusBadgeVariant(paymentType)} className="text-sm capitalize">
             {paymentType}
           </Badge>
