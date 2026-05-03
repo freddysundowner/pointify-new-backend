@@ -1,13 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calendar, Search, RefreshCw, ArrowLeft, Download, Eye } from "lucide-react";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose,
+} from "@/components/ui/sheet";
+import {
+  Search, RefreshCw, ArrowLeft, Download, Eye,
+  SlidersHorizontal, RotateCcw, ChevronLeft, ChevronRight,
+} from "lucide-react";
 import { useAuth } from "@/features/auth/useAuth";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
@@ -27,20 +33,10 @@ interface PurchaseReturn {
   returnDate?: string;
   createdAt?: string;
   purchaseReturnNo?: string;
-  attendantId: {
-    _id: string;
-    username: string;
-  };
-  shopId: {
-    _id: string;
-    name: string;
-    currency: string;
-  };
+  attendantId: { _id: string; username: string };
+  shopId: { _id: string; name: string; currency: string };
   items: Array<{
-    product: {
-      _id: string;
-      name: string;
-    };
+    product: { _id: string; name: string };
     quantity: number;
     unitPrice: number;
     totalPrice?: number;
@@ -56,14 +52,13 @@ interface PurchaseReturnsResponse {
 export default function PurchaseReturns() {
   const { admin } = useAuth();
   const { attendant } = useAttendantAuth();
-  const { shopId, adminId, attendantId } = usePrimaryShop();
+  const { shopId } = usePrimaryShop();
   const shopDetails = useShopDetails(shopId);
   const [, setLocation] = useLocation();
-  const purchasesRoute = useNavigationRoute('purchases');
-    const currency = useCurrency()
-  
-  // Determine back route: attendants go to dashboard, admins go to purchases
-  const backRoute = attendant ? '/attendant/dashboard' : purchasesRoute;
+  const purchasesRoute = useNavigationRoute("purchases");
+  const currency = useCurrency();
+
+  const backRoute = attendant ? "/attendant/dashboard" : purchasesRoute;
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -71,75 +66,68 @@ export default function PurchaseReturns() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const itemsPerPage = 20;
 
-  // Fetch purchase returns
+  // Filter sheet
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+
+  const activeFilterCount = [
+    supplierFilter !== "all",
+    startDate !== "",
+    endDate !== "",
+  ].filter(Boolean).length;
+
+  // Fetch returns
   const { data: returnsData, isLoading, refetch } = useQuery<PurchaseReturnsResponse>({
-    queryKey: [ENDPOINTS.purchaseReturns.getAll, shopId, searchTerm, supplierFilter, startDate, endDate, currentPage, itemsPerPage],
+    queryKey: [ENDPOINTS.purchaseReturns.getAll, shopId, searchTerm, supplierFilter, startDate, endDate, currentPage],
     queryFn: async (): Promise<PurchaseReturnsResponse> => {
       if (!shopId) return { returns: [], total: 0 };
-
       const params = new URLSearchParams({
-        shopId: shopId,
+        shopId,
         page: currentPage.toString(),
         limit: itemsPerPage.toString(),
         ...(searchTerm && { search: searchTerm }),
-        ...(supplierFilter !== 'all' && { supplierId: supplierFilter }),
+        ...(supplierFilter !== "all" && { supplierId: supplierFilter }),
         ...(startDate && { fromDate: startDate }),
         ...(endDate && { toDate: endDate }),
-        ...(attendant && { attendantId: attendant._id })
+        ...(attendant && { attendantId: attendant._id }),
       });
-
-      console.log('Fetching fresh purchase returns data from API');
       const responseObj = await apiCall(`${ENDPOINTS.purchaseReturns.getAll}?${params}`);
       const response = await responseObj.json();
-      
-      // Handle the nested structure: {data: [], meta: {total, page, limit, pages}}
-      if (response && response.data && Array.isArray(response.data)) {
-        console.log('Nested response with', response.data.length, 'items, total:', response.meta?.total);
-        return { 
-          returns: response.data, 
-          total: response.meta?.total || response.data.length 
-        };
-      }
-      
-      // Handle direct array response (fallback)
-      if (Array.isArray(response)) {
-        console.log('Array response with', response.length, 'items');
+      if (response?.data && Array.isArray(response.data))
+        return { returns: response.data, total: response.meta?.total || response.data.length };
+      if (Array.isArray(response))
         return { returns: response, total: response.length };
-      }
-      
-      console.log('Object response:', response);
       return (response as PurchaseReturnsResponse) || { returns: [], total: 0 };
     },
     enabled: !!shopId,
-    staleTime: 0, // Always consider data stale
-    refetchOnMount: 'always' // Always refetch when component mounts
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
-  const returns = returnsData?.returns || [];
-  const totalReturns = returnsData?.total || 0;
-  const totalPages = Math.ceil(totalReturns / itemsPerPage);
-
-  // Fetch suppliers for filter dropdown  
+  // Fetch suppliers
   const { data: suppliersResponse } = useQuery({
     queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
       if (!shopId) return [];
-      const response = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`, {
+      const res = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`, {
         headers: {
-          'Authorization': `Bearer ${admin ? localStorage.getItem('authToken') : localStorage.getItem('attendantToken')}`
-        }
+          Authorization: `Bearer ${admin ? localStorage.getItem("authToken") : localStorage.getItem("attendantToken")}`,
+        },
       });
-      if (!response.ok) throw new Error('Failed to fetch suppliers');
-      return response.json();
+      if (!res.ok) throw new Error("Failed to fetch suppliers");
+      return res.json();
     },
-    enabled: !!shopId
+    enabled: !!shopId,
   });
   const suppliers = Array.isArray(suppliersResponse) ? suppliersResponse : [];
 
-  // Summary statistics
-  const totalReturnAmount = returns.reduce((sum: number, ret: PurchaseReturn) => sum + (ret.refundAmount || ret.totalAmount || 0), 0);
+  const returns = returnsData?.returns || [];
+  const totalReturns = returnsData?.total || 0;
+  const totalPages = Math.ceil(totalReturns / itemsPerPage);
+  const totalReturnAmount = returns.reduce(
+    (sum: number, r: PurchaseReturn) => sum + (r.refundAmount || r.totalAmount || 0), 0,
+  );
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -149,356 +137,307 @@ export default function PurchaseReturns() {
     setCurrentPage(1);
   };
 
-  const formatCurrency = (amount: number) => {
-    return `${currency} ${amount?.toLocaleString() || '0'}`;
+  const fmtCurrency = (n: number) => `${currency} ${(n || 0).toLocaleString()}`;
+
+  const fmtDate = (d: string) => {
+    if (!d) return "—";
+    const dt = new Date(d);
+    return dt.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" });
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString() + ' ' + new Date(dateString).toLocaleTimeString();
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusColors: { [key: string]: string } = {
-      'completed': 'bg-green-100 text-green-800',
-      'pending': 'bg-yellow-100 text-yellow-800',
-      'processing': 'bg-blue-100 text-blue-800',
-      'cancelled': 'bg-red-100 text-red-800'
-    };
-
-    return (
-      <Badge className={statusColors[status] || 'bg-gray-100 text-gray-800'}>
-        {status || 'Unknown'}
-      </Badge>
-    );
-  };
-
-  const downloadReturnsReport = async () => {
+  const downloadReport = async () => {
     try {
-      // Generate PDF using client-side libraries
-      const { jsPDF } = await import('jspdf');
-      
-      // Calculate totals from current data
-      const totalReturnsCount = returns.length;
-      const totalAmount = returns.reduce((sum: number, ret: PurchaseReturn) => sum + (ret.refundAmount || ret.totalAmount || 0), 0);
-      
+      const { jsPDF } = await import("jspdf");
       const doc = new jsPDF();
-      let yPos = drawShopHeader(doc, shopDetails, "Purchase Returns Report", `Generated on ${new Date().toLocaleDateString()}`);
-      
-      // Filters applied
+      let y = drawShopHeader(doc, shopDetails, "Purchase Returns Report", `Generated ${new Date().toLocaleDateString()}`);
       doc.setFontSize(10);
-      let filtersText = 'Filters Applied: ';
-      if (searchTerm) filtersText += `Search: ${searchTerm} | `;
-      if (startDate) filtersText += `From: ${startDate} | `;
-      if (endDate) filtersText += `To: ${endDate} | `;
-      if (supplierFilter !== 'all') filtersText += `Supplier Filter Applied | `;
-      filtersText += `Total Records: ${totalReturnsCount}`;
-      
-      doc.text(filtersText, 20, yPos);
-      yPos += 15;
-      
-      // Summary
-      doc.setFontSize(12);
-      doc.text(`Total Returns: ${totalReturnsCount}`, 20, yPos);
-      doc.text(`Total Amount: ${currency} ${totalAmount.toLocaleString()}`, 20, yPos + 10);
-      yPos += 25;
-      
-      // Table headers
-      doc.setFontSize(10);
-      const headers = ['Return #', 'Amount', 'Date', 'Attendant', 'Reason'];
-      const colWidths = [40, 30, 30, 40, 50];
-      let xPos = 20;
-      
-      headers.forEach((header, index) => {
-        doc.text(header, xPos, yPos);
-        xPos += colWidths[index];
+      doc.text(`Total Returns: ${returns.length}   Total Amount: ${fmtCurrency(totalReturnAmount)}`, 20, y);
+      y += 12;
+      const headers = ["Return #", "Amount", "Date", "Attendant", "Reason"];
+      const colW = [40, 30, 30, 40, 50];
+      let x = 20;
+      headers.forEach((h, i) => { doc.text(h, x, y); x += colW[i]; });
+      y += 10;
+      returns.forEach((r: PurchaseReturn) => {
+        if (y > 270) { doc.addPage(); y = 20; }
+        x = 20;
+        [
+          r.purchaseReturnNo || r._id,
+          fmtCurrency(r.refundAmount || r.totalAmount || 0),
+          fmtDate(r.createdAt || r.returnDate || ""),
+          r.attendantId?.username || "Unknown",
+          (r.reason || "N/A").substring(0, 20),
+        ].forEach((v, i) => { doc.text(String(v), x, y); x += colW[i]; });
+        y += 8;
       });
-      
-      yPos += 10;
-      
-      // Table data
-      returns.forEach((ret: PurchaseReturn, index: number) => {
-        if (yPos > 270) { // New page if needed
-          doc.addPage();
-          yPos = 20;
-        }
-        
-        xPos = 20;
-        const rowData = [
-          ret.purchaseReturnNo || ret._id,
-          `${currency} ${(ret.refundAmount || ret.totalAmount || 0).toLocaleString()}`,
-          new Date(ret.createdAt || ret.returnDate || new Date()).toLocaleDateString(),
-          ret.attendantId?.username || 'Unknown',
-          ret.reason || 'N/A'
-        ];
-        
-        rowData.forEach((data, colIndex) => {
-          const text = String(data);
-          if (text.length > 15) {
-            doc.text(text.substring(0, 12) + '...', xPos, yPos);
-          } else {
-            doc.text(text, xPos, yPos);
-          }
-          xPos += colWidths[colIndex];
-        });
-        
-        yPos += 8;
-      });
-      
-      // Save the PDF
-      doc.save(`purchase-returns-${new Date().toISOString().split('T')[0]}.pdf`);
-      
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF report. Please try again.');
+      doc.save(`purchase-returns-${new Date().toISOString().split("T")[0]}.pdf`);
+    } catch (e) {
+      console.error(e);
     }
+  };
+
+  const handleView = (r: PurchaseReturn) => {
+    (window as any).__returnData = r;
+    const isAttendant = window.location.pathname.startsWith("/attendant/");
+    setLocation(isAttendant ? `/attendant/purchase-return-details/${r._id}` : `/purchase-return-details/${r._id}`);
   };
 
   return (
     <DashboardLayout title="Purchase Returns">
-      <div className="space-y-4">
-        {/* Header with Back Button */}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="h-8"
-              onClick={() => setLocation(backRoute)}
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">{attendant ? 'Dashboard' : 'Purchases'}</span>
-            </Button>
-            <h2 className="text-base font-semibold">Purchase Returns</h2>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" className="h-8" onClick={downloadReturnsReport}>
-              <Download className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Export</span>
-            </Button>
-          </div>
-        </div>
+      <div className="-mx-4 sm:mx-0 px-0 py-0">
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 gap-3">
-          <Card>
-            <CardHeader className="pb-1 pt-3 px-3">
-              <CardTitle className="text-xs font-medium text-gray-500">Total Returns</CardTitle>
-            </CardHeader>
-            <CardContent className="px-3 pb-3">
-              <div className="text-xl font-bold">{totalReturns}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-1 pt-3 px-3">
-              <CardTitle className="text-xs font-medium text-gray-500">Return Amount</CardTitle>
-            </CardHeader>
-            <CardContent className="px-3 pb-3">
-              <div className="text-xl font-bold">{formatCurrency(totalReturnAmount)}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters */}
-        <Card>
-          <CardContent className="pt-4 space-y-3">
-            {/* Date Range */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">From Date</label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">To Date</label>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
+        {/* ── Sticky header ── */}
+        <div className="sticky top-0 z-10 bg-white border-b">
+          <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                onClick={() => setLocation(backRoute)}
+                className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <h1 className="text-base font-bold text-gray-900 leading-tight truncate">Purchase Returns</h1>
             </div>
-
-            {/* Search and Other Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search returns..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-
-              <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Suppliers</SelectItem>
-                  {(suppliers as any[]).map((supplier: any) => (
-                    <SelectItem key={supplier._id} value={supplier._id}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Button variant="outline" onClick={clearFilters}>
-                Clear Filters
+            <div className="flex gap-1.5 shrink-0">
+              {/* Mobile filter button */}
+              <Button
+                variant="outline" size="sm"
+                className="sm:hidden h-8 px-2 relative"
+                onClick={() => setFilterSheetOpen(true)}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                {activeFilterCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-purple-600 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 px-2" onClick={() => refetch()}>
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 gap-1 text-xs px-2" onClick={downloadReport}>
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Export</span>
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Returns Table */}
-        <Card>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="flex items-center justify-center p-8">
-                <RefreshCw className="h-6 w-6 animate-spin" />
-                <span className="ml-2">Loading returns...</span>
-              </div>
-            ) : returns.length === 0 ? (
-              <div className="text-center p-8">
-                <p className="text-gray-500">No purchase returns found.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Attendant</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {returns.map((returnItem: PurchaseReturn) => (
-                      <TableRow key={returnItem._id}>
-                        <TableCell>
-                          {returnItem.purchaseReturnNo || 'N/A'}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {formatCurrency((returnItem as any).refundAmount || returnItem.totalAmount || 0)}
-                        </TableCell>
-                        <TableCell>
-                          {formatDate((returnItem as any).createdAt || returnItem.returnDate || new Date().toISOString())}
-                        </TableCell>
-                        <TableCell>
-                          {returnItem.attendantId?.username || 'Unknown'}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              // Store return data in window object for the details page
-                              (window as any).__returnData = returnItem;
-                              
-                              // Check if this is an attendant or admin route
-                              const currentPath = window.location.pathname;
-                              const isAttendantRoute = currentPath.startsWith('/attendant/');
-                              
-                              if (isAttendantRoute) {
-                                setLocation(`/attendant/purchase-return-details/${returnItem._id}`);
-                              } else {
-                                setLocation(`/purchase-return-details/${returnItem._id}`);
-                              }
-                            }}
-                          >
-                            View Details
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Pagination */}
-        {totalReturns > 0 && (
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                Showing {Math.min((currentPage - 1) * itemsPerPage + 1, totalReturns)} to{' '}
-                {Math.min(currentPage * itemsPerPage, totalReturns)} of {totalReturns} returns
-              </span>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Select value={itemsPerPage.toString()} onValueChange={(value) => {
-                setItemsPerPage(Number(value));
-                setCurrentPage(1);
-              }}>
-                <SelectTrigger className="w-20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <div className="flex gap-1">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                >
-                  Previous
-                </Button>
-                
-                {totalPages > 1 && Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const pageNumber = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
-                  if (pageNumber <= totalPages) {
-                    return (
-                      <Button
-                        key={pageNumber}
-                        variant={currentPage === pageNumber ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setCurrentPage(pageNumber)}
-                      >
-                        {pageNumber}
-                      </Button>
-                    );
-                  }
-                  return null;
-                })}
-                
-                {totalPages === 1 && (
-                  <Button variant="default" size="sm" disabled>
-                    1
-                  </Button>
-                )}
-                
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                </Button>
-              </div>
+          {/* Mobile: inline search */}
+          <div className="sm:hidden px-3 pb-2.5">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search returns..."
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                className="pl-8 h-8 text-sm w-full"
+              />
             </div>
           </div>
-        )}
+        </div>
+
+        <div className="px-3 sm:px-4 py-3 space-y-3">
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <Card>
+              <CardContent className="px-3 py-2.5">
+                <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Total Returns</p>
+                <p className="text-xl font-bold mt-0.5">{totalReturns}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="px-3 py-2.5">
+                <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Return Amount</p>
+                <p className="text-xl font-bold mt-0.5">{fmtCurrency(totalReturnAmount)}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Desktop filters */}
+          <Card className="hidden sm:block">
+            <CardContent className="p-3 space-y-2">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search returns..."
+                    value={searchTerm}
+                    onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                    className="pl-8 h-8 text-sm"
+                  />
+                </div>
+                <Button variant="outline" size="sm" onClick={clearFilters} className="h-8 px-2 shrink-0">
+                  <RotateCcw className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                <Select value={supplierFilter} onValueChange={(v) => { setSupplierFilter(v); setCurrentPage(1); }}>
+                  <SelectTrigger className="h-8 text-xs min-w-[130px]">
+                    <SelectValue placeholder="All Suppliers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Suppliers</SelectItem>
+                    {(suppliers as any[]).map((s: any) => (
+                      <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }} className="h-8 text-xs flex-1 min-w-[120px]" />
+                <span className="self-center text-xs text-gray-400 shrink-0">–</span>
+                <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }} className="h-8 text-xs flex-1 min-w-[120px]" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Returns table */}
+          <Card>
+            <CardContent className="p-0">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-10 text-sm text-gray-400 gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin" /> Loading…
+                </div>
+              ) : returns.length === 0 ? (
+                <div className="text-center py-10 text-sm text-gray-400">No purchase returns found.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="text-xs">
+                        <TableHead className="py-2 px-3">Return #</TableHead>
+                        <TableHead className="py-2 px-3">Amount</TableHead>
+                        <TableHead className="py-2 px-3">Date</TableHead>
+                        <TableHead className="py-2 px-3 hidden sm:table-cell">Attendant</TableHead>
+                        <TableHead className="py-2 px-3 w-10"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {returns.map((r: PurchaseReturn) => (
+                        <TableRow key={r._id} className="text-xs">
+                          <TableCell className="py-2 px-3 font-medium">
+                            {r.purchaseReturnNo || r._id.slice(-6).toUpperCase()}
+                          </TableCell>
+                          <TableCell className="py-2 px-3">
+                            {fmtCurrency(r.refundAmount || r.totalAmount || 0)}
+                          </TableCell>
+                          <TableCell className="py-2 px-3 text-gray-500">
+                            {fmtDate(r.createdAt || r.returnDate || "")}
+                          </TableCell>
+                          <TableCell className="py-2 px-3 text-gray-500 hidden sm:table-cell">
+                            {r.attendantId?.username || "—"}
+                          </TableCell>
+                          <TableCell className="py-2 px-3">
+                            <Button
+                              variant="ghost" size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => handleView(r)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between text-xs text-gray-500 px-0.5">
+              <span>
+                {Math.min((currentPage - 1) * itemsPerPage + 1, totalReturns)}–
+                {Math.min(currentPage * itemsPerPage, totalReturns)} of {totalReturns}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline" size="sm" className="h-7 w-7 p-0"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const pg = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                  if (pg > totalPages) return null;
+                  return (
+                    <Button
+                      key={pg}
+                      variant={currentPage === pg ? "default" : "outline"}
+                      size="sm" className="h-7 w-7 p-0 text-xs"
+                      onClick={() => setCurrentPage(pg)}
+                    >
+                      {pg}
+                    </Button>
+                  );
+                })}
+                <Button
+                  variant="outline" size="sm" className="h-7 w-7 p-0"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Mobile filter bottom sheet ── */}
+        <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+          <SheetContent side="bottom" className="sm:hidden rounded-t-2xl p-0 max-h-[80vh] overflow-y-auto">
+            <SheetHeader className="px-4 pt-4 pb-2 border-b">
+              <div className="flex items-center justify-between">
+                <SheetTitle className="text-base">Filters</SheetTitle>
+                <Button
+                  variant="ghost" size="sm"
+                  className="h-8 text-xs text-purple-600 font-medium px-2"
+                  onClick={clearFilters}
+                >
+                  Clear all
+                </Button>
+              </div>
+            </SheetHeader>
+
+            <div className="px-4 py-4 space-y-4">
+              {/* Supplier */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Supplier</label>
+                <Select value={supplierFilter} onValueChange={(v) => { setSupplierFilter(v); setCurrentPage(1); }}>
+                  <SelectTrigger className="h-10 text-sm">
+                    <SelectValue placeholder="All Suppliers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Suppliers</SelectItem>
+                    {(suppliers as any[]).map((s: any) => (
+                      <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date range */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Date Range</label>
+                <div className="flex gap-2 items-center">
+                  <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }} className="h-10 text-sm flex-1" />
+                  <span className="text-xs text-gray-400 shrink-0">–</span>
+                  <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }} className="h-10 text-sm flex-1" />
+                </div>
+              </div>
+
+              <SheetClose asChild>
+                <Button className="w-full h-11 text-sm font-medium mt-2">
+                  {activeFilterCount > 0 ? `Show results (${activeFilterCount} filter${activeFilterCount > 1 ? "s" : ""} active)` : "Show results"}
+                </Button>
+              </SheetClose>
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </DashboardLayout>
   );
