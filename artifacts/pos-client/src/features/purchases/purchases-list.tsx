@@ -456,8 +456,11 @@ export default function PurchasesList() {
   };
 
   const handleReturnPurchase = (purchase: any) => {
-    // Store purchase data in window object for immediate access (same pattern as sales)
-    (window as any).__purchaseReturnData = purchase;
+    // Pass the raw API purchase so the return page gets purchaseItems/items with full data
+    const originalPurchase = purchasesData.find(
+      (p: any) => (p._id || p.id) === purchase.id,
+    );
+    (window as any).__purchaseReturnData = originalPurchase || purchase;
     setLocation(`${purchasesRoute}/return/${purchase.id}`);
   };
 

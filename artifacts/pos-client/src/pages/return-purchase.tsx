@@ -65,42 +65,55 @@ export default function ReturnPurchase() {
     // Try to get data from window object first (same pattern as sales)
     const passedData = (window as any).__purchaseReturnData;
     
-    if (passedData && (passedData._id === purchaseId || passedData.id === purchaseId)) {
+    if (passedData && (String(passedData._id) === String(purchaseId) || String(passedData.id) === String(purchaseId))) {
       setOriginalPurchase(passedData);
       setIsLoading(false);
-      // Clear the data after use
       delete (window as any).__purchaseReturnData;
       return;
     }
-    setIsLoading(false);
+
+    // Fallback: fetch directly from the API
+    const fetchPurchase = async () => {
+      try {
+        const res = await apiRequest("GET", `/api/purchases/${purchaseId}`);
+        const data = await res.json();
+        if (data && (data._id || data.id)) {
+          setOriginalPurchase(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch purchase for return:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchPurchase();
   }, [purchaseId]);
 
   // Update returnItems when originalPurchase data is loaded
   useEffect(() => {
-    if (originalPurchase?.items && products.length > 0) {
-
+    // Handle both raw API shape (purchaseItems) and normalized shape (items)
+    const rawItems = originalPurchase?.purchaseItems || originalPurchase?.items;
+    if (rawItems && products.length > 0) {
       setReturnItems(
-        originalPurchase.items.map((item: any) => {
-          // Try to find product ID by matching product name
-          let productId = item.product?._id || item.productId;
-          
-          if (!productId && item.productName) {
-            const matchedProduct = products.find(p => 
-              (p.name === item.productName) || (p.title === item.productName)
-            );
-            productId = matchedProduct?._id || matchedProduct?.id;
-
+        rawItems.map((item: any) => {
+          // Support both raw API (item.product.id) and normalized (item.productId)
+          let productId = item.product?.id || item.product?._id || item.productId;
+          if (!productId && (item.product?.name || item.productName)) {
+            const name = item.product?.name || item.productName;
+            const matched = products.find(p => p.name === name || (p as any).title === name);
+            productId = (matched as any)?._id || (matched as any)?.id;
           }
-
+          const qty = parseFloat(String(item.quantity ?? 1));
+          const unitCost = parseFloat(String(item.unitPrice ?? item.unitCost ?? 0));
           return {
-            productId: productId,
-            productName: item.product?.name || item.productName,
-            quantity: item.quantity,
-            unitCost: item.unitCost,
-            totalCost: item.totalCost || (item.quantity * item.unitCost),
-            returnQuantity: item.quantity,
+            productId,
+            productName: item.product?.name || item.productName || "Unknown",
+            quantity: qty,
+            unitCost,
+            totalCost: item.totalCost || qty * unitCost,
+            returnQuantity: qty,
             returnReason: "",
-            shouldReturn: false
+            shouldReturn: false,
           };
         })
       );
