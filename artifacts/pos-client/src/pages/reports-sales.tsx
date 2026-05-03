@@ -198,37 +198,44 @@ export default function SalesReportPage() {
 
   return (
     <DashboardLayout>
-      <div className="w-full space-y-4">
+      <div className="w-full space-y-2">
 
         {/* Header */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={goBack} className="gap-1 px-2">
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Button>
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-green-600" />
+            <Button variant="ghost" size="sm" onClick={goBack} className="hidden sm:flex gap-1 px-2">
+              <ArrowLeft className="h-4 w-4" /> Back
+            </Button>
             <h1 className="text-lg font-bold text-gray-900">Sales Report</h1>
           </div>
+          <Button variant="ghost" size="sm" onClick={refetch} disabled={isLoading} className="h-8 w-8 p-0">
+            <RefreshCw className={`h-4 w-4 text-muted-foreground ${isLoading ? "animate-spin" : ""}`} />
+          </Button>
         </div>
 
         {/* Period selector */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
           {QUICK.map(q => (
-            <Button key={q.days} variant={quickDays === q.days ? "default" : "outline"} size="sm" className="h-8 text-sm" onClick={() => setQuickDays(q.days)}>
+            <button
+              key={q.days}
+              onClick={() => setQuickDays(q.days)}
+              className={`flex-shrink-0 h-8 px-3 text-xs rounded-full font-medium transition-colors border ${
+                quickDays === q.days
+                  ? "bg-primary text-white border-primary"
+                  : "bg-white text-gray-600 border-gray-200 hover:border-primary hover:text-primary"
+              }`}
+            >
               {q.label}
-            </Button>
+            </button>
           ))}
-          {isCustom && (
-            <>
-              <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="h-8 text-sm w-36" />
-              <span className="text-gray-400 text-sm">to</span>
-              <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="h-8 text-sm w-36" />
-            </>
-          )}
-          <Button size="sm" onClick={refetch} disabled={isLoading} className="h-8 gap-1 ml-auto bg-green-600 hover:bg-green-700">
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Apply
-          </Button>
         </div>
+        {isCustom && (
+          <div className="flex items-center gap-1.5">
+            <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="h-8 text-xs flex-1 sm:w-36 sm:flex-none" />
+            <span className="text-gray-400 text-xs">–</span>
+            <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="h-8 text-xs flex-1 sm:w-36 sm:flex-none" />
+          </div>
+        )}
 
         {isLoading && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -248,31 +255,25 @@ export default function SalesReportPage() {
 
         {!isLoading && totalTransactions > 0 && (
           <>
-            {/* Top summary row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <Card className="border-0 shadow-sm bg-blue-50">
-                <CardContent className="p-3">
-                  <p className="text-xs text-blue-500 font-medium">Total Sales Value</p>
-                  <p className="text-xl font-bold text-blue-700 leading-tight mt-0.5">{fmt(totalSalesValue)}</p>
-                  <p className="text-xs text-blue-400 mt-0.5">{totalTransactions} transaction{totalTransactions !== 1 ? "s" : ""}</p>
-                </CardContent>
-              </Card>
-              <Card className="border-0 shadow-sm bg-green-50">
-                <CardContent className="p-3">
-                  <p className="text-xs text-green-500 font-medium">Total Received</p>
-                  <p className="text-xl font-bold text-green-700 leading-tight mt-0.5">{fmt(cashCollected)}</p>
-                  <p className="text-xs text-green-400 mt-0.5">all methods combined</p>
-                </CardContent>
-              </Card>
-              <Card className={`border-0 shadow-sm ${totalOnCredit > 0 ? "bg-orange-50" : "bg-gray-50"}`}>
-                <CardContent className="p-3">
-                  <p className={`text-xs font-medium ${totalOnCredit > 0 ? "text-orange-500" : "text-gray-400"}`}>Still on Credit</p>
-                  <p className={`text-xl font-bold leading-tight mt-0.5 ${totalOnCredit > 0 ? "text-orange-600" : "text-gray-400"}`}>{fmt(totalOnCredit)}</p>
-                  <p className={`text-xs mt-0.5 ${totalOnCredit > 0 ? "text-orange-400" : "text-gray-300"}`}>
-                    {totalOnCredit > 0 ? "not yet paid" : "all paid"}
-                  </p>
-                </CardContent>
-              </Card>
+            {/* Top summary row — horizontal scroll on mobile */}
+            <div className="flex sm:grid sm:grid-cols-3 gap-2 overflow-x-auto no-scrollbar pb-0.5">
+              <div className="flex-shrink-0 w-44 sm:w-auto rounded-xl bg-blue-50 p-3">
+                <p className="text-[11px] text-blue-500 font-medium">Total Sales Value</p>
+                <p className="text-lg font-bold text-blue-700 leading-tight mt-0.5">{fmt(totalSalesValue)}</p>
+                <p className="text-[11px] text-blue-400 mt-0.5">{totalTransactions} transaction{totalTransactions !== 1 ? "s" : ""}</p>
+              </div>
+              <div className="flex-shrink-0 w-44 sm:w-auto rounded-xl bg-green-50 p-3">
+                <p className="text-[11px] text-green-500 font-medium">Total Received</p>
+                <p className="text-lg font-bold text-green-700 leading-tight mt-0.5">{fmt(cashCollected)}</p>
+                <p className="text-[11px] text-green-400 mt-0.5">all methods combined</p>
+              </div>
+              <div className={`flex-shrink-0 w-44 sm:w-auto rounded-xl p-3 ${totalOnCredit > 0 ? "bg-orange-50" : "bg-gray-50"}`}>
+                <p className={`text-[11px] font-medium ${totalOnCredit > 0 ? "text-orange-500" : "text-gray-400"}`}>Still on Credit</p>
+                <p className={`text-lg font-bold leading-tight mt-0.5 ${totalOnCredit > 0 ? "text-orange-600" : "text-gray-400"}`}>{fmt(totalOnCredit)}</p>
+                <p className={`text-[11px] mt-0.5 ${totalOnCredit > 0 ? "text-orange-400" : "text-gray-300"}`}>
+                  {totalOnCredit > 0 ? "not yet paid" : "all paid"}
+                </p>
+              </div>
             </div>
 
             {/* === TALLY CARDS — click any to view those sales === */}
