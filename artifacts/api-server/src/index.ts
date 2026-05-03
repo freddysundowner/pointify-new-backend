@@ -5,6 +5,7 @@ import {
   seedDefaultEmailConfig,
   seedDefaultEmailTemplates,
   seedDefaultPaymentMethods,
+  seedDefaultPermissions,
   seedDefaultSmsTemplates,
   seedDefaultTrialConfig,
 } from "./lib/seedDefaults";
@@ -31,6 +32,7 @@ app.listen(port, (err) => {
 
   logger.info(`Server listening on port ${port}`);
   void seedDefaultPaymentMethods();
+  void seedDefaultPermissions();
   void seedDefaultSmsTemplates();
   void seedDefaultEmailTemplates();
   void seedDefaultEmailConfig();
