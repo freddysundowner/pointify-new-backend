@@ -489,8 +489,8 @@ export default function Attendants() {
 
   // Get shop name for display
   const getShopName = (shopId: string | { _id: string; name: string }) => {
-    if (typeof shopId === 'object') return shopId?.name;
-    const shop = shops.find((s) => s.id === shopId);
+    if (typeof shopId === 'object' && shopId !== null) return shopId?.name;
+    const shop = shops.find((s) => String(s.id) === String(shopId));
     return shop?.name || 'Unknown Shop';
   };
 
