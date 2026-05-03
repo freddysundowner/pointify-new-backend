@@ -36,7 +36,27 @@ router.get("/", requireAdmin, async (req, res, next) => {
       with: { purchaseItems: true, purchasePayments: true },
     });
     const total = await db.$count(purchases, where);
-    return paginated(res, rows, { total, page, limit });
+
+    // Enrich purchase items with product names
+    const allProductIds = [...new Set(
+      rows.flatMap((r: any) => (r.purchaseItems ?? []).map((i: any) => i.product).filter(Boolean))
+    )];
+    let productMap: Record<number, any> = {};
+    if (allProductIds.length > 0) {
+      const productRows = await db.select({ id: products.id, name: products.name, sellingPrice: products.sellingPrice })
+        .from(products)
+        .where(sql`${products.id} = ANY(ARRAY[${sql.join(allProductIds.map((id: any) => sql`${id}`), sql`, `)}]::int[])`);
+      productMap = Object.fromEntries(productRows.map(p => [p.id, p]));
+    }
+    const enrichedRows = rows.map((row: any) => ({
+      ...row,
+      purchaseItems: (row.purchaseItems ?? []).map((item: any) => ({
+        ...item,
+        product: productMap[item.product] ?? { id: item.product, name: `Product #${item.product}` },
+      })),
+    }));
+
+    return paginated(res, enrichedRows, { total, page, limit });
   } catch (e) { next(e); }
 });
 
