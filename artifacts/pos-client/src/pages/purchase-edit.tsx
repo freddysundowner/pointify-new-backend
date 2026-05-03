@@ -60,17 +60,25 @@ export default function PurchaseEditPage() {
 
   useEffect(() => {
     if (purchaseFromState) {
+      // Handle both raw API shape (purchaseItems, supplier) and normalized shape (items, supplierId)
+      const rawItems = purchaseFromState.purchaseItems || purchaseFromState.items || [];
+      const supplierId =
+        purchaseFromState.supplier?.id ||
+        purchaseFromState.supplier?._id ||
+        purchaseFromState.supplierId?._id ||
+        purchaseFromState.supplierId ||
+        null;
       setFormData({
-        supplierId: purchaseFromState.supplierId?._id || "direct",
+        supplierId: supplierId ? String(supplierId) : "direct",
         paymentType: purchaseFromState.paymentType || "cash",
-        items: purchaseFromState.items?.map((item: any) => ({
-          productId: item.product?._id || item.productId,
-          productName: item.product?.name || item.productName,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          sellingPrice: item.sellingPrice || 0,
-          currency: item.product?.shopId?.currency || "KES",
-        })) || [],
+        items: rawItems.map((item: any) => ({
+          productId: item.product?.id || item.product?._id || item.productId,
+          productName: item.product?.name || item.productName || "Unknown Product",
+          quantity: parseFloat(String(item.quantity || 1)),
+          unitPrice: parseFloat(String(item.unitPrice || item.unitCost || 0)),
+          sellingPrice: parseFloat(String(item.sellingPrice || item.product?.sellingPrice || 0)),
+          currency: item.product?.shopId?.currency || currency,
+        })),
         notes: purchaseFromState.notes || "",
       });
     }
@@ -170,10 +178,11 @@ export default function PurchaseEditPage() {
     });
   };
 
-  const purchaseNo = purchaseFromState.purchaseNo || "";
-  const shortNo = purchaseNo.startsWith("PUR-")
-    ? purchaseNo
-    : `PUR-${purchaseNo.slice(-6).toUpperCase()}`;
+  const purchaseNo = purchaseFromState.purchaseNo || purchaseFromState.invoiceNumber || "";
+  // Normalise to "PUR-<suffix>" regardless of whether the stored value uses a hyphen or not
+  const shortNo = purchaseNo
+    ? purchaseNo.replace(/^PUR-?/i, "PUR-")
+    : "";
 
   return (
     <DashboardLayout title="Edit Purchase">
@@ -329,7 +338,7 @@ export default function PurchaseEditPage() {
                           type="number"
                           step="0.01"
                           min="0"
-                          value={item.unitPrice}
+                          value={item.unitPrice ?? 0}
                           onChange={(e) => updatePrice(index, parseFloat(e.target.value) || 0)}
                           className="h-7 text-xs text-center px-1"
                         />

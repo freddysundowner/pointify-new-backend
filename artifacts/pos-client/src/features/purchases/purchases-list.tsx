@@ -429,7 +429,7 @@ export default function PurchasesList() {
 
   const handleEditPurchase = (purchase: any) => {
     const originalPurchase = purchasesData.find(
-      (p: any) => p._id === purchase.id,
+      (p: any) => (p._id || p.id) === purchase.id,
     );
     setLocation(`${purchasesRoute}/edit/${purchase.id}`, {
       state: { purchase: originalPurchase || purchase },
