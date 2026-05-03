@@ -192,7 +192,7 @@ export default function PurchaseReturns() {
             <div className="flex items-center gap-2 min-w-0">
               <button
                 onClick={() => setLocation(backRoute)}
-                className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0"
+                className={`${attendant ? "flex" : "hidden lg:flex"} items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0`}
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
