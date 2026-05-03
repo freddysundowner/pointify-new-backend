@@ -710,7 +710,7 @@ export default function BusinessDashboard() {
           <div className="grid grid-cols-3 gap-3">
             {[
               { href: "/pos",       Icon: ScanBarcode, label: "POS",       bg: "bg-purple-100", color: "text-purple-600" },
-              { href: "/stock",     Icon: Box,         label: "Products",  bg: "bg-blue-100",   color: "text-blue-600"   },
+              { href: "/stock/products", Icon: Box,    label: "Products",  bg: "bg-blue-100",   color: "text-blue-600"   },
               { href: "/sales",     Icon: ShoppingCart,label: "Sales",     bg: "bg-green-100",  color: "text-green-600"  },
               { href: "/expenses",  Icon: CreditCard,  label: "Expenses",  bg: "bg-red-100",    color: "text-red-600"    },
               { href: "/customers", Icon: Users,       label: "Customers", bg: "bg-orange-100", color: "text-orange-600" },
