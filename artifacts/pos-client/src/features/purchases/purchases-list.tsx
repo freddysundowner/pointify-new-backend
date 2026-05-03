@@ -95,6 +95,12 @@ export default function PurchasesList() {
     }
   };
 
+  const shortPurchaseNo = (no: string | undefined) => {
+    if (!no) return "—";
+    const digits = no.replace(/\D/g, "");
+    return digits.length >= 6 ? "PUR-" + digits.slice(-6) : no;
+  };
+
   // Check if user has permission to view purchases - admins always have access, attendants need permission
   const canViewPurchases =
     isAdmin || hasAttendantPermission("stocks", "view_purchases");
@@ -955,7 +961,7 @@ export default function PurchasesList() {
                     <div className="px-3 py-2 flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-xs font-semibold text-gray-800">{purchase.invoiceNumber}</span>
+                          <span className="font-mono text-xs font-semibold text-gray-800">{shortPurchaseNo(purchase.invoiceNumber)}</span>
                           <Badge variant={getStatusBadgeVariant(purchase.status)} className="text-xs px-1.5 py-0">{purchase.status}</Badge>
                         </div>
                         <p className="text-sm font-medium text-gray-700 mt-0.5 truncate">{purchase.supplierName}</p>
@@ -1065,7 +1071,7 @@ export default function PurchasesList() {
                             </span>
                           </td>
                           <td className="py-2 px-3 text-sm font-mono">
-                            {purchase.invoiceNumber}
+                            {shortPurchaseNo(purchase.invoiceNumber)}
                           </td>
                           <td className="py-2 px-3 text-sm">
                             {purchase.supplierName}
@@ -1206,7 +1212,7 @@ export default function PurchasesList() {
                                       Invoice:{" "}
                                     </span>
                                     <span>
-                                      {purchase.invoiceNumber || "Pending"}
+                                      {shortPurchaseNo(purchase.invoiceNumber) || "Pending"}
                                     </span>
                                   </div>
                                 </div>
