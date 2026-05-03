@@ -91,6 +91,12 @@ export default function ProductGrid({
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const { shopData, allowNegativeStock } = usePrimaryShop();
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [isMobile, setIsMobile] = useState(typeof window !== "undefined" && window.innerWidth < 640);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -2155,14 +2161,9 @@ export default function ProductGrid({
         </div>
       )}
 
-      {/* Payment Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={resetPaymentDialog}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-primary">Payment</DialogTitle>
-          </DialogHeader>
-          
-          {showCardInterface ? (
+      {/* Payment — bottom sheet on mobile, dialog on desktop */}
+      {(() => {
+        const paymentContent = showCardInterface ? (
             /* Card Payment Interface */
             <div className="space-y-8 py-6">
               <div className="text-center">
@@ -2544,9 +2545,28 @@ export default function ProductGrid({
                 </Button>
               </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+        );
+        return isMobile ? (
+          <Sheet open={showPaymentDialog} onOpenChange={resetPaymentDialog}>
+            <SheetContent side="bottom" className="rounded-t-2xl max-h-[92vh] overflow-y-auto px-4 pb-6">
+              <div className="mx-auto w-10 h-1 bg-gray-200 rounded-full mb-3 mt-1" />
+              <SheetHeader className="pb-2">
+                <SheetTitle className="text-xl font-bold text-primary text-center">Payment</SheetTitle>
+              </SheetHeader>
+              {paymentContent}
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Dialog open={showPaymentDialog} onOpenChange={resetPaymentDialog}>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-bold text-primary">Payment</DialogTitle>
+              </DialogHeader>
+              {paymentContent}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Categories Drawer */}
       <Sheet open={showCategoriesDrawer} onOpenChange={setShowCategoriesDrawer}>
