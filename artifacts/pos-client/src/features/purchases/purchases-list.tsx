@@ -657,23 +657,12 @@ export default function PurchasesList() {
       <div className="-mx-4 sm:mx-0 px-0 sm:px-0 py-0">
         {/* Sticky header */}
         <div className="sticky top-0 z-10 bg-white border-b">
-          <div className="px-3 sm:px-4 py-2.5 flex items-center gap-2">
-            <div className="flex items-center gap-2 shrink-0">
+          <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <button onClick={handleBackClick} className="hidden lg:flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0">
                 <ArrowLeft className="h-4 w-4" />
               </button>
-              <h1 className="text-base font-bold text-gray-900 leading-tight">Purchases</h1>
-            </div>
-            {/* Mobile: inline search next to filter icon */}
-            <div className="sm:hidden relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-              <Input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-8 h-8 text-sm w-full"
-              />
+              <h1 className="text-base font-bold text-gray-900 leading-tight truncate">Purchases</h1>
             </div>
             <div className="flex gap-1.5 shrink-0">
               {/* Mobile: Filter button */}
@@ -708,6 +697,17 @@ export default function PurchasesList() {
         </div>
 
         <div className="px-3 sm:px-4 py-3 space-y-3">
+          {/* Mobile: full-width search above stat cards */}
+          <div className="sm:hidden relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              type="text"
+              placeholder="Search by purchase number..."
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-8 h-9 text-sm w-full"
+            />
+          </div>
 
         {/* Compact Filters — desktop only */}
         <Card className="hidden sm:block">
