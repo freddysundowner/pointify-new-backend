@@ -52,7 +52,7 @@
   --card-foreground: hsl(240, 10%, 10%);
   --border: hsl(0, 0%, 0%, 0);
   --input: hsl(0, 0%, 95%);
-  --primary: hsl(142, 76%, 36%);
+  --primary: hsl(271, 76%, 53%);
   --primary-foreground: hsl(0, 0%, 100%);
   --secondary: hsl(0, 0%, 96%);
   --secondary-foreground: hsl(240, 10%, 10%);
@@ -60,7 +60,7 @@
   --accent-foreground: hsl(240, 10%, 10%);
   --destructive: hsl(0, 84%, 60%);
   --destructive-foreground: hsl(0, 0%, 100%);
-  --ring: hsl(142, 76%, 36%);
+  --ring: hsl(271, 76%, 53%);
   --radius: 0.75rem;
 }
 
