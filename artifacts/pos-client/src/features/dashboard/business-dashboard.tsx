@@ -622,8 +622,8 @@ export default function BusinessDashboard() {
         {/* Today's Key Metrics — 2×2 grid on mobile, 4-col on desktop */}
         <div className="space-y-2">
         <p className="lg:hidden text-xs font-semibold text-gray-400 uppercase tracking-widest px-0.5">Today's Overview</p>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-          <Link href="/sales">
+        <div className="flex overflow-x-auto gap-3 no-scrollbar pb-1 lg:grid lg:grid-cols-4 lg:gap-4 lg:overflow-visible lg:pb-0">
+          <Link href="/sales" className="shrink-0 w-44 lg:w-auto">
             <Card className="h-full bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition-all cursor-pointer active:scale-95">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
                 <CardTitle className="text-xs font-medium text-blue-100">Today's Sales</CardTitle>
@@ -645,7 +645,7 @@ export default function BusinessDashboard() {
             </Card>
           </Link>
 
-          <Link href="/reports">
+          <Link href="/reports" className="shrink-0 w-44 lg:w-auto">
             <Card className="h-full bg-gradient-to-br from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 transition-all cursor-pointer active:scale-95">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
                 <CardTitle className="text-xs font-medium text-green-100">Today's Profit</CardTitle>
@@ -667,7 +667,7 @@ export default function BusinessDashboard() {
             </Card>
           </Link>
 
-          <Link href="/expenses">
+          <Link href="/expenses" className="shrink-0 w-44 lg:w-auto">
             <Card className="h-full bg-gradient-to-br from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-all cursor-pointer active:scale-95">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
                 <CardTitle className="text-xs font-medium text-red-100">Today's Expenses</CardTitle>
@@ -689,7 +689,7 @@ export default function BusinessDashboard() {
             </Card>
           </Link>
 
-          <Link href="/stock?filter=alerts">
+          <Link href="/stock?filter=alerts" className="shrink-0 w-44 lg:w-auto">
             <Card className="h-full bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 transition-all cursor-pointer active:scale-95">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
                 <CardTitle className="text-xs font-medium text-orange-100">Stock Alerts</CardTitle>
