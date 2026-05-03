@@ -183,7 +183,7 @@ export default function PurchaseEditPage() {
     });
   };
 
-  const totalAmount = formData.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+  const totalAmount = formData.items.reduce((sum, item) => sum + (parseFloat(String(item.quantity)) * parseFloat(String(item.unitPrice))), 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -313,7 +313,7 @@ export default function PurchaseEditPage() {
                             <div>
                               <p className="font-medium">{product.name || product.title}</p>
                               <p className="text-sm text-muted-foreground">
-                                Stock: {product.quantity || 0} | Cost: {product.shopId?.currency || "KES"} {(product.buyingPrice || product.sellingPrice || 0).toFixed(2)}
+                                Stock: {product.quantity || 0} | Cost: {product.shopId?.currency || "KES"} {parseFloat(String(product.buyingPrice || product.sellingPrice || 0)).toFixed(2)}
                               </p>
                             </div>
                             <Button type="button" size="sm">Add</Button>
@@ -362,7 +362,7 @@ export default function PurchaseEditPage() {
                         <div className="space-y-1">
                           <Label className="text-xs">Total</Label>
                           <p className="text-sm font-medium px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded">
-                            {item.currency} {(item.quantity * item.unitPrice).toFixed(2)}
+                            {item.currency} {(parseFloat(String(item.quantity)) * parseFloat(String(item.unitPrice))).toFixed(2)}
                           </p>
                         </div>
                         <Button
