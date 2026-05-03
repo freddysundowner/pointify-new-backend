@@ -361,7 +361,7 @@ export default function PurchaseOrderPage() {
                       <CommandGroup>
                         {filteredSuppliers.map((supplier) => (
                           <CommandItem
-                            key={supplier._id}
+                            key={supplier._id || (supplier as any).id || supplier.name}
                             value={supplier.name}
                             onSelect={() => {
                               setSelectedSupplier(supplier);
@@ -407,14 +407,14 @@ export default function PurchaseOrderPage() {
                       <CommandGroup>
                         {filteredProducts.map((product) => (
                           <CommandItem
-                            key={product._id}
+                            key={product._id || (product as any).id || product.name}
                             value={product.name}
                             onSelect={() => addProduct(product)}
                           >
                             <div className="flex items-center justify-between w-full">
                               <span>{product.name}</span>
                               <Badge variant="secondary">
-                                {currency} {((product as any)?.buyingPrice || (product as any)?.sellingPrice || 0).toFixed(2)}
+                                {currency} {parseFloat(String((product as any)?.buyingPrice || (product as any)?.sellingPrice || 0)).toFixed(2)}
                               </Badge>
                             </div>
                           </CommandItem>
