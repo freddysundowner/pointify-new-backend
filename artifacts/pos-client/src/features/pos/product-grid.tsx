@@ -1106,34 +1106,26 @@ export default function ProductGrid({
             </button>
           </div>
         </div>
-        {/* Products / Cart tabs — grid mode only */}
-        {viewMode === 'grid' ? (
-          <div className="flex border-t border-gray-100">
-            <button
-              onClick={() => setMobileView('products')}
-              className={`flex-1 py-2 text-xs font-semibold text-center transition-colors border-b-2 ${mobileView === 'products' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-gray-500'}`}
-            >
-              Products
-            </button>
-            <button
-              onClick={() => setMobileView('cart')}
-              className={`flex-1 py-2 text-xs font-semibold text-center transition-colors border-b-2 ${mobileView === 'cart' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-gray-500'}`}
-            >
-              Cart
-              {cartItems.length > 0 && (
-                <span className="ml-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full">
-                  {cartItems.length > 9 ? '9+' : cartItems.length}
-                </span>
-              )}
-            </button>
-          </div>
-        ) : (
-          <div className="flex border-t border-gray-100">
-            <div className="flex-1 py-2 text-xs font-semibold text-center text-primary border-b-2 border-primary bg-primary/5">
-              Scanner Mode
-            </div>
-          </div>
-        )}
+        {/* Products / Cart tabs — always shown on mobile */}
+        <div className="flex border-t border-gray-100">
+          <button
+            onClick={() => setMobileView('products')}
+            className={`flex-1 py-2 text-xs font-semibold text-center transition-colors border-b-2 ${mobileView === 'products' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-gray-500'}`}
+          >
+            {viewMode === 'grid' ? 'Products' : 'Scan'}
+          </button>
+          <button
+            onClick={() => setMobileView('cart')}
+            className={`flex-1 py-2 text-xs font-semibold text-center transition-colors border-b-2 ${mobileView === 'cart' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-gray-500'}`}
+          >
+            Cart
+            {cartItems.length > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full">
+                {cartItems.length > 9 ? '9+' : cartItems.length}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Desktop Header Bar - No search on mobile */}
@@ -1180,7 +1172,7 @@ export default function ProductGrid({
 
       <div className="flex flex-1 flex-col lg:flex-row overflow-hidden">
         {/* Left Panel - Transaction Form */}
-        <div className={`${viewMode === 'grid' ? (mobileView === 'products' ? 'hidden lg:block' : 'block') : 'block'} w-full lg:w-2/3 p-2 lg:p-6 bg-white lg:order-1 overflow-y-auto`}>
+        <div className={`${mobileView === 'products' ? 'hidden lg:block' : 'block'} w-full lg:w-2/3 p-2 lg:p-6 bg-white lg:order-1 overflow-y-auto pb-20 lg:pb-6`}>
           {/* Mobile: Stack vertically, Desktop: 2 columns */}
           <div className="mb-3 lg:mb-6">
             <label className="text-xs lg:text-sm font-medium text-gray-700 block mb-1 lg:mb-2">Date</label>
@@ -1924,9 +1916,99 @@ export default function ProductGrid({
           </div>
         )}
 
-        {/* Table Mode - Right Panel for Totals */}
+        {/* Table Mode - Mobile Scan View + Right Panel for Totals */}
         {viewMode === 'table' && (
-          <div className="w-full lg:w-1/3 bg-white p-2 lg:p-6 lg:order-2 flex flex-col">
+          <>
+          {/* Mobile-only scan interface */}
+          <div className={`${mobileView === 'products' ? 'flex' : 'hidden'} lg:hidden flex-col flex-1 overflow-y-auto pb-20 bg-white`}>
+            <div className="p-4 border-b border-gray-100">
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Scan barcode or search products..."
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  className="pl-10 h-12 text-sm border-gray-300 bg-white focus:ring-2 focus:ring-primary focus:border-primary"
+                  autoFocus
+                />
+                {searchQuery && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+                    {isLoading ? (
+                      <div className="text-center py-4">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mx-auto mb-2"></div>
+                        <p className="text-sm text-gray-500">Searching...</p>
+                      </div>
+                    ) : products.length === 0 ? (
+                      <div className="text-center py-4 text-gray-500">
+                        <p className="text-sm">No products found</p>
+                      </div>
+                    ) : (
+                      products.slice(0, 10).map((product: any) => {
+                        const isService = product?.type === 'service' || product?.type === 'virtual';
+                        const isOutOfStock = !isService && !allowNegativeStock && (product.quantity === 0);
+                        return (
+                          <div
+                            key={product.id}
+                            onClick={isOutOfStock ? undefined : () => { handleAddToCart(product); onSearchChange(''); }}
+                            className={`flex items-center justify-between p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 ${isOutOfStock ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          >
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                              {isService ? (
+                                <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Service</span>
+                              ) : isOutOfStock ? (
+                                <span className="text-xs text-red-600">Out of stock</span>
+                              ) : (
+                                <span className="text-xs text-gray-500">Stock: {product.quantity || 0}</span>
+                              )}
+                            </div>
+                            <span className="text-sm font-semibold text-green-600 ml-3">
+                              {currency} {(+getPriceForSaleType(product, saleType)).toFixed(2)}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCustomItemDialog(true)}
+                className="w-full h-10 border-dashed border-primary/40 text-primary hover:bg-primary/5"
+              >
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add Custom Item
+              </Button>
+            </div>
+            <div className="flex flex-col items-center justify-center flex-1 py-10 px-6 text-center">
+              <div className="w-20 h-20 mx-auto bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h2M4 4h4m12 0h2M4 20h4m12 0h2" />
+                </svg>
+              </div>
+              <h3 className="text-base font-semibold text-gray-800 mb-2">Scanner Mode</h3>
+              <p className="text-sm text-gray-500 mb-6 max-w-xs">Search by product name or scan a barcode to add items to the cart</p>
+              <div className="space-y-3 text-left w-full max-w-xs">
+                {[
+                  'Type in the search bar above',
+                  'Scan a barcode with a scanner device',
+                  'Items are added to cart automatically',
+                ].map((tip, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-6 h-6 bg-primary text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</div>
+                    <p className="text-sm text-gray-600">{tip}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Totals + Payment Panel */}
+          <div className={`${mobileView === 'products' ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-1/3 bg-white p-2 lg:p-6 lg:order-2 overflow-y-auto pb-20 lg:pb-6`}>
             <div className="flex-1 flex flex-col">
               {/* Summary Section */}
               <div className="bg-gray-50 p-4 lg:p-6 rounded-lg">
@@ -1997,12 +2079,49 @@ export default function ProductGrid({
               </div>
             </div>
           </div>
+          </>
         )}
       </div>
 
       {/* Mobile: Sticky bottom checkout bar — only visible in products view */}
       {viewMode === 'grid' && mobileView === 'products' && (
         <div className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 shadow-2xl z-30 flex items-center gap-3 px-3 py-2.5 safe-bottom">
+          <button
+            onClick={() => setMobileView('cart')}
+            className="flex flex-1 items-center gap-3 min-w-0 active:opacity-70"
+          >
+            <div className="relative flex-shrink-0">
+              <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              {cartItems.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {cartItems.length > 9 ? '9+' : cartItems.length}
+                </span>
+              )}
+            </div>
+            <div className="text-left min-w-0 flex-1">
+              <div className="text-xs text-gray-500 leading-none mb-0.5">
+                {cartItems.length === 0 ? 'Cart is empty' : `${cartItems.length} item${cartItems.length !== 1 ? 's' : ''} in cart`}
+              </div>
+              <div className="text-sm font-bold text-gray-900">{currency} {totals.total.toFixed(2)}</div>
+            </div>
+          </button>
+          <Button
+            onClick={() => cartItems.length > 0 && setShowPaymentDialog(true)}
+            className="bg-primary hover:bg-primary/90 text-white font-semibold px-6 h-11 rounded-xl flex-shrink-0 text-sm"
+            disabled={cartItems.length === 0}
+          >
+            Charge
+          </Button>
+        </div>
+      )}
+
+      {/* Mobile: Sticky bottom checkout bar — table mode scan view */}
+      {viewMode === 'table' && mobileView === 'products' && (
+        <div className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 shadow-2xl z-30 flex items-center gap-3 px-3 py-2.5">
           <button
             onClick={() => setMobileView('cart')}
             className="flex flex-1 items-center gap-3 min-w-0 active:opacity-70"
