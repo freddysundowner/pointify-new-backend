@@ -187,6 +187,7 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     const start = req.query["start"] ? new Date(String(req.query["start"])) : from;
     const end = req.query["end"] ? new Date(String(req.query["end"])) : to;
     const receiptNo = req.query["receiptNo"] ? String(req.query["receiptNo"]) : null;
+    const search = req.query["search"] ? String(req.query["search"]) : null;
     const paymentTag = req.query["paymentTag"] ? String(req.query["paymentTag"]) : null;
     const attendantId = req.query["attendantId"] ? Number(req.query["attendantId"]) : null;
 
@@ -202,6 +203,15 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     if (customerId) conditions.push(eq(sales.customer, customerId));
     if (status) conditions.push(eq(sales.status, status));
     if (receiptNo) conditions.push(ilike(sales.receiptNo, `%${receiptNo}%`));
+    if (search) {
+      const matchingCustomers = await db.select({ id: customers.id }).from(customers).where(ilike(customers.name, `%${search}%`));
+      const customerIds = matchingCustomers.map((c) => c.id);
+      if (customerIds.length > 0) {
+        conditions.push(or(ilike(sales.receiptNo, `%${search}%`), inArray(sales.customer, customerIds)));
+      } else {
+        conditions.push(ilike(sales.receiptNo, `%${search}%`));
+      }
+    }
     if (paymentTag) conditions.push(ilike(sales.paymentType, `%${paymentTag}%`));
     if (start) conditions.push(gte(sales.createdAt, start));
     if (end) {

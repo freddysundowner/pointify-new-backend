@@ -210,7 +210,7 @@ function SalesList() {
     if (endDate) {
       params.append("end", endDate);
     }
-    if (searchQuery.trim()) params.append("receiptNo", searchQuery.trim());
+    if (searchQuery.trim()) params.append("search", searchQuery.trim());
     if (attendantFilter !== "all")
       params.append("attendantId", attendantFilter);
     params.append("page", currentPage.toString());
@@ -1016,7 +1016,7 @@ function SalesList() {
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
                     type="text"
-                    placeholder="Search receipt no..."
+                    placeholder="Receipt no. or customer..."
                     value={searchQuery}
                     onChange={(e) => handleSearchChange(e.target.value)}
                     className="pl-7 h-8 text-xs"
