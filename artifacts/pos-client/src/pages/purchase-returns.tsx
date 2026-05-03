@@ -256,55 +256,55 @@ export default function PurchaseReturns() {
 
   return (
     <DashboardLayout title="Purchase Returns">
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header with Back Button */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
-              size="sm" 
+              size="sm"
+              className="h-8"
               onClick={() => setLocation(backRoute)}
-              className="flex items-center gap-2"
             >
-              <ArrowLeft className="h-4 w-4" />
-              {attendant ? 'Back to Dashboard' : 'Back to Purchases'}
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">{attendant ? 'Dashboard' : 'Purchases'}</span>
             </Button>
-            <h2 className="text-xl font-semibold">Purchase Returns</h2>
+            <h2 className="text-base font-semibold">Purchase Returns</h2>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => refetch()}>
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={downloadReturnsReport}>
-              <Download className="h-4 w-4" />
-              Export
+            <Button variant="outline" size="sm" className="h-8" onClick={downloadReturnsReport}>
+              <Download className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Export</span>
             </Button>
           </div>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Returns</CardTitle>
+            <CardHeader className="pb-1 pt-3 px-3">
+              <CardTitle className="text-xs font-medium text-gray-500">Total Returns</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalReturns}</div>
+            <CardContent className="px-3 pb-3">
+              <div className="text-xl font-bold">{totalReturns}</div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Return Amount</CardTitle>
+            <CardHeader className="pb-1 pt-3 px-3">
+              <CardTitle className="text-xs font-medium text-gray-500">Return Amount</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(totalReturnAmount)}</div>
+            <CardContent className="px-3 pb-3">
+              <div className="text-xl font-bold">{formatCurrency(totalReturnAmount)}</div>
             </CardContent>
           </Card>
         </div>
 
         {/* Filters */}
         <Card>
-          <CardContent className="pt-6 space-y-4">
+          <CardContent className="pt-4 space-y-3">
             {/* Date Range */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>

@@ -210,9 +210,9 @@ export default function ReturnPurchase() {
   if (isLoading) {
     return (
       <DashboardLayout title="Loading Return Data...">
-        <div className="p-6 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading purchase data...</p>
+        <div className="p-4 text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900 mx-auto mb-3"></div>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Loading purchase data...</p>
         </div>
       </DashboardLayout>
     );
@@ -221,14 +221,14 @@ export default function ReturnPurchase() {
   if (!originalPurchase) {
     return (
       <DashboardLayout title="Purchase Not Found">
-        <div className="p-6 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+        <div className="p-4 text-center">
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
             Purchase Not Found
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             The requested purchase could not be found.
           </p>
-          <Button className="mt-4" onClick={goBack}>
+          <Button className="mt-4" size="sm" onClick={goBack}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Go Back
           </Button>
@@ -240,15 +240,15 @@ export default function ReturnPurchase() {
   if (originalPurchase.status === "cancelled") {
     return (
       <DashboardLayout title="Return Not Available">
-        <div className="p-6 text-center">
-          <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+        <div className="p-4 text-center">
+          <AlertCircle className="h-10 w-10 text-yellow-500 mx-auto mb-3" />
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
             Purchase Cancelled
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             This purchase has been cancelled and cannot be returned.
           </p>
-          <Button className="mt-4" onClick={goBack}>
+          <Button className="mt-4" size="sm" onClick={goBack}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Go Back
           </Button>
@@ -261,43 +261,46 @@ export default function ReturnPurchase() {
 
   return (
     <DashboardLayout title={`Return Purchase #${originalPurchase.invoiceNumber || originalPurchase.id}`}>
-      <div className="p-6 w-full">
+      <div className="p-4 w-full">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Process Return - Purchase #{originalPurchase.invoiceNumber || originalPurchase.id}
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight">
+              Return - Purchase #{originalPurchase.invoiceNumber || originalPurchase.id}
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Select items to return to supplier and specify return reasons
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Select items to return and specify reasons
             </p>
           </div>
           
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={goBack}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" className="h-8" onClick={goBack}>
+              <ArrowLeft className="mr-1 h-4 w-4" />
               Cancel
             </Button>
             <Button 
+              size="sm"
+              className="h-8"
               onClick={handleProcessReturn}
               disabled={selectedItemsCount === 0 || isProcessing}
             >
               {isProcessing ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <span className="hidden sm:inline">Processing...</span>
                 </>
               ) : (
                 <>
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Process Return
+                  <RotateCcw className="mr-1 h-4 w-4" />
+                  <span className="hidden sm:inline">Process Return</span>
+                  <span className="sm:hidden">Return</span>
                 </>
               )}
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-6">
+        <div className="grid gap-4">
           {/* Purchase Information */}
           <Card>
             <CardHeader>

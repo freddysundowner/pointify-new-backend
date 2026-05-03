@@ -184,7 +184,7 @@ export default function StockCount() {
           </div>
         </div>
 
-        {/* ── Table ── */}
+        {/* ── Content ── */}
         <div className="flex-1 overflow-auto">
           {isLoading ? (
             <div className="flex items-center justify-center h-40 text-gray-400 text-sm gap-2">
@@ -193,17 +193,9 @@ export default function StockCount() {
           ) : products.length === 0 ? (
             <div className="flex items-center justify-center h-40 text-gray-400 text-sm">No products found</div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
-                  <th className="text-left px-4 py-2 font-medium">Product</th>
-                  <th className="text-center px-3 py-2 font-medium w-24">System</th>
-                  <th className="text-center px-3 py-2 font-medium w-40">Physical Count</th>
-                  <th className="text-center px-3 py-2 font-medium w-24">Variance</th>
-                  <th className="text-center px-3 py-2 font-medium w-24">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <>
+              {/* Mobile card list */}
+              <div className="sm:hidden divide-y divide-gray-100">
                 {products.map((product) => {
                   const pid = product._id ?? String(product.id);
                   const countValue = preservedCounts[pid] ?? countData[pid];
@@ -211,21 +203,34 @@ export default function StockCount() {
                   const physicalCount = countValue ?? 0;
                   const variance = countValue !== undefined ? physicalCount - systemQty : null;
                   const isCounted = countValue !== undefined;
-
                   return (
-                    <tr key={pid} className={`hover:bg-gray-50 transition-colors ${isCounted ? "bg-green-50/40" : ""}`}>
-                      <td className="px-4 py-2">
-                        <div className="font-medium text-gray-900 leading-tight">{product.name}</div>
-                        {product.category && <div className="text-xs text-gray-400">{product.category}</div>}
-                      </td>
-                      <td className="text-center px-3 py-2 text-gray-600">{systemQty}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-center gap-1">
+                    <div key={pid} className={`px-4 py-3 ${isCounted ? "bg-green-50/40" : ""}`}>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-gray-900 text-sm leading-tight">{product.name}</div>
+                          {product.category && <div className="text-xs text-gray-400 mt-0.5">{product.category}</div>}
+                        </div>
+                        {isCounted && (
+                          <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0">
+                            <CheckCircle2 className="h-3 w-3" /> Counted
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span>System: <span className="font-semibold text-gray-700">{systemQty}</span></span>
+                          {variance !== null && (
+                            <span className={`font-semibold ${variance === 0 ? "text-green-600" : variance > 0 ? "text-blue-600" : "text-red-500"}`}>
+                              Var: {variance > 0 ? `+${variance}` : variance}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
                           <button
-                            className="h-6 w-6 rounded border border-gray-200 flex items-center justify-center hover:bg-gray-100 text-gray-500"
+                            className="h-8 w-8 rounded border border-gray-200 flex items-center justify-center hover:bg-gray-100 text-gray-500"
                             onClick={() => handleCountChange(pid, Math.max(0, physicalCount - 1))}
                           >
-                            <Minus className="h-3 w-3" />
+                            <Minus className="h-3.5 w-3.5" />
                           </button>
                           <Input
                             type="number"
@@ -235,36 +240,95 @@ export default function StockCount() {
                               const v = e.target.value === "" ? 0 : parseInt(e.target.value);
                               if (!isNaN(v)) handleCountChange(pid, v);
                             }}
-                            className="w-16 h-6 text-center text-xs px-1 border-gray-200"
+                            className="w-16 h-8 text-center text-sm px-1 border-gray-200"
                             min="0"
                           />
                           <button
-                            className="h-6 w-6 rounded border border-gray-200 flex items-center justify-center hover:bg-gray-100 text-gray-500"
+                            className="h-8 w-8 rounded border border-gray-200 flex items-center justify-center hover:bg-gray-100 text-gray-500"
                             onClick={() => handleCountChange(pid, physicalCount + 1)}
                           >
-                            <Plus className="h-3 w-3" />
+                            <Plus className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                      </td>
-                      <td className="text-center px-3 py-2">
-                        {variance !== null && (
-                          <span className={`font-semibold text-xs ${variance === 0 ? "text-green-600" : variance > 0 ? "text-blue-600" : "text-red-500"}`}>
-                            {variance > 0 ? `+${variance}` : variance}
-                          </span>
-                        )}
-                      </td>
-                      <td className="text-center px-3 py-2">
-                        {isCounted && (
-                          <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
-                            <CheckCircle2 className="h-3 w-3" /> Counted
-                          </span>
-                        )}
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Desktop table */}
+              <table className="hidden sm:table w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
+                    <th className="text-left px-4 py-2 font-medium">Product</th>
+                    <th className="text-center px-3 py-2 font-medium w-24">System</th>
+                    <th className="text-center px-3 py-2 font-medium w-40">Physical Count</th>
+                    <th className="text-center px-3 py-2 font-medium w-24">Variance</th>
+                    <th className="text-center px-3 py-2 font-medium w-24">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {products.map((product) => {
+                    const pid = product._id ?? String(product.id);
+                    const countValue = preservedCounts[pid] ?? countData[pid];
+                    const systemQty = product.quantity || 0;
+                    const physicalCount = countValue ?? 0;
+                    const variance = countValue !== undefined ? physicalCount - systemQty : null;
+                    const isCounted = countValue !== undefined;
+                    return (
+                      <tr key={pid} className={`hover:bg-gray-50 transition-colors ${isCounted ? "bg-green-50/40" : ""}`}>
+                        <td className="px-4 py-2">
+                          <div className="font-medium text-gray-900 leading-tight">{product.name}</div>
+                          {product.category && <div className="text-xs text-gray-400">{product.category}</div>}
+                        </td>
+                        <td className="text-center px-3 py-2 text-gray-600">{systemQty}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              className="h-6 w-6 rounded border border-gray-200 flex items-center justify-center hover:bg-gray-100 text-gray-500"
+                              onClick={() => handleCountChange(pid, Math.max(0, physicalCount - 1))}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </button>
+                            <Input
+                              type="number"
+                              value={countValue !== undefined ? countValue.toString() : ""}
+                              placeholder="—"
+                              onChange={(e) => {
+                                const v = e.target.value === "" ? 0 : parseInt(e.target.value);
+                                if (!isNaN(v)) handleCountChange(pid, v);
+                              }}
+                              className="w-16 h-6 text-center text-xs px-1 border-gray-200"
+                              min="0"
+                            />
+                            <button
+                              className="h-6 w-6 rounded border border-gray-200 flex items-center justify-center hover:bg-gray-100 text-gray-500"
+                              onClick={() => handleCountChange(pid, physicalCount + 1)}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </td>
+                        <td className="text-center px-3 py-2">
+                          {variance !== null && (
+                            <span className={`font-semibold text-xs ${variance === 0 ? "text-green-600" : variance > 0 ? "text-blue-600" : "text-red-500"}`}>
+                              {variance > 0 ? `+${variance}` : variance}
+                            </span>
+                          )}
+                        </td>
+                        <td className="text-center px-3 py-2">
+                          {isCounted && (
+                            <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                              <CheckCircle2 className="h-3 w-3" /> Counted
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
 

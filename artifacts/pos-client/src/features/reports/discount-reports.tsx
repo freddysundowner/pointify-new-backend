@@ -182,38 +182,34 @@ export default function DiscountReports() {
     <DashboardLayout title="Discount Reports">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="sm" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign("/reports")}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Reports
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign("/reports")}>
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Back</span>
             </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <ArrowDownRight className="h-8 w-8 text-orange-600" />
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                <ArrowDownRight className="h-5 w-5 text-orange-600 shrink-0" />
                 Discount Reports
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">Track all discounts given to customers</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Track all discounts given to customers</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline">
-              <Calendar className="h-4 w-4 mr-2" />
-              Schedule Report
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" className="h-8" onClick={exportToExcel}>
+              <Download className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Excel</span>
             </Button>
-            <Button variant="outline" onClick={exportToExcel}>
-              <Download className="h-4 w-4 mr-2" />
-              Export Excel
-            </Button>
-            <Button onClick={exportToPDF}>
-              <FileText className="h-4 w-4 mr-2" />
-              Export PDF
+            <Button size="sm" className="h-8" onClick={exportToPDF}>
+              <FileText className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">PDF</span>
             </Button>
           </div>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">

@@ -221,40 +221,36 @@ export default function StockReport() {
     <DashboardLayout title="Stock Report">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <Link href="/reports">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Reports
+              <Button variant="outline" size="sm" className="h-8 shrink-0">
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Back</span>
               </Button>
             </Link>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Package className="h-8 w-8 text-purple-600" />
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                <Package className="h-5 w-5 text-purple-600 shrink-0" />
                 Stock Report
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">Comprehensive inventory analysis and management</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Comprehensive inventory analysis</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline">
-              <Calendar className="h-4 w-4 mr-2" />
-              Schedule Report
+          <div className="flex gap-2 shrink-0">
+            <Button onClick={exportToExcel} variant="outline" size="sm" className="h-8">
+              <Download className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Excel</span>
             </Button>
-            <Button onClick={exportToExcel} variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Excel
-            </Button>
-            <Button onClick={exportToPDF} variant="outline">
-              <FileText className="h-4 w-4 mr-2" />
-              PDF
+            <Button onClick={exportToPDF} variant="outline" size="sm" className="h-8">
+              <FileText className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">PDF</span>
             </Button>
           </div>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">

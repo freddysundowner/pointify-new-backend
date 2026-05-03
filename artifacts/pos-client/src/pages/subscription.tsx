@@ -392,16 +392,16 @@ export default function SubscriptionPage() {
   const renderPlanSelection = () => (
     <>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Choose Your Plan</h1>
-          <p className="text-gray-600 mt-2">Select the perfect subscription for your business needs</p>
+          <h1 className="text-xl font-bold text-gray-900">Choose Your Plan</h1>
+          <p className="text-sm text-gray-600 mt-0.5">Select the perfect subscription for your business</p>
         </div>
         <Button 
           variant="ghost" 
           size="sm" 
           onClick={() => setLocation('/dashboard')}
-          className="hover:bg-gray-100"
+          className="hover:bg-gray-100 h-8 w-8 p-0"
         >
           <X className="h-5 w-5" />
         </Button>
@@ -421,12 +421,12 @@ export default function SubscriptionPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {subscriptionPlans.map((plan: SubscriptionPlan) => (
           <Card 
             key={plan.id} 
             className={`relative transition-all duration-300 hover:shadow-lg cursor-pointer ${
-              plan.popular ? 'ring-2 ring-blue-500 shadow-lg scale-105' : ''
+              plan.popular ? 'ring-2 ring-blue-500 shadow-lg sm:scale-105' : ''
             } ${
               plan.current ? 'bg-gradient-to-br from-green-50 to-green-100 border-green-300' : ''
             }`}

@@ -161,13 +161,13 @@ export default function OrdersPage() {
         <div className="grid gap-4">
           {summaryLoading ? <p className="text-gray-600 dark:text-gray-400 justify-center">Loading orders...</p> : allorders?.data?.length ==0 && <p className="text-gray-600 dark:text-gray-400">No orders found</p>} {allorders?.data?.map((order) => (
             <Card key={order._id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   
                   {/* Order Info */}
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-3">
-                      <h3 className="font-semibold text-lg">Order #{order.receiptNo}</h3>
+                      <h3 className="font-semibold text-base">Order #{order.receiptNo}</h3>
                       <Badge className={statusColors[order.status]}>
                         {order.status}
                       </Badge>

@@ -365,62 +365,59 @@ function AttendantDashboardContent() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                <Store className="h-4 w-4 text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900">Staff Dashboard</h1>
-                <p className="text-sm text-gray-500">{shopName}</p>
-              </div>
+        <div className="px-4 py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center shrink-0">
+              <Store className="h-4 w-4 text-white" />
             </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{attendant?.username || 'Unknown User'}</p>
-                <p className="text-xs text-gray-500">PIN: {attendant?.uniqueDigits || 'N/A'}</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Refreshing...' : 'Refresh'}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
+            <div className="min-w-0">
+              <h1 className="text-sm font-semibold text-gray-900 truncate">Staff Dashboard</h1>
+              <p className="text-xs text-gray-500 truncate">{shopName}</p>
             </div>
-
+          </div>
+          
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="text-right hidden sm:block">
+              <p className="text-xs font-medium text-gray-900">{attendant?.username || 'Unknown'}</p>
+              <p className="text-xs text-gray-500">PIN: {attendant?.uniqueDigits || 'N/A'}</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="h-8 px-2 text-gray-600 hover:text-gray-900"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline ml-1.5">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="h-8 px-2 text-gray-600 hover:text-gray-900"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1.5">Logout</span>
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="px-4 py-4 max-w-4xl mx-auto">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-gray-900 mb-0.5">
             Welcome back, {attendant?.username || 'User'}!
           </h2>
-          <p className="text-gray-600">
+          <p className="text-xs text-gray-500">
             {currentTime.toLocaleDateString('en-US', { 
-              weekday: 'long', 
+              weekday: 'short', 
               year: 'numeric', 
-              month: 'long', 
+              month: 'short', 
               day: 'numeric' 
-            })} • {currentTime.toLocaleTimeString('en-US', { 
+            })} · {currentTime.toLocaleTimeString('en-US', { 
               hour: '2-digit', 
               minute: '2-digit' 
             })}
@@ -428,12 +425,12 @@ function AttendantDashboardContent() {
         </div>
 
         {/* Feature Groups - Expandable cards */}
-        <div className="space-y-6 mb-8">
+        <div className="space-y-3 mb-4">
           {availableGroups.map((group) => (
             <div key={group.id} className="bg-white rounded-lg shadow-sm border overflow-hidden">
               {/* Group Header */}
               <div
-                className={`p-6 cursor-pointer transition-all duration-200 ${
+                className={`px-4 py-3 cursor-pointer transition-all duration-200 ${
                   group.enabled ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-60'
                 }`}
                 onClick={() => {
@@ -442,50 +439,47 @@ function AttendantDashboardContent() {
                   }
                 }}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                       group.enabled ? group.color : 'bg-gray-300'
                     }`}>
                       {group.enabled ? (
-                        <group.icon className="h-6 w-6 text-white" />
+                        <group.icon className="h-5 w-5 text-white" />
                       ) : (
-                        <Lock className="h-6 w-6 text-gray-500" />
+                        <Lock className="h-5 w-5 text-gray-500" />
                       )}
                     </div>
-                    <div>
-                      <h3 className={`text-lg font-semibold ${
+                    <div className="min-w-0">
+                      <h3 className={`text-sm font-semibold leading-tight ${
                         group.enabled ? 'text-gray-900' : 'text-gray-500'
                       }`}>
                         {group.title}
                       </h3>
-                      <p className={`text-sm ${
-                        group.enabled ? 'text-gray-600' : 'text-gray-400'
+                      <p className={`text-xs truncate ${
+                        group.enabled ? 'text-gray-500' : 'text-gray-400'
                       }`}>
                         {group.description}
                       </p>
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center gap-2 shrink-0">
                     {group.enabled && (
-                      <div className="text-right">
-                        <p className="text-sm text-gray-500">
-                          {group.subActions.filter(sub => sub.enabled).length} of {group.subActions.length} available
-                        </p>
-                      </div>
+                      <span className="text-xs text-gray-400 hidden sm:block">
+                        {group.subActions.filter(sub => sub.enabled).length}/{group.subActions.length}
+                      </span>
                     )}
-                    
                     {group.enabled ? (
                       <div className={`transition-transform duration-200 ${
                         expandedGroup === group.id ? 'rotate-180' : ''
                       }`}>
-                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </div>
                     ) : (
-                      <span className="inline-block bg-red-50 text-red-600 text-xs px-3 py-1 rounded-full">
+                      <span className="inline-block bg-red-50 text-red-600 text-xs px-2 py-0.5 rounded-full">
                         No Access
                       </span>
                     )}
@@ -495,23 +489,23 @@ function AttendantDashboardContent() {
 
               {/* Expandable Sub-actions */}
               {expandedGroup === group.id && group.enabled && (
-                <div className="border-t bg-gray-50 p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="border-t bg-gray-50 p-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {group.subActions.filter(subAction => subAction.enabled).map((subAction, subIndex) => (
                       <div
                         key={subIndex}
-                        className="bg-white rounded-lg border p-4 transition-all duration-200 cursor-pointer hover:shadow-md hover:border-blue-300"
+                        className="bg-white rounded-lg border p-3 transition-all duration-200 cursor-pointer hover:shadow-md hover:border-blue-300 active:bg-blue-50"
                         onClick={() => setLocation(subAction.route)}
                       >
-                        <div className="flex items-start space-x-3">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${group.color}`}>
-                            <subAction.icon className="h-5 w-5 text-white" />
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${group.color}`}>
+                            <subAction.icon className="h-4 w-4 text-white" />
                           </div>
-                          <div className="flex-1">
-                            <h4 className="font-medium text-sm text-gray-900">
+                          <div className="min-w-0">
+                            <h4 className="font-medium text-sm text-gray-900 leading-tight">
                               {subAction.title}
                             </h4>
-                            <p className="text-xs mt-1 text-gray-600">
+                            <p className="text-xs text-gray-500 truncate">
                               {subAction.description}
                             </p>
                           </div>
@@ -526,16 +520,16 @@ function AttendantDashboardContent() {
         </div>
 
         {/* Permission Status Summary */}
-        <div className="bg-blue-50 rounded-lg p-4 mb-8">
+        <div className="bg-blue-50 rounded-lg p-3 mb-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-blue-900">Permission Status</h3>
-              <p className="text-sm text-blue-700">
-                You have access to {availableGroups.filter(g => g.enabled).length} of {availableGroups.length} feature groups
+              <h3 className="text-sm font-semibold text-blue-900">Permission Status</h3>
+              <p className="text-xs text-blue-700">
+                {availableGroups.filter(g => g.enabled).length} of {availableGroups.length} feature groups accessible
               </p>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-blue-600">
+              <div className="text-xl font-bold text-blue-600">
                 {Math.round((availableGroups.filter(g => g.enabled).length / availableGroups.length) * 100)}%
               </div>
               <p className="text-xs text-blue-600">Access Level</p>
