@@ -498,71 +498,46 @@ export default function Attendants() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4">
+      <div className="space-y-3">
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-lg font-bold text-gray-900 leading-tight">Staff Management</h1>
-            <p className="text-xs text-gray-500 truncate">
-              {selectedShop?.name || 'Your shops'}
-            </p>
+            <p className="text-xs text-gray-500 truncate">{selectedShop?.name || 'Your shops'}</p>
           </div>
-          <Button onClick={handleCreate} size="sm" className="flex items-center gap-1.5 shrink-0 h-9">
-            <UserPlus className="h-4 w-4" />
+          <Button onClick={handleCreate} size="sm" className="flex items-center gap-1.5 shrink-0 h-8">
+            <UserPlus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Add Attendant</span>
             <span className="sm:hidden">Add</span>
           </Button>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Card>
-            <CardContent className="p-3">
-              <div className="text-xl font-bold text-purple-600">{filteredAttendants.length}</div>
-              <div className="text-xs text-gray-500">Total Staff</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3">
-              <div className="text-xl font-bold text-green-600">{activeAttendants}</div>
-              <div className="text-xs text-gray-500">Active</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3">
-              <div className="text-xl font-bold text-orange-600">
-                {attendants.filter((a: Attendant) => a.status === 'on_leave').length}
-              </div>
-              <div className="text-xs text-gray-500">On Leave</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3">
-              <div className="text-xl font-bold text-red-600">
-                {attendants.filter((a: Attendant) => a.status === 'inactive').length}
-              </div>
-              <div className="text-xs text-gray-500">Inactive</div>
-            </CardContent>
-          </Card>
+        {/* Summary strip */}
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { label: 'Total', value: filteredAttendants.length, color: 'text-purple-600' },
+            { label: 'Active', value: activeAttendants, color: 'text-green-600' },
+            { label: 'On Leave', value: attendants.filter((a: Attendant) => a.status === 'on_leave').length, color: 'text-orange-500' },
+            { label: 'Inactive', value: attendants.filter((a: Attendant) => a.status === 'inactive').length, color: 'text-red-500' },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-xl border border-gray-100 px-2 py-2 text-center shadow-sm">
+              <div className={`text-lg font-bold leading-tight ${s.color}`}>{s.value}</div>
+              <div className="text-[11px] text-gray-400 mt-0.5">{s.label}</div>
+            </div>
+          ))}
         </div>
 
-        {/* Search and Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Staff Members</CardTitle>
-            <CardDescription>Manage your store attendants and their permissions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search by name or PIN..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+        {/* Search + List */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-3">
+            <div className="relative mb-3">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 h-3.5 w-3.5" />
+              <Input
+                placeholder="Search by name or PIN..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 text-sm"
+              />
             </div>
 
             {isLoading ? (
@@ -687,83 +662,79 @@ export default function Attendants() {
 
         {/* Create/Edit Attendant Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedAttendant ? 'Edit Attendant' : 'Create New Attendant'}
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-xl p-5">
+            <DialogHeader className="mb-1">
+              <DialogTitle className="text-base">
+                {selectedAttendant ? 'Edit Attendant' : 'Add Attendant'}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-xs">
                 {selectedAttendant ? 'Update attendant information' : 'Add a new attendant to your team'}
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="username" className="text-xs font-medium">Username</Label>
                 <Input
                   id="username"
                   value={formData.username}
                   onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
                   placeholder="Enter username"
+                  className="h-9 text-sm"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="pin">PIN</Label>
-                <Input
-                  id="pin"
-                  value={selectedAttendant ? selectedAttendant.uniqueDigits : generatedPin}
-                  disabled
-                  className="bg-gray-50"
-                />
-                <p className="text-xs text-gray-500">
-                  {selectedAttendant 
-                    ? "Existing PIN cannot be changed" 
-                    : "Auto-generated 5-digit PIN for this attendant"
-                  }
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">
-                  Password {selectedAttendant && "(Leave blank to keep current)"}
-                </Label>
-                <div className="relative">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="pin" className="text-xs font-medium">PIN</Label>
                   <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                    placeholder="Enter password"
+                    id="pin"
+                    value={selectedAttendant ? selectedAttendant.uniqueDigits : generatedPin}
+                    disabled
+                    className="h-9 text-sm bg-gray-50 font-mono"
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
+                  <p className="text-[11px] text-gray-400 leading-tight">
+                    {selectedAttendant ? "Cannot be changed" : "Auto-generated"}
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="password" className="text-xs font-medium">
+                    Password{selectedAttendant ? ' (optional)' : ''}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                      placeholder="Password"
+                      className="h-9 text-sm pr-8"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="shopId">Shop</Label>
+              <div className="space-y-1">
+                <Label htmlFor="shopId" className="text-xs font-medium">Shop</Label>
                 <Select
                   value={formData.shopId || ''}
-                  onValueChange={(value) => {
-                    console.log('Shop selected:', value);
-                    setFormData(prev => ({ ...prev, shopId: value }));
-                  }}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, shopId: value }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm">
                     <SelectValue placeholder="Select shop" />
                   </SelectTrigger>
                   <SelectContent>
                     {shops.map((shop) => (
                       <SelectItem key={shop.id} value={shop.id}>
-                        {shop?.name} - {shop.location}
+                        {shop?.name} — {shop.location}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -771,21 +742,17 @@ export default function Attendants() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsDialogOpen(false);
-                  resetForm();
-                }}
-              >
+            <div className="flex gap-2 mt-4">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => { setIsDialogOpen(false); resetForm(); }}>
                 Cancel
               </Button>
               <Button
+                size="sm"
+                className="flex-1"
                 onClick={handleSubmit}
                 disabled={createAttendantMutation.isPending || updateAttendantMutation.isPending}
               >
-                {selectedAttendant ? 'Update' : 'Create'} Attendant
+                {selectedAttendant ? 'Update' : 'Create'}
               </Button>
             </div>
           </DialogContent>
@@ -793,18 +760,18 @@ export default function Attendants() {
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <AlertDialogContent>
+          <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-sm rounded-xl">
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Attendant</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete "{selectedAttendant?.username}"? This action cannot be undone.
+              <AlertDialogTitle className="text-base">Delete Attendant</AlertDialogTitle>
+              <AlertDialogDescription className="text-sm">
+                Delete <strong>{selectedAttendant?.username}</strong>? This cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogFooter className="gap-2 sm:gap-0">
+              <AlertDialogCancel className="h-9 text-sm">Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => selectedAttendant && deleteAttendantMutation.mutate(selectedAttendant._id)}
-                className="bg-red-600 hover:bg-red-700"
+                className="h-9 text-sm bg-red-600 hover:bg-red-700"
               >
                 Delete
               </AlertDialogAction>
@@ -814,98 +781,73 @@ export default function Attendants() {
 
         {/* Permissions Dialog */}
         <Dialog open={isPermissionsDialogOpen} onOpenChange={(open) => {
-          if (!open) {
-            setIsPermissionsDialogOpen(false);
-            setIsEditingPermissions(false);
-          }
+          if (!open) { setIsPermissionsDialogOpen(false); setIsEditingPermissions(false); }
         }}>
-          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-            <DialogHeader>
-              <DialogTitle>
-                {isEditingPermissions ? 'Edit Permissions' : 'View Permissions'}
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-lg rounded-xl p-5 max-h-[85vh] flex flex-col">
+            <DialogHeader className="shrink-0 mb-1">
+              <DialogTitle className="text-base">
+                Permissions — {selectedAttendant?.username}
               </DialogTitle>
-              <DialogDescription>
-                {isEditingPermissions ? 'Assign permissions for' : 'Current permissions for'} {selectedAttendant?.username}
+              <DialogDescription className="text-xs">
+                Toggle what this attendant can access
               </DialogDescription>
             </DialogHeader>
-            
-            <div className="flex-1 overflow-y-auto pr-2">
+
+            <div className="flex-1 overflow-y-auto -mx-1 px-1">
               {isLoadingPermissions ? (
-                <div className="text-center py-8">Loading permissions...</div>
+                <div className="text-center py-8 text-sm text-gray-400">Loading permissions…</div>
               ) : (
-                <div className="space-y-4">
-                  <h4 className="font-medium">Available Permissions for {selectedAttendant?.username}:</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {adminPermissions.map((permission: Permission) => (
-                      <div key={permission.key} className="border rounded-lg p-3">
-                        <h5 className="font-medium text-sm mb-3 text-blue-700 capitalize">{permission.key}</h5>
-                        <div className="space-y-2">
-                          {permission.value.map((action: string) => {
-                            // Check if attendant has this permission in editing state
-                            const isChecked = hasEditingPermission(permission.key, action);
-                            
-                            return (
-                              <div key={action} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`${permission.key}-${action}`}
-                                  checked={isChecked}
-                                  onCheckedChange={(checked) => {
-                                    console.log(`Toggling ${permission.key}-${action}: ${checked}`);
-                                    toggleEditingPermission(permission.key, action, checked as boolean);
-                                  }}
-                                />
-                                <Label htmlFor={`${permission.key}-${action}`} className="text-xs font-normal cursor-pointer leading-tight">
-                                  {action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                                </Label>
-                              </div>
-                            );
-                          })}
-                        </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {adminPermissions.map((permission: Permission) => (
+                    <div key={permission.key} className="border border-gray-100 rounded-lg p-3 bg-gray-50">
+                      <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-2 capitalize">
+                        {permission.key.replace(/_/g, ' ')}
+                      </p>
+                      <div className="space-y-1.5">
+                        {permission.value.map((action: string) => (
+                          <div key={action} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`${permission.key}-${action}`}
+                              checked={hasEditingPermission(permission.key, action)}
+                              onCheckedChange={(checked) =>
+                                toggleEditingPermission(permission.key, action, checked as boolean)
+                              }
+                              className="h-3.5 w-3.5"
+                            />
+                            <Label
+                              htmlFor={`${permission.key}-${action}`}
+                              className="text-xs font-normal cursor-pointer leading-tight text-gray-700"
+                            >
+                              {action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            </Label>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-            
-            <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsPermissionsDialogOpen(false);
-                  setEditingPermissions([]);
-                }}
-              >
+
+            <div className="flex gap-2 pt-3 mt-1 border-t shrink-0">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => { setIsPermissionsDialogOpen(false); setEditingPermissions([]); }}>
                 Cancel
               </Button>
               <Button
+                size="sm"
+                className="flex-1"
                 onClick={() => {
                   if (!selectedAttendant) return;
-                  
-                  const submitData = {
-                    username: selectedAttendant.username,
-                    shopId: String(extractId(selectedAttendant.shopId) ?? ''),
-                    permissions: editingPermissions,
-                  };
-
-                  console.log('Saving permissions:', submitData);
-                  updateAttendantMutation.mutate({ 
-                    id: selectedAttendant._id, 
-                    data: submitData 
+                  updateAttendantMutation.mutate({
+                    id: selectedAttendant._id,
+                    data: { username: selectedAttendant.username, shopId: String(extractId(selectedAttendant.shopId) ?? ''), permissions: editingPermissions },
                   }, {
-                    onSuccess: () => {
-                      setIsPermissionsDialogOpen(false);
-                      setEditingPermissions([]);
-                      toast({
-                        title: "Success",
-                        description: "Permissions updated successfully",
-                      });
-                    }
+                    onSuccess: () => { setIsPermissionsDialogOpen(false); setEditingPermissions([]); toast({ title: "Permissions saved" }); }
                   });
                 }}
                 disabled={updateAttendantMutation.isPending}
               >
-                {updateAttendantMutation.isPending ? 'Saving...' : 'Save Permissions'}
+                {updateAttendantMutation.isPending ? 'Saving…' : 'Save'}
               </Button>
             </div>
           </DialogContent>
