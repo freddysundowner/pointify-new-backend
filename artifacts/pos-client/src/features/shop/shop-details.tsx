@@ -342,28 +342,28 @@ export default function ShopDetails() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-full bg-gray-50">
+      <div className="min-h-full bg-gray-50 -mx-4 sm:mx-0">
 
         {/* Sticky header */}
         <div className="sticky top-0 z-10 bg-white border-b">
-          <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <Link href="/shops" className="hidden sm:block">
+          <div className="px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 min-w-0">
+              <Link href="/shops" className="hidden lg:block">
                 <Button variant="ghost" size="icon" className="shrink-0">
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
               </Link>
               <div className="min-w-0">
-                <h1 className="text-lg font-semibold text-gray-900 truncate">{shop.name}</h1>
+                <h1 className="text-base font-semibold text-gray-900 truncate leading-tight">{shop.name}</h1>
                 <p className="hidden sm:block text-xs text-gray-500">Shop settings</p>
               </div>
             </div>
             <Button
               onClick={handleSave}
               disabled={updateShopMutation.isPending}
-              className="shrink-0 bg-purple-600 hover:bg-purple-700 gap-2 h-9 px-3 sm:px-4"
+              className="shrink-0 bg-purple-600 hover:bg-purple-700 gap-1.5 h-8 px-3 text-sm"
             >
-              <Save className="w-4 h-4" />
+              <Save className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">
                 {updateShopMutation.isPending ? "Saving…" : "Save Changes"}
               </span>
@@ -375,38 +375,38 @@ export default function ShopDetails() {
         </div>
 
         {/* Body */}
-        <div className="px-4 sm:px-6 py-4 sm:py-6">
+        <div className="px-0 sm:px-6 py-3 sm:py-6">
           <Tabs defaultValue="general">
-            {/* Scrollable tab bar on mobile */}
-            <div className="overflow-x-auto pb-1 mb-5 -mx-1 px-1">
+            {/* Scrollable tab bar */}
+            <div className="overflow-x-auto no-scrollbar pb-1 mb-3 px-3 sm:px-0">
               <TabsList className="bg-white border shadow-sm w-max sm:w-full justify-start h-auto p-1 gap-1 rounded-lg flex-nowrap sm:flex-wrap">
-                <TabsTrigger value="general" className="gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs sm:text-sm">
-                  <Store className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> General
+                <TabsTrigger value="general" className="gap-1 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs">
+                  <Store className="w-3.5 h-3.5" /> General
                 </TabsTrigger>
-                <TabsTrigger value="receipt" className="gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs sm:text-sm">
-                  <Receipt className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Receipt
+                <TabsTrigger value="receipt" className="gap-1 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs">
+                  <Receipt className="w-3.5 h-3.5" /> Receipt
                 </TabsTrigger>
-                <TabsTrigger value="operations" className="gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs sm:text-sm">
-                  <Settings2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Operations
+                <TabsTrigger value="operations" className="gap-1 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs">
+                  <Settings2 className="w-3.5 h-3.5" /> Operations
                 </TabsTrigger>
-                <TabsTrigger value="loyalty" className="gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs sm:text-sm">
-                  <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Loyalty
+                <TabsTrigger value="loyalty" className="gap-1 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs">
+                  <Star className="w-3.5 h-3.5" /> Loyalty
                 </TabsTrigger>
-                <TabsTrigger value="backup" className="gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs sm:text-sm">
-                  <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Backup
+                <TabsTrigger value="backup" className="gap-1 data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded whitespace-nowrap text-xs">
+                  <Shield className="w-3.5 h-3.5" /> Backup
                 </TabsTrigger>
-                <TabsTrigger value="danger" className="gap-1.5 data-[state=active]:bg-red-600 data-[state=active]:text-white rounded text-red-600 whitespace-nowrap text-xs sm:text-sm">
-                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Danger
+                <TabsTrigger value="danger" className="gap-1 data-[state=active]:bg-red-600 data-[state=active]:text-white rounded text-red-600 whitespace-nowrap text-xs">
+                  <Trash2 className="w-3.5 h-3.5" /> Danger
                 </TabsTrigger>
               </TabsList>
             </div>
 
             {/* ── GENERAL ── */}
-            <TabsContent value="general" className="space-y-6">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Shop Information</CardTitle></CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <TabsContent value="general" className="space-y-3">
+              <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x">
+                <CardHeader className="px-3 sm:px-6 py-3"><CardTitle className="text-sm">Shop Information</CardTitle></CardHeader>
+                <CardContent className="px-3 sm:px-6 pb-4 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label>Shop Name</Label>
                       <Input
@@ -481,10 +481,10 @@ export default function ShopDetails() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader><CardTitle className="text-base">Financial</CardTitle></CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x">
+                <CardHeader className="px-3 sm:px-6 py-3"><CardTitle className="text-sm">Financial</CardTitle></CardHeader>
+                <CardContent className="px-3 sm:px-6 pb-4 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label>Currency</Label>
                       <Select value={formData.currency} onValueChange={v => set("currency", v)}>
@@ -520,11 +520,11 @@ export default function ShopDetails() {
             </TabsContent>
 
             {/* ── RECEIPT ── */}
-            <TabsContent value="receipt" className="space-y-6">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Contact & Payment Details</CardTitle></CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <TabsContent value="receipt" className="space-y-3">
+              <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x">
+                <CardHeader className="px-3 sm:px-6 py-3"><CardTitle className="text-sm">Contact & Payment Details</CardTitle></CardHeader>
+                <CardContent className="px-3 sm:px-6 pb-4 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label>Receipt Email</Label>
                       <Input
@@ -579,10 +579,10 @@ export default function ShopDetails() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader><CardTitle className="text-base">Receipt Display Options</CardTitle></CardHeader>
-                <CardContent className="divide-y">
-                  <div className="flex items-center justify-between py-4 first:pt-0">
+              <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x">
+                <CardHeader className="px-3 sm:px-6 py-3"><CardTitle className="text-sm">Receipt Display Options</CardTitle></CardHeader>
+                <CardContent className="px-3 sm:px-6 divide-y">
+                  <div className="flex items-center justify-between py-3 first:pt-0">
                     <div>
                       <p className="text-sm font-medium text-gray-800">Show Tax on Receipt</p>
                       <p className="text-xs text-gray-400 mt-0.5">Display the tax line on printed and digital receipts</p>
@@ -592,7 +592,7 @@ export default function ShopDetails() {
                       onCheckedChange={v => set("receiptShowTax", v)}
                     />
                   </div>
-                  <div className="flex items-center justify-between py-4 last:pb-0">
+                  <div className="flex items-center justify-between py-3 last:pb-0">
                     <div>
                       <p className="text-sm font-medium text-gray-800">Show Discount on Receipt</p>
                       <p className="text-xs text-gray-400 mt-0.5">Display the discount line on printed and digital receipts</p>
@@ -607,10 +607,10 @@ export default function ShopDetails() {
             </TabsContent>
 
             {/* ── OPERATIONS ── */}
-            <TabsContent value="operations" className="space-y-6">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Operational Settings</CardTitle></CardHeader>
-                <CardContent className="divide-y">
+            <TabsContent value="operations" className="space-y-3">
+              <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x">
+                <CardHeader className="px-3 sm:px-6 py-3"><CardTitle className="text-sm">Operational Settings</CardTitle></CardHeader>
+                <CardContent className="px-3 sm:px-6 divide-y">
                   {[
                     { key: "allowNegativeSelling", label: "Negative Selling", desc: "Allow sales even when stock is at zero" },
                     { key: "trackBatches",          label: "Batch Tracking",    desc: "Track product batches and expiry dates" },
@@ -619,7 +619,7 @@ export default function ShopDetails() {
                     { key: "showStockOnline",        label: "Show Stock Online", desc: "Display available quantity to online customers" },
                     { key: "showPriceOnline",        label: "Show Prices Online",desc: "Display product prices on your online store" },
                   ].map(({ key, label, desc }) => (
-                    <div key={key} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                    <div key={key} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                       <div>
                         <p className="text-sm font-medium text-gray-800">{label}</p>
                         <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
@@ -635,11 +635,11 @@ export default function ShopDetails() {
             </TabsContent>
 
             {/* ── LOYALTY ── */}
-            <TabsContent value="loyalty" className="space-y-6">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Loyalty Programme</CardTitle></CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="flex items-center justify-between pb-4 border-b">
+            <TabsContent value="loyalty" className="space-y-3">
+              <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x">
+                <CardHeader className="px-3 sm:px-6 py-3"><CardTitle className="text-sm">Loyalty Programme</CardTitle></CardHeader>
+                <CardContent className="px-3 sm:px-6 pb-4 space-y-3">
+                  <div className="flex items-center justify-between pb-3 border-b">
                     <div>
                       <p className="text-sm font-medium text-gray-800">Enable Loyalty Programme</p>
                       <p className="text-xs text-gray-400 mt-0.5">Reward customers with points on every purchase</p>
@@ -650,8 +650,8 @@ export default function ShopDetails() {
                     />
                   </div>
 
-                  <div className={`space-y-5 transition-opacity ${formData.loyaltyEnabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className={`space-y-3 transition-opacity ${formData.loyaltyEnabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label>Spend Threshold per Point</Label>
                         <Input
@@ -678,7 +678,7 @@ export default function ShopDetails() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-4 border-t">
+                    <div className="flex items-center justify-between pt-3 border-t">
                       <div>
                         <p className="text-sm font-medium text-gray-800">Allow Point Redemption at Checkout</p>
                         <p className="text-xs text-gray-400 mt-0.5">
@@ -696,11 +696,11 @@ export default function ShopDetails() {
             </TabsContent>
 
             {/* ── BACKUP ── */}
-            <TabsContent value="backup" className="space-y-6">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Backup Settings</CardTitle></CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="flex items-center justify-between pb-4 border-b">
+            <TabsContent value="backup" className="space-y-3">
+              <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x">
+                <CardHeader className="px-3 sm:px-6 py-3"><CardTitle className="text-sm">Backup Settings</CardTitle></CardHeader>
+                <CardContent className="px-3 sm:px-6 pb-4 space-y-3">
+                  <div className="flex items-center justify-between pb-3 border-b">
                     <div>
                       <p className="text-sm font-medium text-gray-800">Auto Backup</p>
                       <p className="text-xs text-gray-400 mt-0.5">Automatically email shop data backups on schedule</p>
@@ -711,7 +711,7 @@ export default function ShopDetails() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label>Backup Frequency</Label>
                       <Select value={formData.backupInterval} onValueChange={v => set("backupInterval", v)}>
@@ -740,12 +740,12 @@ export default function ShopDetails() {
             </TabsContent>
 
             {/* ── DANGER ── */}
-            <TabsContent value="danger" className="space-y-4">
-              <Card className="border-red-200">
-                <CardHeader>
-                  <CardTitle className="text-base text-red-700">Danger Zone</CardTitle>
+            <TabsContent value="danger" className="space-y-3">
+              <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x border-red-200">
+                <CardHeader className="px-3 sm:px-6 py-3">
+                  <CardTitle className="text-sm text-red-700">Danger Zone</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="px-3 sm:px-6 pb-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-4 rounded-lg bg-red-50 border border-red-200">
                     <div>
                       <p className="text-sm font-medium text-red-800">Delete Shop Data</p>
