@@ -214,10 +214,10 @@ export default function ProductMovements() {
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <Link href="/reports">
+            <Link href="/reports" className="hidden sm:block">
               <Button variant="outline" size="sm" className="h-8 shrink-0">
                 <ArrowLeft className="h-4 w-4 mr-1" />
-                <span className="hidden sm:inline">Back</span>
+                Back
               </Button>
             </Link>
             <div className="min-w-0">

@@ -965,10 +965,10 @@ function SalesList() {
                 variant="outline"
                 size="sm"
                 onClick={handleBackClick}
-                className="flex items-center gap-1.5"
+                className="hidden sm:flex items-center gap-1.5"
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">Back</span>
+                Back
               </Button>
               <h1 className="text-lg font-bold text-gray-900 dark:text-white">
                 Sales

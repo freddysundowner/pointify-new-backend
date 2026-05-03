@@ -614,10 +614,10 @@ export default function PurchasesList() {
               variant="outline"
               size="sm"
               onClick={handleBackClick}
-              className="flex items-center gap-1 h-8 shrink-0"
+              className="hidden sm:flex items-center gap-1 h-8 shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Back</span>
+              Back
             </Button>
             <div className="flex-1 min-w-0">
               <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
