@@ -278,10 +278,33 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       .returning();
     if (!updated) throw notFound("Purchase not found");
 
-    // Replace purchase items: delete old ones, insert new
+    // Replace purchase items with inventory adjustment
     if (Array.isArray(items) && items.length > 0) {
+      // 1. Read old items so we can reverse their inventory contribution
+      const oldItems = await db.query.purchaseItems.findMany({
+        where: eq(purchaseItems.purchase, id),
+      });
+
+      // 2. Reverse inventory for each old item (subtract what was previously added)
+      for (const oldItem of oldItems) {
+        const oldQty = parseFloat(String(oldItem.quantity ?? 0));
+        if (oldQty > 0) {
+          await db.update(inventory)
+            .set({
+              quantity: sql`GREATEST(0, ${inventory.quantity} - ${String(oldQty)}::numeric)`,
+              status: sql`CASE
+                WHEN GREATEST(0, ${inventory.quantity} - ${String(oldQty)}::numeric) <= 0 THEN 'out_of_stock'
+                WHEN GREATEST(0, ${inventory.quantity} - ${String(oldQty)}::numeric) <= ${inventory.reorderLevel} THEN 'low'
+                ELSE 'active'
+              END`,
+            })
+            .where(and(eq(inventory.product, oldItem.product), eq(inventory.shop, existing.shop)));
+        }
+      }
+
+      // 3. Delete old items and insert new ones
       await db.delete(purchaseItems).where(eq(purchaseItems.purchase, id));
-      await db.insert(purchaseItems).values(
+      const newItemRows = await db.insert(purchaseItems).values(
         items.map((item: any) => ({
           purchase: id,
           shop: existing.shop,
@@ -290,7 +313,25 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
           unitPrice: String(item.unitPrice ?? 0),
           lineDiscount: "0",
         }))
-      );
+      ).returning();
+
+      // 4. Apply inventory for each new item (upsert: create row or add qty)
+      for (const newItem of newItemRows) {
+        const newQty = String(newItem.quantity ?? "1");
+        await db.insert(inventory)
+          .values({ product: newItem.product, shop: existing.shop, quantity: newQty })
+          .onConflictDoUpdate({
+            target: [inventory.product, inventory.shop],
+            set: {
+              quantity: sql`${inventory.quantity} + ${newQty}::numeric`,
+              status: sql`CASE
+                WHEN ${inventory.quantity} + ${newQty}::numeric <= 0 THEN 'out_of_stock'
+                WHEN ${inventory.quantity} + ${newQty}::numeric <= ${inventory.reorderLevel} THEN 'low'
+                ELSE 'active'
+              END`,
+            },
+          });
+      }
     }
 
     return ok(res, updated);
