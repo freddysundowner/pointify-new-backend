@@ -143,13 +143,26 @@ export default function PurchaseEditPage() {
     setSearchTerm("");
   };
 
-  const updateQty = (index: number, qty: number) => {
-    if (qty <= 0) { removeItem(index); return; }
-    setFormData({ ...formData, items: formData.items.map((it, i) => i === index ? { ...it, quantity: qty } : it) });
+  const updateQty = (index: number, qty: number | string) => {
+    setFormData({ ...formData, items: formData.items.map((it, i) => i === index ? { ...it, quantity: qty as any } : it) });
   };
 
-  const updatePrice = (index: number, price: number) => {
-    setFormData({ ...formData, items: formData.items.map((it, i) => i === index ? { ...it, unitPrice: price } : it) });
+  const commitQty = (index: number, raw: string) => {
+    const val = parseInt(raw);
+    if (!raw || isNaN(val) || val <= 0) {
+      removeItem(index);
+    } else {
+      setFormData(prev => ({ ...prev, items: prev.items.map((it, i) => i === index ? { ...it, quantity: val } : it) }));
+    }
+  };
+
+  const updatePrice = (index: number, price: number | string) => {
+    setFormData({ ...formData, items: formData.items.map((it, i) => i === index ? { ...it, unitPrice: price as any } : it) });
+  };
+
+  const commitPrice = (index: number, raw: string) => {
+    const val = parseFloat(raw);
+    setFormData(prev => ({ ...prev, items: prev.items.map((it, i) => i === index ? { ...it, unitPrice: isNaN(val) ? 0 : val } : it) }));
   };
 
   const removeItem = (index: number) => {
@@ -332,15 +345,17 @@ export default function PurchaseEditPage() {
                           type="number"
                           min="1"
                           value={item.quantity}
-                          onChange={(e) => updateQty(index, parseInt(e.target.value) || 1)}
+                          onChange={(e) => updateQty(index, e.target.value)}
+                          onBlur={(e) => commitQty(index, e.target.value)}
                           className="h-7 text-xs text-center px-1"
                         />
                         <Input
                           type="number"
                           step="0.01"
                           min="0"
-                          value={item.unitPrice ?? 0}
-                          onChange={(e) => updatePrice(index, parseFloat(e.target.value) || 0)}
+                          value={item.unitPrice ?? ""}
+                          onChange={(e) => updatePrice(index, e.target.value)}
+                          onBlur={(e) => commitPrice(index, e.target.value)}
                           className="h-7 text-xs text-center px-1"
                         />
                         <p className="text-xs font-medium text-right tabular-nums">
