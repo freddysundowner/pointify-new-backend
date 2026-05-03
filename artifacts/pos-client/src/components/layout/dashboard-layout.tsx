@@ -35,7 +35,7 @@ function SidebarContent({ location, navSections, isSubscriptionExpired, onNav }:
   const [, navigate] = useLocation();
 
   function go(href: string) {
-    navigate(href);
+    navigate(href, { replace: true });
     onNav?.();
   }
 
