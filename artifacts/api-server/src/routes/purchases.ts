@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte, sql, count } from "drizzle-orm";
 import { purchases, purchaseItems, purchasePayments, batches, inventory, shops, products } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -86,6 +86,18 @@ router.post("/", requireAdmin, async (req, res, next) => {
     const paid = amountPaid ?? 0;
     const outstanding = Math.max(0, totalAmount - paid);
 
+    // Generate short purchase number: PUR-YYMMDD-NNNN (sequential per shop)
+    const now = new Date();
+    const datePart = now.getFullYear().toString().slice(-2)
+      + String(now.getMonth() + 1).padStart(2, '0')
+      + String(now.getDate()).padStart(2, '0');
+    const [{ total: shopPurchaseCount }] = await db
+      .select({ total: count() })
+      .from(purchases)
+      .where(eq(purchases.shop, sid));
+    const seq = String(Number(shopPurchaseCount) + 1).padStart(4, '0');
+    const purchaseNo = `PUR-${datePart}-${seq}`;
+
     const [purchase] = await db.insert(purchases).values({
       shop: sid,
       supplier: supplierId ? Number(supplierId) : null,
@@ -93,7 +105,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
       amountPaid: String(paid),
       outstandingBalance: String(outstanding),
       paymentType: paymentType ?? "cash",
-      purchaseNo: `PUR${Date.now()}`,
+      purchaseNo,
       createdBy: req.attendant?.id ?? undefined,
     } as typeof purchases.$inferInsert).returning();
 
