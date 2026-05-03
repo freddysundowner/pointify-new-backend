@@ -298,59 +298,77 @@ export default function CreatePurchase() {
                   <p className="text-sm">No items yet. Tap "Add Product" to start.</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="divide-y divide-gray-100">
                   {items.map((item, index) => (
-                    <div key={index} className="rounded-lg border border-gray-100 bg-gray-50/50 p-3">
-                      {/* Product name + remove */}
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-medium text-gray-900 truncate pr-2">{item.productName}</p>
-                        <button
-                          onClick={() => removeItem(index)}
-                          className="h-6 w-6 flex items-center justify-center rounded text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      {/* Compact 2×2 grid of inputs */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-0.5">
-                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Qty</p>
-                          <Input
+                    <div key={index} className="py-2.5 first:pt-0">
+                      {/* Row 1: name · qty controls · total · remove */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate leading-tight">{item.productName}</p>
+                          <p className="text-xs text-gray-400 leading-tight mt-0.5">
+                            {currency} {parseFloat(String(item.unitCost || 0)).toFixed(2)} / unit
+                          </p>
+                        </div>
+                        {/* − qty + */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => updateItem(index, 'quantity', Math.max(1, item.quantity - 1))}
+                            className="h-7 w-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-colors"
+                          >
+                            <span className="text-base leading-none select-none">−</span>
+                          </button>
+                          <input
                             type="number"
                             min="1"
                             value={item.quantity}
                             onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                            className="h-8 text-sm"
+                            className="w-10 h-7 text-center text-sm font-bold border border-gray-200 rounded-lg bg-gray-50 outline-none focus:border-purple-400"
                           />
+                          <button
+                            onClick={() => updateItem(index, 'quantity', item.quantity + 1)}
+                            className="h-7 w-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-colors"
+                          >
+                            <span className="text-base leading-none select-none">+</span>
+                          </button>
                         </div>
-                        <div className="space-y-0.5">
-                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Buying Price</p>
+                        {/* line total */}
+                        <span className="text-sm font-bold text-purple-600 shrink-0 w-20 text-right">
+                          {currency} {parseFloat(String(item.totalCost || 0)).toFixed(2)}
+                        </span>
+                        {/* remove */}
+                        <button
+                          onClick={() => removeItem(index)}
+                          className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 shrink-0 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      {/* Row 2: compact price inputs */}
+                      <div className="flex gap-2 mt-1.5 ml-0">
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <span className="text-[10px] text-gray-400 shrink-0 w-14">Buy price</span>
                           <Input
                             type="number"
                             min="0"
                             step="0.01"
                             value={item.unitCost}
                             onChange={(e) => updateItem(index, 'unitCost', parseFloat(e.target.value) || 0)}
-                            className="h-8 text-sm"
+                            className="h-6 text-xs px-2 flex-1 min-w-0"
                           />
                         </div>
-                        <div className="space-y-0.5">
-                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Selling Price</p>
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <span className="text-[10px] text-gray-400 shrink-0 w-14">Sell price</span>
                           <Input
                             type="number"
                             min="0"
                             step="0.01"
                             value={(item as any).sellingPrice || 0}
                             onChange={(e) => updateItem(index, 'sellingPrice' as keyof PurchaseItem, parseFloat(e.target.value) || 0)}
-                            className="h-8 text-sm"
+                            className="h-6 text-xs px-2 flex-1 min-w-0"
                           />
                         </div>
-                        <div className="space-y-0.5">
-                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Total</p>
-                          <div className="h-8 flex items-center px-3 rounded-md border border-gray-200 bg-white text-sm font-medium text-gray-700">
-                            {currency} {parseFloat(String(item.totalCost || 0)).toFixed(2)}
-                          </div>
-                        </div>
+                        {/* spacer to align under total + remove */}
+                        <div className="w-[calc(1.75rem+5rem)] shrink-0" />
                       </div>
                     </div>
                   ))}
