@@ -169,7 +169,7 @@ export default function EditSale() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               Edit Sale #{originalSale._id}
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="hidden sm:block text-gray-600 dark:text-gray-400">
               Modify sale details and items
             </p>
           </div>

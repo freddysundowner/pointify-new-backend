@@ -215,14 +215,14 @@ export default function ProductHistory() {
 
         {/* Header */}
         <div className="flex items-center gap-3 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={handleGoBack} className="gap-1 px-2">
+          <Button variant="ghost" size="sm" onClick={handleGoBack} className="hidden sm:flex gap-1 px-2">
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
           <div>
             <h1 className="text-lg font-bold leading-tight">
               {productLoading ? "Loading…" : (product?.name || "Product History")}
             </h1>
-            <p className="text-xs text-gray-400">
+            <p className="hidden sm:block text-xs text-gray-400">
               {product?.type && <span className="capitalize">{product.type}</span>}
               {product?.category?.name && <span> · {product.category.name}</span>}
               {" · "}Full audit trail

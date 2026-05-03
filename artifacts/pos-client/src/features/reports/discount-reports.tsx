@@ -193,7 +193,7 @@ export default function DiscountReports() {
                 <ArrowDownRight className="h-5 w-5 text-orange-600 shrink-0" />
                 Discount Reports
               </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Track all discounts given to customers</p>
+              <p className="hidden sm:block text-xs text-gray-500 dark:text-gray-400">Track all discounts given to customers</p>
             </div>
           </div>
           <div className="flex gap-2 shrink-0">

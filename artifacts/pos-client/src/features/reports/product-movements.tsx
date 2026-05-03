@@ -225,7 +225,7 @@ export default function ProductMovements() {
                 <TrendingUp className="h-5 w-5 text-blue-600 shrink-0" />
                 Product Movements
               </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Track all inventory movements</p>
+              <p className="hidden sm:block text-xs text-gray-500 dark:text-gray-400">Track all inventory movements</p>
             </div>
           </div>
           <div className="flex gap-2 shrink-0">

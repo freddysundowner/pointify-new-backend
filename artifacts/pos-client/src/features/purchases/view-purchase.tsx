@@ -124,7 +124,7 @@ export default function ViewPurchase() {
       <div className="p-6 w-full">
         {/* Action Buttons */}
         <div className="flex justify-between items-center mb-6">
-          <Button variant="outline" onClick={() => window.history.length > 1 ? window.history.back() : setLocation(purchasesRoute)}>
+          <Button variant="outline" className="hidden sm:inline-flex" onClick={() => window.history.length > 1 ? window.history.back() : setLocation(purchasesRoute)}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Purchases
           </Button>

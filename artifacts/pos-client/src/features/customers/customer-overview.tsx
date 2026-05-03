@@ -1089,7 +1089,7 @@ export default function CustomerOverview() {
     <DashboardLayout title="Customer Overview">
       <div className="space-y-3 p-3">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign(customersRoute)}>
+          <Button variant="outline" size="sm" className="hidden sm:flex h-7 px-2 text-xs" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign(customersRoute)}>
             <ArrowLeft className="h-3 w-3 mr-1" />
             Back
           </Button>

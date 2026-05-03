@@ -370,7 +370,7 @@ ${saleData.outstandingBalance > 0 && saleData.status.toUpperCase() !== "COMPLETE
       <div className="p-4 md:p-6">
         {/* Action bar */}
         <div className="flex justify-between items-center mb-6">
-          <Button variant="outline" size="sm" onClick={() => window.history.back()}>
+          <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => window.history.back()}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>

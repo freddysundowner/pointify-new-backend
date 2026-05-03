@@ -234,7 +234,7 @@ export default function StockReport() {
                 <Package className="h-5 w-5 text-purple-600 shrink-0" />
                 Stock Report
               </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Comprehensive inventory analysis</p>
+              <p className="hidden sm:block text-xs text-gray-500 dark:text-gray-400">Comprehensive inventory analysis</p>
             </div>
           </div>
           <div className="flex gap-2 shrink-0">

@@ -259,7 +259,7 @@ export default function Customers() {
       <div className="p-3 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign(dashboardRoute)}>
+            <Button variant="outline" size="sm" className="hidden sm:flex h-7 px-2 text-xs" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign(dashboardRoute)}>
               <ArrowLeft className="h-3 w-3 mr-1" />
               Back
             </Button>

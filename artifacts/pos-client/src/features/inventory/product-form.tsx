@@ -628,7 +628,7 @@ export default function ProductForm() {
           <button
             type="button"
             onClick={() => window.history.length > 1 ? window.history.back() : navigate(productsRoute)}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+            className="hidden sm:flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Products

@@ -403,7 +403,7 @@ export default function StaffPermissions() {
               <UserPlus className="h-6 w-6 text-purple-600" />
               Staff & Permissions
             </h1>
-            <p className="text-gray-600">Manage staff members, roles, and permissions</p>
+            <p className="hidden sm:block text-gray-600">Manage staff members, roles, and permissions</p>
           </div>
         </div>
 

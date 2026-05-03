@@ -151,7 +151,7 @@ export default function IncomeReports() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="outline" size="sm" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign("/reports")}>
+            <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign("/reports")}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Reports
             </Button>
@@ -160,7 +160,7 @@ export default function IncomeReports() {
                 <DollarSign className="h-8 w-8 text-green-600" />
                 Income Reports
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">Detailed revenue analysis by payment method</p>
+              <p className="hidden sm:block text-gray-600 dark:text-gray-400 mt-1">Detailed revenue analysis by payment method</p>
             </div>
           </div>
           <div className="flex gap-2">

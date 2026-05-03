@@ -567,7 +567,7 @@ export default function StockProducts() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0"
+              className="hidden sm:flex h-8 w-8 p-0"
               onClick={() => {
                 if (window.history.length > 1) {
                   window.history.back();
