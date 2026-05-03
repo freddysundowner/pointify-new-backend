@@ -10,8 +10,15 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useCurrency } from "@/utils";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { apiRequest } from "@/lib/queryClient";
+import { useShop } from "@/features/shop/useShop";
 
 const pf = (v: any) => parseFloat(String(v || 0));
+
+const shortPurchaseNo = (purchaseNo: string | undefined) => {
+  if (!purchaseNo) return "—";
+  const digits = purchaseNo.replace(/\D/g, "");
+  return "PUR-" + digits.slice(-6);
+};
 
 export default function PurchaseViewPage() {
   const [, setLocation] = useLocation();
@@ -19,6 +26,7 @@ export default function PurchaseViewPage() {
   const goBack = useGoBack("/purchases");
   const purchasesRoute = useNavigationRoute("purchases");
   const currency = useCurrency();
+  const { shop: shopDetails } = useShop();
 
   const purchaseId = params?.id;
 
@@ -85,15 +93,20 @@ export default function PurchaseViewPage() {
               {/* Receipt Header */}
               <div className="text-center border-b border-dashed border-gray-300 pb-6 mb-6">
                 <h1 className="text-2xl font-bold uppercase tracking-wider mb-2">
-                  {purchase.shop?.name ?? "BUSINESS NAME"}
+                  {shopDetails?.name ?? "—"}
                 </h1>
-                <p className="text-sm text-muted-foreground">
-                  {purchase.shop?.address ?? "Business Address"}
-                </p>
+                {(shopDetails?.receiptAddress || shopDetails?.address) && (
+                  <p className="text-sm text-muted-foreground">
+                    {shopDetails.receiptAddress || shopDetails.address}
+                  </p>
+                )}
+                {shopDetails?.contact && (
+                  <p className="text-sm text-muted-foreground">{shopDetails.contact}</p>
+                )}
                 <p className="text-sm text-muted-foreground">Purchase Receipt</p>
                 <div className="mt-4 pt-4 border-t border-dashed border-gray-300">
                   <p className="text-lg font-bold">
-                    PURCHASE ORDER #{purchase.purchaseNo ?? purchaseId}
+                    PURCHASE ORDER #{shortPurchaseNo(purchase.purchaseNo)}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {purchase.createdAt
@@ -198,7 +211,7 @@ export default function PurchaseViewPage() {
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Thank you for your business!</p>
                   <p className="text-xs text-muted-foreground">
-                    For inquiries, please contact us with reference: {purchase.purchaseNo}
+                    For inquiries, reference: {shortPurchaseNo(purchase.purchaseNo)}
                   </p>
                   <p className="text-xs text-muted-foreground pt-2">
                     Powered by Pointify POS System
