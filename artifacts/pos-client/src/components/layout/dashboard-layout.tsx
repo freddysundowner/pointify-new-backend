@@ -7,7 +7,7 @@ import {
   Store, TrendingUp, Receipt, ShoppingBag, Users, Truck, DollarSign,
   UserCheck, FileText, Crown, Clock, MailWarning, Edit, RotateCcw,
   ArrowRightLeft, AlertTriangle, Banknote, ClipboardList, Building2, CreditCard,
-  Printer, MessageSquare, ShoppingCart, Box, Layers
+  Printer, MessageSquare, ShoppingCart, Box, Layers, ChevronLeft
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/features/auth/useAuth";
@@ -246,11 +246,21 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
       {/* Top Header */}
       <div className={`fixed top-0 w-full z-20 bg-white shadow-sm border-b ${!isAttendantRoute ? "lg:pl-60" : ""}`}>
         <div className="flex items-center justify-between px-3 lg:px-4 py-2.5 lg:py-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {isAttendantRoute && (
               <Button variant="ghost" size="sm" onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2">
                 <Menu className="w-5 h-5" />
               </Button>
+            )}
+            {/* Mobile back button — shown on every non-dashboard page */}
+            {!isDashboard && !isAttendantRoute && (
+              <button
+                onClick={() => window.history.back()}
+                className="lg:hidden p-1.5 -ml-1 rounded-lg text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                aria-label="Go back"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
             )}
             {isDashboard ? (
               <div>
