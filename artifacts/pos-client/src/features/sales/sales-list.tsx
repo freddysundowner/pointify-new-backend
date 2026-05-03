@@ -958,8 +958,8 @@ function SalesList() {
 
   return (
     <DashboardLayout title="Sales Reports">
-      <div className="w-full p-4">
-          <div className="mb-4 flex flex-wrap justify-between items-center gap-2">
+      <div className="w-full">
+          <div className="mb-3 flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"
@@ -1003,8 +1003,8 @@ function SalesList() {
           </div>
 
           {/* Filters */}
-          <Card className="mb-3">
-            <CardContent className="p-3 space-y-2">
+          <Card className="mb-2">
+            <CardContent className="p-2.5 space-y-1.5">
               {/* Row 1 — search + desktop filters */}
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -1139,8 +1139,8 @@ function SalesList() {
 
           {/* Summary Stats — compact */}
           {(isAdmin || hasAttendantPermission("sales", "view_summary")) && (
-            <div className="mb-3">
-              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+            <div className="mb-2">
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
                 {[
                   { label: "Total", value: filteredStatsTotal.toFixed(2), currency: true },
                   { label: "Count", value: String(filteredSalesCount), currency: false },
@@ -1151,9 +1151,9 @@ function SalesList() {
                   { label: "Hold", value: Number(salesReportData?.data?.hold ?? 0).toFixed(2), currency: true },
                   { label: "Bank", value: Number(salesReportData?.data?.bank ?? 0).toFixed(2), currency: true },
                 ].map((stat) => (
-                  <Card key={stat.label} className="p-2">
-                    <p className="text-[10px] text-muted-foreground leading-tight">{stat.label}</p>
-                    <p className="text-xs font-bold mt-0.5 truncate">
+                  <Card key={stat.label} className="p-1.5">
+                    <p className="text-[9px] text-muted-foreground leading-tight">{stat.label}</p>
+                    <p className="text-[11px] font-bold mt-0.5 truncate">
                       {stat.currency ? `${primaryShopCurrency} ` : ""}{stat.value}
                     </p>
                   </Card>
@@ -1164,27 +1164,25 @@ function SalesList() {
 
           {/* Sales History Table */}
           <Card className="flex-1">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <CardTitle className="text-lg">
+            <CardHeader className="py-2 px-3">
+              <div className="flex flex-row justify-between items-center gap-2">
+                <CardTitle className="text-sm font-semibold">
                   Sales History
                   {statusFilter !== "all" && (
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">
-                      -{" "}
-                      {statusFilter.charAt(0).toUpperCase() +
-                        statusFilter.slice(1)}
+                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                      · {statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
                     </span>
                   )}
                 </CardTitle>
-                <div className="flex items-center gap-2 text-sm">
-                  <Label htmlFor="items-per-page" className="whitespace-nowrap">
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Label htmlFor="items-per-page" className="whitespace-nowrap text-xs text-muted-foreground">
                     Show:
                   </Label>
                   <Select
                     value={itemsPerPage.toString()}
                     onValueChange={handleItemsPerPageChange}
                   >
-                    <SelectTrigger className="w-16 h-8">
+                    <SelectTrigger className="w-14 h-7 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1198,46 +1196,42 @@ function SalesList() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="pt-0">
+            <CardContent className="p-0 pt-0">
               {/* Mobile Card List */}
-              <div className="sm:hidden space-y-2 -mx-1">
+              <div className="sm:hidden space-y-1.5 px-2 pb-2">
                 {isLoading ? (
-                  <div className="py-8 text-center text-sm text-gray-500">Loading sales data...</div>
+                  <div className="py-6 text-center text-sm text-gray-500">Loading sales data...</div>
                 ) : paginatedData.length === 0 ? (
-                  <div className="py-8 text-center text-gray-500 text-sm">No sales found for the selected filters</div>
+                  <div className="py-6 text-center text-gray-500 text-sm">No sales found for the selected filters</div>
                 ) : (
                   paginatedData.map((sale: any) => (
-                    <div key={sale.id} className="bg-white rounded-xl border border-gray-100 shadow-sm mx-1 overflow-hidden">
-                      {/* Top row: receipt number + amount */}
-                      <div className="flex items-center justify-between px-3 pt-3 pb-2">
+                    <div key={sale.id} className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
+                      <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
                         <button
                           onClick={() => handleViewSale(sale)}
-                          className="text-sm font-mono font-semibold text-primary hover:underline"
+                          className="text-xs font-mono font-semibold text-primary hover:underline"
                         >
                           #{sale.receiptNo}
                         </button>
-                        <span className="text-base font-bold text-gray-900">
+                        <span className="text-xs font-bold text-gray-900">
                           {getSaleCurrency(sale)} {Number(sale.totalAmount).toFixed(2)}
                         </span>
                       </div>
-                      {/* Bottom row: meta info + actions */}
-                      <div className="flex items-center justify-between gap-2 px-3 pb-3 border-t border-gray-50 pt-2">
+                      <div className="flex items-center justify-between px-2.5 pb-2 gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-medium text-gray-700 truncate">{sale.customerName}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {new Date(sale.saleDate).toLocaleDateString()}
-                            {sale.attendantName && ` · ${sale.attendantName}`}
+                          <p className="text-[11px] text-gray-500 truncate">
+                            {sale.customerName} · {new Date(sale.saleDate).toLocaleDateString()}
                           </p>
                         </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <div className="flex items-center gap-1 flex-shrink-0">
                           <span className="text-[10px] capitalize text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{sale.paymentTag}</span>
                           <Badge variant={getStatusBadgeVariant(sale.status)} className="text-[10px] px-1.5 py-0">
                             {sale.status}
                           </Badge>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-7 w-7 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
+                              <Button variant="ghost" className="h-6 w-6 p-0">
+                                <MoreHorizontal className="h-3.5 w-3.5" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
