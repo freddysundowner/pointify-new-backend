@@ -1110,6 +1110,13 @@ export default function ProductGrid({
               <Package className="h-3 w-3" />
               Filter
             </button>
+            <button
+              onClick={() => window.history.back()}
+              className="h-8 w-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+              aria-label="Close POS"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
         {/* Products / Cart tabs — always shown on mobile */}
