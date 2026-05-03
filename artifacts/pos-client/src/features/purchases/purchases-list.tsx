@@ -668,10 +668,11 @@ export default function PurchasesList() {
               <Button
                 variant="outline"
                 size="sm"
-                className="sm:hidden h-8 px-2 relative"
+                className="sm:hidden h-8 px-2.5 relative gap-1.5 text-xs"
                 onClick={() => setFilterSheetOpen(true)}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
+                Filter
                 {activeFilterCount > 0 && (
                   <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-purple-600 text-white text-[9px] font-bold flex items-center justify-center leading-none">
                     {activeFilterCount}
