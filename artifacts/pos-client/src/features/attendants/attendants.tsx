@@ -502,7 +502,7 @@ export default function Attendants() {
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 leading-tight">Staff Management</h1>
+            <h1 className="text-lg font-bold text-gray-900 leading-tight">Attendant Management</h1>
             <p className="text-xs text-gray-500 truncate">{selectedShop?.name || 'Your shops'}</p>
           </div>
           <Button onClick={handleCreate} size="sm" className="flex items-center gap-1.5 shrink-0 h-8">
