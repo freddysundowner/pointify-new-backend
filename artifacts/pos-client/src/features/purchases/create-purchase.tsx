@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Save, Plus, Trash2, Package, Search } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Save, Plus, Trash2, Package, Search, ShoppingCart } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
@@ -26,10 +27,10 @@ export default function CreatePurchase() {
   const [location, setLocation] = useLocation();
   const { admin, isAuthenticated } = useAuth();
   const { currency } = useSelector((state: RootState) => state.currency);
-  const { attendantId,shopId } = usePrimaryShop();
+  const { attendantId, shopId } = usePrimaryShop();
   const { shop } = useShop();
+  const isAttendant = location.startsWith("/attendant/");
 
-  // Suppliers API integration
   const { data: suppliersResponse, isLoading: suppliersLoading } = useQuery({
     queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
@@ -39,13 +40,11 @@ export default function CreatePurchase() {
     enabled: !!admin?._id && !!shopId,
   });
 
-  // Use existing ProductsContext with cached data
-  const { products: contextProducts, isLoading: productsLoading, error: productsError, refreshProducts } = useProducts();
+  const { products: contextProducts, isLoading: productsLoading } = useProducts();
 
   const suppliers = normalizeIds((suppliersResponse as any)?.data || []);
   const products = contextProducts || [];
 
-  // Generate auto invoice number
   const generateInvoiceNumber = () => {
     const timestamp = Date.now();
     const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
@@ -57,37 +56,24 @@ export default function CreatePurchase() {
   const [expectedDate, setExpectedDate] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [trackBatches, setTrackBatches] = useState(false);
-
-  // Auto-generate invoice number on component mount
-  useEffect(() => {
-    setInvoiceNumber(generateInvoiceNumber());
-  }, []);
-
-  // Default trackBatches from shop setting once loaded
-  useEffect(() => {
-    if (shop?.trackBatches !== undefined) {
-      setTrackBatches(shop.trackBatches);
-    }
-  }, [shop?.trackBatches]);
-
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => { setInvoiceNumber(generateInvoiceNumber()); }, []);
+  useEffect(() => {
+    if (shop?.trackBatches !== undefined) setTrackBatches(shop.trackBatches);
+  }, [shop?.trackBatches]);
 
   const addProductToOrder = (product: any) => {
-    // Check if product already exists in the order
     const existingIndex = items.findIndex(item => item.productName === (product.name || product.title));
-    
     if (existingIndex >= 0) {
-      // If product exists, increase quantity
       const newItems = [...items];
       newItems[existingIndex].quantity += 1;
       newItems[existingIndex].totalCost = newItems[existingIndex].quantity * newItems[existingIndex].unitCost;
       setItems(newItems);
     } else {
-      // Add new product to order  
       const newItem: PurchaseItem & { sellingPrice?: number } = {
         productName: product.name || product.title,
         quantity: 1,
@@ -97,50 +83,34 @@ export default function CreatePurchase() {
       };
       setItems([...items, newItem]);
     }
-    
-    // Clear search and close dialog
     setSearchTerm("");
     setProductSearchOpen(false);
   };
 
-  const removeItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
-  };
+  const removeItem = (index: number) => setItems(items.filter((_, i) => i !== index));
 
   const updateItem = (index: number, field: keyof PurchaseItem, value: string | number) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
-    
-    // Recalculate total cost when quantity or unit cost changes
     if (field === 'quantity' || field === 'unitCost') {
       newItems[index].totalCost = newItems[index].quantity * newItems[index].unitCost;
     }
-    
     setItems(newItems);
   };
 
-  const calculateTotal = () => {
-    return items.reduce((sum, item) => sum + item.totalCost, 0);
+  const calculateTotal = () => items.reduce((sum, item) => sum + item.totalCost, 0);
+
+  const handleBack = () => {
+    if (window.history.length > 1) { window.history.back(); return; }
+    setLocation(isAttendant ? "/attendant/purchases" : "/purchases");
   };
 
   const handleSave = async () => {
     const validItems = items.filter(item => item.productName && item.quantity > 0);
-    
-    if (validItems.length === 0) {
-      alert("Please add at least one item to the purchase order.");
-      return;
-    }
-
+    if (validItems.length === 0) { alert("Please add at least one item."); return; }
     setIsSubmitting(true);
-    
     try {
-      // Find supplier ID if supplier is selected
       const selectedSupplier = suppliers.find((s: any) => s.name === supplierName);
-      
-      // Extract attendant ID properly
-      // const attendantId = (admin?.attendantId as any)?._id || admin?.attendantId || admin?._id || null;
-
-      // Map items to Pointify format
       const purchaseItems = validItems.map(item => {
         const product = products.find((p: any) => (p.name || p.title) === item.productName);
         return {
@@ -151,24 +121,17 @@ export default function CreatePurchase() {
           discount: 0,
         };
       });
-
       const payload = {
-        shopId: shopId,
+        shopId,
         supplierId: selectedSupplier?._id || null,
         paymentType: "cash",
         amountPaid: calculateTotal(),
         trackBatches,
         items: purchaseItems,
       };
-      
       const response = await apiRequest('POST', ENDPOINTS.purchases.create, payload);
-
       if (response.ok) {
-        if(isAttendant) {
-          setLocation("/attendant/purchases");
-        }else{
-          setLocation("/purchases");
-        }
+        setLocation(isAttendant ? "/attendant/purchases" : "/purchases");
       } else {
         const error = await response.text();
         alert(`Failed to create purchase order: ${error}`);
@@ -180,286 +143,265 @@ export default function CreatePurchase() {
       setIsSubmitting(false);
     }
   };
-  const isAttendant = location.startsWith("/attendant/");
 
   return (
-    <DashboardLayout title="Create Purchase Order">
-      <div className="space-y-6">
-      <div className="flex items-center space-x-4 mb-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (window.history.length > 1) {
-                window.history.back();
-                return;
-              }
-              const urlParams = new URLSearchParams(window.location.search);
-              const hasFilter = urlParams.has('filter');
-              if (hasFilter) {
-                const backRoute = isAttendant ? '/attendant/stock/summary' : '/stock/summary';
-                setLocation(backRoute);
-              } else {
-                const backRoute = isAttendant ? '/attendant/dashboard' : '/dashboard';
-                setLocation(backRoute);
-              }
-            }}
-            className="hidden sm:flex items-center space-x-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back</span>
-          </Button>
-        </div>
-        {/* Basic Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Purchase Order Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="supplier">Supplier</Label>
-                <Select value={supplierName} onValueChange={setSupplierName}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select supplier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliersLoading ? (
-                      <SelectItem value="loading">Loading suppliers...</SelectItem>
-                    ) : suppliers.length > 0 ? (
-                      suppliers.map((supplier: any) => (
-                        <SelectItem key={supplier._id} value={supplier.name}>
-                          {supplier.name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="none">No suppliers found</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="invoiceNumber">Invoice Number</Label>
-                <Input
-                  id="invoiceNumber"
-                  value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
-                  placeholder="Enter invoice number"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="orderDate">Order Date *</Label>
-                <Input
-                  id="orderDate"
-                  type="date"
-                  value={orderDate}
-                  onChange={(e) => setOrderDate(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="expectedDate">Expected Delivery Date</Label>
-                <Input
-                  id="expectedDate"
-                  type="date"
-                  value={expectedDate}
-                  onChange={(e) => setExpectedDate(e.target.value)}
-                />
-              </div>
+    <DashboardLayout title="New Purchase Order">
+      <div className="-mx-4 sm:mx-0">
+        {/* Sticky header */}
+        <div className="sticky top-0 z-10 bg-white border-b">
+          <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <button onClick={handleBack} className="hidden lg:flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0">
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <h1 className="text-base font-bold text-gray-900 leading-tight truncate">New Purchase Order</h1>
             </div>
-            
-            {/* Batch Tracking Option */}
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="trackBatches" 
+            <div className="flex items-center gap-1.5 shrink-0">
+              {items.length > 0 && (
+                <span className="text-xs text-gray-500 hidden sm:inline">
+                  {currency} {calculateTotal().toFixed(2)}
+                </span>
+              )}
+              <Button
+                onClick={handleSave}
+                disabled={isSubmitting || items.length === 0}
+                size="sm"
+                className="h-8 gap-1 text-xs px-2.5"
+              >
+                <Save className="h-3.5 w-3.5" />
+                {isSubmitting ? "Saving…" : "Save Order"}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-3 sm:px-4 py-3 space-y-3">
+
+          {/* Order Details */}
+          <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x">
+            <CardHeader className="px-3 sm:px-6 py-3 pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Package className="h-4 w-4 text-purple-600" />
+                Order Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-3 sm:px-6 pb-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Supplier</Label>
+                  <Select value={supplierName} onValueChange={setSupplierName}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Select supplier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliersLoading ? (
+                        <SelectItem value="loading">Loading…</SelectItem>
+                      ) : suppliers.length > 0 ? (
+                        suppliers.map((supplier: any) => (
+                          <SelectItem key={supplier._id} value={supplier.name}>
+                            {supplier.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="none">No suppliers</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Invoice #</Label>
+                  <Input
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    placeholder="Invoice number"
+                    className="h-9 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Order Date</Label>
+                  <Input
+                    type="date"
+                    value={orderDate}
+                    onChange={(e) => setOrderDate(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Expected Delivery</Label>
+                  <Input
+                    type="date"
+                    value={expectedDate}
+                    onChange={(e) => setExpectedDate(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox
+                  id="trackBatches"
                   checked={trackBatches}
                   onCheckedChange={(checked) => setTrackBatches(checked === true)}
                 />
-                <Label 
-                  htmlFor="trackBatches" 
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
+                <label htmlFor="trackBatches" className="text-xs text-gray-600 cursor-pointer select-none leading-tight">
                   Enable batch tracking for this purchase
-                </Label>
+                </label>
               </div>
-              <p className="text-xs text-muted-foreground mt-1 ml-6">
-                Track individual product batches for better inventory management and expiration control
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Items */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 mb-4">
-              <Package className="h-5 w-5" />
-              Purchase Order Items
-            </CardTitle>
-            <div className="space-y-3">
-              <Dialog open={productSearchOpen} onOpenChange={setProductSearchOpen}>
-                <DialogTrigger asChild>
-                  <div className="relative cursor-pointer">
-                    <Input
-                      placeholder="Search products to add to purchase order..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 cursor-pointer"
-                      readOnly
-                    />
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  </div>
-                </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Select Products to Add</DialogTitle>
-                  </DialogHeader>
-                  <Command>
-                    <CommandInput
-                      placeholder="Search products..."
-                      value={searchTerm}
-                      onValueChange={setSearchTerm}
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        {productsLoading ? "Loading products..." : "No products found."}
-                      </CommandEmpty>
-                      <CommandGroup>
-                        {products
-                          .filter((product: any) => 
-                            !searchTerm || 
-                            (product.name || product.title || '').toLowerCase().includes(searchTerm.toLowerCase())
-                          )
-                          .map((product: any) => (
-                          <CommandItem
-                            key={product._id}
-                            onSelect={() => addProductToOrder(product)}
-                            className="cursor-pointer"
-                          >
-                            <Plus className="mr-2 h-4 w-4" />
-                            <div className="flex flex-col">
-                              <span className="font-medium">{product.name || product.title}</span>
-                              <span className="text-sm text-muted-foreground">
-                                {product.shopId?.currency || 'KES'} {parseFloat(String(product.buyingPrice || 0)).toFixed(2)} per unit
-                              </span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {items.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No products added yet. Use the search above to add products to your purchase order.</p>
+          {/* Items */}
+          <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x">
+            <CardHeader className="px-3 sm:px-6 py-3 pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4 text-purple-600" />
+                  Items
+                  {items.length > 0 && (
+                    <Badge variant="secondary" className="text-xs px-1.5 py-0">{items.length}</Badge>
+                  )}
+                </CardTitle>
+                <Dialog open={productSearchOpen} onOpenChange={setProductSearchOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" className="h-8 gap-1 text-xs px-2.5">
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Product
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-xl">
+                    <DialogHeader>
+                      <DialogTitle>Add Product</DialogTitle>
+                    </DialogHeader>
+                    <Command>
+                      <CommandInput
+                        placeholder="Search products…"
+                        value={searchTerm}
+                        onValueChange={setSearchTerm}
+                      />
+                      <CommandList className="max-h-64">
+                        <CommandEmpty>
+                          {productsLoading ? "Loading products…" : "No products found."}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {products
+                            .filter((product: any) =>
+                              !searchTerm ||
+                              (product.name || product.title || '').toLowerCase().includes(searchTerm.toLowerCase())
+                            )
+                            .map((product: any) => (
+                              <CommandItem
+                                key={product._id || product.id}
+                                onSelect={() => addProductToOrder(product)}
+                                className="cursor-pointer"
+                              >
+                                <div className="flex items-center justify-between w-full gap-3">
+                                  <span className="font-medium text-sm truncate">{product.name || product.title}</span>
+                                  <span className="text-xs text-muted-foreground shrink-0">
+                                    {currency} {parseFloat(String(product.buyingPrice || 0)).toFixed(2)}
+                                  </span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </DialogContent>
+                </Dialog>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {items.map((item, index) => (
-                  <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">{item.productName}</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div>
-                            <Label className="text-xs">Quantity</Label>
-                            <Input
-                              type="number"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                              className="h-8"
-                              placeholder="Enter quantity"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Buying Price</Label>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={item.unitCost}
-                              onChange={(e) => updateItem(index, 'unitCost', parseFloat(e.target.value) || 0)}
-                              className="h-8"
-                              placeholder="Enter price"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Selling Price</Label>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={(item as any).sellingPrice || 0}
-                              onChange={(e) => updateItem(index, 'sellingPrice' as keyof PurchaseItem, parseFloat(e.target.value) || 0)}
-                              className="h-8"
-                              placeholder="Enter selling price"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Total Cost</Label>
-                            <Input
-                              value={`${currency} ${item.totalCost.toFixed(2)}`}
-                              readOnly
-                              className="h-8 bg-gray-50 dark:bg-gray-800"
-                            />
+            </CardHeader>
+            <CardContent className="px-3 sm:px-6 pb-4">
+              {items.length === 0 ? (
+                <div className="text-center py-10 text-gray-400">
+                  <ShoppingCart className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No items yet. Tap "Add Product" to start.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {items.map((item, index) => (
+                    <div key={index} className="rounded-lg border border-gray-100 bg-gray-50/50 p-3">
+                      {/* Product name + remove */}
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-gray-900 truncate pr-2">{item.productName}</p>
+                        <button
+                          onClick={() => removeItem(index)}
+                          className="h-6 w-6 flex items-center justify-center rounded text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      {/* Compact 2×2 grid of inputs */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Qty</p>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Buying Price</p>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.unitCost}
+                            onChange={(e) => updateItem(index, 'unitCost', parseFloat(e.target.value) || 0)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Selling Price</p>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={(item as any).sellingPrice || 0}
+                            onChange={(e) => updateItem(index, 'sellingPrice' as keyof PurchaseItem, parseFloat(e.target.value) || 0)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Total</p>
+                          <div className="h-8 flex items-center px-3 rounded-md border border-gray-200 bg-white text-sm font-medium text-gray-700">
+                            {currency} {parseFloat(String(item.totalCost || 0)).toFixed(2)}
                           </div>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeItem(index)}
-                        className="ml-4 text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                     </div>
-                  </div>
-                ))}
-                
-                <div className="border-t-2 border-gray-200 dark:border-gray-700 pt-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                      Total Amount:
+                  ))}
+
+                  {/* Order total */}
+                  <div className="mt-3 pt-3 border-t flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-700">
+                      Order Total ({items.reduce((s, i) => s + i.quantity, 0)} units)
                     </span>
-                    <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                    <span className="text-lg font-bold text-purple-600">
                       {currency} {calculateTotal().toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    <span>Total Items:</span>
-                    <span>{items.reduce((sum, item) => sum + item.quantity, 0)} units</span>
-                  </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Action Buttons */}
-        <div className="flex justify-between items-center">
-          <Button variant="outline" onClick={() => setLocation("/purchases")}>           
-          </Button>
-          <Button 
-            onClick={handleSave} 
-            disabled={isSubmitting || items.length === 0}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Save className="mr-2 h-4 w-4" />
-            {isSubmitting ? "Creating..." : "Create Purchase Order"}
-          </Button>
+          {/* Bottom save button (visible on mobile, sticky feel) */}
+          <div className="pb-4">
+            <Button
+              onClick={handleSave}
+              disabled={isSubmitting || items.length === 0}
+              className="w-full h-11 text-sm font-medium"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {isSubmitting ? "Creating Order…" : `Create Purchase Order${items.length > 0 ? ` · ${currency} ${calculateTotal().toFixed(2)}` : ""}`}
+            </Button>
+          </div>
+
         </div>
       </div>
     </DashboardLayout>
