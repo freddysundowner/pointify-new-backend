@@ -958,7 +958,7 @@ function SalesList() {
 
   return (
     <DashboardLayout title="Sales Reports">
-      <div className="w-full">
+      <div className="w-full p-4">
           <div className="mb-4 flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-3">
               <Button
@@ -1139,8 +1139,8 @@ function SalesList() {
 
           {/* Summary Stats — compact */}
           {(isAdmin || hasAttendantPermission("sales", "view_summary")) && (
-            <div className="overflow-x-auto no-scrollbar mb-3">
-              <div className="grid grid-cols-8 gap-2 min-w-[480px] sm:min-w-0">
+            <div className="mb-3">
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
                 {[
                   { label: "Total", value: filteredStatsTotal.toFixed(2), currency: true },
                   { label: "Count", value: String(filteredSalesCount), currency: false },
