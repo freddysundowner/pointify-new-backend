@@ -1,44 +1,67 @@
 import { useLocation, useParams } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useGoBack } from "@/hooks/useGoBack";
 import { useNavigationRoute } from "@/lib/navigation-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Package, User, Calendar, DollarSign, FileText, Building2, CreditCard } from "lucide-react";
+import { ArrowLeft, Package, DollarSign, CreditCard, Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useCurrency } from "@/utils";
+import { ENDPOINTS } from "@/lib/api-endpoints";
+import { apiRequest } from "@/lib/queryClient";
+
+const pf = (v: any) => parseFloat(String(v || 0));
 
 export default function PurchaseViewPage() {
   const [, setLocation] = useLocation();
+  const params = useParams<{ id: string }>();
   const goBack = useGoBack("/purchases");
-  const purchasesRoute = useNavigationRoute('purchases');
-  
-  // Get purchase data from navigation state
-  const state = window.history.state;
-  const purchase = state?.purchase;
-  const currency = useCurrency()
+  const purchasesRoute = useNavigationRoute("purchases");
+  const currency = useCurrency();
 
-  if (!purchase) {
+  const purchaseId = params?.id;
+
+  const { data: purchase, isLoading, isError } = useQuery({
+    queryKey: ["purchase", purchaseId],
+    queryFn: async () => {
+      const res = await apiRequest("GET", ENDPOINTS.purchases.getById(purchaseId!));
+      const json = await res.json();
+      return json.data ?? json;
+    },
+    enabled: !!purchaseId,
+  });
+
+  if (isLoading) {
     return (
       <DashboardLayout title="Purchase Details">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Purchase data not found. Please go back and try again.</p>
-          <Button onClick={goBack} className="mt-4">
-            Back to Purchases
-          </Button>
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </DashboardLayout>
     );
   }
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case "received": return "default";
-      case "ordered": return "secondary";
-      case "partial": return "outline";
-      case "pending": return "destructive";
-      case "cancelled": return "destructive";
+  if (isError || !purchase) {
+    return (
+      <DashboardLayout title="Purchase Details">
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Purchase not found.</p>
+          <Button onClick={goBack} className="mt-4">Back to Purchases</Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const items: any[] = purchase.purchaseItems ?? [];
+  const payments: any[] = purchase.purchasePayments ?? [];
+  const outstandingBalance = pf(purchase.outstandingBalance);
+  const paymentType = purchase.paymentType ?? "cash";
+
+  const getStatusBadgeVariant = (type: string) => {
+    switch (type) {
+      case "cash": return "default";
+      case "credit": return "destructive";
       default: return "outline";
     }
   };
@@ -46,40 +69,42 @@ export default function PurchaseViewPage() {
   return (
     <DashboardLayout title="Purchase Details">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={goBack}
-          >
+          <Button variant="outline" size="sm" onClick={goBack}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Purchases
           </Button>
-          <Badge variant={getStatusBadgeVariant(purchase.paymentType)} className="text-sm capitalize">
-            {purchase.paymentType}
+          <Badge variant={getStatusBadgeVariant(paymentType)} className="text-sm capitalize">
+            {paymentType}
           </Badge>
         </div>
 
-        {/* Receipt-style Layout */}
         <div className="w-full max-w-4xl mx-auto">
           <Card className="shadow-lg">
             <CardContent className="p-8">
               {/* Receipt Header */}
               <div className="text-center border-b border-dashed border-gray-300 pb-6 mb-6">
-                <h1 className="text-2xl font-bold uppercase tracking-wider mb-2">{purchase.shopId?.name || "BUSINESS NAME"}</h1>
-                <p className="text-sm text-muted-foreground">{purchase.shopId?.address || "Business Address"}</p>
+                <h1 className="text-2xl font-bold uppercase tracking-wider mb-2">
+                  {purchase.shop?.name ?? "BUSINESS NAME"}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  {purchase.shop?.address ?? "Business Address"}
+                </p>
                 <p className="text-sm text-muted-foreground">Purchase Receipt</p>
                 <div className="mt-4 pt-4 border-t border-dashed border-gray-300">
-                  <p className="text-lg font-bold">PURCHASE ORDER #{purchase.purchaseNo}</p>
+                  <p className="text-lg font-bold">
+                    PURCHASE ORDER #{purchase.purchaseNo ?? purchaseId}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    {purchase.createdAt ? new Date(purchase.createdAt).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'short', 
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    }) : 'Unknown Date'}
+                    {purchase.createdAt
+                      ? new Date(purchase.createdAt).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "Unknown Date"}
                   </p>
                 </div>
               </div>
@@ -89,16 +114,18 @@ export default function PurchaseViewPage() {
                 <div>
                   <p className="font-medium">Supplier:</p>
                   <p className="text-muted-foreground">
-                    {purchase.supplierId?.name || "Direct Purchase"}
+                    {purchase.supplier?.name ?? "Direct Purchase"}
                   </p>
                 </div>
                 <div>
                   <p className="font-medium">Payment Method:</p>
-                  <p className="text-muted-foreground capitalize">{purchase.paymentType}</p>
+                  <p className="text-muted-foreground capitalize">{paymentType}</p>
                 </div>
                 <div>
                   <p className="font-medium">Attendant:</p>
-                  <p className="text-muted-foreground">{purchase.attendantId?.username || "System"}</p>
+                  <p className="text-muted-foreground">
+                    {purchase.attendant?.username ?? "System"}
+                  </p>
                 </div>
               </div>
 
@@ -110,27 +137,26 @@ export default function PurchaseViewPage() {
                   <div className="col-span-2 text-right">PRICE</div>
                   <div className="col-span-2 text-right">TOTAL</div>
                 </div>
-                
-                {/* Items List */}
+
                 <div className="space-y-1">
-                  {purchase.items?.map((item: any, index: number) => (
-                    <div key={index} className="grid grid-cols-12 gap-2 py-2 text-sm">
+                  {items.map((item: any, index: number) => (
+                    <div key={item.id ?? index} className="grid grid-cols-12 gap-2 py-2 text-sm">
                       <div className="col-span-6 font-medium">
-                        {item.product?.name}
+                        {item.product?.name ?? `Product #${item.product}`}
                       </div>
                       <div className="col-span-2 text-center font-mono">
-                        {item.quantity || 0}
+                        {pf(item.quantity)}
                       </div>
                       <div className="col-span-2 text-right font-mono">
-                        {parseFloat(String(item.unitPrice || 0)).toFixed(2)}
+                        {pf(item.unitPrice).toFixed(2)}
                       </div>
                       <div className="col-span-2 text-right font-mono font-medium">
-                        {(parseFloat(String(item.quantity || 0)) * parseFloat(String(item.unitPrice || 0))).toFixed(2)}
+                        {(pf(item.quantity) * pf(item.unitPrice)).toFixed(2)}
                       </div>
                     </div>
                   ))}
-                  
-                  {(!purchase.items || purchase.items.length === 0) && (
+
+                  {items.length === 0 && (
                     <div className="text-center py-8">
                       <Package className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                       <p className="text-muted-foreground text-sm">No items found</p>
@@ -144,7 +170,7 @@ export default function PurchaseViewPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Subtotal:</span>
-                    <span className="font-mono">{currency} {parseFloat(String(purchase.totalAmount || 0)).toFixed(2)}</span>
+                    <span className="font-mono">{currency} {pf(purchase.totalAmount).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Tax:</span>
@@ -153,12 +179,16 @@ export default function PurchaseViewPage() {
                   <div className="border-t border-dashed border-gray-300 pt-2">
                     <div className="flex justify-between text-lg font-bold">
                       <span>TOTAL:</span>
-                      <span className="font-mono">{currency} {parseFloat(String(purchase.totalAmount || 0)).toFixed(2)}</span>
+                      <span className="font-mono">{currency} {pf(purchase.totalAmount).toFixed(2)}</span>
                     </div>
                   </div>
                   <div className="flex justify-between text-sm">
+                    <span>Amount Paid:</span>
+                    <span className="font-mono">{currency} {pf(purchase.amountPaid).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
                     <span>Payment Method:</span>
-                    <span className="font-mono capitalize">{purchase.paymentType}</span>
+                    <span className="font-mono capitalize">{paymentType}</span>
                   </div>
                 </div>
               </div>
@@ -170,25 +200,25 @@ export default function PurchaseViewPage() {
                   <p className="text-xs text-muted-foreground">
                     For inquiries, please contact us with reference: {purchase.purchaseNo}
                   </p>
-                  <div className="pt-2">
-                    <p className="text-xs text-muted-foreground">
-                      Powered by Pointify POS System
-                    </p>
-                  </div>
+                  <p className="text-xs text-muted-foreground pt-2">
+                    Powered by Pointify POS System
+                  </p>
                 </div>
               </div>
 
               {/* Outstanding Balance Alert */}
-              {(purchase.outstandingBalance && purchase.outstandingBalance > 0) && (
+              {outstandingBalance > 0 && (
                 <div className="mt-6 text-center">
                   <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded-lg p-4">
                     <p className="text-red-600 dark:text-red-400 font-medium mb-2">Outstanding Balance</p>
                     <p className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">
-                      {currency} {parseFloat(String(purchase.outstandingBalance || 0)).toFixed(2)}
+                      {currency} {outstandingBalance.toFixed(2)}
                     </p>
-                    <Button 
-                      className="w-full max-w-xs" 
-                      onClick={() => setLocation(`${purchasesRoute}/pay/${purchase._id}`, { state: { purchase } })}
+                    <Button
+                      className="w-full max-w-xs"
+                      onClick={() =>
+                        setLocation(`${purchasesRoute}/pay/${purchaseId}`, { state: { purchase } })
+                      }
                     >
                       <DollarSign className="h-4 w-4 mr-2" />
                       Make Payment
@@ -198,7 +228,7 @@ export default function PurchaseViewPage() {
               )}
 
               {/* Payment History */}
-              {purchase.payments && purchase.payments.length > 0 && (
+              {payments.length > 0 && (
                 <div className="mt-6">
                   <Card className="bg-gray-50 dark:bg-gray-900">
                     <CardHeader className="pb-3">
@@ -209,27 +239,40 @@ export default function PurchaseViewPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
-                        {purchase.payments.map((payment: any, index: number) => (
-                          <div key={payment._id || index} className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
+                        {payments.map((payment: any, index: number) => (
+                          <div
+                            key={payment.id ?? index}
+                            className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+                          >
                             <div>
-                              <p className="font-medium">{currency} {parseFloat(String(payment.amount || 0)).toFixed(2)}</p>
+                              <p className="font-medium">
+                                {currency} {pf(payment.amount).toFixed(2)}
+                              </p>
                               <p className="text-sm text-muted-foreground">
-                                {payment.paymentNo} • {new Date(payment.date).toLocaleDateString()}
+                                {payment.paymentNo} •{" "}
+                                {payment.date
+                                  ? new Date(payment.date).toLocaleDateString()
+                                  : payment.createdAt
+                                  ? new Date(payment.createdAt).toLocaleDateString()
+                                  : "—"}
                               </p>
                             </div>
                             <div className="text-right">
                               <p className="text-sm text-muted-foreground font-mono">
-                                Balance: {currency} {parseFloat(String(payment.balance || 0)).toFixed(2)}
+                                Balance: {currency} {pf(payment.balance).toFixed(2)}
                               </p>
                             </div>
                           </div>
                         ))}
                       </div>
-                      
+
                       <div className="flex justify-between font-semibold text-lg pt-4 border-t-2 border-gray-300 dark:border-gray-600 mt-4">
                         <span>Total Paid:</span>
                         <span className="font-mono">
-                          {currency} {purchase.payments.reduce((sum: number, payment: any) => sum + parseFloat(String(payment.amount || 0)), 0).toFixed(2)}
+                          {currency}{" "}
+                          {payments
+                            .reduce((sum, p) => sum + pf(p.amount), 0)
+                            .toFixed(2)}
                         </span>
                       </div>
                     </CardContent>

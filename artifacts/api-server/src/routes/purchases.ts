@@ -187,7 +187,10 @@ router.get("/:id", requireAdmin, async (req, res, next) => {
   try {
     const purchase = await db.query.purchases.findFirst({
       where: eq(purchases.id, Number(req.params["id"])),
-      with: { purchaseItems: true, purchasePayments: true },
+      with: {
+        purchaseItems: { with: { product: true } },
+        purchasePayments: true,
+      },
     });
     if (!purchase) throw notFound("Purchase not found");
     return ok(res, purchase);
