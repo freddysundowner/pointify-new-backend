@@ -758,20 +758,106 @@ export default function StockProducts() {
               </Select>
             </div>
 
-            {/* Products Table */}
-            <div className="rounded-md border">
+            {/* Products — mobile cards */}
+            {isLoading ? (
+              <div className="sm:hidden text-center py-8 text-gray-500 text-sm">Loading products...</div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="sm:hidden text-center py-8 text-gray-500 text-sm">No products found</div>
+            ) : (
+              <div className="sm:hidden divide-y rounded-md border">
+                {filteredProducts.map((product: Product) => {
+                  const stockStatus = getQuantityStatus(product);
+                  const quantity = (product as any).quantity || 0;
+                  const reorderLevel = (product as any).reorderLevel || 0;
+                  const isVirtual = (product as any).type === "virtual" || (product as any).type === "service";
+                  const isLowStock = !isVirtual && quantity > 0 && reorderLevel > 0 && quantity <= reorderLevel;
+                  const isOutOfStock = !isVirtual && quantity === 0;
+                  const cardBg = isOutOfStock ? "bg-red-50" : isLowStock ? "bg-amber-50" : "";
+                  return (
+                    <div key={(product as any).id ?? product._id} className={`flex items-center gap-2 px-3 py-2.5 ${cardBg}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs leading-tight truncate">{product.name}</p>
+                        <p className="text-[11px] text-gray-500 leading-tight truncate">{(product as any).category?.name || "No Category"}</p>
+                        <p className="text-xs font-semibold text-gray-800 mt-0.5">{currency} {((product as any).sellingPrice || product.price || 0).toLocaleString()}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right">
+                          {isVirtual ? (
+                            <span className="text-xs text-gray-400">Service</span>
+                          ) : (
+                            <span className={`text-sm font-bold ${isOutOfStock ? "text-red-600" : isLowStock ? "text-amber-600" : "text-green-600"}`}>
+                              {quantity}
+                            </span>
+                          )}
+                          <p className="text-[10px] text-gray-400 leading-none">units</p>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            {(hasPermission("inventory_history") || hasAttendantPermission("products", "view_history")) && (
+                              <DropdownMenuItem className="flex items-center gap-2 text-xs" onClick={() => setLocation(`${productHistoryRoute}/${(product as any).id ?? product._id}/history`)}>
+                                <History className="h-3.5 w-3.5" />
+                                Product History
+                              </DropdownMenuItem>
+                            )}
+                            {(hasPermission("inventory_edit") || hasAttendantPermission("products", "edit")) && (
+                              <DropdownMenuItem className="flex items-center gap-2 text-xs" onClick={() => {
+                                const bundleItems = (product as any).bundleItems || (product as any).items || [];
+                                (window as any).productEditData = { bundleItems, productData: product, passedBundleItems: true };
+                                setLocation(`${editProductRoute}/${(product as any).id ?? product._id}`);
+                              }}>
+                                <Edit className="h-3.5 w-3.5" />
+                                Edit
+                              </DropdownMenuItem>
+                            )}
+                            {!(product as any).virtual && (hasPermission("inventory_adjust") || hasAttendantPermission("products", "adjust_stock")) && (
+                              <DropdownMenuItem className="flex items-center gap-2 text-xs" onClick={() => openAdjustDialog(product)}>
+                                <TrendingUp className="h-3.5 w-3.5" />
+                                Adjust Stock
+                              </DropdownMenuItem>
+                            )}
+                            {!(product as any).virtual && (hasPermission("inventory_history") || hasAttendantPermission("products", "view_adjustment_history")) && (
+                              <DropdownMenuItem className="flex items-center gap-2 text-xs" onClick={() => openHistoryDialog(product)}>
+                                <FileText className="h-3.5 w-3.5" />
+                                Adjustment History
+                              </DropdownMenuItem>
+                            )}
+                            {(hasPermission("inventory_delete") || hasAttendantPermission("products", "delete")) && (
+                              <DropdownMenuItem
+                                className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600"
+                                onClick={() => { setProductToDelete(product); setDeleteDialogOpen(true); }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Products Table — sm and above */}
+            <div className="hidden sm:block rounded-md border">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="border-b bg-gray-50">
                     <tr>
                       <th className="text-left px-3 py-2 font-medium text-xs text-gray-600">Product</th>
-                      <th className="text-left px-3 py-2 font-medium text-xs text-gray-600 hidden sm:table-cell">SKU / Barcode</th>
+                      <th className="text-left px-3 py-2 font-medium text-xs text-gray-600">SKU / Barcode</th>
                       <th className="text-left px-3 py-2 font-medium text-xs text-gray-600">Sell Price</th>
                       {(hasPermission("inventory_view") || hasAttendantPermission("stocks", "view_buying_price")) && (
                         <th className="text-left px-3 py-2 font-medium text-xs text-gray-600 hidden md:table-cell">Buy Price</th>
                       )}
                       <th className="text-left px-3 py-2 font-medium text-xs text-gray-600">Qty</th>
-                      <th className="text-left px-3 py-2 font-medium text-xs text-gray-600 hidden sm:table-cell">Status</th>
+                      <th className="text-left px-3 py-2 font-medium text-xs text-gray-600">Status</th>
                       <th className="px-3 py-2 font-medium text-xs text-gray-600 w-10"></th>
                     </tr>
                   </thead>
@@ -805,7 +891,7 @@ export default function StockProducts() {
                               <p className="font-medium text-xs leading-tight">{product.name}</p>
                               <p className="text-xs text-gray-500 leading-tight">{(product as any).category?.name || "No Category"}</p>
                             </td>
-                            <td className="px-3 py-2 text-xs text-gray-500 hidden sm:table-cell">
+                            <td className="px-3 py-2 text-xs text-gray-500">
                               {(product as any).barcode || "-"}
                             </td>
                             <td className="px-3 py-2 text-xs font-medium">
@@ -825,7 +911,7 @@ export default function StockProducts() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-3 py-2 hidden sm:table-cell">
+                            <td className="px-3 py-2">
                               <Badge variant={stockStatus.variant} className="text-xs px-1.5 py-0">
                                 {stockStatus.label}
                               </Badge>
