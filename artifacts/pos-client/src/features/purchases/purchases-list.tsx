@@ -658,11 +658,10 @@ export default function PurchasesList() {
         {/* Sticky header */}
         <div className="sticky top-0 z-10 bg-white border-b">
           <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 shrink-0">
               <button onClick={handleBackClick} className="hidden lg:flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0">
                 <ArrowLeft className="h-4 w-4" />
               </button>
-              <h1 className="text-base font-bold text-gray-900 leading-tight truncate">Purchases</h1>
             </div>
             <div className="flex gap-1.5 shrink-0">
               {/* Mobile: Filter button */}
