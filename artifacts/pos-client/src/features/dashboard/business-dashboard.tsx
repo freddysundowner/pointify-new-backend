@@ -37,7 +37,11 @@ import {
   RefreshCw,
   UserCheck,
   Settings,
-  X
+  X,
+  ScanBarcode,
+  BarChart2,
+  CreditCard,
+  Box
 } from "lucide-react";
 import { Link } from "wouter";
 import DashboardLayout from "@/components/layout/dashboard-layout";
@@ -698,6 +702,30 @@ export default function BusinessDashboard() {
             </Card>
           </Link>
         </div>
+        </div>
+
+        {/* Quick Actions grid — mobile only */}
+        <div className="lg:hidden">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest px-0.5 mb-3">Quick Access</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { href: "/pos",       Icon: ScanBarcode, label: "POS",       bg: "bg-purple-100", color: "text-purple-600" },
+              { href: "/stock",     Icon: Box,         label: "Products",  bg: "bg-blue-100",   color: "text-blue-600"   },
+              { href: "/sales",     Icon: ShoppingCart,label: "Sales",     bg: "bg-green-100",  color: "text-green-600"  },
+              { href: "/expenses",  Icon: CreditCard,  label: "Expenses",  bg: "bg-red-100",    color: "text-red-600"    },
+              { href: "/customers", Icon: Users,       label: "Customers", bg: "bg-orange-100", color: "text-orange-600" },
+              { href: "/reports",   Icon: BarChart2,   label: "Reports",   bg: "bg-teal-100",   color: "text-teal-600"   },
+            ].map(({ href, Icon, label, bg, color }) => (
+              <Link key={href} href={href}>
+                <div className="flex flex-col items-center justify-center bg-white rounded-2xl border border-gray-100 shadow-sm p-4 gap-2 active:scale-95 transition-transform min-h-[88px]">
+                  <div className={`w-12 h-12 ${bg} rounded-xl flex items-center justify-center`}>
+                    <Icon className={`h-6 w-6 ${color}`} />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-700">{label}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
 
         {/* Recent Sales and Stock Alerts */}

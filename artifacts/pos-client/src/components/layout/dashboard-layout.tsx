@@ -324,10 +324,9 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-xl">
           <div className="flex items-stretch justify-around">
             {([
-              { href: dashboardRoute, icon: Home, label: "Home" },
-              { href: posRoute, icon: ScanBarcode, label: "POS" },
-              { href: productsRoute, icon: Box, label: "Products" },
-              { href: salesRoute, icon: Receipt, label: "Sales" },
+              { href: dashboardRoute, icon: Home,      label: "Home"       },
+              { href: "/shops",       icon: Store,     label: "Shops"      },
+              { href: "/attendants",  icon: UserCheck, label: "Attendants" },
             ] as { href: string; icon: any; label: string }[]).map((tab) => {
               const isActive = location === tab.href ||
                 (tab.href.length > 2 && location.startsWith(tab.href));
