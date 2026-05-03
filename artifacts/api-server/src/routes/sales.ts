@@ -84,6 +84,8 @@ router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
     const from = req.query["start"] ? new Date(String(req.query["start"])) : null;
     const to = req.query["end"] ? new Date(String(req.query["end"])) : null;
     const attendantId = req.query["attendantId"] ? Number(req.query["attendantId"]) : null;
+    const statsStatus = req.query["status"] ? String(req.query["status"]) : null;
+    const statsPaymentTag = req.query["paymentTag"] ? String(req.query["paymentTag"]) : null;
 
     const conditions: any[] = [];
     if (req.attendant) {
@@ -99,6 +101,8 @@ router.get("/stats", requireAdminOrAttendant, async (req, res, next) => {
       endOfDay.setHours(23, 59, 59, 999);
       conditions.push(lte(sales.createdAt, endOfDay));
     }
+    if (statsStatus) conditions.push(eq(sales.status, statsStatus));
+    if (statsPaymentTag) conditions.push(ilike(sales.paymentType, `%${statsPaymentTag}%`));
 
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
 

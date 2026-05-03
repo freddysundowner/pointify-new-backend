@@ -266,8 +266,30 @@ function SalesList() {
     }
     if (startDate) params.append("start", startDate);
     if (endDate) params.append("end", endDate);
+    // Mirror the same payment-type filter sent to the list so all stat cards are consistent
+    if (statusFilter !== "all") {
+      if (statusFilter === "cash") {
+        params.append("status", "cashed");
+        params.append("paymentTag", "cash");
+      } else if (statusFilter === "mpesa") {
+        params.append("status", "cashed");
+        params.append("paymentTag", "mpesa");
+      } else if (statusFilter === "credit") {
+        params.append("status", "credit");
+      } else if (statusFilter === "wallet") {
+        params.append("status", "cashed");
+        params.append("paymentTag", "wallet");
+      } else if (statusFilter === "bank") {
+        params.append("status", "cashed");
+        params.append("paymentTag", "bank");
+      } else if (statusFilter === "held") {
+        params.append("status", "held");
+      } else if (statusFilter === "returned") {
+        params.append("status", "returned");
+      }
+    }
     return params.toString();
-  }, [shopId, userType, attendant?._id, attendantFilter, startDate, endDate]);
+  }, [shopId, userType, attendant?._id, attendantFilter, startDate, endDate, statusFilter]);
 
   // Fetch sales stats from dedicated endpoint
   const { data: salesReportData, isLoading: isReportLoading, refetch: refetchReport } = useQuery({
