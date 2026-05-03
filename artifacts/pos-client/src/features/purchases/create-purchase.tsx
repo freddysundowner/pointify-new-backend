@@ -24,7 +24,7 @@ import { useShop } from "@/features/shop/useShop";
 export default function CreatePurchase() {
   const [location, setLocation] = useLocation();
   const { admin, isAuthenticated } = useAuth();
-  const { currency } = useSelector((state: RootState) => state.currency);
+  const currency = useSelector((state: RootState) => state.currency) as string;
   const { attendantId, shopId } = usePrimaryShop();
   const { shop } = useShop();
   const isAttendant = location.startsWith("/attendant/");
