@@ -30,7 +30,14 @@ import {
   Mail,
   Send,
   Download,
+  SlidersHorizontal,
 } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Dialog,
   DialogContent,
@@ -129,6 +136,7 @@ function SalesList() {
   const [showCustomDates, setShowCustomDates] = useState<boolean>(
     !!(urlParams.get("startDate") || urlParams.get("endDate")),
   );
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [saleToDelete, setSaleToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -1007,10 +1015,175 @@ function SalesList() {
             </div>
           </div>
 
-          {/* Filters */}
-          <Card className="mb-2">
+          {/* ── Mobile: search bar + filter button ── */}
+          <div className="sm:hidden flex items-center gap-2 mb-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Receipt no. or customer..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-7 h-9 text-xs"
+              />
+            </div>
+            <button
+              onClick={() => setFilterSheetOpen(true)}
+              className="relative flex-shrink-0 h-9 px-3 rounded-lg border border-gray-200 bg-white flex items-center gap-1.5 text-xs text-gray-600"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filters
+              {(statusFilter !== "all" || attendantFilter !== "all" || startDate || endDate) && (
+                <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center">
+                  {[statusFilter !== "all", attendantFilter !== "all", !!(startDate || endDate)].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* ── Mobile: filter bottom sheet ── */}
+          <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+            <SheetContent side="bottom" className="rounded-t-2xl px-4 pb-8 pt-4 max-h-[85vh] overflow-y-auto">
+              <SheetHeader className="mb-4">
+                <SheetTitle className="text-sm font-semibold text-left">Filters</SheetTitle>
+              </SheetHeader>
+
+              {/* Payment type */}
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Payment type</p>
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {[
+                  { value: "all", label: "All" },
+                  { value: "cash", label: "Cash" },
+                  { value: "mpesa", label: "M-Pesa" },
+                  { value: "credit", label: "Credit" },
+                  { value: "held", label: "Hold" },
+                  { value: "wallet", label: "Wallet" },
+                  { value: "bank", label: "Bank" },
+                  { value: "returned", label: "Returns" },
+                ].map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => handleStatusFilter(value)}
+                    className={`h-8 px-3 text-xs rounded-full font-medium transition-colors ${
+                      statusFilter === value
+                        ? "bg-primary text-white"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Attendant (admin only) */}
+              {userType === "admin" && (
+                <>
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Attendant</p>
+                  <Select value={attendantFilter} onValueChange={handleAttendantFilter}>
+                    <SelectTrigger className="h-9 text-xs w-full mb-4">
+                      <SelectValue placeholder="All attendants" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Attendants</SelectItem>
+                      {uniqueAttendants.map((att: any) => (
+                        <SelectItem key={att._id} value={att._id}>
+                          {att.username}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+
+              {/* Date range */}
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Date range</p>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {[
+                  { label: "Today", days: 0 },
+                  { label: "7 Days", days: 7 },
+                  { label: "30 Days", days: 30 },
+                  { label: "90 Days", days: 90 },
+                ].map(({ label, days }) => (
+                  <button
+                    key={label}
+                    onClick={() => setDateRange(days)}
+                    className="h-8 px-3 text-xs rounded-full border border-gray-200 bg-white text-gray-600"
+                  >
+                    {label}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    setShowCustomDates((v) => !v);
+                    if (showCustomDates) { setStartDate(""); setEndDate(""); setCurrentPage(1); }
+                  }}
+                  className={`h-8 px-3 text-xs rounded-full border transition-colors ${
+                    showCustomDates
+                      ? "bg-primary text-white border-primary"
+                      : "border-gray-200 bg-white text-gray-600"
+                  }`}
+                >
+                  Custom
+                </button>
+              </div>
+              {showCustomDates && (
+                <div className="flex items-center gap-2 mb-4">
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+                    className="h-9 text-xs flex-1"
+                  />
+                  <span className="text-xs text-muted-foreground">–</span>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+                    className="h-9 text-xs flex-1"
+                  />
+                </div>
+              )}
+              {(startDate || endDate) && !showCustomDates && (
+                <p className="text-xs text-muted-foreground mb-4">
+                  {startDate} – {endDate}
+                  <button onClick={clearDateFilters} className="ml-2 text-red-500">✕ clear</button>
+                </p>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 h-9 text-xs"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setStatusFilter("all");
+                    setAttendantFilter("all");
+                    setStartDate("");
+                    setEndDate("");
+                    setDateFilter("all");
+                    setShowCustomDates(false);
+                    setCurrentPage(1);
+                  }}
+                >
+                  Clear all
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 h-9 text-xs"
+                  onClick={() => setFilterSheetOpen(false)}
+                >
+                  Show results
+                </Button>
+              </div>
+            </SheetContent>
+          </Sheet>
+
+          {/* ── Desktop: full filter card (hidden on mobile) ── */}
+          <Card className="hidden sm:block mb-2">
             <CardContent className="p-2.5 space-y-1.5">
-              {/* Row 1 — search + desktop filters */}
+              {/* Row 1 — search + filters */}
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1022,38 +1195,36 @@ function SalesList() {
                     className="pl-7 h-8 text-xs"
                   />
                 </div>
-                <div className="hidden sm:flex items-center gap-2">
-                  <Select value={statusFilter} onValueChange={handleStatusFilter}>
-                    <SelectTrigger className="h-8 text-xs w-[130px]">
-                      <SelectValue placeholder="All types" />
+                <Select value={statusFilter} onValueChange={handleStatusFilter}>
+                  <SelectTrigger className="h-8 text-xs w-[130px]">
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="held">Hold</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="mpesa">M-Pesa</SelectItem>
+                    <SelectItem value="credit">Credit</SelectItem>
+                    <SelectItem value="wallet">Wallet</SelectItem>
+                    <SelectItem value="bank">Bank</SelectItem>
+                    <SelectItem value="returned">Returns</SelectItem>
+                  </SelectContent>
+                </Select>
+                {userType === "admin" && (
+                  <Select value={attendantFilter} onValueChange={handleAttendantFilter}>
+                    <SelectTrigger className="h-8 text-xs w-[140px]">
+                      <SelectValue placeholder="All attendants" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="held">Hold</SelectItem>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="mpesa">M-Pesa</SelectItem>
-                      <SelectItem value="credit">Credit</SelectItem>
-                      <SelectItem value="wallet">Wallet</SelectItem>
-                      <SelectItem value="bank">Bank</SelectItem>
-                      <SelectItem value="returned">Returns</SelectItem>
+                      <SelectItem value="all">All Attendants</SelectItem>
+                      {uniqueAttendants.map((att: any) => (
+                        <SelectItem key={att._id} value={att._id}>
+                          {att.username}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  {userType === "admin" && (
-                    <Select value={attendantFilter} onValueChange={handleAttendantFilter}>
-                      <SelectTrigger className="h-8 text-xs w-[140px]">
-                        <SelectValue placeholder="All attendants" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Attendants</SelectItem>
-                        {uniqueAttendants.map((att: any) => (
-                          <SelectItem key={att._id} value={att._id}>
-                            {att.username}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1072,36 +1243,8 @@ function SalesList() {
                 </Button>
               </div>
 
-              {/* Mobile status filter pills */}
-              <div className="sm:hidden overflow-x-auto no-scrollbar -mx-3 px-3">
-                <div className="flex gap-1.5 pb-0.5">
-                  {[
-                    { value: "all", label: "All" },
-                    { value: "cash", label: "Cash" },
-                    { value: "mpesa", label: "M-Pesa" },
-                    { value: "credit", label: "Credit" },
-                    { value: "held", label: "Hold" },
-                    { value: "wallet", label: "Wallet" },
-                    { value: "bank", label: "Bank" },
-                    { value: "returned", label: "Returns" },
-                  ].map(({ value, label }) => (
-                    <button
-                      key={value}
-                      onClick={() => handleStatusFilter(value)}
-                      className={`flex-shrink-0 h-7 px-3 text-xs rounded-full font-medium transition-colors ${
-                        statusFilter === value
-                          ? "bg-primary text-white"
-                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Quick date chips — horizontal scroll on mobile */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mx-0.5 px-0.5 pb-0.5">
+              {/* Quick date chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                 {[
                   { label: "Today", days: 0 },
                   { label: "7 Days", days: 7 },
@@ -1136,22 +1279,22 @@ function SalesList() {
                 )}
               </div>
 
-              {/* Custom date inputs — shown only when Custom is active */}
+              {/* Custom date inputs */}
               {showCustomDates && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground whitespace-nowrap font-medium hidden sm:inline">From:</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap font-medium">From:</span>
                   <Input
                     type="date"
                     value={startDate}
                     onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
-                    className="h-8 text-xs flex-1 sm:flex-none sm:w-[140px]"
+                    className="h-8 text-xs w-[140px]"
                   />
                   <span className="text-xs text-muted-foreground">–</span>
                   <Input
                     type="date"
                     value={endDate}
                     onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
-                    className="h-8 text-xs flex-1 sm:flex-none sm:w-[140px]"
+                    className="h-8 text-xs w-[140px]"
                   />
                   {(startDate || endDate) && (
                     <button onClick={clearDateFilters} className="flex-shrink-0 h-7 px-2 text-xs rounded-full text-red-500 bg-red-50 hover:bg-red-100 transition-colors">
