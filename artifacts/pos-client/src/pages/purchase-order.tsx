@@ -262,7 +262,7 @@ export default function PurchaseOrderPage() {
     product.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredSuppliers = suppliers.filter(supplier =>
+  const filteredSuppliers = (Array.isArray(suppliers) ? suppliers : []).filter(supplier =>
     supplier.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
