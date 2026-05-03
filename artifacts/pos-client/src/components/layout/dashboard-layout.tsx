@@ -365,38 +365,51 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
             <SheetTitle className="text-sm font-semibold text-gray-700 text-left">All Pages</SheetTitle>
           </SheetHeader>
           <div className="overflow-y-auto flex-1 px-4 py-3 space-y-4">
-            {navSections.map(section => (
-              <div key={section.label}>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">{section.label}</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {section.items.map(item => {
-                    const isActive = location === item.href ||
-                      (item.href.length > 2 && location.startsWith(item.href));
-                    return (
-                      <button
-                        key={item.href}
-                        onClick={() => { setLocation(item.href); setIsMobileMoreOpen(false); }}
-                        className={`flex flex-col items-center justify-center gap-1.5 rounded-xl p-3 transition-colors ${isActive ? "bg-purple-50 text-purple-700" : "bg-gray-50 text-gray-600 active:bg-gray-100"}`}
-                      >
-                        <item.icon className={`h-5 w-5 shrink-0 ${isActive ? "text-purple-700" : "text-gray-500"}`} />
-                        <span className="text-[10px] font-medium leading-tight text-center">{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            {/* Logout */}
+            {(() => {
+              // Exclude pages already in bottom nav or dashboard quick-access grid
+              const excluded = new Set([
+                dashboardRoute,          // bottom nav: Home
+                "/shops",                // bottom nav: Shops
+                "/attendants",           // bottom nav: Attendants
+                posRoute,                // quick access: POS
+                productsRoute,           // quick access: Products
+                salesRoute,              // quick access: Sales
+                expensesRoute,           // quick access: Expenses
+                customersRoute,          // quick access: Customers
+                "/reports",              // quick access: Reports
+              ]);
+              return navSections
+                .map(section => ({
+                  ...section,
+                  items: section.items.filter(item => !excluded.has(item.href)),
+                }))
+                .filter(section => section.items.length > 0)
+                .map(section => (
+                  <div key={section.label}>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">{section.label}</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {section.items.map(item => {
+                        const isActive = location === item.href ||
+                          (item.href.length > 2 && location.startsWith(item.href));
+                        return (
+                          <button
+                            key={item.href}
+                            onClick={() => { setLocation(item.href); setIsMobileMoreOpen(false); }}
+                            className={`flex flex-col items-center justify-center gap-1.5 rounded-xl p-3 transition-colors ${isActive ? "bg-purple-50 text-purple-700" : "bg-gray-50 text-gray-600 active:bg-gray-100"}`}
+                          >
+                            <item.icon className={`h-5 w-5 shrink-0 ${isActive ? "text-purple-700" : "text-gray-500"}`} />
+                            <span className="text-[10px] font-medium leading-tight text-center">{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ));
+            })()}
+            {/* Sign out */}
             <div>
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Account</p>
               <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => { setLocation('/settings'); setIsMobileMoreOpen(false); }}
-                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl p-3 bg-gray-50 text-gray-600 active:bg-gray-100"
-                >
-                  <Settings className="h-5 w-5 shrink-0 text-gray-500" />
-                  <span className="text-[10px] font-medium leading-tight text-center">Settings</span>
-                </button>
                 <button
                   onClick={() => { handleLogout(); setIsMobileMoreOpen(false); }}
                   className="flex flex-col items-center justify-center gap-1.5 rounded-xl p-3 bg-red-50 text-red-600 active:bg-red-100"
