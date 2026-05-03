@@ -41,8 +41,16 @@ import {
   RefreshCw,
   ArrowLeft,
   RotateCcw,
-  Download
+  Download,
+  SlidersHorizontal,
 } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetClose,
+} from "@/components/ui/sheet";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -100,7 +108,17 @@ export default function PurchasesList() {
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const currency = useCurrency();
+
+  const activeFilterCount = [
+    searchQuery.trim() !== "",
+    statusFilter !== "all",
+    supplierFilter !== "all",
+    attendantFilter !== "all",
+    startDate !== "",
+    endDate !== "",
+  ].filter(Boolean).length;
   const [, setLocation] = useLocation();
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
   const { toast } = useToast();
@@ -589,6 +607,20 @@ export default function PurchasesList() {
               <h1 className="text-base font-bold text-gray-900 leading-tight truncate">Purchases</h1>
             </div>
             <div className="flex gap-1.5 shrink-0">
+              {/* Mobile: Filter button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="sm:hidden h-8 px-2 relative"
+                onClick={() => setFilterSheetOpen(true)}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                {activeFilterCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-purple-600 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
               <Button onClick={exportToPDF} variant="outline" size="sm" className="h-8 gap-1 text-xs px-2">
                 <Download className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Export</span>
@@ -608,8 +640,8 @@ export default function PurchasesList() {
 
         <div className="px-3 sm:px-4 py-3 space-y-3">
 
-        {/* Compact Filters */}
-        <Card>
+        {/* Compact Filters — desktop only */}
+        <Card className="hidden sm:block">
           <CardContent className="p-3 space-y-2">
             {/* Row 1: search + clear */}
             <div className="flex gap-2">
@@ -676,6 +708,113 @@ export default function PurchasesList() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Mobile filter bottom sheet */}
+        <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+          <SheetContent side="bottom" className="sm:hidden rounded-t-2xl p-0 max-h-[85vh] overflow-y-auto">
+            <SheetHeader className="px-4 pt-4 pb-2 border-b">
+              <div className="flex items-center justify-between">
+                <SheetTitle className="text-base">Filters</SheetTitle>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs text-purple-600 font-medium px-2"
+                    onClick={() => { clearAllFilters(); }}
+                  >
+                    Clear all
+                  </Button>
+                </div>
+              </div>
+            </SheetHeader>
+            <div className="px-4 py-4 space-y-4">
+              {/* Search */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Search</label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search by purchase number..."
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="pl-9 h-10 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Status */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</label>
+                <Select value={statusFilter} onValueChange={handleStatusFilter}>
+                  <SelectTrigger className="h-10 text-sm">
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="unpaid">Unpaid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Supplier */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Supplier</label>
+                <Select value={supplierFilter} onValueChange={handleSupplierFilter}>
+                  <SelectTrigger className="h-10 text-sm">
+                    <SelectValue placeholder="All Suppliers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Suppliers</SelectItem>
+                    {(Array.isArray(suppliersData) ? suppliersData : []).map((supplier: any) => (
+                      <SelectItem key={supplier._id || supplier.id} value={supplier._id || supplier.id}>
+                        {supplier.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Attendant (admin only) */}
+              {isAdmin && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Attendant</label>
+                  <Select value={attendantFilter} onValueChange={handleAttendantFilter}>
+                    <SelectTrigger className="h-10 text-sm">
+                      <SelectValue placeholder="All Attendants" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Attendants</SelectItem>
+                      {(Array.isArray(attendantsData) ? attendantsData : []).map((attendant: any) => (
+                        <SelectItem key={attendant._id || attendant.id} value={attendant._id || attendant.id}>
+                          {attendant.username || attendant.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Date range */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Date Range</label>
+                <div className="flex gap-2 items-center">
+                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 text-sm flex-1" />
+                  <span className="text-xs text-gray-400 shrink-0">–</span>
+                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-10 text-sm flex-1" />
+                </div>
+              </div>
+
+              {/* Apply button */}
+              <SheetClose asChild>
+                <Button className="w-full h-11 text-sm font-medium mt-2">
+                  {activeFilterCount > 0 ? `Show results (${activeFilterCount} filter${activeFilterCount > 1 ? "s" : ""} active)` : "Show results"}
+                </Button>
+              </SheetClose>
+            </div>
+          </SheetContent>
+        </Sheet>
 
         {/* Loading State */}
         {isLoading && (
