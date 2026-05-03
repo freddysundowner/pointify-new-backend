@@ -330,23 +330,23 @@ export default function PurchasesList() {
                    purchase.supplierId?.name || 
                    supplierMap[purchase.supplierId] || 
                    "Direct Purchase",
-      items: (purchase.items || []).map((item: any) => ({
+      items: (purchase.purchaseItems || purchase.items || []).map((item: any) => ({
         productName: item.product?.name || "Unknown Product",
-        quantity: item.quantity || 0,
-        unitCost: item.unitPrice || 0,
-        totalCost: (item.quantity || 0) * (item.unitPrice || 0),
-        received: item.received || item.quantity || 0,
+        quantity: parseFloat(String(item.quantity || 0)),
+        unitCost: parseFloat(String(item.unitPrice || 0)),
+        totalCost: parseFloat(String(item.quantity || 0)) * parseFloat(String(item.unitPrice || 0)),
+        received: parseFloat(String(item.received || item.quantity || 0)),
       })),
-      totalAmount: purchase.totalAmount || 0,
+      totalAmount: parseFloat(String(purchase.totalAmount || 0)),
       orderDate: purchase.createdAt || new Date().toISOString(),
       expectedDate: purchase.expectedDate,
       receivedDate: purchase.receivedDate,
       status:
-        purchase.amountPaid >= purchase.totalAmount && purchase.totalAmount > 0
+        parseFloat(String(purchase.amountPaid || 0)) >= parseFloat(String(purchase.totalAmount || 0)) && parseFloat(String(purchase.totalAmount || 0)) > 0
           ? "paid"
           : "unpaid",
       invoiceNumber: purchase.purchaseNo || purchase._id,
-      currency: purchase.shopId?.currency || "KES",
+      currency: purchase.shopId?.currency || purchase.currency || "KES",
     }));
 
 
@@ -470,8 +470,17 @@ export default function PurchasesList() {
   const exportToPDF = () => {
     const doc = new jsPDF();
     const currentDate = new Date().toLocaleDateString();
-    let y = drawShopHeader(doc, shopDetails, "Purchase Report", `Period: ${startDate} to ${endDate}   Generated: ${currentDate}`);
+    const periodLabel = startDate && endDate
+      ? `${startDate} to ${endDate}`
+      : startDate
+      ? `From ${startDate}`
+      : endDate
+      ? `Until ${endDate}`
+      : "All dates";
+    let y = drawShopHeader(doc, shopDetails, "Purchase Report", `Period: ${periodLabel}   Generated: ${currentDate}`);
     
+    const cur = currency || filteredPurchases[0]?.currency || 'KES';
+
     // Summary section
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
@@ -479,8 +488,8 @@ export default function PurchasesList() {
     y += 6;
     doc.setFont('helvetica', 'normal');
     doc.text(`Total Purchases: ${filteredOrdersCount}`, 20, y); y += 5;
-    doc.text(`Total Amount: ${filteredPurchases[0]?.currency || 'KES'} ${filteredTotalAmount.toLocaleString()}`, 20, y); y += 5;
-    doc.text(`Paid Amount: ${filteredPurchases[0]?.currency || 'KES'} ${filteredSpent.toLocaleString()}`, 20, y); y += 5;
+    doc.text(`Total Amount: ${cur} ${filteredTotalAmount.toFixed(2)}`, 20, y); y += 5;
+    doc.text(`Paid Amount: ${cur} ${filteredSpent.toFixed(2)}`, 20, y); y += 5;
     doc.text(`Unpaid Count: ${filteredUnpaidCount}`, 20, y); y += 5;
     doc.text(`Unique Suppliers: ${filteredSuppliers}`, 20, y); y += 8;
     
@@ -489,9 +498,9 @@ export default function PurchasesList() {
       purchase.invoiceNumber || 'N/A',
       purchase.supplierName || 'N/A',
       new Date(purchase.orderDate).toLocaleDateString(),
-      `${purchase.currency} ${purchase.totalAmount.toLocaleString()}`,
+      `${purchase.currency || cur} ${parseFloat(String(purchase.totalAmount || 0)).toFixed(2)}`,
       purchase.status.toUpperCase(),
-      purchase.items.length.toString()
+      (purchase.items?.length ?? 0).toString()
     ]);
     
     // Add table
