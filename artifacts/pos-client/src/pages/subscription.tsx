@@ -83,7 +83,9 @@ export default function SubscriptionPage() {
     queryKey: [ENDPOINTS.shop.getAll, adminData?._id],
     queryFn: () => {
       if (!adminData?._id) return Promise.resolve([]);
-      return apiRequest("GET", ENDPOINTS.shop.getAll).then(res => res.json());
+      return apiRequest("GET", ENDPOINTS.shop.getAll)
+        .then(res => res.json())
+        .then(data => data?.data || []);
     },
     enabled: !!adminData?._id,
   });
