@@ -1115,7 +1115,7 @@ function SalesList() {
               {/* Quick date chips — horizontal scroll on mobile */}
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mx-0.5 px-0.5 pb-0.5">
                 {[
-                  { label: "Today", days: 1 },
+                  { label: "Today", days: 0 },
                   { label: "7 Days", days: 7 },
                   { label: "30 Days", days: 30 },
                   { label: "90 Days", days: 90 },
