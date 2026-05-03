@@ -487,10 +487,12 @@ export default function Attendants() {
     updateAttendantMutation.mutate({ id: selectedAttendant._id, data: submitData });
   };
 
-  // Get shop name for display
-  const getShopName = (shopId: string | { _id: string; name: string }) => {
-    if (typeof shopId === 'object' && shopId !== null) return shopId?.name;
-    const shop = shops.find((s) => String(s.id) === String(shopId));
+  // Get shop name for display — handles shopId, shop (numeric), or populated object
+  const getShopName = (attendant: any) => {
+    const raw = attendant.shopId ?? attendant.shop;
+    if (!raw) return 'Unknown Shop';
+    if (typeof raw === 'object' && raw !== null) return raw.name || 'Unknown Shop';
+    const shop = shops.find((s) => String(s.id) === String(raw));
     return shop?.name || 'Unknown Shop';
   };
 
@@ -565,7 +567,7 @@ export default function Attendants() {
                             {attendant.status || 'active'}
                           </Badge>
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5">{getShopName(attendant.shopId)}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{getShopName(attendant)}</p>
                         <p className="text-xs text-gray-400">{attendant.last_seen ? new Date(attendant.last_seen).toLocaleDateString() : 'Never seen'}</p>
                       </div>
                       <div className="flex items-center gap-0.5 shrink-0">
@@ -605,7 +607,7 @@ export default function Attendants() {
                           <div className="text-sm font-mono text-gray-500">{attendant.uniqueDigits}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{getShopName(attendant.shopId)}</div>
+                          <div className="text-sm text-gray-900">{getShopName(attendant)}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-500">
