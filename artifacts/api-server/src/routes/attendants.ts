@@ -54,7 +54,8 @@ router.post("/", requireAdmin, async (req, res, next) => {
 router.get("/permissions", requireAdmin, async (req, res, next) => {
   try {
     const rows = await db.query.permissions.findMany({ orderBy: (p, { asc }) => [asc(p.sortOrder)] });
-    return ok(res, rows);
+    const mapped = rows.map(({ values, ...rest }) => ({ ...rest, value: values }));
+    return ok(res, mapped);
   } catch (e) { next(e); }
 });
 
