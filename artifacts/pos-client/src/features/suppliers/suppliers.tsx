@@ -306,7 +306,7 @@ export default function SuppliersPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleBack}
-                className="flex items-center gap-2"
+                className="hidden sm:flex items-center gap-2"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Dashboard
@@ -314,7 +314,7 @@ export default function SuppliersPage() {
             )}
             <div>
               <h1 className="text-2xl font-bold">Suppliers</h1>
-              <p className="text-muted-foreground">Manage your suppliers and vendor relationships</p>
+              <p className="hidden sm:block text-muted-foreground">Manage your suppliers and vendor relationships</p>
             </div>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>

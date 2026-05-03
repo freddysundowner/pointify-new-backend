@@ -292,7 +292,7 @@ export default function CollectedPaymentsPage() {
 
         {/* Header */}
         <div className="flex items-center gap-3 pt-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={goBack}>
+          <Button variant="ghost" size="icon" className="hidden sm:flex h-8 w-8 shrink-0" onClick={goBack}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">

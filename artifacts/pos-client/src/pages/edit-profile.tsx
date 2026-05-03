@@ -182,7 +182,7 @@ export default function EditProfilePage() {
               variant="ghost" 
               size="sm" 
               onClick={() => setLocation('/dashboard')}
-              className="hover:bg-gray-100"
+              className="hidden sm:flex hover:bg-gray-100"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back

@@ -348,14 +348,14 @@ export default function ShopDetails() {
         <div className="sticky top-0 z-10 bg-white border-b">
           <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <Link href="/shops">
+              <Link href="/shops" className="hidden sm:block">
                 <Button variant="ghost" size="icon" className="shrink-0">
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
               </Link>
               <div className="min-w-0">
                 <h1 className="text-lg font-semibold text-gray-900 truncate">{shop.name}</h1>
-                <p className="text-xs text-gray-500">Shop settings</p>
+                <p className="hidden sm:block text-xs text-gray-500">Shop settings</p>
               </div>
             </div>
             <Button

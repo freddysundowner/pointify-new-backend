@@ -76,7 +76,7 @@ export default function BusinessOverviewPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={goBack} className="gap-1 px-2">
+            <Button variant="ghost" size="sm" onClick={goBack} className="hidden sm:flex gap-1 px-2">
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
             <TrendingUp className="h-5 w-5 text-blue-600" />

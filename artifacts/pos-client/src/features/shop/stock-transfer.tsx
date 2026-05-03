@@ -247,7 +247,7 @@ export default function StockTransfer() {
 
           {/* ── Top bar ── */}
           <div className="flex items-center gap-3 px-4 py-3 border-b bg-white shrink-0">
-            <Button variant="ghost" size="sm" onClick={resetForm} className="h-8 px-2 gap-1.5 text-xs text-gray-600">
+            <Button variant="ghost" size="sm" onClick={resetForm} className="hidden sm:flex h-8 px-2 gap-1.5 text-xs text-gray-600">
               <ArrowLeft className="h-3.5 w-3.5" /> Back
             </Button>
             <div className="w-px h-4 bg-gray-200" />

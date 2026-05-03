@@ -221,7 +221,7 @@ export default function SupplierOverview() {
       <div className="space-y-6">
         {/* Header with back button */}
         <div className="flex items-center space-x-4">
-          <Button variant="outline" size="sm" onClick={goBack}>
+          <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={goBack}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Suppliers
           </Button>

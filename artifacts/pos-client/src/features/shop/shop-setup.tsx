@@ -120,7 +120,7 @@ export default function ShopSetup() {
 
         {/* ── Sticky mobile-friendly header ──────────────────────────────────── */}
         <div className="bg-white border-b px-4 sm:px-6 py-3 flex items-center gap-3 sticky top-0 z-10">
-          <Link href="/shops">
+          <Link href="/shops" className="hidden sm:block">
             <Button variant="ghost" size="sm" className="h-9 w-9 p-0 shrink-0">
               <ArrowLeft className="h-4 w-4" />
             </Button>

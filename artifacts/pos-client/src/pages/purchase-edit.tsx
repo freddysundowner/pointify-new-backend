@@ -222,6 +222,7 @@ export default function PurchaseEditPage() {
               variant="outline" 
               size="sm" 
               onClick={goBack}
+              className="hidden sm:inline-flex"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Purchases
