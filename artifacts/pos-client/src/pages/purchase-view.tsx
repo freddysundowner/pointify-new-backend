@@ -122,10 +122,10 @@ export default function PurchaseViewPage() {
                         {item.quantity || 0}
                       </div>
                       <div className="col-span-2 text-right font-mono">
-                        {(item.unitPrice || 0).toFixed(2)}
+                        {parseFloat(String(item.unitPrice || 0)).toFixed(2)}
                       </div>
                       <div className="col-span-2 text-right font-mono font-medium">
-                        {((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
+                        {(parseFloat(String(item.quantity || 0)) * parseFloat(String(item.unitPrice || 0))).toFixed(2)}
                       </div>
                     </div>
                   ))}
@@ -144,7 +144,7 @@ export default function PurchaseViewPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Subtotal:</span>
-                    <span className="font-mono">{currency} {(purchase.totalAmount || 0).toFixed(2)}</span>
+                    <span className="font-mono">{currency} {parseFloat(String(purchase.totalAmount || 0)).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Tax:</span>
@@ -153,7 +153,7 @@ export default function PurchaseViewPage() {
                   <div className="border-t border-dashed border-gray-300 pt-2">
                     <div className="flex justify-between text-lg font-bold">
                       <span>TOTAL:</span>
-                      <span className="font-mono">{currency} {(purchase.totalAmount || 0).toFixed(2)}</span>
+                      <span className="font-mono">{currency} {parseFloat(String(purchase.totalAmount || 0)).toFixed(2)}</span>
                     </div>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -184,7 +184,7 @@ export default function PurchaseViewPage() {
                   <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded-lg p-4">
                     <p className="text-red-600 dark:text-red-400 font-medium mb-2">Outstanding Balance</p>
                     <p className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">
-                      {currency} {purchase.outstandingBalance.toFixed(2)}
+                      {currency} {parseFloat(String(purchase.outstandingBalance || 0)).toFixed(2)}
                     </p>
                     <Button 
                       className="w-full max-w-xs" 
@@ -212,14 +212,14 @@ export default function PurchaseViewPage() {
                         {purchase.payments.map((payment: any, index: number) => (
                           <div key={payment._id || index} className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
                             <div>
-                              <p className="font-medium">{currency} {payment.amount.toFixed(2)}</p>
+                              <p className="font-medium">{currency} {parseFloat(String(payment.amount || 0)).toFixed(2)}</p>
                               <p className="text-sm text-muted-foreground">
                                 {payment.paymentNo} • {new Date(payment.date).toLocaleDateString()}
                               </p>
                             </div>
                             <div className="text-right">
                               <p className="text-sm text-muted-foreground font-mono">
-                                Balance: {currency} {payment.balance.toFixed(2)}
+                                Balance: {currency} {parseFloat(String(payment.balance || 0)).toFixed(2)}
                               </p>
                             </div>
                           </div>
@@ -229,7 +229,7 @@ export default function PurchaseViewPage() {
                       <div className="flex justify-between font-semibold text-lg pt-4 border-t-2 border-gray-300 dark:border-gray-600 mt-4">
                         <span>Total Paid:</span>
                         <span className="font-mono">
-                          {currency} {purchase.payments.reduce((sum: number, payment: any) => sum + payment.amount, 0).toFixed(2)}
+                          {currency} {purchase.payments.reduce((sum: number, payment: any) => sum + parseFloat(String(payment.amount || 0)), 0).toFixed(2)}
                         </span>
                       </div>
                     </CardContent>
