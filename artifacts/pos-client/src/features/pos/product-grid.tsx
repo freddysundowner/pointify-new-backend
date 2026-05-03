@@ -1179,16 +1179,30 @@ export default function ProductGrid({
       <div className="flex flex-1 flex-col lg:flex-row overflow-hidden">
         {/* Left Panel - Transaction Form */}
         <div className={`${mobileView === 'products' ? 'hidden lg:block' : 'block'} w-full lg:w-2/3 p-2 lg:p-6 bg-white lg:order-1 overflow-y-auto pb-20 lg:pb-6`}>
-          {/* Mobile: Stack vertically, Desktop: 2 columns */}
-          <div className="mb-3 lg:mb-6">
-            <label className="text-xs lg:text-sm font-medium text-gray-700 block mb-1 lg:mb-2">Date</label>
-            <Input 
-              type="date" 
-              defaultValue={new Date().toISOString().split('T')[0]} 
-              className="h-8 lg:h-10 text-xs lg:text-sm" 
-              disabled={!canSetSaleDate}
-              readOnly={!canSetSaleDate}
-            />
+          {/* Date + Sale Type — same row on mobile */}
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-2 mb-3 lg:mb-0">
+            <div>
+              <label className="text-xs lg:text-sm font-medium text-gray-700 block mb-1 lg:mb-2">Date</label>
+              <Input 
+                type="date" 
+                defaultValue={new Date().toISOString().split('T')[0]} 
+                className="h-8 lg:h-10 text-xs lg:text-sm" 
+                disabled={!canSetSaleDate}
+                readOnly={!canSetSaleDate}
+              />
+            </div>
+            <div className="lg:hidden">
+              <label className="text-xs font-medium text-gray-700 block mb-1">Sale Type</label>
+              <select 
+                value={saleType}
+                onChange={(e) => onSaleTypeChange(e.target.value)}
+                className="w-full h-8 px-2 border border-gray-300 rounded text-xs bg-white cursor-pointer"
+              >
+                <option value="Retail">Retail</option>
+                {canSellToDealer && <option value="Wholesale">Wholesale</option>}
+                {canSellToDealer && <option value="Dealer">Dealer</option>}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-6 mb-3 lg:mb-6">
@@ -1297,7 +1311,7 @@ export default function ProductGrid({
                 </div>
               )}
             </div>
-            <div>
+            <div className="hidden lg:block">
               <label className="text-xs lg:text-sm font-medium text-gray-700 block mb-1 lg:mb-2">Sale Type</label>
               <select 
                 value={saleType}
@@ -1416,12 +1430,12 @@ export default function ProductGrid({
               <div className="text-right">Subtotal</div>
               <div className="text-center">Remove</div>
             </div>
-            <div className="min-h-[120px] lg:min-h-[200px] bg-white">
+            <div className="min-h-[80px] lg:min-h-[200px] bg-white">
               {cartItems.length === 0 ? (
-                <div className="p-6 lg:p-12 text-center text-gray-500">
-                  <Package className="h-8 w-8 lg:h-16 lg:w-16 mx-auto mb-3 lg:mb-6 text-gray-300" />
-                  <p className="font-semibold text-sm lg:text-lg text-gray-600 mb-1 lg:mb-2">No items added</p>
-                  <p className="text-xs lg:text-base text-gray-400">Add products to start the transaction</p>
+                <div className="p-3 lg:p-12 text-center text-gray-500">
+                  <Package className="h-6 w-6 lg:h-16 lg:w-16 mx-auto mb-1.5 lg:mb-6 text-gray-300" />
+                  <p className="font-semibold text-xs lg:text-lg text-gray-600 mb-0.5 lg:mb-2">No items added</p>
+                  <p className="text-[11px] lg:text-base text-gray-400">Add products to start the transaction</p>
                 </div>
               ) : (
                 <div>
@@ -2051,57 +2065,55 @@ export default function ProductGrid({
           <div className={`${mobileView === 'products' ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-1/3 bg-white p-2 lg:p-6 lg:order-2 overflow-y-auto pb-20 lg:pb-6`}>
             <div className="flex-1 flex flex-col">
               {/* Summary Section */}
-              <div className="bg-gray-50 p-4 lg:p-6 rounded-lg">
-                <div className="space-y-3 lg:space-y-4">
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-sm lg:text-base font-medium text-gray-700">Discount</span>
-                    <span className="text-red-500 font-medium text-sm lg:text-base">- Ksh {totals.discount.toFixed(2)}</span>
+              <div className="bg-gray-50 p-2.5 lg:p-6 rounded-lg">
+                <div className="space-y-0.5 lg:space-y-4">
+                  <div className="flex justify-between items-center py-1 lg:py-2">
+                    <span className="text-xs lg:text-base font-medium text-gray-700">Discount</span>
+                    <span className="text-red-500 font-medium text-xs lg:text-base">- Ksh {totals.discount.toFixed(2)}</span>
                   </div>
-                  
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-sm lg:text-base font-medium text-gray-700">Tax</span>
-                    <span className="font-medium text-gray-900 text-sm lg:text-base">Ksh {totals.tax.toFixed(2)}</span>
+                  <div className="flex justify-between items-center py-1 lg:py-2">
+                    <span className="text-xs lg:text-base font-medium text-gray-700">Tax</span>
+                    <span className="font-medium text-gray-900 text-xs lg:text-base">Ksh {totals.tax.toFixed(2)}</span>
                   </div>
-                  
-                  <div className="flex justify-between items-center py-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm lg:text-base font-medium text-gray-700">Coupon</span>
+                  <div className="flex justify-between items-center py-1 lg:py-2">
+                    <div className="flex items-center space-x-1.5 lg:space-x-2">
+                      <span className="text-xs lg:text-base font-medium text-gray-700">Coupon</span>
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="w-6 h-6 p-0 rounded border-gray-400 text-gray-600 hover:bg-gray-100"
+                        className="w-5 h-5 lg:w-6 lg:h-6 p-0 rounded border-gray-400 text-gray-600 hover:bg-gray-100"
                       >
-                        <Plus className="h-3 w-3" />
+                        <Plus className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
                       </Button>
                     </div>
-                    <span className="font-medium text-gray-900 text-sm lg:text-base">Ksh 0.00</span>
+                    <span className="font-medium text-gray-900 text-xs lg:text-base">Ksh 0.00</span>
                   </div>
                 </div>
                 
                 {/* Grand Total */}
-                <div className="bg-primary text-white p-4 lg:p-6 rounded-lg mt-4 lg:mt-6">
+                <div className="bg-primary text-white p-2.5 lg:p-6 rounded-lg mt-2 lg:mt-6">
                   <div className="flex justify-between items-center">
-                    <span className="text-lg lg:text-xl font-semibold">Grand Total:</span>
-                    <span className="text-xl lg:text-2xl font-bold">Ksh {totals.total.toFixed(2)}</span>
+                    <span className="text-sm lg:text-xl font-semibold">Grand Total:</span>
+                    <span className="text-base lg:text-2xl font-bold">Ksh {totals.total.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
               
               {/* Action Buttons */}
-              <div className="mt-4 lg:mt-6">
-                <div className="space-y-3">
+              <div className="mt-2 lg:mt-6">
+                <div className="space-y-2 lg:space-y-3">
                   <Button 
                     onClick={() => setShowPaymentDialog(true)}
-                    className="w-full bg-primary hover:bg-primary/90 text-white py-3 lg:py-4 text-base lg:text-lg font-semibold rounded-lg"
+                    className="w-full bg-primary hover:bg-primary/90 text-white py-2 lg:py-4 text-sm lg:text-lg font-semibold rounded-lg"
                     disabled={cartItems.length === 0}
                   >
                     Cash-In
                   </Button>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2 lg:gap-3">
                     <Button 
                       onClick={onClearCart}
                       variant="outline"
-                      className="border-red-400 text-red-600 hover:bg-red-50 py-2 lg:py-3 text-sm lg:text-base font-semibold rounded-lg"
+                      className="border-red-400 text-red-600 hover:bg-red-50 py-1.5 lg:py-3 text-xs lg:text-base font-semibold rounded-lg"
                       disabled={cartItems.length === 0}
                     >
                       Clear
@@ -2109,7 +2121,7 @@ export default function ProductGrid({
                     <Button 
                       onClick={handleHoldTransaction}
                       variant="outline"
-                      className="border-gray-400 text-gray-700 hover:bg-gray-50 py-2 lg:py-3 text-sm lg:text-base font-semibold rounded-lg"
+                      className="border-gray-400 text-gray-700 hover:bg-gray-50 py-1.5 lg:py-3 text-xs lg:text-base font-semibold rounded-lg"
                       disabled={cartItems.length === 0}
                     >
                       Hold
