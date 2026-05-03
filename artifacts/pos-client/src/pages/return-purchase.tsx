@@ -21,6 +21,8 @@ import { useProducts } from "@/contexts/ProductsContext";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/store";
 
 interface ReturnItem {
   productId: string;
@@ -44,6 +46,7 @@ export default function ReturnPurchase() {
   const { shopId, adminId, attendantId } = usePrimaryShop();
   const { products } = useProducts();
   const { toast } = useToast();
+  const currency = useSelector((state: RootState) => state.currency) as string;
   const [, setLocation] = useLocation();
   const goBack = useGoBack("/purchases");
   const purchasesRoute = useNavigationRoute('purchases');
