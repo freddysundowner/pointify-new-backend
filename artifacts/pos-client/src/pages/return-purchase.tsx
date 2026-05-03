@@ -272,201 +272,151 @@ export default function ReturnPurchase() {
 
   const selectedItemsCount = returnItems.filter(item => item.shouldReturn).length;
 
+  const purchaseNo = originalPurchase.purchaseNo || originalPurchase.invoiceNumber || `#${originalPurchase.id}`;
+  const supplierName = originalPurchase.supplier?.name || originalPurchase.supplierName || "N/A";
+  const purchaseDate = originalPurchase.createdAt || originalPurchase.orderDate;
+  const totalAmt = parseFloat(String(originalPurchase.totalAmount ?? 0));
+
   return (
-    <DashboardLayout title={`Return Purchase #${originalPurchase.invoiceNumber || originalPurchase.id}`}>
-      <div className="p-4 w-full">
+    <DashboardLayout title={`Return ${purchaseNo}`}>
+      <div className="p-3 w-full space-y-3">
         {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight">
-              Return - Purchase #{originalPurchase.invoiceNumber || originalPurchase.id}
+            <h1 className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
+              Return {purchaseNo}
             </h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Select items to return and specify reasons
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              {supplierName} · {purchaseDate ? new Date(purchaseDate).toLocaleDateString() : "—"} · {currency} {totalAmt.toFixed(2)}
             </p>
           </div>
-          
           <div className="flex gap-2 shrink-0">
-            <Button variant="outline" size="sm" className="h-8" onClick={goBack}>
-              <ArrowLeft className="mr-1 h-4 w-4" />
+            <Button variant="outline" size="sm" className="h-8 hidden lg:flex" onClick={goBack}>
+              <ArrowLeft className="mr-1 h-3.5 w-3.5" />
               Cancel
             </Button>
-            <Button 
+            <Button
               size="sm"
               className="h-8"
               onClick={handleProcessReturn}
               disabled={selectedItemsCount === 0 || isProcessing}
             >
               {isProcessing ? (
-                <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                  <span className="hidden sm:inline">Processing...</span>
-                </>
+                <><Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />Processing...</>
               ) : (
-                <>
-                  <RotateCcw className="mr-1 h-4 w-4" />
-                  <span className="hidden sm:inline">Process Return</span>
-                  <span className="sm:hidden">Return</span>
-                </>
+                <><RotateCcw className="mr-1 h-3.5 w-3.5" /><span className="hidden sm:inline">Process Return</span><span className="sm:hidden">Return</span></>
               )}
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-4">
-          {/* Purchase Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Purchase Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Supplier</Label>
-                  <p className="font-medium">{originalPurchase.supplierName}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Order Date</Label>
-                  <p className="font-medium">{new Date(originalPurchase.orderDate).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Total Amount</Label>
-                  <p className="font-medium">{originalPurchase.currency} {originalPurchase.totalAmount.toFixed(2)}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                  <p className="font-medium capitalize">{originalPurchase.status}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Return Items */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Items to Return</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Select items you want to return to the supplier and specify quantities
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {returnItems.map((item, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex items-start gap-4">
-                      <Checkbox
-                        checked={item.shouldReturn}
-                        onCheckedChange={(checked) => 
-                          updateReturnItem(index, 'shouldReturn', checked)
-                        }
-                        className="mt-1"
-                      />
-                      
-                      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="md:col-span-2">
-                          <Label className="font-medium">{item.productName}</Label>
-                          <p className="text-sm text-muted-foreground">
-                            Purchased: {item.quantity} × {originalPurchase.currency} {item.unitCost.toFixed(2)} = {originalPurchase.currency} {item.totalCost.toFixed(2)}
-                          </p>
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor={`quantity-${index}`}>Return Quantity</Label>
-                          <Input
-                            id={`quantity-${index}`}
-                            type="number"
-                            min="1"
-                            max={item.quantity}
-                            value={item.returnQuantity}
-                            onChange={(e) => updateReturnItem(index, 'returnQuantity', parseInt(e.target.value) || 1)}
-                            disabled={!item.shouldReturn}
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label>Return Amount</Label>
-                          <p className="font-medium">
-                            {originalPurchase.currency} {item.shouldReturn ? (item.unitCost * item.returnQuantity).toFixed(2) : '0.00'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {item.shouldReturn && (
-                      <div className="mt-4">
-                        <Label htmlFor={`reason-${index}`}>Return Reason</Label>
-                        <Input
-                          id={`reason-${index}`}
-                          value={item.returnReason}
-                          onChange={(e) => updateReturnItem(index, 'returnReason', e.target.value)}
-                          placeholder="e.g., Defective, Wrong item, Damaged in transit"
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Return Summary */}
-          {selectedItemsCount > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Return Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="refund-method">Refund Method</Label>
-                      <select
-                        id="refund-method"
-                        value={refundMethod}
-                        onChange={(e) => setRefundMethod(e.target.value)}
-                        className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="credit">Supplier Credit</option>
-                        <option value="refund">Cash Refund</option>
-                        <option value="exchange">Exchange Items</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <Label>Total Refund Amount</Label>
-                      <p className="text-2xl font-bold text-green-600 mt-1">
-                        {originalPurchase.currency} {calculateRefundAmount().toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="return-notes">Additional Notes</Label>
-                    <Input
-                      id="return-notes"
-                      value={returnNotes}
-                      onChange={(e) => setReturnNotes(e.target.value)}
-                      placeholder="Any additional notes about this return..."
+        {/* Items to Return */}
+        <Card>
+          <CardHeader className="py-2.5 px-3">
+            <CardTitle className="text-sm">Items to Return</CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="space-y-2">
+              {returnItems.map((item, index) => (
+                <div key={index} className="border rounded-md p-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <Checkbox
+                      checked={item.shouldReturn}
+                      onCheckedChange={(checked) => updateReturnItem(index, 'shouldReturn', checked)}
+                      className="mt-0.5"
                     />
-                  </div>
-                  
-                  <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
-                    <div className="flex justify-between items-center text-sm">
-                      <span>Items selected for return:</span>
-                      <span className="font-medium">{selectedItemsCount}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span>Total items to return:</span>
-                      <span className="font-medium">
-                        {returnItems.filter(item => item.shouldReturn).reduce((total, item) => total + item.returnQuantity, 0)}
-                      </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-xs font-medium truncate">{item.productName}</p>
+                        <p className="text-xs text-muted-foreground shrink-0">
+                          {item.quantity} × {currency} {item.unitCost.toFixed(2)}
+                        </p>
+                      </div>
+                      {item.shouldReturn && (
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground mb-1 block">Return Qty</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              max={item.quantity}
+                              value={item.returnQuantity}
+                              onChange={(e) => updateReturnItem(index, 'returnQuantity', parseInt(e.target.value) || 1)}
+                              className="h-7 text-xs px-2"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground mb-1 block">Refund</Label>
+                            <p className="text-xs font-semibold text-green-600 pt-1.5">
+                              {currency} {(item.unitCost * item.returnQuantity).toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="col-span-2">
+                            <Input
+                              value={item.returnReason}
+                              onChange={(e) => updateReturnItem(index, 'returnReason', e.target.value)}
+                              placeholder="Reason (e.g. Defective, Wrong item)"
+                              className="h-7 text-xs px-2"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Return Summary */}
+        {selectedItemsCount > 0 && (
+          <Card>
+            <CardHeader className="py-2.5 px-3">
+              <CardTitle className="text-sm">Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="px-3 pb-3 pt-0 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[10px] text-muted-foreground mb-1 block">Refund Method</Label>
+                  <select
+                    value={refundMethod}
+                    onChange={(e) => setRefundMethod(e.target.value)}
+                    className="w-full h-8 text-xs px-2 border border-gray-300 dark:border-gray-600 rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="credit">Supplier Credit</option>
+                    <option value="refund">Cash Refund</option>
+                    <option value="exchange">Exchange Items</option>
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-[10px] text-muted-foreground mb-1 block">Total Refund</Label>
+                  <p className="text-base font-bold text-green-600">
+                    {currency} {calculateRefundAmount().toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <Input
+                value={returnNotes}
+                onChange={(e) => setReturnNotes(e.target.value)}
+                placeholder="Additional notes..."
+                className="h-7 text-xs px-2"
+              />
+              <div className="bg-blue-50 dark:bg-blue-950/20 p-2.5 rounded-md text-xs space-y-0.5">
+                <div className="flex justify-between items-center">
+                  <span>Items selected:</span>
+                  <span className="font-medium">{selectedItemsCount}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Total qty to return:</span>
+                  <span className="font-medium">
+                    {returnItems.filter(item => item.shouldReturn).reduce((total, item) => total + item.returnQuantity, 0)}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );
