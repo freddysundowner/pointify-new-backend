@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   Menu, X, Home, ScanBarcode, Package, BarChart2, Settings, User, LogOut,
   Store, TrendingUp, Receipt, ShoppingBag, Users, Truck, DollarSign,
@@ -108,6 +109,7 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
   const { admin, logout } = useAuth();
   const { toast } = useToast();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
   const { isExpired: isSubscriptionExpired } = useSubscriptionStatus();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
@@ -346,15 +348,68 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
               );
             })}
             <button
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2 min-h-[56px] text-gray-500 hover:text-gray-700 active:bg-gray-100 transition-colors"
+              onClick={() => setIsMobileMoreOpen(true)}
+              className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-2 min-h-[56px] transition-colors ${isMobileMoreOpen ? "text-purple-700 bg-purple-50" : "text-gray-500 hover:text-gray-700 active:bg-gray-100"}`}
             >
-              <Menu className="h-5 w-5 shrink-0" />
+              <Menu className={`h-5 w-5 shrink-0 ${isMobileMoreOpen ? "text-purple-700" : ""}`} />
               <span className="text-[10px] font-medium leading-none mt-0.5">More</span>
             </button>
           </div>
         </nav>
       )}
+
+      {/* Mobile "More" bottom sheet — separate from desktop sidebar */}
+      <Sheet open={isMobileMoreOpen} onOpenChange={setIsMobileMoreOpen}>
+        <SheetContent side="bottom" className="lg:hidden rounded-t-2xl max-h-[80vh] flex flex-col p-0">
+          <SheetHeader className="px-4 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
+            <SheetTitle className="text-sm font-semibold text-gray-700 text-left">All Pages</SheetTitle>
+          </SheetHeader>
+          <div className="overflow-y-auto flex-1 px-4 py-3 space-y-4">
+            {navSections.map(section => (
+              <div key={section.label}>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">{section.label}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {section.items.map(item => {
+                    const isActive = location === item.href ||
+                      (item.href.length > 2 && location.startsWith(item.href));
+                    return (
+                      <button
+                        key={item.href}
+                        onClick={() => { setLocation(item.href); setIsMobileMoreOpen(false); }}
+                        className={`flex flex-col items-center justify-center gap-1.5 rounded-xl p-3 transition-colors ${isActive ? "bg-purple-50 text-purple-700" : "bg-gray-50 text-gray-600 active:bg-gray-100"}`}
+                      >
+                        <item.icon className={`h-5 w-5 shrink-0 ${isActive ? "text-purple-700" : "text-gray-500"}`} />
+                        <span className="text-[10px] font-medium leading-tight text-center">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {/* Logout */}
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Account</p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => { setLocation('/settings'); setIsMobileMoreOpen(false); }}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl p-3 bg-gray-50 text-gray-600 active:bg-gray-100"
+                >
+                  <Settings className="h-5 w-5 shrink-0 text-gray-500" />
+                  <span className="text-[10px] font-medium leading-tight text-center">Settings</span>
+                </button>
+                <button
+                  onClick={() => { handleLogout(); setIsMobileMoreOpen(false); }}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl p-3 bg-red-50 text-red-600 active:bg-red-100"
+                >
+                  <LogOut className="h-5 w-5 shrink-0 text-red-500" />
+                  <span className="text-[10px] font-medium leading-tight text-center">Sign Out</span>
+                </button>
+              </div>
+            </div>
+            <div className="h-4" />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
