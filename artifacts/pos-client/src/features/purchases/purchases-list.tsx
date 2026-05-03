@@ -840,95 +840,46 @@ export default function PurchasesList() {
           </Card>
         )}
 
-        {/* Summary Stats */}
+        {/* Summary Stats — compact horizontal scroll strip */}
         {!isLoading && !error && analyticsData && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-            <Card className="p-3">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-muted-foreground truncate">Total Purchases</p>
-                  <p className="text-base font-bold text-blue-600 dark:text-blue-400 truncate">
-                    {currency} {parseFloat(String(analyticsData?.totalAmount || 0)).toFixed(2)}
-                  </p>
-                </div>
-                <TrendingDown className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-3 sm:mx-0 px-3 sm:px-0">
+            {[
+              { label: "Total",    value: analyticsData?.totalAmount,      color: "text-blue-600 dark:text-blue-400" },
+              { label: "Paid",     value: analyticsData?.totalPaid,        color: "text-green-600 dark:text-green-400" },
+              { label: "Unpaid",   value: analyticsData?.totalOutstanding, color: "text-orange-600 dark:text-orange-400" },
+              { label: "Cash",     value: analyticsData?.totalPaid,        color: "text-purple-600 dark:text-purple-400" },
+              { label: "Returns",  value: 0,                               color: "text-red-600 dark:text-red-400" },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="shrink-0 bg-white border rounded-lg px-3 py-2 min-w-[110px]">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+                <p className={`text-sm font-bold truncate ${color}`}>
+                  {currency} {parseFloat(String(value || 0)).toFixed(2)}
+                </p>
               </div>
-            </Card>
-
-            <Card className="p-3">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-muted-foreground truncate">Cash Purchases</p>
-                  <p className="text-base font-bold text-green-600 dark:text-green-400 truncate">
-                    {currency} {parseFloat(String(analyticsData?.totalPaid || 0)).toFixed(2)}
-                  </p>
-                </div>
-                <TrendingDown className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
-              </div>
-            </Card>
-
-            <Card className="p-3">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-muted-foreground truncate">Unpaid</p>
-                  <p className="text-base font-bold text-orange-600 dark:text-orange-400 truncate">
-                    {currency} {parseFloat(String(analyticsData?.totalOutstanding || 0)).toFixed(2)}
-                  </p>
-                </div>
-                <Package className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0" />
-              </div>
-            </Card>
-
-            <Card className="p-3">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-muted-foreground truncate">Amount Paid</p>
-                  <p className="text-base font-bold text-blue-600 dark:text-blue-400 truncate">
-                    {currency} {parseFloat(String(analyticsData?.totalPaid || 0)).toFixed(2)}
-                  </p>
-                </div>
-                <Truck className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
-              </div>
-            </Card>
-
-            <Card className="p-3">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-muted-foreground truncate">Returns</p>
-                  <p className="text-base font-bold text-red-600 dark:text-red-400 truncate">
-                    {currency} {parseFloat(String(analyticsData?.totalOutstanding || 0)).toFixed(2)}
-                  </p>
-                </div>
-                <Package className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
-              </div>
-            </Card>
+            ))}
           </div>
         )}
 
         {/* Purchases Table */}
         {!isLoading && !error && (
           <Card className="flex-1">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <CardTitle className="text-lg">
+            <CardHeader className="py-2 px-3 sm:px-4">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-sm font-semibold">
                   Purchase Orders
                   {statusFilter !== "all" && (
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">
-                      -{" "}
-                      {statusFilter.charAt(0).toUpperCase() +
-                        statusFilter.slice(1)}
+                    <span className="ml-1.5 text-xs font-normal text-muted-foreground capitalize">
+                      — {statusFilter}
                     </span>
                   )}
                 </CardTitle>
-                <div className="flex items-center gap-2 text-sm">
-                  <Label htmlFor="items-per-page" className="whitespace-nowrap">
-                    Show:
-                  </Label>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+                  <span>Show</span>
                   <Select
                     value={itemsPerPage.toString()}
                     onValueChange={handleItemsPerPageChange}
                   >
-                    <SelectTrigger className="w-16 h-8">
+                    <SelectTrigger className="w-14 h-7 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -948,8 +899,8 @@ export default function PurchasesList() {
                 {paginatedData.length === 0 ? (
                   <div className="text-center py-10 text-muted-foreground text-sm">No purchase orders found for the selected filters.</div>
                 ) : paginatedData.map((purchase) => (
-                  <div key={purchase.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="px-3 py-3 flex items-start gap-2">
+                  <div key={purchase.id} className="bg-white rounded-lg border border-gray-100 overflow-hidden">
+                    <div className="px-3 py-2 flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono text-xs font-semibold text-gray-800">{purchase.invoiceNumber}</span>
