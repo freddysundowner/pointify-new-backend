@@ -466,7 +466,7 @@ export default function PurchasesList() {
   };
 
   const handleCreatePurchase = () => {
-    setLocation('/purchases/order');
+    setLocation('/purchases/order', { replace: true });
   };
 
   const exportToPDF = () => {

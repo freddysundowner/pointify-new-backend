@@ -345,7 +345,7 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
               return (
                 <button
                   key={tab.href}
-                  onClick={() => setLocation(tab.href)}
+                  onClick={() => setLocation(tab.href, { replace: true })}
                   className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-2 min-h-[56px] transition-colors ${
                     isActive
                       ? "text-purple-700 bg-purple-50"
@@ -404,7 +404,7 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
                         return (
                           <button
                             key={item.href}
-                            onClick={() => { setLocation(item.href); setIsMobileMoreOpen(false); }}
+                            onClick={() => { setLocation(item.href, { replace: true }); setIsMobileMoreOpen(false); }}
                             className={`flex flex-col items-center justify-center gap-1.5 rounded-xl p-3 transition-colors ${isActive ? "bg-purple-50 text-purple-700" : "bg-gray-50 text-gray-600 active:bg-gray-100"}`}
                           >
                             <item.icon className={`h-5 w-5 shrink-0 ${isActive ? "text-purple-700" : "text-gray-500"}`} />
