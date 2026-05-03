@@ -188,12 +188,12 @@ export default function StockSummary() {
       <div className="p-4 space-y-4 max-w-5xl">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={goBack} className="h-8 px-2">
+          <Button variant="ghost" size="sm" onClick={goBack} className="hidden sm:flex h-8 px-2">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-lg font-bold leading-tight">Stock Summary</h1>
-            <p className="text-xs text-gray-500">Inventory status & value</p>
+            <p className="hidden sm:block text-xs text-gray-500">Inventory status & value</p>
           </div>
         </div>
 
