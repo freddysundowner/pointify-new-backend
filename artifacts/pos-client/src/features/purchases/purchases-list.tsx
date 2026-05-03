@@ -636,7 +636,7 @@ export default function PurchasesList() {
               </Button>
               {(isAdmin || hasAttendantPermission("stocks", "add_purchases")) && (
                 <Link href={addPurchasesRoute}>
-                  <Button size="sm" className="h-8 gap-1 text-xs px-2.5" onClick={handleCreatePurchase}>
+                  <Button size="sm" className="h-8 gap-1 text-xs px-2.5">
                     <Plus className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">New Order</span>
                     <span className="sm:hidden">New</span>

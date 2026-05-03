@@ -117,7 +117,6 @@ export default function CreatePurchase() {
   const calculateTotal = () => items.reduce((sum, item) => sum + item.totalCost, 0);
 
   const handleBack = () => {
-    if (window.history.length > 1) { window.history.back(); return; }
     setLocation(isAttendant ? "/attendant/purchases" : "/purchases");
   };
 
