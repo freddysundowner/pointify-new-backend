@@ -1990,27 +1990,61 @@ export default function ProductGrid({
                 Add Custom Item
               </Button>
             </div>
-            <div className="flex flex-col items-center justify-center flex-1 py-10 px-6 text-center">
-              <div className="w-20 h-20 mx-auto bg-blue-50 rounded-full flex items-center justify-center mb-4">
-                <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h2M4 4h4m12 0h2M4 20h4m12 0h2" />
-                </svg>
+            {cartItems.length > 0 ? (
+              <div className="flex-1 overflow-y-auto pb-24">
+                <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{cartItems.length} item{cartItems.length !== 1 ? 's' : ''} in cart</span>
+                  <button onClick={onClearCart} className="text-xs text-red-500 hover:text-red-700">Clear all</button>
+                </div>
+                <div className="divide-y">
+                  {cartItems.map((item) => (
+                    <div key={item.id} className="flex items-center gap-2 px-4 py-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                        <p className="text-xs text-gray-500">{currency} {Number(item.price).toFixed(2)} each · {currency} {(Number(item.price) * item.quantity).toFixed(2)}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => onUpdateQuantity(item.id, Math.max(1, item.quantity - 1))}
+                          className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-700 text-base leading-none"
+                        >−</button>
+                        <span className="w-7 text-center text-sm font-semibold tabular-nums">{item.quantity}</span>
+                        <button
+                          onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                          className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-700 text-base leading-none"
+                        >+</button>
+                        <button
+                          onClick={() => onUpdateQuantity(item.id, 0)}
+                          className="w-7 h-7 ml-1 rounded-full hover:bg-red-50 flex items-center justify-center text-red-400 text-lg leading-none"
+                        >×</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <h3 className="text-base font-semibold text-gray-800 mb-2">Scanner Mode</h3>
-              <p className="text-sm text-gray-500 mb-6 max-w-xs">Search by product name or scan a barcode to add items to the cart</p>
-              <div className="space-y-3 text-left w-full max-w-xs">
-                {[
-                  'Type in the search bar above',
-                  'Scan a barcode with a scanner device',
-                  'Items are added to cart automatically',
-                ].map((tip, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="w-6 h-6 bg-primary text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</div>
-                    <p className="text-sm text-gray-600">{tip}</p>
-                  </div>
-                ))}
+            ) : (
+              <div className="flex flex-col items-center justify-center flex-1 py-10 px-6 text-center">
+                <div className="w-20 h-20 mx-auto bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h2M4 4h4m12 0h2M4 20h4m12 0h2" />
+                  </svg>
+                </div>
+                <h3 className="text-base font-semibold text-gray-800 mb-2">Scanner Mode</h3>
+                <p className="text-sm text-gray-500 mb-6 max-w-xs">Search by product name or scan a barcode to add items to the cart</p>
+                <div className="space-y-3 text-left w-full max-w-xs">
+                  {[
+                    'Type in the search bar above',
+                    'Scan a barcode with a scanner device',
+                    'Items are added to cart automatically',
+                  ].map((tip, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-6 h-6 bg-primary text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</div>
+                      <p className="text-sm text-gray-600">{tip}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Totals + Payment Panel */}
