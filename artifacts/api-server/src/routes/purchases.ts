@@ -248,14 +248,46 @@ router.get("/:id", requireAdmin, async (req, res, next) => {
 router.put("/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params["id"]);
-    const existing = await db.query.purchases.findFirst({ where: eq(purchases.id, id), columns: { shop: true } });
+    const existing = await db.query.purchases.findFirst({ where: eq(purchases.id, id), columns: { shop: true, amountPaid: true } });
     if (!existing) throw notFound("Purchase not found");
     await assertShopOwnership(req, existing.shop);
+
+    const { supplierId, paymentType, items, notes } = req.body;
+
+    // Recalculate totals from items
+    const totalAmount = (items ?? []).reduce(
+      (sum: number, it: any) => sum + parseFloat(String(it.quantity ?? 1)) * parseFloat(String(it.unitPrice ?? 0)), 0
+    );
+    const amountPaid = parseFloat(String(existing.amountPaid ?? 0));
+    const outstandingBalance = Math.max(0, totalAmount - amountPaid);
+
+    // Update purchase header
     const [updated] = await db.update(purchases)
-      .set({ ...(req.body.note !== undefined && { note: req.body.note }) })
+      .set({
+        supplier: supplierId ? Number(supplierId) : null,
+        paymentType: paymentType ?? "cash",
+        totalAmount: String(totalAmount),
+        outstandingBalance: String(outstandingBalance),
+      })
       .where(eq(purchases.id, id))
       .returning();
     if (!updated) throw notFound("Purchase not found");
+
+    // Replace purchase items: delete old ones, insert new
+    if (Array.isArray(items) && items.length > 0) {
+      await db.delete(purchaseItems).where(eq(purchaseItems.purchase, id));
+      await db.insert(purchaseItems).values(
+        items.map((item: any) => ({
+          purchase: id,
+          shop: existing.shop,
+          product: Number(item.productId),
+          quantity: String(item.quantity ?? 1),
+          unitPrice: String(item.unitPrice ?? 0),
+          lineDiscount: "0",
+        }))
+      );
+    }
+
     return ok(res, updated);
   } catch (e) { next(e); }
 });
