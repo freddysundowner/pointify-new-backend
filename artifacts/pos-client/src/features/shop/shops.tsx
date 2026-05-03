@@ -4,7 +4,7 @@ import { extractId } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { MapPin, Store, Plus, Search, Edit, Eye } from "lucide-react";
+import { MapPin, Store, Plus, Search, Eye } from "lucide-react";
 import { useAuth } from "@/features/auth/useAuth";
 import { apiCall } from "@/lib/api-config";
 import { ENDPOINTS } from "@/lib/api-endpoints";
@@ -221,16 +221,6 @@ export default function Shops() {
                         >
                           <Eye className="w-3.5 h-3.5" />
                           View
-                        </Button>
-                      </Link>
-                      <Link href={`/shop/${shopId}/settings`} className="flex-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full h-9 text-xs gap-1.5"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                          Settings
                         </Button>
                       </Link>
                     </div>
