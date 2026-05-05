@@ -1,6 +1,6 @@
 // Idempotent seed for super-admin-controlled global catalogs.
 // Runs once at server boot. Only inserts rows that don't already exist.
-import { paymentMethods, packages, settings, smsTemplates, permissions } from "@workspace/db";
+import { paymentMethods, packages, settings, smsTemplates, permissions, shopCategories } from "@workspace/db";
 import { eq, like } from "drizzle-orm";
 import { db } from "./db.js";
 import { logger } from "./logger.js";
@@ -231,5 +231,26 @@ export async function seedDefaultSmsTemplates(): Promise<void> {
     logger.info({ inserted: toInsert.map((t) => t.name) }, "seed: default sms templates inserted");
   } catch (err) {
     logger.error({ err }, "seed: sms templates failed");
+  }
+}
+
+// Shop categories seeded from electron/data/shopcategories.json in the desktop app.
+// Only inserts categories that don't already exist (by name). Never overwrites.
+const DEFAULT_SHOP_CATEGORIES = [
+  { name: "HARDWARE" },
+];
+
+export async function seedDefaultShopCategories(): Promise<void> {
+  try {
+    const existing = await db.query.shopCategories.findMany();
+    const existingNames = new Set(existing.map((r) => r.name.trim().toLowerCase()));
+    const toInsert = DEFAULT_SHOP_CATEGORIES.filter(
+      (c) => !existingNames.has(c.name.trim().toLowerCase()),
+    );
+    if (toInsert.length === 0) return;
+    await db.insert(shopCategories).values(toInsert);
+    logger.info({ inserted: toInsert.map((c) => c.name) }, "seed: default shop categories inserted");
+  } catch (err) {
+    logger.error({ err }, "seed: shop categories failed");
   }
 }
