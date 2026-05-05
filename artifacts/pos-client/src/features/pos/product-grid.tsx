@@ -1723,7 +1723,7 @@ export default function ProductGrid({
 
         {/* Right Panel - Products */}
         {viewMode === 'grid' && (
-          <div className={`${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'} flex-col flex-1 w-full lg:w-1/3 bg-gray-50 p-2 lg:p-6 lg:order-2 overflow-hidden`}>
+          <div className={`${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'} flex-col flex-1 w-full lg:w-1/3 bg-gray-50 p-2 lg:p-3 lg:order-2 overflow-hidden`}>
           
           {/* Mobile View Mode — hidden now that grid is visible on mobile */}
           <div className="hidden">
@@ -1825,7 +1825,7 @@ export default function ProductGrid({
           <div className="flex flex-col flex-1 bg-white rounded-xl lg:rounded-2xl p-2 lg:p-4 shadow-sm lg:shadow-lg min-h-0">
             {viewMode === 'grid' && (
               /* Desktop Search Bar - Only in Cards Mode */
-              <div className="mb-4">
+              <div className="mb-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
@@ -1848,7 +1848,7 @@ export default function ProductGrid({
                 </div>
               ) : viewMode === 'grid' ? (
                 /* Grid View - Restaurant Style Cards */
-                <div className="grid grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2 lg:gap-3 pb-4">
+                <div className="grid grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-1.5 lg:gap-2 pb-4">
                   {products.map((product: any) => {
                     const price = getPriceForSaleType(product, saleType);
                     const productId = product._id || product.id;
@@ -1862,7 +1862,7 @@ export default function ProductGrid({
                     return (
                       <div
                         key={productId}
-                        className={`p-1.5 lg:p-3 rounded-xl cursor-pointer transition-all duration-200 text-center shadow-sm active:scale-95 hover:shadow-md hover:scale-105 ${
+                        className={`p-1 lg:p-1.5 rounded-lg cursor-pointer transition-all duration-200 text-center shadow-sm active:scale-95 hover:shadow-md hover:scale-105 ${
                           isOutOfStock 
                             ? "bg-red-100 hover:bg-red-200" 
                             : isLowStock 
@@ -1871,16 +1871,16 @@ export default function ProductGrid({
                         }`}
                         onClick={() => handleAddToCart(product)}
                       >
-                        <div className="w-8 h-8 lg:w-12 lg:h-12 bg-gray-200 rounded-lg mx-auto mb-1 lg:mb-2"></div>
-                        <p className="text-[10px] lg:text-xs font-semibold text-gray-800 truncate leading-tight">{productName}</p>
-                        <p className="text-[10px] lg:text-xs text-primary font-bold mt-0.5">{currency} {(+price).toFixed(2)}</p>
+                        <div className="w-6 h-6 lg:w-8 lg:h-8 bg-gray-200 rounded mx-auto mb-0.5"></div>
+                        <p className="text-[9px] lg:text-[10px] font-semibold text-gray-800 truncate leading-tight">{productName}</p>
+                        <p className="text-[9px] lg:text-[10px] text-primary font-bold mt-0.5">{currency} {(+price).toFixed(2)}</p>
                         <div className="mt-0.5 flex items-center justify-center">
                           {isVirtual ? (
-                            <span className="text-[9px] lg:text-xs font-medium text-blue-600 bg-blue-100 px-1 py-0.5 rounded">
+                            <span className="text-[8px] lg:text-[9px] font-medium text-blue-600 bg-blue-100 px-1 py-0.5 rounded">
                               Service
                             </span>
                           ) : (
-                            <span className={`text-[9px] lg:text-xs font-medium ${
+                            <span className={`text-[8px] lg:text-[9px] font-medium ${
                               isOutOfStock ? "text-red-600" : isLowStock ? "text-orange-500" : "text-green-600"
                             }`}>
                               {isOutOfStock ? "Out" : isLowStock ? `Low: ${quantity}` : `${quantity}`}
