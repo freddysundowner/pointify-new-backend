@@ -128,7 +128,7 @@ export const purchaseReturnItems = pgTable(
   {
     id: serial("id").primaryKey(),
     purchaseReturn: integer("purchase_return_id").notNull().references(() => purchaseReturns.id, { onDelete: "cascade" }),
-    purchaseItem: integer("purchase_item_id").notNull().references(() => purchaseItems.id),
+    purchaseItem: integer("purchase_item_id").references(() => purchaseItems.id),
     product: integer("product_id").notNull().references(() => products.id),
     quantity: numeric("quantity", { precision: 14, scale: 4 }).notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),

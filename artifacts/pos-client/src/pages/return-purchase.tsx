@@ -26,6 +26,7 @@ import type { RootState } from "@/store";
 
 interface ReturnItem {
   productId: string;
+  purchaseItemId: number | null;
   productName: string;
   quantity: number;
   unitCost: number;
@@ -110,6 +111,7 @@ export default function ReturnPurchase() {
           const unitCost = parseFloat(String(item.unitPrice ?? item.unitCost ?? 0));
           return {
             productId,
+            purchaseItemId: item.id ?? item._id ?? null,
             productName: item.product?.name || item.productName || "Unknown",
             quantity: qty,
             unitCost,
@@ -161,14 +163,16 @@ export default function ReturnPurchase() {
 
     const returnPayload = {
       purchaseId: originalPurchase._id || originalPurchase.id,
+      shopId,
       items: itemsToReturn.map(item => ({
-        product: item.productId,
+        productId: item.productId,
+        purchaseItemId: item.purchaseItemId,
         quantity: item.returnQuantity,
-        unitPrice: item.unitCost
+        unitPrice: item.unitCost,
+        reason: item.returnReason,
       })),
       reason: returnNotes || 'Purchase return processed',
-      deleteReceipt: false,
-      invoiceType: ''
+      refundMethod: refundMethod || 'supplier_credit',
     };
     console.log(returnPayload)
 

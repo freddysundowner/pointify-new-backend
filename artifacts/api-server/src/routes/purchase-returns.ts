@@ -55,8 +55,8 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
     const itemRows = await db.insert(purchaseReturnItems).values(
       items.map((item: any) => ({
         purchaseReturn: purchaseReturn.id,
-        product: Number(item.productId),
-        purchaseItem: Number(item.purchaseItemId),
+        product: Number(item.productId ?? item.product),
+        purchaseItem: item.purchaseItemId ? Number(item.purchaseItemId) : undefined,
         quantity: String(item.quantity ?? 1),
         unitPrice: String(item.unitPrice ?? 0),
       }))
