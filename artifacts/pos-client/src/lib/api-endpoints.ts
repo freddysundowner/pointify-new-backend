@@ -167,6 +167,7 @@ export const ENDPOINTS = {
     update:               (id: string) => `/api/suppliers/${id}`,
     delete:               (id: string) => `/api/suppliers/${id}`,
     walletPayment:        (id: string) => `/api/suppliers/${id}/wallet/payment`,
+    walletTransactions:   (id: string) => `/api/suppliers/${id}/wallet-transactions`,
   },
 
   // ─── Attendants ───────────────────────────────────────────────────────────

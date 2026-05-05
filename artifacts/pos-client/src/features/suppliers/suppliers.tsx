@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { Plus, Search, Edit, Trash2, Phone, Mail, MapPin, Building2, DollarSign, History, ArrowLeft, CreditCard } from 'lucide-react';
+import {
+  Plus, Search, Edit, Trash2, Phone, Mail, MapPin, Building2,
+  History, ArrowLeft, CreditCard, Download, FileText, MoreVertical, X,
+} from 'lucide-react';
 import { useGoBack } from "@/hooks/useGoBack";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { ENDPOINTS } from '@/lib/api-endpoints';
@@ -21,17 +26,19 @@ import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
 import { useAuth } from "@/features/auth/useAuth";
 import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
+import { jsPDF } from 'jspdf';
+import { autoTable } from 'jspdf-autotable';
 
 interface Supplier {
-  _id: string;
+  id: number;
+  _id?: string;
   name: string;
-  contact: string;
-  email?: string;
+  phone?: string;
   phoneNumber?: string;
+  email?: string;
   address?: string;
-  creditLimit?: number;
-  wallet?: number;
-  status?: 'active' | 'inactive';
+  wallet?: string | number;
+  outstandingBalance?: string | number;
 }
 
 interface SupplierFormData {
@@ -41,650 +48,524 @@ interface SupplierFormData {
   address: string;
 }
 
+function fmt(val: string | number | undefined | null, decimals = 2) {
+  return parseFloat(String(val ?? 0)).toFixed(decimals);
+}
+
+function supplierId(s: Supplier): string {
+  return String(s._id ?? s.id);
+}
+
 export default function SuppliersPage() {
   const [, navigate] = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen]     = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isPayOpen, setIsPayOpen]       = useState(false);
+  const [selected, setSelected]         = useState<Supplier | null>(null);
+  const [payAmount, setPayAmount]       = useState(0);
+  const [statLoading, setStatLoading]   = useState(false);
   const { toast } = useToast();
 
-  // Authentication hooks
   const { admin } = useAuth();
   const { attendant } = useAttendantAuth();
-  
-  // Check if this is an attendant route
   const isAttendantRoute = window.location.pathname.startsWith('/attendant');
-  
-  // Handle back button navigation
   const handleBack = useGoBack("/dashboard");
 
-  // Get shop ID based on user type
   const { selectedShopId } = useSelector((state: RootState) => state.shop);
   const primaryShop = typeof admin?.primaryShop === 'object' ? admin.primaryShop : null;
   const attendantShopId = typeof attendant?.shopId === 'object' ? attendant.shopId._id : attendant?.shopId;
   const shopId = isAttendantRoute ? attendantShopId : (selectedShopId || (primaryShop as any)?._id);
-  
 
+  const createForm = useForm<SupplierFormData>({ defaultValues: { name: '', phoneNumber: '', email: '', address: '' } });
+  const editForm   = useForm<SupplierFormData>({ defaultValues: { name: '', phoneNumber: '', email: '', address: '' } });
 
-  // Form hooks
-  const createForm = useForm<SupplierFormData>({
-    defaultValues: {
-      name: '',
-      phoneNumber: '',
-      email: '',
-      address: ''
-    }
-  });
-
-  const editForm = useForm<SupplierFormData>({
-    defaultValues: {
-      name: '',
-      phoneNumber: '',
-      email: '',
-      address: ''
-    }
-  });
-
-  // Fetch suppliers
-  const { data: suppliers = [], isLoading, error } = useQuery({
+  // ── Fetch ────────────────────────────────────────────────────────────────────
+  const { data: suppliers = [], isLoading } = useQuery({
     queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
       if (!shopId) return [];
-      const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
-      const json = await response.json();
+      const res  = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
+      const json = await res.json();
       const rows = Array.isArray(json) ? json : (json.data ?? []);
-      // Normalise: API returns `phone`, form/interface uses `phoneNumber`
       return rows.map((s: any) => ({ ...s, phoneNumber: s.phoneNumber ?? s.phone ?? '' }));
     },
-    enabled: !!shopId
+    enabled: !!shopId,
   });
 
+  // ── Mutations ────────────────────────────────────────────────────────────────
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
 
-
-  // Create supplier mutation
   const createMutation = useMutation({
     mutationFn: async (data: SupplierFormData) => {
-      const payload = {
-        name: data.name,
-        phone: data.phoneNumber || '',
-        email: data.email || '',
-        address: data.address || '',
-        shopId,
-      };
-      const response = await apiRequest('POST', ENDPOINTS.suppliers.create, payload);
-      return await response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Supplier created successfully"
+      const res = await apiRequest('POST', ENDPOINTS.suppliers.create, {
+        name: data.name, phone: data.phoneNumber, email: data.email, address: data.address, shopId,
       });
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
-      setIsCreateDialogOpen(false);
-      createForm.reset();
+      return res.json();
     },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create supplier",
-        variant: "destructive"
-      });
-    }
+    onSuccess: () => { toast({ title: "Supplier created" }); invalidate(); setIsCreateOpen(false); createForm.reset(); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // Update supplier mutation
   const updateMutation = useMutation({
     mutationFn: async (data: SupplierFormData) => {
-      if (!selectedSupplier) throw new Error('No supplier selected');
-      const payload = {
-        name: data.name,
-        phone: data.phoneNumber || '',
-        email: data.email || '',
-        address: data.address || '',
-        shopId,
-      };
-      const response = await apiRequest('PUT', ENDPOINTS.suppliers.update(selectedSupplier._id ?? selectedSupplier.id), payload);
-      return await response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Supplier updated successfully"
+      if (!selected) throw new Error('No supplier selected');
+      const res = await apiRequest('PUT', ENDPOINTS.suppliers.update(supplierId(selected)), {
+        name: data.name, phone: data.phoneNumber, email: data.email, address: data.address,
       });
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
-      setIsEditDialogOpen(false);
-      setSelectedSupplier(null);
-      editForm.reset();
+      return res.json();
     },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update supplier",
-        variant: "destructive"
-      });
-    }
+    onSuccess: () => { toast({ title: "Supplier updated" }); invalidate(); setIsEditOpen(false); setSelected(null); editForm.reset(); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // Delete supplier mutation
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest('DELETE', ENDPOINTS.suppliers.delete(id));
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Supplier deleted successfully"
-      });
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
-      setIsDeleteModalOpen(false);
-      setSelectedSupplier(null);
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete supplier",
-        variant: "destructive"
-      });
-    }
+    mutationFn: async (id: string) => apiRequest('DELETE', ENDPOINTS.suppliers.delete(id)),
+    onSuccess: () => { toast({ title: "Supplier deleted" }); invalidate(); setIsDeleteOpen(false); setSelected(null); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // Pay supplier debt mutation
-  const payDebtMutation = useMutation({
-    mutationFn: async ({ supplierId, amount }: { supplierId: string; amount: number }) => {
-      const response = await apiRequest('POST', ENDPOINTS.suppliers.walletPayment(supplierId), { amount });
-      return await response.json();
+  const payMutation = useMutation({
+    mutationFn: async ({ id, amount }: { id: string; amount: number }) => {
+      const res = await apiRequest('POST', ENDPOINTS.suppliers.walletPayment(id), { amount });
+      return res.json();
     },
-    onSuccess: () => {
-      toast({
-        title: "Payment Successful",
-        description: "Supplier debt payment has been recorded successfully"
-      });
-      // Refresh suppliers data
-      queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
-      // Refresh analytics data
-      queryClient.invalidateQueries({ 
-        predicate: (query) => {
-          const key = String(query.queryKey[0] || '');
-          return key.includes('/api/analysis/report/purchases');
-        }
-      });
-      setIsPaymentDialogOpen(false);
-      setSelectedSupplier(null);
-      setPaymentAmount(0);
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Payment Failed",
-        description: error.message || "Failed to process payment. Please try again.",
-        variant: "destructive"
-      });
-    }
+    onSuccess: () => { toast({ title: "Payment recorded" }); invalidate(); setIsPayOpen(false); setSelected(null); setPayAmount(0); },
+    onError: (e: any) => toast({ title: "Payment failed", description: e.message, variant: "destructive" }),
   });
 
-  // Filter suppliers based on search
-  const filteredSuppliers = Array.isArray(suppliers) ? suppliers.filter((supplier: Supplier) =>
-    supplier.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    supplier.contact?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    supplier.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    supplier.phoneNumber?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) : [];
+  // ── Statement PDF ─────────────────────────────────────────────────────────────
+  const downloadStatement = async (supplier: Supplier) => {
+    setStatLoading(true);
+    try {
+      const sid = supplierId(supplier);
+      const res  = await apiRequest('GET', `${ENDPOINTS.suppliers.walletTransactions(sid)}?limit=200`);
+      const json = await res.json();
+      const txns: any[] = Array.isArray(json) ? json : (json.data ?? []);
 
-  const handleEdit = (supplier: Supplier) => {
-    setSelectedSupplier(supplier);
-    editForm.reset({
-      name: supplier.name || '',
-      phoneNumber: supplier.phoneNumber || '',
-      email: supplier.email || '',
-      address: supplier.address || ''
-    });
-    setIsEditDialogOpen(true);
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pw  = doc.internal.pageSize.getWidth();
+      const W   = pw - 28;
+
+      // Header bar
+      doc.setFillColor(88, 28, 135);
+      doc.rect(0, 0, pw, 28, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Supplier Statement', 14, 12);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`, 14, 20);
+
+      // Supplier info box
+      doc.setDrawColor(200, 200, 200);
+      doc.setFillColor(250, 248, 255);
+      doc.roundedRect(14, 34, W, 34, 2, 2, 'FD');
+      doc.setTextColor(50, 50, 50);
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text(supplier.name, 20, 44);
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      const infoY = 51;
+      const infoParts: string[] = [];
+      if (supplier.phoneNumber) infoParts.push(`Phone: ${supplier.phoneNumber}`);
+      if (supplier.email)       infoParts.push(`Email: ${supplier.email}`);
+      if (supplier.address)     infoParts.push(`Address: ${supplier.address}`);
+      doc.text(infoParts.join('   |   '), 20, infoY);
+
+      // KPI boxes
+      const kpiY = 74;
+      const kpiW = (W - 6) / 2;
+      const wallet = parseFloat(fmt(supplier.wallet));
+      const outstanding = parseFloat(fmt(supplier.outstandingBalance));
+
+      const drawKpi = (x: number, label: string, value: string, color: [number,number,number]) => {
+        doc.setFillColor(...color);
+        doc.roundedRect(x, kpiY, kpiW, 20, 2, 2, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.text(label.toUpperCase(), x + 4, kpiY + 7);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(value, x + 4, kpiY + 15);
+      };
+      drawKpi(14, 'Wallet Balance', `KES ${fmt(wallet)}`, [88, 28, 135]);
+      drawKpi(14 + kpiW + 6, 'Outstanding Balance', `KES ${fmt(outstanding)}`, outstanding > 0 ? [220, 38, 38] : [22, 163, 74]);
+
+      // Transactions table
+      doc.setTextColor(50, 50, 50);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('Transaction History', 14, kpiY + 30);
+
+      if (txns.length === 0) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(150, 150, 150);
+        doc.text('No transactions found.', 14, kpiY + 40);
+      } else {
+        autoTable(doc, {
+          startY: kpiY + 34,
+          margin: { left: 14, right: 14 },
+          head: [['Date', 'Type', 'Ref / Payment No', 'Payment Method', 'Amount', 'Balance']],
+          body: txns.map((t: any) => [
+            new Date(t.createdAt).toLocaleDateString('en-GB'),
+            (t.type || '').charAt(0).toUpperCase() + (t.type || '').slice(1),
+            [t.paymentReference, t.paymentNo].filter(Boolean).join(' / ') || '—',
+            t.paymentType || '—',
+            `KES ${parseFloat(String(t.amount || 0)).toFixed(2)}`,
+            `KES ${parseFloat(String(t.balance || 0)).toFixed(2)}`,
+          ]),
+          headStyles: { fillColor: [88, 28, 135], textColor: 255, fontSize: 8, fontStyle: 'bold', cellPadding: 3 },
+          bodyStyles: { fontSize: 8, cellPadding: 2.5 },
+          alternateRowStyles: { fillColor: [250, 248, 255] },
+          columnStyles: {
+            0: { cellWidth: 22 },
+            1: { cellWidth: 22 },
+            4: { halign: 'right', cellWidth: 28 },
+            5: { halign: 'right', cellWidth: 28 },
+          },
+        });
+      }
+
+      doc.save(`${supplier.name.replace(/\s+/g, '_')}_statement.pdf`);
+      toast({ title: "Statement downloaded" });
+    } catch (e: any) {
+      toast({ title: "Failed to download statement", description: e.message, variant: "destructive" });
+    } finally {
+      setStatLoading(false);
+    }
   };
 
-  const handleDelete = (supplier: Supplier) => {
-    setSelectedSupplier(supplier);
-    setIsDeleteModalOpen(true);
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+  const openEdit = (s: Supplier) => {
+    setSelected(s);
+    editForm.reset({ name: s.name, phoneNumber: s.phoneNumber ?? '', email: s.email ?? '', address: s.address ?? '' });
+    setIsEditOpen(true);
   };
 
-  const handleViewHistory = (supplier: Supplier) => {
+  const openDelete = (s: Supplier) => { setSelected(s); setIsDeleteOpen(true); };
+
+  const openPay = (s: Supplier) => {
+    setSelected(s);
+    setPayAmount(parseFloat(fmt(s.outstandingBalance)));
+    setIsPayOpen(true);
+  };
+
+  const viewHistory = (s: Supplier) => {
     const route = isAttendantRoute ? '/attendant/supplier-history' : '/supplier-history';
-    navigate(`${route}?supplierId=${supplier._id ?? supplier.id}&supplierName=${encodeURIComponent(supplier.name)}`);
+    navigate(`${route}?supplierId=${supplierId(s)}&supplierName=${encodeURIComponent(s.name)}`);
   };
 
-  const handlePayDebt = (supplier: Supplier) => {
-    setSelectedSupplier(supplier);
-    // Convert negative wallet to positive payment amount
-    setPaymentAmount(Math.abs(parseFloat(supplier.wallet ?? "0") || 0));
-    setIsPaymentDialogOpen(true);
-  };
+  // ── Filter ───────────────────────────────────────────────────────────────────
+  const filtered = (suppliers as Supplier[]).filter(s =>
+    !searchTerm ||
+    s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.phoneNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.address?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const handlePaymentSubmit = () => {
-    if (!selectedSupplier || paymentAmount <= 0) return;
-    payDebtMutation.mutate({
-      supplierId: selectedSupplier._id ?? selectedSupplier.id,
-      amount: paymentAmount
-    });
-  };
-
-  const onCreateSubmit = (data: SupplierFormData) => {
-    createMutation.mutate(data);
-  };
-
-  const onEditSubmit = (data: SupplierFormData) => {
-    updateMutation.mutate(data);
-  };
-
-  if (isLoading) {
-    return (
-      <DashboardLayout title="Suppliers">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Loading suppliers...</p>
+  // ── Supplier Form (reused for create & edit) ──────────────────────────────────
+  const SupplierForm = ({
+    form, onSubmit, isPending, label, onCancel,
+  }: { form: any; onSubmit: (d: SupplierFormData) => void; isPending: boolean; label: string; onCancel: () => void }) => (
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 pt-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="sm:col-span-2">
+          <Label className="text-xs font-medium">Supplier Name *</Label>
+          <Input {...form.register('name', { required: true })} placeholder="e.g. ABC Wholesale Ltd" className="mt-1 h-9 text-sm" />
         </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (error) {
-    return (
-      <DashboardLayout title="Suppliers">
-        <div className="text-center py-12">
-          <p className="text-red-600">Failed to load suppliers. Please try again.</p>
+        <div>
+          <Label className="text-xs font-medium">Phone Number</Label>
+          <Input {...form.register('phoneNumber')} placeholder="+254 700 000000" className="mt-1 h-9 text-sm" />
         </div>
-      </DashboardLayout>
-    );
-  }
+        <div>
+          <Label className="text-xs font-medium">Email</Label>
+          <Input type="email" {...form.register('email')} placeholder="supplier@email.com" className="mt-1 h-9 text-sm" />
+        </div>
+        <div className="sm:col-span-2">
+          <Label className="text-xs font-medium">Address</Label>
+          <Textarea {...form.register('address')} placeholder="Street, City" rows={2} className="mt-1 text-sm resize-none" />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 pt-1">
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" size="sm" disabled={isPending}>{isPending ? `${label}ing…` : label}</Button>
+      </div>
+    </form>
+  );
 
   return (
     <DashboardLayout title="Suppliers">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            {isAttendantRoute && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleBack}
-                className="hidden sm:flex items-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Dashboard
+      {/* ── Sticky header ───────────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-20 bg-background border-b">
+        <div className="px-3 sm:px-4 py-2.5 flex items-center gap-2">
+          <button onClick={handleBack} className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search suppliers…"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="pl-8 h-9 text-sm"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <Button size="sm" className="h-9 gap-1.5 shrink-0" onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Add Supplier</span>
+            <span className="sm:hidden">Add</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Content ─────────────────────────────────────────────────────────── */}
+      <div className="px-3 sm:px-4 py-3">
+        {isLoading ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">Loading suppliers…</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center">
+            <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground mb-3">
+              {searchTerm ? 'No suppliers match your search' : 'No suppliers yet'}
+            </p>
+            {!searchTerm && (
+              <Button size="sm" variant="outline" onClick={() => setIsCreateOpen(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1.5" /> Add First Supplier
               </Button>
             )}
-            <div>
-              <h1 className="text-2xl font-bold">Suppliers</h1>
-              <p className="hidden sm:block text-muted-foreground">Manage your suppliers and vendor relationships</p>
-            </div>
           </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Supplier
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Create New Supplier</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Supplier Name *</Label>
-                  <Input
-                    id="name"
-                    {...createForm.register('name', { required: true })}
-                    placeholder="Enter supplier name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phoneNumber">Phone Number *</Label>
-                  <Input
-                    id="phoneNumber"
-                    {...createForm.register('phoneNumber', { required: true })}
-                    placeholder="Enter phone number"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    {...createForm.register('email', { required: true })}
-                    placeholder="Enter email address"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="address">Address *</Label>
-                  <Textarea
-                    id="address"
-                    {...createForm.register('address', { required: true })}
-                    placeholder="Enter address"
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsCreateDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={createMutation.isPending}>
-                    {createMutation.isPending ? 'Creating...' : 'Create Supplier'}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Search */}
-        <div className="flex items-center space-x-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search suppliers..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
-          </div>
-        </div>
-
-        {/* Suppliers Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Suppliers ({filteredSuppliers.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filteredSuppliers.length === 0 ? (
-              <div className="text-center py-8">
-                <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">
-                  {searchTerm ? 'No suppliers match your search' : 'No suppliers found'}
-                </p>
-                {!searchTerm && (
-                  <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => setIsCreateDialogOpen(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Your First Supplier
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <>
-                {/* Mobile Cards */}
-                <div className="sm:hidden space-y-2">
-                  {filteredSuppliers.map((supplier: Supplier) => (
-                    <div key={supplier._id ?? supplier.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{supplier.name}</p>
-                          {supplier.address && <p className="text-xs text-gray-400 truncate">{supplier.address}</p>}
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                            {supplier.phoneNumber && (
-                              <span className="text-xs text-gray-500 flex items-center gap-0.5">
-                                <Phone className="h-3 w-3" />{supplier.phoneNumber}
-                              </span>
-                            )}
-                            {supplier.email && (
-                              <span className="text-xs text-gray-500 flex items-center gap-0.5">
-                                <Mail className="h-3 w-3" />{supplier.email}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {supplier.wallet !== undefined && supplier.wallet !== null && (
-                            <Badge variant={parseFloat(supplier.wallet) > 0 ? "destructive" : "default"} className="text-xs">
-                              {parseFloat(supplier.wallet ?? 0).toFixed(2)}
-                            </Badge>
+        ) : (
+          <>
+            {/* ── Mobile card list ─────────────────────────────────────── */}
+            <div className="sm:hidden space-y-2">
+              {filtered.map(s => {
+                const owed      = parseFloat(fmt(s.outstandingBalance));
+                const walletBal = parseFloat(fmt(s.wallet));
+                return (
+                  <div key={supplierId(s)} className="bg-white rounded-xl border border-gray-100 shadow-sm">
+                    {/* Top row */}
+                    <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{s.name}</p>
+                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
+                          {s.phoneNumber && (
+                            <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                              <Phone className="h-2.5 w-2.5" />{s.phoneNumber}
+                            </span>
+                          )}
+                          {s.email && (
+                            <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                              <Mail className="h-2.5 w-2.5" />{s.email}
+                            </span>
+                          )}
+                          {s.address && (
+                            <span className="text-xs text-gray-400 flex items-center gap-0.5 truncate max-w-[160px]">
+                              <MapPin className="h-2.5 w-2.5 shrink-0" />{s.address}
+                            </span>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 mt-2 pt-2 border-t border-gray-50">
-                        {parseFloat(supplier.wallet ?? "0") < 0 && (
-                          <Button variant="default" size="sm" onClick={() => handlePayDebt(supplier)} className="h-7 text-xs bg-green-600 hover:bg-green-700 gap-1">
-                            <CreditCard className="h-3 w-3" /> Pay Debt
-                          </Button>
+                      <div className="shrink-0 text-right">
+                        {owed > 0 && (
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">Owed {fmt(owed)}</Badge>
                         )}
-                        <Button variant="ghost" size="sm" onClick={() => handleViewHistory(supplier)} className="h-7 w-7 p-0 text-gray-400">
-                          <History className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(supplier)} className="h-7 w-7 p-0 text-gray-400">
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(supplier)} className="h-7 w-7 p-0 text-red-400 hover:text-red-600">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {walletBal > 0 && (
+                          <Badge className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 ml-1">Wallet {fmt(walletBal)}</Badge>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
-                {/* Desktop Table */}
-                <div className="hidden sm:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Company</TableHead>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Credit Limit</TableHead>
-                      <TableHead>Wallet</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredSuppliers.map((supplier: Supplier) => (
-                      <TableRow key={supplier._id ?? supplier.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{supplier.name}</p>
-                            {supplier.address && (
-                              <p className="text-sm text-muted-foreground">{supplier.address}</p>
-                            )}
+                    {/* Action row */}
+                    <div className="flex items-center gap-1 px-3 pb-2.5 border-t border-gray-50 pt-2">
+                      {owed > 0 && (
+                        <Button variant="default" size="sm" onClick={() => openPay(s)}
+                          className="h-7 text-xs bg-green-600 hover:bg-green-700 gap-1 mr-1">
+                          <CreditCard className="h-3 w-3" />Pay
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => viewHistory(s)} className="h-7 w-7 p-0 text-gray-400 hover:text-gray-700">
+                        <History className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => downloadStatement(s)} disabled={statLoading}
+                        className="h-7 w-7 p-0 text-gray-400 hover:text-purple-600">
+                        <FileText className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(s)} className="h-7 w-7 p-0 text-gray-400 hover:text-gray-700">
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openDelete(s)} className="h-7 w-7 p-0 text-red-400 hover:text-red-600">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── Desktop table ────────────────────────────────────────── */}
+            <div className="hidden sm:block rounded-lg border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 border-b">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Supplier</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contact</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Wallet</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Outstanding</th>
+                    <th className="px-4 py-2.5"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filtered.map(s => {
+                    const owed      = parseFloat(fmt(s.outstandingBalance));
+                    const walletBal = parseFloat(fmt(s.wallet));
+                    return (
+                      <tr key={supplierId(s)} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-900">{s.name}</p>
+                          {s.address && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[200px]"><MapPin className="inline h-2.5 w-2.5 mr-0.5" />{s.address}</p>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="space-y-0.5">
+                            {s.phoneNumber && <p className="text-xs text-gray-600 flex items-center gap-1"><Phone className="h-3 w-3" />{s.phoneNumber}</p>}
+                            {s.email       && <p className="text-xs text-gray-600 flex items-center gap-1"><Mail className="h-3 w-3" />{s.email}</p>}
                           </div>
-                        </TableCell>
-                        <TableCell>{supplier.contact}</TableCell>
-                        <TableCell>
-                          {supplier.email && (
-                            <div className="flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
-                              {supplier.email}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {supplier.phoneNumber && (
-                            <div className="flex items-center gap-1">
-                              <Phone className="h-3 w-3" />
-                              {supplier.phoneNumber}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {supplier.creditLimit ? (
-                            <div className="flex items-center gap-1">
-                              <DollarSign className="h-3 w-3" />
-                              {supplier.creditLimit.toFixed(2)}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">No limit</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {supplier.wallet !== undefined && supplier.wallet !== null ? (
-                            <Badge variant={parseFloat(supplier.wallet) > 0 ? "destructive" : "default"}>
-                              {parseFloat(supplier.wallet ?? 0).toFixed(2)}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">0.00</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {parseFloat(supplier.wallet ?? "0") < 0 && (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => handlePayDebt(supplier)}
-                                title={`Pay Debt: ${Math.abs(parseFloat(supplier.wallet ?? "0")).toFixed(2)}`}
-                                className="bg-green-600 hover:bg-green-700"
-                              >
-                                <CreditCard className="h-3 w-3" />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {walletBal > 0
+                            ? <span className="text-purple-700 font-medium">{fmt(walletBal)}</span>
+                            : <span className="text-muted-foreground text-xs">0.00</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {owed > 0
+                            ? <span className="text-red-600 font-medium">{fmt(owed)}</span>
+                            : <span className="text-muted-foreground text-xs">0.00</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            {owed > 0 && (
+                              <Button size="sm" onClick={() => openPay(s)}
+                                className="h-7 text-xs bg-green-600 hover:bg-green-700 px-2 gap-1">
+                                <CreditCard className="h-3 w-3" />Pay
                               </Button>
                             )}
-                            <Button variant="outline" size="sm" onClick={() => handleViewHistory(supplier)} title="View Purchase History">
-                              <History className="h-3 w-3" />
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => handleEdit(supplier)} title="Edit Supplier">
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => handleDelete(supplier)} title="Delete Supplier">
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                  <MoreVertical className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="text-sm">
+                                <DropdownMenuItem onClick={() => viewHistory(s)}>
+                                  <History className="h-3.5 w-3.5 mr-2" />Purchase History
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => downloadStatement(s)} disabled={statLoading}>
+                                  <Download className="h-3.5 w-3.5 mr-2" />Download Statement
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => openEdit(s)}>
+                                  <Edit className="h-3.5 w-3.5 mr-2" />Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openDelete(s)} className="text-red-600 focus:text-red-600">
+                                  <Trash2 className="h-3.5 w-3.5 mr-2" />Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Edit Supplier</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-              <div>
-                <Label htmlFor="edit-name">Supplier Name *</Label>
-                <Input
-                  id="edit-name"
-                  {...editForm.register('name', { required: true })}
-                  placeholder="Enter supplier name"
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-phoneNumber">Phone Number *</Label>
-                <Input
-                  id="edit-phoneNumber"
-                  {...editForm.register('phoneNumber', { required: true })}
-                  placeholder="Enter phone number"
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-email">Email *</Label>
-                <Input
-                  id="edit-email"
-                  type="email"
-                  {...editForm.register('email', { required: true })}
-                  placeholder="Enter email address"
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-address">Address *</Label>
-                <Textarea
-                  id="edit-address"
-                  {...editForm.register('address', { required: true })}
-                  placeholder="Enter address"
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsEditDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? 'Updating...' : 'Update Supplier'}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-
-
-        {/* Pay Debt Dialog */}
-        <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Pay Supplier Debt</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Paying debt for: <span className="font-medium">{selectedSupplier?.name}</span>
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Current debt: <span className="font-medium text-red-600">
-                    {Math.abs(selectedSupplier?.wallet || 0).toFixed(2)}
-                  </span>
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="paymentAmount">Payment Amount</Label>
-                <Input
-                  id="paymentAmount"
-                  type="number"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
-                  placeholder="Enter payment amount"
-                  min="0"
-                  max={Math.abs(selectedSupplier?.wallet || 0)}
-                  step="0.01"
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsPaymentDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handlePaymentSubmit}
-                  disabled={payDebtMutation.isPending || paymentAmount <= 0}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  {payDebtMutation.isPending ? 'Processing...' : 'Pay Debt'}
-                </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="px-4 py-2 bg-muted/20 border-t text-xs text-muted-foreground">
+                {filtered.length} supplier{filtered.length !== 1 ? 's' : ''}
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete Confirmation */}
-        <AlertModal
-          isOpen={isDeleteModalOpen}
-          onClose={() => setIsDeleteModalOpen(false)}
-          onConfirm={() => selectedSupplier && deleteMutation.mutate(selectedSupplier._id ?? selectedSupplier.id)}
-          title="Delete Supplier"
-          description={`Are you sure you want to delete ${selectedSupplier?.name}? This action cannot be undone.`}
-          type="danger"
-          confirmText="Delete"
-          cancelText="Cancel"
-        />
+          </>
+        )}
       </div>
+
+      {/* ── Create Dialog ───────────────────────────────────────────────────── */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Add Supplier</DialogTitle></DialogHeader>
+          <SupplierForm
+            form={createForm}
+            onSubmit={d => createMutation.mutate(d)}
+            isPending={createMutation.isPending}
+            label="Create"
+            onCancel={() => setIsCreateOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Dialog ─────────────────────────────────────────────────────── */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Edit Supplier</DialogTitle></DialogHeader>
+          <SupplierForm
+            form={editForm}
+            onSubmit={d => updateMutation.mutate(d)}
+            isPending={updateMutation.isPending}
+            label="Update"
+            onCancel={() => setIsEditOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Pay Outstanding Dialog ──────────────────────────────────────────── */}
+      <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Pay Outstanding Balance</DialogTitle></DialogHeader>
+          <div className="space-y-4 pt-1">
+            <div className="rounded-lg bg-muted/40 p-3 text-sm space-y-1">
+              <p><span className="text-muted-foreground">Supplier: </span><span className="font-medium">{selected?.name}</span></p>
+              <p><span className="text-muted-foreground">Outstanding: </span>
+                <span className="font-semibold text-red-600">{fmt(selected?.outstandingBalance)}</span></p>
+            </div>
+            <div>
+              <Label className="text-xs font-medium">Payment Amount</Label>
+              <Input
+                type="number" min="0.01" step="0.01"
+                value={payAmount}
+                onChange={e => setPayAmount(Number(e.target.value))}
+                className="mt-1 h-9 text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setIsPayOpen(false)}>Cancel</Button>
+              <Button size="sm" disabled={payMutation.isPending || payAmount <= 0}
+                className="bg-green-600 hover:bg-green-700"
+                onClick={() => selected && payMutation.mutate({ id: supplierId(selected), amount: payAmount })}>
+                {payMutation.isPending ? 'Processing…' : 'Record Payment'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirm ──────────────────────────────────────────────────── */}
+      <AlertModal
+        isOpen={isDeleteOpen}
+        onClose={() => setIsDeleteOpen(false)}
+        onConfirm={() => selected && deleteMutation.mutate(supplierId(selected))}
+        title="Delete Supplier"
+        description={`Are you sure you want to delete "${selected?.name}"? This cannot be undone.`}
+        type="danger"
+        confirmText={deleteMutation.isPending ? "Deleting…" : "Delete"}
+      />
     </DashboardLayout>
   );
 }
