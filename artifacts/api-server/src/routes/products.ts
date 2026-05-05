@@ -320,7 +320,7 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     const requestedShopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const categoryId = req.query["categoryId"] ? Number(req.query["categoryId"]) : null;
     const stockStatus = String(req.query["stockStatus"] ?? "").trim();
-    const sort = String(req.query["sort"] ?? "name").trim();
+    const sort = String(req.query["sort"] ?? "newest").trim();
 
     const allowedShops = await resolveShopFilter(req, requestedShopId);
 
@@ -378,7 +378,9 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
       ? sql`(SELECT COALESCE(inv.quantity::numeric, 0) FROM inventory inv WHERE inv.product_id = ${products.id} AND inv.shop_id = ${products.shop} LIMIT 1) DESC NULLS LAST`
       : sort === "expiring"
         ? sql`${products.expiryDate} ASC NULLS LAST`
-        : sql`${products.name} ASC`;
+        : sort === "name"
+          ? sql`${products.name} ASC`
+          : sql`${products.createdAt} DESC`;
 
     const rows = await db.query.products.findMany({
       where,

@@ -64,7 +64,7 @@ export default function StockProducts() {
   const [page, setPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [productType, setProductType] = useState("all");
-  const [sortBy, setSortBy] = useState("name");
+  const [sortBy, setSortBy] = useState("newest");
   const [stockFilter, setStockFilter] = useState<
     "all" | "outofstock" | "lowstock" | "highstock" | "expiring"
   >("all");
@@ -165,6 +165,7 @@ export default function StockProducts() {
         limit: itemsPerPage.toString(),
         search: debouncedSearch,
         shopId: effectiveShopId || "",
+        sort: sortBy,
         ...(stockFilter === "outofstock" ? { stockStatus: "outofstock" } : {}),
         ...(stockFilter === "lowstock" ? { stockStatus: "lowstock" } : {}),
         ...(stockFilter === "expiring" ? { stockStatus: "expiring", sort: "expiring" } : {}),
@@ -350,6 +351,7 @@ export default function StockProducts() {
       shopId: effectiveShopId || "",
       search: debouncedSearch,
       filterKey: stockFilter,
+      sort: sortBy,
       ...(stockFilter === "outofstock" ? { stockStatus: "outofstock" } : {}),
       ...(stockFilter === "lowstock" ? { stockStatus: "lowstock" } : {}),
       ...(stockFilter === "expiring" ? { stockStatus: "expiring", sort: "expiring" } : {}),
