@@ -48,7 +48,7 @@ export default function PurchaseEditPage() {
   const shopId = selectedShopId || String(extractId(adminData?.primaryShop) ?? "");
 
   const { data: suppliers = [] } = useQuery({
-    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId, 'all'],
     queryFn: async () => {
       if (!shopId) return [];
       const response = await apiRequest("GET", `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}&limit=1000`);

@@ -105,7 +105,7 @@ export default function PurchaseReturns() {
 
   // Fetch suppliers
   const { data: suppliersResponse } = useQuery({
-    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId, 'all'],
     queryFn: async () => {
       if (!shopId) return [];
       const res = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}&limit=1000`, {

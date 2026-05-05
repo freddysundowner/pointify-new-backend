@@ -82,7 +82,7 @@ export default function PurchaseOrderPage() {
 
   // Fetch suppliers filtered by selected shop
   const { data: suppliers = [] } = useQuery<Supplier[]>({
-    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId, 'all'],
     queryFn: async () => {
       if (!shopId) return [];
       const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}&limit=1000`);

@@ -52,7 +52,7 @@ export default function CreatePurchase() {
       });
       const json = await res.json();
       const created = json?.data ?? json;
-      await queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll, shopId] });
+      await queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll, shopId, 'all'] });
       setSupplierName(created.name);
       setAddSupplierOpen(false);
       setNewSupplierName(""); setNewSupplierPhone(""); setNewSupplierEmail("");
@@ -65,12 +65,13 @@ export default function CreatePurchase() {
   };
 
   const { data: suppliersResponse, isLoading: suppliersLoading } = useQuery({
-    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId, 'all'],
     queryFn: async () => {
       const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}&limit=1000`);
       return response.json();
     },
     enabled: !!admin?._id && !!shopId,
+    staleTime: 0,
   });
 
   const { products: contextProducts, isLoading: productsLoading } = useProducts();
