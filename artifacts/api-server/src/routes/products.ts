@@ -844,7 +844,7 @@ router.get("/:id/sales-history", async (req, res, next) => {
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
-    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+    const to = req.query["to"] ? new Date(new Date(String(req.query["to"])).getTime() + 86_399_999) : null;
 
     const conditions = [eq(saleItems.product, productId)];
     if (shopId) conditions.push(eq(saleItems.shop, shopId));
@@ -881,7 +881,7 @@ router.get("/:id/purchases-history", async (req, res, next) => {
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
-    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+    const to = req.query["to"] ? new Date(new Date(String(req.query["to"])).getTime() + 86_399_999) : null;
 
     const conditions = [eq(purchaseItems.product, productId)];
     if (shopId) conditions.push(eq(purchaseItems.shop, shopId));
@@ -1098,7 +1098,7 @@ router.get("/:id/history", async (req, res, next) => {
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const eventType = req.query["eventType"] ? String(req.query["eventType"]) : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
-    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+    const to = req.query["to"] ? new Date(new Date(String(req.query["to"])).getTime() + 86_399_999) : null;
 
     const conditions = [eq(productHistory.product, productId)];
     if (shopId) conditions.push(eq(productHistory.shop, shopId));
@@ -1124,12 +1124,12 @@ router.get("/:id/stock-count-history", async (req, res, next) => {
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
-    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+    const to = req.query["to"] ? new Date(new Date(String(req.query["to"])).getTime() + 86_399_999) : null;
 
     const conditions: any[] = [eq(stockCountItems.product, productId)];
     if (shopId) conditions.push(eq(stockCounts.shop, shopId));
     if (from) conditions.push(gte(stockCountItems.createdAt, from));
-    if (to) conditions.push(lte(stockCountItems.createdAt, new Date(to.getTime() + 86399999)));
+    if (to) conditions.push(lte(stockCountItems.createdAt, to));
     const where = and(...conditions);
 
     const rows = await db.select({
