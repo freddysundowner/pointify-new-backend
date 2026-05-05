@@ -96,7 +96,9 @@ export default function SuppliersPage() {
       if (!shopId) return [];
       const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
       const json = await response.json();
-      return Array.isArray(json) ? json : (json.data ?? []);
+      const rows = Array.isArray(json) ? json : (json.data ?? []);
+      // Normalise: API returns `phone`, form/interface uses `phoneNumber`
+      return rows.map((s: any) => ({ ...s, phoneNumber: s.phoneNumber ?? s.phone ?? '' }));
     },
     enabled: !!shopId
   });
