@@ -247,9 +247,12 @@ export async function seedDefaultShopCategories(): Promise<void> {
     const toInsert = DEFAULT_SHOP_CATEGORIES.filter(
       (c) => !existingNames.has(c.name.trim().toLowerCase()),
     );
-    if (toInsert.length === 0) return;
-    await db.insert(shopCategories).values(toInsert);
-    logger.info({ inserted: toInsert.map((c) => c.name) }, "seed: default shop categories inserted");
+    if (toInsert.length > 0) {
+      await db.insert(shopCategories).values(toInsert);
+      logger.info({ inserted: toInsert.map((c) => c.name) }, "seed: default shop categories inserted");
+    } else {
+      logger.info("seed: shop categories already present");
+    }
   } catch (err) {
     logger.error({ err }, "seed: shop categories failed");
   }
