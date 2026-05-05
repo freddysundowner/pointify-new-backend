@@ -31,14 +31,27 @@ const TRACKED_FIELDS: Array<keyof typeof products.$inferSelect> = [
   "manageByPrice", "expiryDate", "category", "supplier",
 ];
 
+// loadProduct uses `with: { category: true }` so relation fields may be objects.
+// Normalise them to raw IDs before diffing so we don't get "[object Object]".
+function normalizeForDiff(p: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...p };
+  if (result["category"] != null && typeof result["category"] === "object")
+    result["category"] = (result["category"] as any).id;
+  if (result["supplier"] != null && typeof result["supplier"] === "object")
+    result["supplier"] = (result["supplier"] as any).id;
+  return result;
+}
+
 function diffProducts(
   before: Record<string, unknown>,
   after: Record<string, unknown>,
 ): FieldDiff {
+  const a = normalizeForDiff(before);
+  const b = normalizeForDiff(after);
   const diff: FieldDiff = {};
   for (const field of TRACKED_FIELDS) {
-    const from = before[field] != null ? String(before[field]) : null;
-    const to   = after[field]  != null ? String(after[field])  : null;
+    const from = a[field] != null ? String(a[field]) : null;
+    const to   = b[field] != null ? String(b[field]) : null;
     if (from !== to) diff[field] = { from, to };
   }
   return diff;
@@ -52,7 +65,17 @@ async function writeEditLog(opts: {
   req: import("express").Request;
 }) {
   const adminId: number | undefined = (opts.req as any).admin?.id;
-  const adminName: string | undefined = (opts.req as any).admin?.name ?? (opts.req as any).admin?.email;
+  // AdminPayload only carries { role, id, isSuperAdmin } — look up name from DB.
+  let adminName: string | undefined;
+  if (adminId) {
+    try {
+      const adminRow = await db.query.admins.findFirst({
+        where: eq(admins.id, adminId),
+        columns: { username: true, email: true },
+      });
+      adminName = adminRow?.username ?? adminRow?.email ?? undefined;
+    } catch (_) { /* ignore */ }
+  }
   try {
     await db.insert(productEditLogs).values({
       product: opts.productId,
@@ -1084,6 +1107,32 @@ router.get("/:id/stock-count-history", async (req, res, next) => {
       .where(where);
 
     return paginated(res, rows, { total: Number(count ?? 0), page, limit });
+  } catch (e) { next(e); }
+});
+
+// ── Product edit log (dedicated, paginated) ───────────────────────────────────
+router.get("/:id/edit-logs", async (req, res, next) => {
+  try {
+    const productId = (req as any).product.id;
+    const { page, limit, offset } = getPagination(req);
+    const from   = req.query["from"] ? new Date(String(req.query["from"])) : null;
+    const toRaw  = req.query["to"]   ? new Date(String(req.query["to"]))   : null;
+    const to     = toRaw ? new Date(toRaw.getTime() + 86_399_999) : null;
+
+    const conditions: ReturnType<typeof eq>[] = [eq(productEditLogs.product, productId)];
+    if (from) conditions.push(gte(productEditLogs.createdAt, from) as any);
+    if (to)   conditions.push(lte(productEditLogs.createdAt, to)   as any);
+    const where = and(...conditions);
+
+    const [rows, total] = await Promise.all([
+      db.select().from(productEditLogs)
+        .where(where)
+        .orderBy(sql`${productEditLogs.createdAt} DESC`)
+        .limit(limit).offset(offset),
+      db.$count(productEditLogs, where),
+    ]);
+
+    return paginated(res, rows, { total, page, limit });
   } catch (e) { next(e); }
 });
 

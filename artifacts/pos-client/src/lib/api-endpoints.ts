@@ -59,6 +59,7 @@ export const ENDPOINTS = {
     stockCountHistory:    (id: string) => `/api/products/${id}/stock-count-history`,
     transferHistory:      (id: string) => `/api/products/${id}/transfer-history`,
     auditTrail:           (id: string) => `/api/products/${id}/audit-trail`,
+    editLogs:             (id: string) => `/api/products/${id}/edit-logs`,
     badStockMovements:    "/api/inventory/bad-stocks",
     export:               "/api/products/export",
   },
