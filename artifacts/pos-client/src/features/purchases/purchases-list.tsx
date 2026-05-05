@@ -349,10 +349,13 @@ export default function PurchasesList() {
       orderDate: purchase.createdAt || new Date().toISOString(),
       expectedDate: purchase.expectedDate,
       receivedDate: purchase.receivedDate,
+      hasReturn: Array.isArray(purchase.purchaseReturns) && purchase.purchaseReturns.length > 0,
       status:
-        parseFloat(String(purchase.amountPaid || 0)) >= parseFloat(String(purchase.totalAmount || 0)) && parseFloat(String(purchase.totalAmount || 0)) > 0
-          ? "paid"
-          : "unpaid",
+        (Array.isArray(purchase.purchaseReturns) && purchase.purchaseReturns.length > 0)
+          ? "returned"
+          : parseFloat(String(purchase.amountPaid || 0)) >= parseFloat(String(purchase.totalAmount || 0)) && parseFloat(String(purchase.totalAmount || 0)) > 0
+            ? "paid"
+            : "unpaid",
       invoiceNumber: purchase.purchaseNo || purchase._id,
       currency: purchase.shopId?.currency || purchase.currency || "KES",
     }));
@@ -710,9 +713,16 @@ export default function PurchasesList() {
         return "default";
       case "unpaid":
         return "destructive";
+      case "returned":
+        return "outline";
       default:
         return "outline";
     }
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    if (status === "returned") return "text-orange-600 border-orange-300 bg-orange-50";
+    return "";
   };
 
   // Permission check is now handled above
@@ -1082,7 +1092,7 @@ export default function PurchasesList() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono text-xs font-semibold text-gray-800">{shortPurchaseNo(purchase.invoiceNumber)}</span>
-                          <Badge variant={getStatusBadgeVariant(purchase.status)} className="text-xs px-1.5 py-0">{purchase.status}</Badge>
+                          <Badge variant={getStatusBadgeVariant(purchase.status)} className={`text-xs px-1.5 py-0 capitalize ${getStatusBadgeClass(purchase.status)}`}>{purchase.status}</Badge>
                         </div>
                         <p className="text-sm font-medium text-gray-700 mt-0.5 truncate">{purchase.supplierName}</p>
                         <p className="text-xs text-gray-400">{new Date(purchase.orderDate).toLocaleDateString()}</p>
@@ -1206,7 +1216,7 @@ export default function PurchasesList() {
                           <td className="py-2 px-3">
                             <Badge
                               variant={getStatusBadgeVariant(purchase.status)}
-                              className="text-xs"
+                              className={`text-xs capitalize ${getStatusBadgeClass(purchase.status)}`}
                             >
                               {purchase.status}
                             </Badge>
