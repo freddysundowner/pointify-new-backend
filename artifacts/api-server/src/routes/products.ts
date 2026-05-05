@@ -675,6 +675,7 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       supplierId, description, type,
       isTaxable, manageByPrice, expiryDate,
       alertQuantity, reorderLevel,
+      quantity: newQuantityRaw,
       bundleItems: bundleItemsPayload,
     } = req.body;
 
@@ -724,6 +725,28 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       await db.update(inventory)
         .set({ reorderLevel: String(newReorderLevel) })
         .where(and(eq(inventory.product, existing.id), eq(inventory.shop, existing.shop)));
+    }
+
+    // Quantity change — update inventory and record a stock adjustment
+    if (newQuantityRaw !== undefined && newQuantityRaw !== null) {
+      const newQty = Number(newQuantityRaw);
+      const currentQty = Number(existing.quantity ?? 0);
+      if (!isNaN(newQty) && newQty !== currentQty) {
+        const delta = Math.abs(newQty - currentQty);
+        const adjType = newQty > currentQty ? "add" : "remove";
+        await db.update(inventory)
+          .set({ quantity: String(newQty) })
+          .where(and(eq(inventory.product, existing.id), eq(inventory.shop, existing.shop)));
+        await db.insert(adjustments).values({
+          product: existing.id,
+          shop: existing.shop,
+          type: adjType,
+          quantityBefore: String(currentQty),
+          quantityAfter: String(newQty),
+          quantityAdjusted: String(delta),
+          reason: "Updated via product edit form",
+        });
+      }
     }
 
     // Bundle items replacement — if caller sends the array, wipe & re-insert
