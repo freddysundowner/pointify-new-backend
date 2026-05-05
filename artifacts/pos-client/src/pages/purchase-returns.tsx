@@ -147,67 +147,155 @@ export default function PurchaseReturns() {
     try {
       const { jsPDF } = await import("jspdf");
       const doc = new jsPDF();
-      let y = drawShopHeader(doc, shopDetails, "Purchase Returns Report", `Generated ${new Date().toLocaleDateString()}`);
-
-      // Summary line
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Total Returns: ${returns.length}     Total Refunded: ${fmtCurrency(totalReturnAmount)}`, 20, y);
-      y += 10;
+      const PW = 210; // page width mm
+      const ML = 14;  // margin left
+      const MR = 196; // margin right
 
       const refundMethodLabel: Record<string, string> = {
         credit: "Supplier Credit", refund: "Cash Refund", cash: "Cash Refund", exchange: "Exchange Items",
       };
 
-      returns.forEach((r: PurchaseReturn) => {
-        if (y > 250) { doc.addPage(); y = 20; }
+      // ── Helper fns ──────────────────────────────────────────────────────
+      const hline = (yPos: number, r = 0, g = 0, b = 0, lw = 0.2) => {
+        doc.setDrawColor(r, g, b); doc.setLineWidth(lw);
+        doc.line(ML, yPos, MR, yPos);
+      };
+      const cell = (text: string, x: number, yPos: number, w: number, align: "left"|"right"|"center" = "left", fs = 9, bold = false) => {
+        doc.setFontSize(fs);
+        doc.setFont("helvetica", bold ? "bold" : "normal");
+        if (align === "right")        doc.text(text, x + w, yPos, { align: "right" });
+        else if (align === "center")  doc.text(text, x + w / 2, yPos, { align: "center" });
+        else                          doc.text(text, x, yPos);
+      };
+      const checkPage = (yPos: number, needed = 20) => {
+        if (yPos + needed > 278) { doc.addPage(); return ML; }
+        return yPos;
+      };
 
-        // Return header block
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "bold");
-        doc.text(`Return: ${r.returnNo}`, 20, y);
+      // ── Shop header ─────────────────────────────────────────────────────
+      const shop = shopDetails as any;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text((shop?.name || "Shop").toUpperCase(), PW / 2, 18, { align: "center" });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      const addrParts = [shop?.address, shop?.city, shop?.country].filter(Boolean).join(", ");
+      if (addrParts) { doc.text(addrParts, PW / 2, 24, { align: "center" }); }
+      if (shop?.phone) { doc.text(`Tel: ${shop.phone}`, PW / 2, 29, { align: "center" }); }
+
+      let y = addrParts ? (shop?.phone ? 34 : 30) : 26;
+      hline(y, 0, 0, 0, 0.5); y += 7;
+
+      // ── Report title ─────────────────────────────────────────────────────
+      doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+      doc.text("PURCHASE RETURNS REPORT", PW / 2, y, { align: "center" }); y += 6;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(120);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, PW / 2, y, { align: "center" });
+      if (startDate || endDate) {
+        y += 5;
+        doc.text(`Period: ${startDate || "—"}  to  ${endDate || "—"}`, PW / 2, y, { align: "center" });
+      }
+      doc.setTextColor(0); y += 8;
+      hline(y, 180, 180, 180, 0.3); y += 7;
+
+      // ── Summary box ──────────────────────────────────────────────────────
+      doc.setFillColor(245, 247, 250);
+      doc.roundedRect(ML, y - 3, MR - ML, 14, 2, 2, "F");
+      cell("Total Returns", ML + 4, y + 4, 60, "left", 9, false);
+      cell(String(returns.length), ML + 4, y + 9, 60, "left", 11, true);
+      cell("Total Refunded", PW / 2 - 10, y + 4, 60, "left", 9, false);
+      cell(fmtCurrency(totalReturnAmount), PW / 2 - 10, y + 9, 60, "left", 11, true);
+      y += 20;
+
+      // ── Column header for returns table ──────────────────────────────────
+      doc.setFillColor(30, 30, 30);
+      doc.rect(ML, y - 4, MR - ML, 9, "F");
+      doc.setTextColor(255);
+      cell("Return #",     ML + 2,  y + 1, 35, "left",   8, true);
+      cell("Date",         ML + 38, y + 1, 30, "left",   8, true);
+      cell("Processed By", ML + 70, y + 1, 40, "left",   8, true);
+      cell("Method",       ML + 112,y + 1, 40, "left",   8, true);
+      cell("Total",        MR - 14, y + 1, 14, "right",  8, true);
+      doc.setTextColor(0); y += 10;
+
+      // ── Each return ───────────────────────────────────────────────────────
+      returns.forEach((r: PurchaseReturn, idx: number) => {
+        const rowAmount = parseFloat(r.refundAmount) || 0;
+        const items = r.purchaseReturnItems ?? [];
+
+        // Estimate space needed: header row + items + footer
+        const needed = 10 + items.length * 6 + 10;
+        y = checkPage(y, needed);
+
+        // Alternating row background
+        if (idx % 2 === 0) {
+          doc.setFillColor(250, 250, 252);
+          doc.rect(ML, y - 4, MR - ML, 9, "F");
+        }
+
+        // Return summary row
+        doc.setFont("helvetica", "bold"); doc.setFontSize(8.5);
+        doc.text(r.returnNo || `#${r.id}`, ML + 2, y + 1);
         doc.setFont("helvetica", "normal");
-        doc.text(`Date: ${fmtDate(r.createdAt)}`, 90, y);
-        doc.text(`Amount: ${fmtCurrency(parseFloat(r.refundAmount) || 0)}`, 150, y);
-        y += 6;
+        doc.text(fmtDate(r.createdAt),                               ML + 38, y + 1);
+        doc.text(r.processedBy ? `Attendant #${r.processedBy}` : "Admin", ML + 70, y + 1);
+        doc.text(refundMethodLabel[r.refundMethod] ?? r.refundMethod ?? "—", ML + 112, y + 1);
+        doc.setFont("helvetica", "bold");
+        doc.text(fmtCurrency(rowAmount), MR, y + 1, { align: "right" });
+        doc.setFont("helvetica", "normal");
+        y += 8;
 
-        doc.text(`Method: ${refundMethodLabel[r.refundMethod] ?? r.refundMethod ?? "—"}`, 20, y);
-        doc.text(`Processed By: ${r.processedBy ? `Attendant #${r.processedBy}` : "Admin"}`, 90, y);
-        if (r.reason) doc.text(`Reason: ${r.reason.substring(0, 40)}`, 20, y + 5);
-        y += r.reason ? 11 : 7;
+        // Reason (if any)
+        if (r.reason) {
+          doc.setFontSize(7.5); doc.setTextColor(100);
+          doc.text(`Reason: ${r.reason.substring(0, 80)}`, ML + 4, y);
+          doc.setTextColor(0); y += 5;
+        }
 
         // Items sub-table
-        const items = r.purchaseReturnItems ?? [];
         if (items.length > 0) {
-          doc.setFontSize(8);
-          doc.setTextColor(100);
-          doc.text("Product", 25, y);
-          doc.text("Qty", 120, y);
-          doc.text("Unit Price", 140, y);
-          doc.text("Total", 170, y);
+          // Items header
+          doc.setFontSize(7.5); doc.setTextColor(100);
+          doc.text("Product",    ML + 6,   y);
+          doc.text("Qty",        ML + 115, y, { align: "right" });
+          doc.text("Unit Price", ML + 140, y, { align: "right" });
+          doc.text("Line Total", MR,       y, { align: "right" });
           doc.setTextColor(0);
-          y += 5;
+          hline(y + 1.5, 210, 210, 210, 0.2); y += 5;
 
           items.forEach((item: any) => {
-            if (y > 270) { doc.addPage(); y = 20; }
-            const name = (item.productName || `Product #${item.product}`).substring(0, 38);
-            const qty = parseFloat(item.quantity ?? 1);
+            y = checkPage(y, 7);
+            const name = (item.productName || `Product #${item.product}`).substring(0, 45);
+            const qty  = parseFloat(item.quantity ?? 1);
             const unit = parseFloat(item.unitPrice ?? 0);
             doc.setFontSize(8);
-            doc.text(`• ${name}`, 25, y);
-            doc.text(String(qty), 120, y);
-            doc.text(`${currency} ${unit.toFixed(2)}`, 140, y);
-            doc.text(`${currency} ${(qty * unit).toFixed(2)}`, 170, y);
-            y += 5;
+            doc.text(`• ${name}`,                      ML + 6,   y);
+            doc.text(String(qty),                      ML + 115, y, { align: "right" });
+            doc.text(`${currency} ${unit.toFixed(2)}`, ML + 140, y, { align: "right" });
+            doc.text(`${currency} ${(qty * unit).toFixed(2)}`, MR, y, { align: "right" });
+            y += 5.5;
           });
         }
 
-        // Divider between returns
-        y += 3;
-        doc.setDrawColor(200);
-        doc.line(20, y, 190, y);
-        y += 6;
+        // Return subtotal line
+        hline(y, 200, 200, 200, 0.2); y += 4;
+        doc.setFontSize(8); doc.setFont("helvetica", "bold");
+        doc.text("Return Total:", ML + 110, y);
+        doc.text(fmtCurrency(rowAmount), MR, y, { align: "right" });
+        doc.setFont("helvetica", "normal");
+        y += 7;
       });
+
+      // ── Grand total ───────────────────────────────────────────────────────
+      y = checkPage(y, 16);
+      hline(y, 0, 0, 0, 0.5); y += 2;
+      doc.setFillColor(30, 30, 30);
+      doc.rect(ML, y, MR - ML, 10, "F");
+      doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      doc.text("GRAND TOTAL", ML + 4, y + 6.5);
+      doc.text(fmtCurrency(totalReturnAmount), MR - 2, y + 6.5, { align: "right" });
+      doc.setTextColor(0);
 
       doc.save(`purchase-returns-${new Date().toISOString().split("T")[0]}.pdf`);
     } catch (e) {
