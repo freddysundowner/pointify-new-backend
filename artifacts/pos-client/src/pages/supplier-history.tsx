@@ -1,44 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { extractId } from '@/lib/utils';
 import { useSelector } from 'react-redux';
 import type { RootState } from '@/store';
 import { useQuery } from '@tanstack/react-query';
-import { useLocation } from 'wouter';
 import { useGoBack } from "@/hooks/useGoBack";
 import { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
-import { 
-  Calendar, 
-  Download, 
-  Filter, 
-  Search, 
-  Package, 
-  DollarSign, 
-  Receipt,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  CreditCard
+import {
+  ArrowLeft, Download, Search, Package, DollarSign, Receipt,
+  CreditCard, X, ChevronLeft, ChevronRight, MoreVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle 
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { apiRequest } from '@/lib/queryClient';
 import { ENDPOINTS } from '@/lib/api-endpoints';
@@ -47,835 +31,531 @@ import { useToast } from '@/hooks/use-toast';
 interface Purchase {
   _id: string;
   purchaseNo: string;
-  supplier: {
-    _id: string;
-    name: string;
-  };
+  supplier: { _id: string; name: string };
   totalAmount: number;
   amountPaid: number;
+  outstandingBalance?: number;
+  paymentType?: string;
   createdAt: string;
   status: string;
-  items: Array<{
-    product: { name: string };
-    quantity: number;
-    unitPrice: number;
-  }>;
-  payments?: Array<{
-    amount: number;
-    paymentNo: string;
-    date: string;
-    balance: number;
-  }>;
-  shopId: {
-    currency: string;
-  };
+  items: Array<{ product: { name: string }; quantity: number; unitPrice: number }>;
+  payments?: Array<{ amount: number; paymentNo: string; date: string; balance: number }>;
+  shopId: { currency: string };
+}
+
+function fmtAmt(val: number | string | undefined, decimals = 2) {
+  return parseFloat(String(val ?? 0)).toFixed(decimals);
+}
+
+function getPurchaseStatus(p: any): 'paid' | 'credit' {
+  const outstanding = parseFloat(String(p.outstandingBalance ?? 0));
+  if (p.paymentType === 'credit' && outstanding > 0.01) return 'credit';
+  return 'paid';
 }
 
 export default function SupplierHistoryPage() {
-  const [location, navigate] = useLocation();
   const goBack = useGoBack("/suppliers");
   const { toast } = useToast();
-  
-  // Parse supplier ID from URL params
-  const searchParams = new URLSearchParams(window.location.search);
-  const supplierId = searchParams.get('supplierId');
-  const supplierName = decodeURIComponent(searchParams.get('supplierName') || '');
-  
 
-  
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [searchTerm, setSearchTerm] = useState('');
+  const searchParams = new URLSearchParams(window.location.search);
+  const supplierId   = searchParams.get('supplierId');
+  const supplierName = decodeURIComponent(searchParams.get('supplierName') || '');
+
+  const [currentPage, setCurrentPage]   = useState(1);
+  const [searchTerm, setSearchTerm]     = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom]         = useState('');
+  const [dateTo, setDateTo]             = useState('');
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
-  const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = useState(false);
-  
-  // Get shop ID from Redux (respects shop switching) with localStorage fallback
+  const [isPaymentOpen, setIsPaymentOpen]       = useState(false);
+
+  const ITEMS_PER_PAGE = 10;
+
   const { selectedShopId, selectedShopData } = useSelector((state: RootState) => state.shop);
-  const adminData = JSON.parse(localStorage.getItem('adminData') || '{}');
-  const shopId = selectedShopId || String(extractId(adminData?.primaryShop) ?? '');
+  const adminData   = JSON.parse(localStorage.getItem('adminData') || '{}');
+  const shopId      = selectedShopId || String(extractId(adminData?.primaryShop) ?? '');
   const shopCurrency = selectedShopData?.currency || adminData?.primaryShop?.currency || 'KES';
   const shopDetails = useShopDetails(shopId);
 
-  // Fetch purchase analytics for summary cards
+  // Analytics (summary totals)
   const { data: analyticsData } = useQuery({
     queryKey: [ENDPOINTS.purchases.reportFilter, supplierId, dateFrom, dateTo, shopId, statusFilter],
     queryFn: async () => {
       if (!supplierId || !shopId) return null;
-      
-      const params = new URLSearchParams();
-      params.append('shopId', shopId);
-      params.append('supplierId', supplierId);
-      // Always include date parameters, use current date if not set
-      const fromDate = dateFrom || new Date().toISOString().split('T')[0];
-      const toDate = dateTo || new Date().toISOString().split('T')[0];
-      params.append('fromDate', fromDate);
-      params.append('toDate', toDate);
-      
-      // Add status filter to analytics (map to payment type)
-      if (statusFilter !== 'all') {
-        const paymentType = statusFilter === 'paid' ? 'cash' : 'credit';
-        params.append('paymentType', paymentType);
-      }
-      
-      console.log('Analytics API call:', `/api/analysis/report/purchases?${params.toString()}`);
-      
-      const response = await apiRequest('GET', `${ENDPOINTS.purchases.reportFilter}?${params.toString()}`);
-      return await response.json();
-    },
-    enabled: !!supplierId && !!shopId
-  });
-
-  // Fetch supplier purchase history
-  const { data: purchasesData, isLoading, refetch } = useQuery({
-    queryKey: [ENDPOINTS.purchases.getAll, 'supplier-history', supplierId, shopId, currentPage, itemsPerPage, searchTerm, statusFilter, dateFrom, dateTo],
-    queryFn: async () => {
-      if (!supplierId || !shopId) return { data: [], count: 0, totalPages: 0 };
-      
-      const attendantId = adminData?.attendantId?._id || adminData?._id;
-      
-      const params = new URLSearchParams();
-      params.append('shopId', shopId);
-      params.append('supplierId', supplierId);
-      params.append('page', currentPage.toString());
-      params.append('limit', itemsPerPage.toString());
-      params.append('paginated', 'true');
-      
-      if (attendantId) params.append('attendantId', attendantId);
-      if (searchTerm) params.append('purchaseNo', searchTerm); // Filter by purchase number
-      if (statusFilter !== 'all') {
-        // Map status to payment type: paid -> cash, credit -> credit
-        const paymentType = statusFilter === 'paid' ? 'cash' : 'credit';
-        params.append('paymentType', paymentType);
-      }
-      if (dateFrom) params.append('start', dateFrom);
-      if (dateTo) params.append('end', dateTo);
-      
-      const response = await apiRequest('GET', `${ENDPOINTS.purchases.getAll}?${params.toString()}`);
-      const data = await response.json();
-      
-      // Handle different response formats
-      if (Array.isArray(data)) {
-        // Direct array response
-        return {
-          data: data,
-          count: data.length,
-          totalPages: Math.ceil(data.length / itemsPerPage),
-          currentPage: currentPage
-        };
-      } else if (data && data.data) {
-        // Paginated response
-        return data;
-      } else {
-        // Fallback
-        return { data: [], count: 0, totalPages: 0, currentPage: 1 };
-      }
+      const p = new URLSearchParams({ shopId, supplierId });
+      p.append('fromDate', dateFrom || new Date().toISOString().split('T')[0]);
+      p.append('toDate',   dateTo   || new Date().toISOString().split('T')[0]);
+      if (statusFilter !== 'all') p.append('paymentType', statusFilter === 'paid' ? 'cash' : 'credit');
+      const res = await apiRequest('GET', `${ENDPOINTS.purchases.reportFilter}?${p}`);
+      return res.json();
     },
     enabled: !!supplierId && !!shopId,
-    staleTime: 0 // Always fetch fresh data
   });
 
-  // Filter purchases by status (paid/credit)
-  const allPurchases = purchasesData?.data || [];
-  const filteredPurchases = allPurchases.filter((purchase: any) => {
-    if (statusFilter === 'all') return true;
-    
-    const totalAmount = purchase.totalAmount || 0;
-    const amountPaid = purchase.amountPaid || 0;
-    
-    // Check if there are payments and calculate from payment history
-    let finalBalance = totalAmount - amountPaid;
-    
-    // If payments exist, use the last payment's balance
-    if (purchase.payments && purchase.payments.length > 0) {
-      const lastPayment = purchase.payments[purchase.payments.length - 1];
-      finalBalance = lastPayment.balance || 0;
-    }
-    
-    const isPaid = finalBalance <= 0.01; // Allow for small rounding differences
-    
-    if (statusFilter === 'paid') return isPaid;
-    if (statusFilter === 'credit') return !isPaid;
-    
-    return true;
+  // Purchases list
+  const { data: purchasesData, isLoading } = useQuery({
+    queryKey: [ENDPOINTS.purchases.getAll, 'supplier-history', supplierId, shopId, currentPage, ITEMS_PER_PAGE, searchTerm, statusFilter, dateFrom, dateTo],
+    queryFn: async () => {
+      if (!supplierId || !shopId) return { data: [], count: 0, totalPages: 0 };
+      const attendantId = adminData?.attendantId?._id || adminData?._id;
+      const p = new URLSearchParams({ shopId, supplierId, page: currentPage.toString(), limit: ITEMS_PER_PAGE.toString(), paginated: 'true' });
+      if (attendantId)          p.append('attendantId', attendantId);
+      if (searchTerm)           p.append('purchaseNo', searchTerm);
+      if (statusFilter !== 'all') p.append('paymentType', statusFilter === 'paid' ? 'cash' : 'credit');
+      if (dateFrom) p.append('start', dateFrom);
+      if (dateTo)   p.append('end',   dateTo);
+      const res  = await apiRequest('GET', `${ENDPOINTS.purchases.getAll}?${p}`);
+      const data = await res.json();
+      if (Array.isArray(data)) return { data, count: data.length, totalPages: Math.ceil(data.length / ITEMS_PER_PAGE) };
+      return data?.data ? data : { data: [], count: 0, totalPages: 0 };
+    },
+    enabled: !!supplierId && !!shopId,
+    staleTime: 0,
   });
 
-  // Apply pagination to filtered results
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const purchases = filteredPurchases.slice(startIndex, endIndex);
-  const totalPages = Math.ceil(filteredPurchases.length / itemsPerPage) || 1;
-  const totalCount = filteredPurchases.length;
-  
+  const purchases  = purchasesData?.data || [];
+  const totalPages = purchasesData?.meta?.totalPages ?? purchasesData?.totalPages ?? 1;
+  const totalCount = purchasesData?.meta?.total ?? purchasesData?.count ?? purchases.length;
 
+  // Analytics KPIs
+  const allPurchaseData  = purchasesData?.data || [];
+  const fallbackTotal    = allPurchaseData.reduce((s: number, p: any) => s + (p.totalAmount || 0), 0);
+  const fallbackPaid     = allPurchaseData.reduce((s: number, p: any) => s + (p.amountPaid  || 0), 0);
+  const totalAmount      = analyticsData?.totalpurchases ?? fallbackTotal;
+  const totalPaid        = analyticsData?.paid           ?? fallbackPaid;
+  const totalOutstanding = analyticsData?.credit         ?? (fallbackTotal - fallbackPaid);
 
-  // Calculate summary statistics - use analytics if available, otherwise use purchase totals
-  const allPurchaseData = purchasesData?.data || [];
-  const purchaseTotalAmount = allPurchaseData.reduce((sum: number, purchase: Purchase) => sum + (purchase.totalAmount || 0), 0);
-  const purchaseTotalPaid = allPurchaseData.reduce((sum: number, purchase: Purchase) => sum + (purchase.amountPaid || 0), 0);
-  
-  // Use analytics data if available, otherwise fall back to calculated purchase data
-  const totalAmount = analyticsData?.totalpurchases ?? purchaseTotalAmount;
-  const totalPaid = analyticsData?.paid ?? purchaseTotalPaid;
-  const totalOutstanding = analyticsData?.credit ?? (purchaseTotalAmount - purchaseTotalPaid);
+  const hasFilters = !!(searchTerm || statusFilter !== 'all' || dateFrom || dateTo);
+  const clearFilters = () => { setSearchTerm(''); setStatusFilter('all'); setDateFrom(''); setDateTo(''); setCurrentPage(1); };
 
+  // ── Download statement ──────────────────────────────────────────────────────
   const handleDownloadStatement = () => {
     try {
-      console.log('Starting PDF download...');
-      
-      // Use the already fetched data to generate the PDF
       const statementPurchases = purchasesData?.data || [];
-      console.log('Statement purchases data:', statementPurchases);
-      console.log('Total amount:', totalAmount);
-      console.log('Total outstanding:', totalOutstanding);
-      
-      const doc = new jsPDF();
-      let headerY = drawShopHeader(doc, shopDetails, "Supplier Statement", `Statement Date: ${new Date().toLocaleDateString()}`);
-      
-      // Supplier information section
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text('SUPPLIER DETAILS', 20, headerY);
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Name: ${supplierName || 'Supplier'}`, 20, headerY + 6);
-      doc.text(`Period: ${dateFrom || new Date().toISOString().split('T')[0]} – ${dateTo || new Date().toISOString().split('T')[0]}`, 20, headerY + 12);
-      doc.text(`Currency: ${shopCurrency}  |  Total Orders: ${statementPurchases.length}`, 20, headerY + 18);
-      headerY += 26;
-      
-      // Financial Summary section
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Total Amount: ${shopCurrency} ${(totalAmount || 0).toFixed(2)}   Paid: ${shopCurrency} ${(totalPaid || 0).toFixed(2)}   Outstanding: ${shopCurrency} ${(totalOutstanding || 0).toFixed(2)}   Status: ${(totalOutstanding || 0) > 0.01 ? 'PENDING PAYMENT' : 'FULLY PAID'}`, 20, headerY);
-      headerY += 6;
-      
-      // Table data
+      const doc  = new jsPDF();
+      let   hY   = drawShopHeader(doc, shopDetails, "Supplier Statement", `Statement Date: ${new Date().toLocaleDateString()}`);
+
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+      doc.text(`Supplier: ${supplierName || 'Supplier'}   Period: ${dateFrom || '—'}  to  ${dateTo || '—'}`, 20, hY); hY += 6;
+      doc.text(`Total Amount: ${shopCurrency} ${fmtAmt(totalAmount)}   Paid: ${shopCurrency} ${fmtAmt(totalPaid)}   Outstanding: ${shopCurrency} ${fmtAmt(totalOutstanding)}`, 20, hY); hY += 6;
+
       if (statementPurchases.length > 0) {
-        console.log('Processing table data...');
-        const tableData = statementPurchases.map((purchase: any) => {
-          const purchaseTotal = purchase.totalAmount || 0;
-          const amountPaid = purchase.amountPaid || 0;
-          let finalBalance = purchaseTotal - amountPaid;
-          
-          // Use last payment balance if available
-          if (purchase.payments && purchase.payments.length > 0) {
-            const lastPayment = purchase.payments[purchase.payments.length - 1];
-            finalBalance = lastPayment.balance || 0;
-          }
-          
-          const isPaid = finalBalance <= 0.01;
-          
-          return [
-            purchase.purchaseNo || '',
-            new Date(purchase.createdAt).toLocaleDateString(),
-            `${shopCurrency} ${purchaseTotal.toFixed(2)}`,
-            `${shopCurrency} ${amountPaid.toFixed(2)}`,
-            `${shopCurrency} ${finalBalance.toFixed(2)}`,
-            isPaid ? 'Paid' : 'Credit'
-          ];
+        autoTable(doc, {
+          head: [['Purchase No', 'Date', 'Total', 'Paid', 'Outstanding', 'Status']],
+          body: statementPurchases.map((p: any) => {
+            const outstanding = parseFloat(String(p.outstandingBalance ?? 0));
+            return [
+              p.purchaseNo || '',
+              new Date(p.createdAt).toLocaleDateString(),
+              `${shopCurrency} ${fmtAmt(p.totalAmount)}`,
+              `${shopCurrency} ${fmtAmt(p.amountPaid)}`,
+              `${shopCurrency} ${fmtAmt(outstanding)}`,
+              getPurchaseStatus(p) === 'paid' ? 'Paid' : 'Credit',
+            ];
+          }),
+          startY: hY,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [76, 29, 149] },
+          columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
         });
-        
-        console.log('Table data prepared:', tableData);
-        
-        // Use imported autoTable
-        if (true) {
-          autoTable(doc, {
-            head: [['Purchase No', 'Date', 'Total Amount', 'Amount Paid', 'Outstanding', 'Status']],
-            body: tableData,
-            startY: headerY,
-            styles: { fontSize: 8 },
-            headStyles: { fillColor: [66, 139, 202] },
-            columnStyles: {
-              2: { halign: 'right' },
-              3: { halign: 'right' },
-              4: { halign: 'right' }
-            }
-          });
-        } else {
-          // Fallback to manual table creation
-          console.log('autoTable not available, using manual table creation');
-          let yPosition = 125;
-          
-          // Table title
-          doc.setFontSize(12);
-          doc.setFont('helvetica', 'bold');
-          doc.text('PURCHASE TRANSACTIONS', 20, yPosition);
-          yPosition += 10;
-          
-          // Table header background
-          doc.setFillColor(66, 139, 202);
-          doc.rect(20, yPosition - 5, 170, 10, 'F');
-          
-          // Table headers
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(255, 255, 255); // White text for header
-          doc.text('Purchase No', 22, yPosition + 2);
-          doc.text('Date', 62, yPosition + 2);
-          doc.text('Total Amount', 102, yPosition + 2);
-          doc.text('Amount Paid', 132, yPosition + 2);
-          doc.text('Outstanding', 162, yPosition + 2);
-          doc.text('Status', 192, yPosition + 2);
-          
-          yPosition += 15;
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(0, 0, 0); // Black text for data rows
-          
-          // Table rows
-          tableData.forEach((row: string[]) => {
-            if (yPosition > 270) { // Add new page if needed
-              doc.addPage();
-              yPosition = 20;
-            }
-            
-            doc.text(row[0], 20, yPosition); // Purchase No
-            doc.text(row[1], 60, yPosition); // Date
-            doc.text(row[2], 100, yPosition); // Total Amount
-            doc.text(row[3], 130, yPosition); // Amount Paid
-            doc.text(row[4], 160, yPosition); // Outstanding
-            doc.text(row[5], 190, yPosition); // Status
-            
-            yPosition += 8;
-          });
-          
-          // Add Payment History section if there are payments
-          const allPayments = statementPurchases.flatMap((purchase: any) => 
-            (purchase.payments || []).map((payment: any) => ({
-              ...payment,
-              purchaseNo: purchase.purchaseNo
-            }))
-          );
-          
-          if (allPayments.length > 0) {
-            yPosition += 20; // Add some space
-            
-            if (yPosition > 250) { // Add new page if needed
-              doc.addPage();
-              yPosition = 20;
-            }
-            
-            // Payment History title
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'bold');
-            doc.text('PAYMENT HISTORY', 20, yPosition);
-            yPosition += 10;
-            
-            // Payment history header background
-            doc.setFillColor(34, 139, 34); // Green background
-            doc.rect(20, yPosition - 5, 170, 10, 'F');
-            
-            // Payment history headers
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(255, 255, 255); // White text for header
-            doc.text('Receipt No', 22, yPosition + 2);
-            doc.text('Purchase No', 62, yPosition + 2);
-            doc.text('Date', 102, yPosition + 2);
-            doc.text('Amount', 132, yPosition + 2);
-            doc.text('Balance', 162, yPosition + 2);
-            
-            yPosition += 15;
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            doc.setTextColor(0, 0, 0); // Black text for data rows
-            
-            // Sort payments by date
-            allPayments.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-            
-            // Payment history rows
-            allPayments.forEach((payment: any) => {
-              if (yPosition > 270) { // Add new page if needed
-                doc.addPage();
-                yPosition = 20;
-              }
-              
-              doc.text(payment.paymentNo || '', 20, yPosition);
-              doc.text(payment.purchaseNo || '', 60, yPosition);
-              doc.text(new Date(payment.date).toLocaleDateString(), 100, yPosition);
-              doc.text(`${shopCurrency} ${payment.amount.toFixed(2)}`, 130, yPosition);
-              doc.text(`${shopCurrency} ${payment.balance.toFixed(2)}`, 160, yPosition);
-              
-              yPosition += 8;
-            });
-          }
-        }
       }
-      
-      console.log('Saving PDF...');
-      const fileName = `${(supplierName || 'Supplier').replace(/[^a-zA-Z0-9]/g, '_')}_Statement.pdf`;
-      doc.save(fileName);
-      
-      console.log('PDF saved successfully');
-      toast({
-        title: "Success",
-        description: "Statement downloaded as PDF successfully",
-      });
-    } catch (error) {
-      console.error('Error downloading statement PDF:', error);
-      toast({
-        title: "Error",
-        description: `Failed to download statement PDF: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive",
-      });
+
+      doc.save(`${(supplierName || 'Supplier').replace(/[^a-zA-Z0-9]/g, '_')}_Statement.pdf`);
+      toast({ title: "Statement downloaded" });
+    } catch (err: any) {
+      toast({ title: "Failed to download", description: err.message, variant: "destructive" });
     }
   };
 
+  // ── Download payment history PDF ────────────────────────────────────────────
   const handleDownloadPaymentHistory = (purchaseId: string) => {
     try {
-      // Find the purchase in already fetched data
-      const paymentPurchases = purchasesData?.data || [];
-      const purchase = paymentPurchases.find((p: any) => p._id === purchaseId);
-      
-      if (!purchase) {
-        toast({
-          title: "Error",
-          description: "Purchase not found",
-          variant: "destructive",
-        });
-        return;
-      }
+      const purchase = (purchasesData?.data || []).find((p: any) => p._id === purchaseId);
+      if (!purchase) return;
 
-      const totalAmount = purchase.totalAmount || 0;
-      const amountPaid = purchase.amountPaid || 0;
-      let finalBalance = totalAmount - amountPaid;
-      
-      // Use last payment balance if available
-      if (purchase.payments && purchase.payments.length > 0) {
-        const lastPayment = purchase.payments[purchase.payments.length - 1];
-        finalBalance = lastPayment.balance || 0;
-      }
-      
       const doc = new jsPDF();
-      const pw = doc.internal.pageSize.width;
-      
-      let phY = drawShopHeader(doc, shopDetails, "Payment History Report", `Generated: ${new Date().toLocaleDateString()}`);
-      
-      // Purchase details
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
+      let   phY = drawShopHeader(doc, shopDetails, "Payment History Report", `Generated: ${new Date().toLocaleDateString()}`);
+
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal');
       doc.text(`Purchase No: ${purchase.purchaseNo}   Supplier: ${purchase.supplier?.name || 'N/A'}`, 20, phY); phY += 5;
-      doc.text(`Total: ${shopCurrency} ${totalAmount.toFixed(2)}   Paid: ${shopCurrency} ${amountPaid.toFixed(2)}   Outstanding: ${shopCurrency} ${finalBalance.toFixed(2)}`, 20, phY); phY += 6;
-      
-      // Payment history table
-      if (purchase.payments && purchase.payments.length > 0) {
-        const tableData = purchase.payments.map((payment: any) => [
-          payment.paymentNo || `REC${Date.now()}`,
-          new Date(payment.date).toLocaleDateString(),
-          `${shopCurrency} ${(payment.amount || 0).toFixed(2)}`,
-          `${shopCurrency} ${(payment.balance || 0).toFixed(2)}`
-        ]);
-        
+      doc.text(`Total: ${shopCurrency} ${fmtAmt(purchase.totalAmount)}   Paid: ${shopCurrency} ${fmtAmt(purchase.amountPaid)}`, 20, phY); phY += 6;
+
+      if (purchase.payments?.length) {
         autoTable(doc, {
           head: [['Payment No', 'Date', 'Amount', 'Balance After']],
-          body: tableData,
+          body: purchase.payments.map((pay: any) => [
+            pay.paymentNo || '',
+            new Date(pay.date).toLocaleDateString(),
+            `${shopCurrency} ${fmtAmt(pay.amount)}`,
+            `${shopCurrency} ${fmtAmt(pay.balance)}`,
+          ]),
           startY: phY,
           styles: { fontSize: 8 },
-          headStyles: { fillColor: [66, 139, 202] },
-          columnStyles: {
-            2: { halign: 'right' },
-            3: { halign: 'right' }
-          }
+          headStyles: { fillColor: [76, 29, 149] },
+          columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' } },
         });
       }
-      
+
       doc.save(`Purchase_${purchase.purchaseNo}_Payment_History.pdf`);
-      
-      toast({
-        title: "Success",
-        description: "Payment history downloaded successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to download payment history",
-        variant: "destructive",
-      });
+      toast({ title: "Payment history downloaded" });
+    } catch {
+      toast({ title: "Failed to download", variant: "destructive" });
     }
   };
 
-  const viewPaymentHistory = (purchase: Purchase) => {
-    setSelectedPurchase(purchase);
-    setIsPaymentHistoryOpen(true);
-  };
+  const viewPayments = (purchase: Purchase) => { setSelectedPurchase(purchase); setIsPaymentOpen(true); };
 
   if (!supplierId) {
     return (
       <DashboardLayout title="Supplier History">
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">No supplier selected</p>
-          <Button onClick={goBack} className="mt-4">
-            Back to Suppliers
-          </Button>
+        <div className="py-16 text-center">
+          <p className="text-muted-foreground mb-4">No supplier selected</p>
+          <Button onClick={goBack}>Back to Suppliers</Button>
         </div>
       </DashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout title={`Purchase History - ${supplierName}`}>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <Button 
-            variant="outline" 
-            onClick={goBack}
-            className="flex items-center gap-2"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Back to Suppliers
-          </Button>
-          <Button onClick={handleDownloadStatement} className="flex items-center gap-2">
-            <Download className="h-4 w-4" />
-            Download Statement
-          </Button>
-        </div>
+    <DashboardLayout title={`History – ${supplierName}`}>
+      <div className="-mx-4 -mt-4 lg:-mx-6 lg:-mt-6">
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <Package className="h-4 w-4 text-blue-600" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Orders</p>
-                  <p className="text-2xl font-bold">{totalCount}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-green-600" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Amount</p>
-                  <p className="text-2xl font-bold">{shopCurrency} {totalAmount.toFixed(2)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-purple-600" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Amount Paid</p>
-                  <p className="text-2xl font-bold">{shopCurrency} {totalPaid.toFixed(2)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <Receipt className="h-4 w-4 text-red-600" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Outstanding</p>
-                  <p className="text-2xl font-bold text-red-600">{shopCurrency} {totalOutstanding.toFixed(2)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by purchase number..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="credit">Credit</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                type="date"
-                placeholder="From date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-              />
-              <Input
-                type="date"
-                placeholder="To date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-              />
-              <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(Number(value))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5 per page</SelectItem>
-                  <SelectItem value="10">10 per page</SelectItem>
-                  <SelectItem value="20">20 per page</SelectItem>
-                  <SelectItem value="50">50 per page</SelectItem>
-                </SelectContent>
-              </Select>
+        {/* ── Sticky header ──────────────────────────────────────────────────── */}
+        <div className="sticky top-0 z-20 bg-white border-b shadow-sm">
+          <div className="px-3 sm:px-4 py-2.5 flex items-center gap-2">
+            <button onClick={goBack} className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 truncate">{supplierName}</p>
+              <p className="text-xs text-muted-foreground hidden sm:block">Purchase History</p>
             </div>
-          </CardContent>
-        </Card>
+            <Button size="sm" variant="outline" className="h-9 gap-1.5 shrink-0" onClick={handleDownloadStatement}>
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Statement</span>
+            </Button>
+          </div>
 
-        {/* Purchase History Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Purchase History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">Loading purchase history...</p>
-              </div>
-            ) : purchases.length === 0 ? (
-              <div className="text-center py-8">
-                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No purchases found</p>
-              </div>
-            ) : (
-              <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Purchase No</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Items</TableHead>
-                      <TableHead>Total Amount</TableHead>
-                      <TableHead>Amount Paid</TableHead>
-                      <TableHead>Outstanding</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {purchases.map((purchase: Purchase) => (
-                      <TableRow key={purchase._id}>
-                        <TableCell className="font-medium">
-                          {purchase.purchaseNo || `P-${purchase._id.slice(-6)}`}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(purchase.createdAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          <div className="max-w-xs">
-                            {purchase.items && purchase.items.length > 0 ? (
-                              <div className="space-y-1">
-                                {purchase.items.slice(0, 2).map((item, index) => (
-                                  <div key={index} className="text-sm">
-                                    {item.product?.name || 'Unknown Product'} 
-                                    <span className="text-muted-foreground"> x{item.quantity}</span>
-                                  </div>
-                                ))}
-                                {purchase.items.length > 2 && (
-                                  <p className="text-xs text-muted-foreground">
-                                    +{purchase.items.length - 2} more items
-                                  </p>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">No items</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-medium">
-                            {shopCurrency} {purchase.totalAmount?.toFixed(2) || '0.00'}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {shopCurrency} {purchase.amountPaid?.toFixed(2) || '0.00'}
-                        </TableCell>
-                        <TableCell>
-                          {(() => {
-                            // Use the outstandingBalance key directly
-                            const outstandingBalance = (purchase as any).outstandingBalance || 0;
-                            
-                            return (
-                              <span className={`font-medium ${
-                                outstandingBalance > 0 ? 'text-red-600' : 'text-green-600'
-                              }`}>
-                                {shopCurrency} {outstandingBalance.toFixed(2)}
-                              </span>
-                            );
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          {(() => {
-                            // First check if paymentType is credit
-                            if ((purchase as any).paymentType === 'credit') {
-                              // Use the outstandingBalance key directly
-                              const outstandingBalance = (purchase as any).outstandingBalance || 0;
-                              
-                              // Credit purchase is "Paid" only if outstanding balance is 0 or negative
-                              const isPaid = outstandingBalance <= 0.01;
-                              
-                              return (
-                                <Badge variant={isPaid ? 'default' : 'secondary'}>
-                                  {isPaid ? 'Paid' : 'Credit'}
-                                </Badge>
-                              );
-                            } else {
-                              // For cash purchases, always show as "Paid"
-                              return (
-                                <Badge variant="default">
-                                  Paid
-                                </Badge>
-                              );
-                            }
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => viewPaymentHistory(purchase)}
-                            >
-                              <Receipt className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDownloadPaymentHistory(purchase._id)}
-                            >
-                              <Download className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-
-                {/* Pagination */}
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} entries
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Previous
-                    </Button>
-                    <span className="text-sm">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </>
+          {/* Filter row */}
+          <div className="px-3 sm:px-4 pb-2.5 flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[140px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Purchase no…"
+                value={searchTerm}
+                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                className="pl-8 h-8 text-xs"
+              />
+              {searchTerm && (
+                <button onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setCurrentPage(1); }}>
+              <SelectTrigger className="h-8 text-xs w-28">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="credit">Credit</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setCurrentPage(1); }}
+              className="h-8 text-xs w-32" />
+            <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setCurrentPage(1); }}
+              className="h-8 text-xs w-32" />
+            {hasFilters && (
+              <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                <X className="h-3 w-3" />Clear
+              </button>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Payment History Dialog */}
-        <Dialog open={isPaymentHistoryOpen} onOpenChange={setIsPaymentHistoryOpen}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Receipt className="h-5 w-5" />
-                Payment History - {selectedPurchase?.purchaseNo || `P-${selectedPurchase?._id.slice(-6)}`}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              {selectedPurchase?.payments && selectedPurchase.payments.length > 0 ? (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Amount</p>
-                      <p className="text-lg font-bold">
-                        {selectedPurchase.shopId?.currency || shopCurrency} {parseFloat(String(selectedPurchase.totalAmount || 0)).toFixed(2)}
-                      </p>
+        {/* ── KPI strip ──────────────────────────────────────────────────────── */}
+        <div className="px-3 sm:px-4 py-2.5 flex gap-2 sm:gap-4 border-b bg-gray-50/60 overflow-x-auto">
+          {[
+            { icon: Package,     label: 'Orders',      value: String(totalCount),                              color: 'text-blue-600'   },
+            { icon: DollarSign,  label: 'Total',        value: `${shopCurrency} ${fmtAmt(totalAmount)}`,        color: 'text-gray-900'   },
+            { icon: CreditCard,  label: 'Paid',         value: `${shopCurrency} ${fmtAmt(totalPaid)}`,          color: 'text-green-600'  },
+            { icon: Receipt,     label: 'Outstanding',  value: `${shopCurrency} ${fmtAmt(totalOutstanding)}`,   color: 'text-red-600'    },
+          ].map(({ icon: Icon, label, value, color }) => (
+            <div key={label} className="flex items-center gap-1.5 shrink-0">
+              <Icon className={`h-3.5 w-3.5 ${color} shrink-0`} />
+              <div>
+                <p className="text-[10px] text-muted-foreground leading-none">{label}</p>
+                <p className={`text-xs font-semibold ${color} leading-tight mt-0.5`}>{value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Content ────────────────────────────────────────────────────────── */}
+        <div className="px-3 sm:px-4 py-3 pb-24 lg:pb-6">
+          {isLoading ? (
+            <div className="py-16 text-center text-sm text-muted-foreground">Loading purchases…</div>
+          ) : purchases.length === 0 ? (
+            <div className="py-16 text-center">
+              <Package className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+              <p className="text-sm text-muted-foreground">No purchases found</p>
+            </div>
+          ) : (
+            <>
+              {/* ── Mobile cards ─────────────────────────────────────────── */}
+              <div className="sm:hidden space-y-2">
+                {purchases.map((p: any) => {
+                  const outstanding = parseFloat(String(p.outstandingBalance ?? 0));
+                  const status      = getPurchaseStatus(p);
+                  const itemCount   = p.items?.length ?? 0;
+                  return (
+                    <div key={p._id} className="bg-white rounded-xl border border-gray-100 shadow-sm">
+                      <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900">{p.purchaseNo || `P-${p._id.slice(-6)}`}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {new Date(p.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {itemCount > 0 && ` · ${itemCount} item${itemCount !== 1 ? 's' : ''}`}
+                          </p>
+                          {p.items?.slice(0, 2).map((it: any, i: number) => (
+                            <p key={i} className="text-xs text-gray-500 truncate max-w-[200px]">
+                              {it.product?.name || 'Item'} ×{it.quantity}
+                            </p>
+                          ))}
+                        </div>
+                        <div className="shrink-0 text-right space-y-1">
+                          <Badge variant={status === 'paid' ? 'default' : 'secondary'}
+                            className={`text-[10px] px-1.5 py-0.5 ${status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                            {status === 'paid' ? 'Paid' : 'Credit'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="px-3 pb-2.5 flex items-center justify-between border-t border-gray-50 pt-2 gap-2">
+                        <div className="flex gap-4">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Total</p>
+                            <p className="text-xs font-semibold">{shopCurrency} {fmtAmt(p.totalAmount)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Paid</p>
+                            <p className="text-xs font-semibold text-green-600">{shopCurrency} {fmtAmt(p.amountPaid)}</p>
+                          </div>
+                          {outstanding > 0 && (
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">Owed</p>
+                              <p className="text-xs font-semibold text-red-600">{shopCurrency} {fmtAmt(outstanding)}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => viewPayments(p)}
+                            className="h-7 w-7 p-0 text-gray-400 hover:text-gray-700">
+                            <Receipt className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDownloadPaymentHistory(p._id)}
+                            className="h-7 w-7 p-0 text-gray-400 hover:text-purple-600">
+                            <Download className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Outstanding Balance</p>
-                      <p className="text-lg font-bold text-red-600">
-                        {selectedPurchase.shopId?.currency || shopCurrency} {(parseFloat(String(selectedPurchase.totalAmount || 0)) - parseFloat(String(selectedPurchase.amountPaid || 0))).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Payment No</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Balance After</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedPurchase.payments.map((payment, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">{payment.paymentNo}</TableCell>
-                          <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            {selectedPurchase.shopId?.currency || shopCurrency} {parseFloat(String(payment.amount || 0)).toFixed(2)}
-                          </TableCell>
-                          <TableCell>
-                            {selectedPurchase.shopId?.currency || shopCurrency} {parseFloat(String(payment.balance || 0)).toFixed(2)}
-                          </TableCell>
-                        </TableRow>
+                  );
+                })}
+              </div>
+
+              {/* ── Desktop table ─────────────────────────────────────────── */}
+              <div className="hidden sm:block rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/40 border-b">
+                      {['Purchase No', 'Date', 'Items', 'Total', 'Paid', 'Outstanding', 'Status', ''].map(h => (
+                        <th key={h} className={`px-3 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide ${
+                          ['Total','Paid','Outstanding'].includes(h) ? 'text-right' : h === '' ? '' : 'text-left'
+                        }`}>{h}</th>
                       ))}
-                    </TableBody>
-                  </Table>
-                </>
-              ) : (
-                <div className="text-center py-8">
-                  <Receipt className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No payments recorded for this purchase</p>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {purchases.map((p: any) => {
+                      const outstanding = parseFloat(String(p.outstandingBalance ?? 0));
+                      const status      = getPurchaseStatus(p);
+                      return (
+                        <tr key={p._id} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-3 py-2.5 font-medium text-gray-900">
+                            {p.purchaseNo || `P-${p._id.slice(-6)}`}
+                          </td>
+                          <td className="px-3 py-2.5 text-muted-foreground text-xs">
+                            {new Date(p.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {p.items?.length > 0 ? (
+                              <div className="space-y-0.5 max-w-[180px]">
+                                {p.items.slice(0, 2).map((it: any, i: number) => (
+                                  <p key={i} className="text-xs text-gray-600 truncate">{it.product?.name || 'Item'} ×{it.quantity}</p>
+                                ))}
+                                {p.items.length > 2 && <p className="text-xs text-muted-foreground">+{p.items.length - 2} more</p>}
+                              </div>
+                            ) : <span className="text-xs text-muted-foreground">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-medium">{shopCurrency} {fmtAmt(p.totalAmount)}</td>
+                          <td className="px-3 py-2.5 text-right text-green-700">{shopCurrency} {fmtAmt(p.amountPaid)}</td>
+                          <td className="px-3 py-2.5 text-right">
+                            <span className={outstanding > 0 ? 'text-red-600 font-medium' : 'text-muted-foreground text-xs'}>
+                              {shopCurrency} {fmtAmt(outstanding)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <Badge variant="secondary"
+                              className={`text-[10px] px-1.5 py-0.5 ${status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                              {status === 'paid' ? 'Paid' : 'Credit'}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                  <MoreVertical className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="text-sm">
+                                <DropdownMenuItem onClick={() => viewPayments(p)}>
+                                  <Receipt className="h-3.5 w-3.5 mr-2" />Payment History
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDownloadPaymentHistory(p._id)}>
+                                  <Download className="h-3.5 w-3.5 mr-2" />Download Receipt
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {/* Table footer */}
+                <div className="px-4 py-2 bg-muted/20 border-t flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>{totalCount} purchase{totalCount !== 1 ? 's' : ''}{totalPages > 1 && ` · page ${currentPage} of ${totalPages}`}</span>
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="sm" className="h-7 px-2 text-xs"
+                        disabled={currentPage <= 1} onClick={() => setCurrentPage(p => p - 1)}>
+                        ← Prev
+                      </Button>
+                      {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                        const pg = totalPages <= 7 ? i + 1
+                          : currentPage <= 4 ? i + 1
+                          : currentPage >= totalPages - 3 ? totalPages - 6 + i
+                          : currentPage - 3 + i;
+                        return (
+                          <Button key={pg} variant={pg === currentPage ? 'default' : 'outline'} size="sm"
+                            className={`h-7 w-7 p-0 text-xs ${pg === currentPage ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                            onClick={() => setCurrentPage(pg)}>
+                            {pg}
+                          </Button>
+                        );
+                      })}
+                      <Button variant="outline" size="sm" className="h-7 px-2 text-xs"
+                        disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                        Next →
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Mobile pagination */}
+              {totalPages > 1 && (
+                <div className="sm:hidden flex items-center justify-between mt-3 px-1">
+                  <Button variant="outline" size="sm" className="h-8 px-3 text-xs"
+                    disabled={currentPage <= 1} onClick={() => setCurrentPage(p => p - 1)}>
+                    <ChevronLeft className="h-3.5 w-3.5 mr-1" />Prev
+                  </Button>
+                  <span className="text-xs text-muted-foreground">{currentPage} / {totalPages}</span>
+                  <Button variant="outline" size="sm" className="h-8 px-3 text-xs"
+                    disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                    Next<ChevronRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
                 </div>
               )}
-              
-              <div className="flex justify-between pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => selectedPurchase && handleDownloadPaymentHistory(selectedPurchase._id)}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Payment History
-                </Button>
-                <Button onClick={() => setIsPaymentHistoryOpen(false)}>
-                  Close
-                </Button>
+            </>
+          )}
+        </div>
+
+        {/* ── Payment History Dialog ──────────────────────────────────────────── */}
+        <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <Receipt className="h-4 w-4" />
+                Payments — {selectedPurchase?.purchaseNo || `P-${selectedPurchase?._id.slice(-6)}`}
+              </DialogTitle>
+            </DialogHeader>
+            {selectedPurchase && (
+              <div className="space-y-3">
+                {/* Mini summary */}
+                <div className="grid grid-cols-3 gap-2 text-center rounded-lg bg-muted/40 px-3 py-2">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Total</p>
+                    <p className="text-sm font-semibold">{shopCurrency} {fmtAmt(selectedPurchase.totalAmount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Paid</p>
+                    <p className="text-sm font-semibold text-green-600">{shopCurrency} {fmtAmt(selectedPurchase.amountPaid)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Owed</p>
+                    <p className="text-sm font-semibold text-red-600">
+                      {shopCurrency} {fmtAmt((selectedPurchase.totalAmount || 0) - (selectedPurchase.amountPaid || 0))}
+                    </p>
+                  </div>
+                </div>
+
+                {selectedPurchase.payments?.length ? (
+                  <div className="rounded-lg border overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-muted/40 border-b">
+                          <th className="text-left px-3 py-2 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Payment No</th>
+                          <th className="text-left px-3 py-2 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Date</th>
+                          <th className="text-right px-3 py-2 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Amount</th>
+                          <th className="text-right px-3 py-2 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Balance After</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {selectedPurchase.payments.map((pay, i) => (
+                          <tr key={i} className="hover:bg-muted/20">
+                            <td className="px-3 py-2 font-medium">{pay.paymentNo || `—`}</td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {new Date(pay.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </td>
+                            <td className="px-3 py-2 text-right text-green-700 font-medium">{shopCurrency} {fmtAmt(pay.amount)}</td>
+                            <td className="px-3 py-2 text-right">{shopCurrency} {fmtAmt(pay.balance)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <Receipt className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">No payments recorded</p>
+                  </div>
+                )}
+
+                <div className="flex justify-between pt-1">
+                  <Button variant="outline" size="sm" onClick={() => handleDownloadPaymentHistory(selectedPurchase._id)}>
+                    <Download className="h-3.5 w-3.5 mr-1.5" />Download
+                  </Button>
+                  <Button size="sm" onClick={() => setIsPaymentOpen(false)}>Close</Button>
+                </div>
               </div>
-            </div>
+            )}
           </DialogContent>
         </Dialog>
+
       </div>
     </DashboardLayout>
   );
