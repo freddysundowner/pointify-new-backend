@@ -1,11 +1,11 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, Plus, Trash2, Package, Search, ShoppingCart, X } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, Package, Search, ShoppingCart, X, CalendarDays, FileText, Truck, User } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -23,9 +23,9 @@ import { useShop } from "@/features/shop/useShop";
 
 export default function CreatePurchase() {
   const [location, setLocation] = useLocation();
-  const { admin, isAuthenticated } = useAuth();
+  const { admin } = useAuth();
   const currency = useSelector((state: RootState) => state.currency) as string;
-  const { attendantId, shopId } = usePrimaryShop();
+  const { shopId } = usePrimaryShop();
   const { shop } = useShop();
   const isAttendant = location.startsWith("/attendant/");
 
@@ -39,7 +39,6 @@ export default function CreatePurchase() {
   });
 
   const { products: contextProducts, isLoading: productsLoading } = useProducts();
-
   const suppliers = normalizeIds((suppliersResponse as any)?.data || []);
   const products = contextProducts || [];
 
@@ -66,7 +65,6 @@ export default function CreatePurchase() {
     if (shop?.trackBatches !== undefined) setTrackBatches(shop.trackBatches);
   }, [shop?.trackBatches]);
 
-  // Auto-focus search input when overlay opens
   useEffect(() => {
     if (productSearchOpen) {
       setTimeout(() => searchInputRef.current?.focus(), 80);
@@ -91,16 +89,15 @@ export default function CreatePurchase() {
       newItems[existingIndex].totalCost = newItems[existingIndex].quantity * newItems[existingIndex].unitCost;
       setItems(newItems);
     } else {
-      const newItem: PurchaseItem & { sellingPrice?: number } = {
+      const unitCost = parseFloat(String(product.buyingPrice || 0));
+      setItems([...items, {
+        productId: product._id || product.id,
         productName: product.name || product.title,
         quantity: 1,
-        unitCost: parseFloat(String(product.buyingPrice || 0)),
-        totalCost: parseFloat(String(product.buyingPrice || 0)),
-        sellingPrice: parseFloat(String(product.sellingPrice || 0)),
-      };
-      setItems([...items, newItem]);
+        unitCost,
+        totalCost: unitCost,
+      } as PurchaseItem]);
     }
-    setSearchTerm("");
     setProductSearchOpen(false);
   };
 
@@ -121,22 +118,18 @@ export default function CreatePurchase() {
     setLocation(isAttendant ? "/attendant/purchases" : "/purchases", { replace: true });
   };
 
+  const selectedSupplier = suppliers.find((s: any) => s.name === supplierName);
+
   const handleSave = async () => {
-    const validItems = items.filter(item => item.productName && item.quantity > 0);
-    if (validItems.length === 0) { alert("Please add at least one item."); return; }
+    if (items.length === 0) return;
     setIsSubmitting(true);
     try {
-      const selectedSupplier = suppliers.find((s: any) => s.name === supplierName);
-      const purchaseItems = validItems.map(item => {
-        const product = products.find((p: any) => (p.name || p.title) === item.productName);
-        return {
-          productId: product?._id || product?.id || null,
-          quantity: item.quantity,
-          buyingPrice: item.unitCost,
-          sellingPrice: (item as any).sellingPrice || product?.sellingPrice || item.unitCost * 1.5,
-          discount: 0,
-        };
-      });
+      const purchaseItems = items.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        unitCost: item.unitCost,
+        totalCost: item.totalCost,
+      }));
       const payload = {
         shopId,
         supplierId: selectedSupplier?._id || null,
@@ -162,262 +155,293 @@ export default function CreatePurchase() {
 
   return (
     <DashboardLayout title="New Purchase Order">
-      <div className="-mx-4 sm:mx-0">
-        {/* Sticky header */}
-        <div className="sticky top-0 z-10 bg-white border-b">
-          <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <button onClick={handleBack} className="hidden lg:flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0">
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-              <h1 className="text-base font-bold text-gray-900 leading-tight truncate">New Purchase Order</h1>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+      {/* Two-column layout on desktop; stacked on mobile */}
+      <div className="-mx-4 sm:mx-0 flex flex-col lg:flex-row lg:h-[calc(100vh-56px)] lg:overflow-hidden">
+
+        {/* ── Mobile sticky top bar ── */}
+        <div className="lg:hidden sticky top-0 z-20 bg-white border-b px-3 py-2.5 flex items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center gap-2 min-w-0">
+            <button onClick={handleBack} className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-gray-100 shrink-0">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-sm font-bold text-gray-900 truncate">New Purchase Order</h1>
               {items.length > 0 && (
-                <span className="text-xs text-gray-500 hidden sm:inline">
-                  {currency} {calculateTotal().toFixed(2)}
-                </span>
+                <p className="text-xs text-purple-600 font-medium">{items.length} item{items.length !== 1 ? "s" : ""} · {currency} {calculateTotal().toFixed(2)}</p>
               )}
-              <Button
-                onClick={handleSave}
-                disabled={isSubmitting || items.length === 0}
-                size="sm"
-                className="h-8 gap-1 text-xs px-2.5"
-              >
-                <Save className="h-3.5 w-3.5" />
-                {isSubmitting ? "Saving…" : "Save Order"}
-              </Button>
             </div>
+          </div>
+          <Button onClick={handleSave} disabled={isSubmitting || items.length === 0} size="sm" className="h-8 gap-1 text-xs px-3 bg-purple-600 hover:bg-purple-700 shrink-0">
+            <Save className="h-3.5 w-3.5" />
+            {isSubmitting ? "Saving…" : "Save"}
+          </Button>
+        </div>
+
+        {/* ── LEFT PANEL — Order details ── */}
+        <div className="lg:w-72 xl:w-80 lg:border-r lg:flex-shrink-0 lg:flex lg:flex-col lg:overflow-y-auto bg-white">
+
+          {/* Desktop panel header */}
+          <div className="hidden lg:flex items-center gap-2 px-4 py-3 border-b bg-gray-50/60 shrink-0">
+            <button onClick={handleBack} className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-gray-100 shrink-0">
+              <ArrowLeft className="h-4 w-4 text-gray-600" />
+            </button>
+            <div>
+              <h1 className="text-sm font-bold text-gray-900">New Purchase Order</h1>
+              <p className="text-[11px] text-gray-400">Fill in the order details</p>
+            </div>
+          </div>
+
+          <div className="px-3 lg:px-4 py-4 space-y-4 flex-1">
+
+            {/* Supplier */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                <User className="h-3 w-3" /> Supplier
+              </Label>
+              <Select value={supplierName} onValueChange={setSupplierName}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select supplier (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {suppliersLoading ? (
+                    <SelectItem value="loading">Loading…</SelectItem>
+                  ) : suppliers.length > 0 ? (
+                    suppliers.map((supplier: any) => (
+                      <SelectItem key={supplier._id} value={supplier.name}>{supplier.name}</SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="none">No suppliers</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Invoice # */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                <FileText className="h-3 w-3" /> Invoice #
+              </Label>
+              <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="Invoice number" className="h-9 text-sm" />
+            </div>
+
+            {/* Dates row */}
+            <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <CalendarDays className="h-3 w-3" /> Order Date
+                </Label>
+                <Input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Truck className="h-3 w-3" /> Expected Delivery
+                </Label>
+                <Input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} className="h-9 text-sm" />
+              </div>
+            </div>
+
+            {/* Batch tracking */}
+            <div className="flex items-start gap-2.5 p-3 bg-gray-50 rounded-lg border border-gray-100">
+              <Checkbox
+                id="trackBatches"
+                checked={trackBatches}
+                onCheckedChange={(checked) => setTrackBatches(checked === true)}
+                className="mt-0.5"
+              />
+              <label htmlFor="trackBatches" className="text-xs text-gray-600 cursor-pointer select-none leading-snug">
+                <span className="font-medium text-gray-700">Enable batch tracking</span>
+                <br />Track individual lots with expiry dates
+              </label>
+            </div>
+
+          </div>
+
+          {/* Desktop save button at bottom of left panel */}
+          <div className="hidden lg:block px-4 py-3 border-t bg-gray-50/60 shrink-0">
+            <Button
+              onClick={handleSave}
+              disabled={isSubmitting || items.length === 0}
+              className="w-full h-10 bg-purple-600 hover:bg-purple-700 font-medium gap-2"
+            >
+              <Save className="h-4 w-4" />
+              {isSubmitting
+                ? "Saving…"
+                : items.length > 0
+                  ? `Save · ${currency} ${calculateTotal().toFixed(2)}`
+                  : "Save Order"}
+            </Button>
           </div>
         </div>
 
-        <div className="px-3 sm:px-4 py-3 space-y-3">
+        {/* ── RIGHT PANEL — Items ── */}
+        <div className="flex-1 flex flex-col lg:overflow-hidden bg-gray-50/30">
 
-          {/* Order Details */}
-          <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x">
-            <CardHeader className="px-3 sm:px-6 py-3 pb-2">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Package className="h-4 w-4 text-purple-600" />
-                Order Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-3 sm:px-6 pb-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs text-gray-500">Supplier</Label>
-                  <Select value={supplierName} onValueChange={setSupplierName}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="Select supplier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {suppliersLoading ? (
-                        <SelectItem value="loading">Loading…</SelectItem>
-                      ) : suppliers.length > 0 ? (
-                        suppliers.map((supplier: any) => (
-                          <SelectItem key={supplier._id} value={supplier.name}>
-                            {supplier.name}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="none">No suppliers</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+          {/* Items panel header */}
+          <div className="flex items-center justify-between px-3 lg:px-4 py-2.5 bg-white border-b sticky top-0 lg:static z-10 shrink-0">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4 text-purple-600" />
+              <span className="text-sm font-semibold text-gray-800">Items</span>
+              {items.length > 0 && (
+                <Badge className="text-xs px-1.5 py-0 h-5 bg-purple-100 text-purple-700 border-0">{items.length}</Badge>
+              )}
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setProductSearchOpen(true)}
+              className="h-8 gap-1.5 text-xs px-3 bg-purple-600 hover:bg-purple-700"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Product
+            </Button>
+          </div>
+
+          {/* Items list */}
+          <div className="flex-1 lg:overflow-y-auto">
+            {items.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
+                <div className="h-16 w-16 rounded-2xl bg-gray-100 flex items-center justify-center">
+                  <ShoppingCart className="h-8 w-8 opacity-40" />
                 </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs text-gray-500">Invoice #</Label>
-                  <Input
-                    value={invoiceNumber}
-                    onChange={(e) => setInvoiceNumber(e.target.value)}
-                    placeholder="Invoice number"
-                    className="h-9 text-sm"
-                  />
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-500">No items yet</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Tap "Add Product" to start building your order</p>
                 </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs text-gray-500">Order Date</Label>
-                  <Input
-                    type="date"
-                    value={orderDate}
-                    onChange={(e) => setOrderDate(e.target.value)}
-                    className="h-9 text-sm"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs text-gray-500">Expected Delivery</Label>
-                  <Input
-                    type="date"
-                    value={expectedDate}
-                    onChange={(e) => setExpectedDate(e.target.value)}
-                    className="h-9 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <Checkbox
-                  id="trackBatches"
-                  checked={trackBatches}
-                  onCheckedChange={(checked) => setTrackBatches(checked === true)}
-                />
-                <label htmlFor="trackBatches" className="text-xs text-gray-600 cursor-pointer select-none leading-tight">
-                  Enable batch tracking for this purchase
-                </label>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Items */}
-          <Card className="rounded-none sm:rounded-lg border-x-0 sm:border-x">
-            <CardHeader className="px-3 sm:px-6 py-3 pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4 text-purple-600" />
-                  Items
-                  {items.length > 0 && (
-                    <Badge variant="secondary" className="text-xs px-1.5 py-0">{items.length}</Badge>
-                  )}
-                </CardTitle>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-8 gap-1 text-xs px-2.5"
                   onClick={() => setProductSearchOpen(true)}
+                  className="mt-1 gap-1.5 text-xs border-purple-200 text-purple-600 hover:bg-purple-50"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add Product
                 </Button>
               </div>
-            </CardHeader>
-            <CardContent className="px-3 sm:px-6 pb-4">
-              {items.length === 0 ? (
-                <div className="text-center py-10 text-gray-400">
-                  <ShoppingCart className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">No items yet. Tap "Add Product" to start.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {items.map((item, index) => (
-                    <div key={index} className="py-2.5 first:pt-0">
-                      {/* Row 1: name · qty controls · total · remove */}
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate leading-tight">{item.productName}</p>
-                          <p className="text-xs text-gray-400 leading-tight mt-0.5">
-                            {currency} {parseFloat(String(item.unitCost || 0)).toFixed(2)} / unit
-                          </p>
-                        </div>
-                        {/* − qty + */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => updateItem(index, 'quantity', Math.max(1, item.quantity - 1))}
-                            className="h-7 w-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-colors"
-                          >
-                            <span className="text-base leading-none select-none">−</span>
-                          </button>
-                          <input
-                            type="number"
-                            min="1"
-                            value={qtyInputs[index] !== undefined ? qtyInputs[index] : String(item.quantity)}
-                            onChange={(e) => {
-                              const raw = e.target.value;
-                              setQtyInputs(prev => ({ ...prev, [index]: raw }));
-                              const n = parseInt(raw);
-                              if (!isNaN(n) && n > 0) updateItem(index, 'quantity', n);
-                            }}
-                            onBlur={() => {
-                              const raw = qtyInputs[index];
-                              const n = raw !== undefined ? (parseInt(raw) || 1) : item.quantity;
-                              updateItem(index, 'quantity', Math.max(1, n));
-                              setQtyInputs(prev => { const next = { ...prev }; delete next[index]; return next; });
-                            }}
-                            className="w-10 h-7 text-center text-sm font-bold border border-gray-200 rounded-lg bg-gray-50 outline-none focus:border-purple-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          />
-                          <button
-                            onClick={() => updateItem(index, 'quantity', item.quantity + 1)}
-                            className="h-7 w-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-colors"
-                          >
-                            <span className="text-base leading-none select-none">+</span>
-                          </button>
-                        </div>
-                        {/* line total */}
-                        <span className="text-sm font-bold text-purple-600 shrink-0 w-20 text-right">
-                          {currency} {parseFloat(String(item.totalCost || 0)).toFixed(2)}
-                        </span>
-                        {/* remove */}
+            ) : (
+              <div className="divide-y divide-gray-100 bg-white lg:mx-0">
+                {items.map((item, index) => (
+                  <div key={index} className="px-3 lg:px-4 py-3">
+                    {/* Row 1: name + qty controls + total + delete */}
+                    <div className="flex items-center gap-2">
+                      {/* Product icon */}
+                      <div className="h-8 w-8 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
+                        <Package className="h-3.5 w-3.5 text-purple-500" />
+                      </div>
+                      {/* Name */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{item.productName}</p>
+                        <p className="text-xs text-gray-400 leading-tight">
+                          {currency} {parseFloat(String(item.unitCost || 0)).toFixed(2)} / unit
+                        </p>
+                      </div>
+                      {/* Qty controls */}
+                      <div className="flex items-center gap-0.5 shrink-0">
                         <button
-                          onClick={() => removeItem(index)}
-                          className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 shrink-0 transition-colors"
+                          onClick={() => {
+                            const newQty = Math.max(1, item.quantity - 1);
+                            updateItem(index, 'quantity', newQty);
+                            setQtyInputs(prev => ({ ...prev, [index]: String(newQty) }));
+                          }}
+                          className="h-7 w-7 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-colors"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <span className="text-sm leading-none select-none">−</span>
+                        </button>
+                        <input
+                          type="number"
+                          min="1"
+                          value={qtyInputs[index] !== undefined ? qtyInputs[index] : String(item.quantity)}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setQtyInputs(prev => ({ ...prev, [index]: raw }));
+                            const n = parseInt(raw);
+                            if (!isNaN(n) && n > 0) updateItem(index, 'quantity', n);
+                          }}
+                          onBlur={() => {
+                            const raw = qtyInputs[index];
+                            const n = raw !== undefined ? (parseInt(raw) || 1) : item.quantity;
+                            updateItem(index, 'quantity', Math.max(1, n));
+                            setQtyInputs(prev => { const next = { ...prev }; delete next[index]; return next; });
+                          }}
+                          className="w-10 h-7 text-center text-sm font-bold border border-gray-200 rounded-md bg-gray-50 outline-none focus:border-purple-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none mx-0.5"
+                        />
+                        <button
+                          onClick={() => updateItem(index, 'quantity', item.quantity + 1)}
+                          className="h-7 w-7 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-colors"
+                        >
+                          <span className="text-sm leading-none select-none">+</span>
                         </button>
                       </div>
-                      {/* Row 2: compact price inputs */}
-                      <div className="flex gap-2 mt-1.5 ml-0">
-                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                          <span className="text-[10px] text-gray-400 shrink-0 w-14">Buy price</span>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.unitCost}
-                            onChange={(e) => updateItem(index, 'unitCost', parseFloat(e.target.value) || 0)}
-                            className="h-6 text-xs px-2 flex-1 min-w-0"
-                          />
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                          <span className="text-[10px] text-gray-400 shrink-0 w-14">Sell price</span>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={(item as any).sellingPrice || 0}
-                            onChange={(e) => updateItem(index, 'sellingPrice' as keyof PurchaseItem, parseFloat(e.target.value) || 0)}
-                            className="h-6 text-xs px-2 flex-1 min-w-0"
-                          />
-                        </div>
-                        {/* spacer to align under total + remove */}
-                        <div className="w-[calc(1.75rem+5rem)] shrink-0" />
-                      </div>
+                      {/* Line total */}
+                      <span className="text-sm font-bold text-purple-600 shrink-0 w-20 text-right tabular-nums">
+                        {currency} {parseFloat(String(item.totalCost || 0)).toFixed(2)}
+                      </span>
+                      {/* Remove */}
+                      <button
+                        onClick={() => removeItem(index)}
+                        className="h-7 w-7 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 shrink-0 transition-colors ml-0.5"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                  ))}
 
-                  {/* Order total */}
-                  <div className="mt-3 pt-3 border-t flex items-center justify-between">
-                    <span className="text-sm font-semibold text-gray-700">
-                      Order Total ({items.reduce((s, i) => s + i.quantity, 0)} units)
-                    </span>
-                    <span className="text-lg font-bold text-purple-600">
-                      {currency} {calculateTotal().toFixed(2)}
-                    </span>
+                    {/* Row 2: price inputs */}
+                    <div className="flex gap-2 mt-2 pl-10">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <span className="text-[10px] font-medium text-gray-400 shrink-0 w-16">Buy price</span>
+                        <Input
+                          type="number" min="0" step="0.01"
+                          value={item.unitCost}
+                          onChange={(e) => updateItem(index, 'unitCost', parseFloat(e.target.value) || 0)}
+                          className="h-6 text-xs px-2 flex-1 min-w-0"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <span className="text-[10px] font-medium text-gray-400 shrink-0 w-16">Sell price</span>
+                        <Input
+                          type="number" min="0" step="0.01"
+                          value={(item as any).sellingPrice || 0}
+                          onChange={(e) => updateItem(index, 'sellingPrice' as keyof PurchaseItem, parseFloat(e.target.value) || 0)}
+                          className="h-6 text-xs px-2 flex-1 min-w-0"
+                        />
+                      </div>
+                      {/* Spacer to align under total + remove */}
+                      <div className="w-[calc(5rem+1.75rem+0.375rem)] shrink-0" />
+                    </div>
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Bottom save button (visible on mobile, sticky feel) */}
-          <div className="pb-4">
-            <Button
-              onClick={handleSave}
-              disabled={isSubmitting || items.length === 0}
-              className="w-full h-11 text-sm font-medium"
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {isSubmitting ? "Creating Order…" : `Create Purchase Order${items.length > 0 ? ` · ${currency} ${calculateTotal().toFixed(2)}` : ""}`}
-            </Button>
+                ))}
+              </div>
+            )}
           </div>
 
+          {/* Order total + mobile save — always visible at bottom of right panel */}
+          {items.length > 0 && (
+            <div className="border-t bg-white px-3 lg:px-4 py-3 shrink-0">
+              <div className="flex items-center justify-between mb-2.5">
+                <div>
+                  <p className="text-xs text-gray-400">Order Total</p>
+                  <p className="text-[11px] text-gray-400">{items.reduce((s, i) => s + i.quantity, 0)} unit{items.reduce((s, i) => s + i.quantity, 0) !== 1 ? "s" : ""} · {items.length} product{items.length !== 1 ? "s" : ""}</p>
+                </div>
+                <span className="text-xl font-bold text-purple-600 tabular-nums">
+                  {currency} {calculateTotal().toFixed(2)}
+                </span>
+              </div>
+              {/* Mobile-only save button */}
+              <Button
+                onClick={handleSave}
+                disabled={isSubmitting || items.length === 0}
+                className="w-full h-10 bg-purple-600 hover:bg-purple-700 font-medium gap-2 lg:hidden"
+              >
+                <Save className="h-4 w-4" />
+                {isSubmitting ? "Creating Order…" : "Create Purchase Order"}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Full-screen product search overlay */}
+      {/* Product search overlay */}
       {productSearchOpen && (
         <div className="fixed inset-0 z-50 bg-white flex flex-col animate-in slide-in-from-bottom-4 duration-200 lg:left-60 lg:inset-y-0 lg:right-0">
-          {/* Search bar header */}
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b bg-white">
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b bg-white shrink-0">
             <button
               onClick={() => setProductSearchOpen(false)}
               className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-gray-100 shrink-0 text-gray-600"
@@ -435,24 +459,19 @@ export default function CreatePurchase() {
                 className="w-full h-10 pl-9 pr-9 rounded-full border border-gray-200 bg-gray-50 text-sm outline-none focus:border-purple-400 focus:bg-white transition-colors"
               />
               {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
+                <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   <X className="h-4 w-4" />
                 </button>
               )}
             </div>
           </div>
 
-          {/* Results count */}
           {searchTerm && (
-            <div className="px-4 py-2 text-xs text-gray-400 border-b bg-gray-50">
+            <div className="px-4 py-2 text-xs text-gray-400 border-b bg-gray-50 shrink-0">
               {filteredProducts.length} product{filteredProducts.length !== 1 ? "s" : ""} found
             </div>
           )}
 
-          {/* Scrollable product list */}
           <div className="flex-1 overflow-y-auto">
             {productsLoading ? (
               <div className="flex flex-col items-center justify-center h-40 gap-2 text-gray-400">
@@ -466,7 +485,7 @@ export default function CreatePurchase() {
               </div>
             ) : (
               <ul>
-                {filteredProducts.map((product: any, idx: number) => {
+                {filteredProducts.map((product: any) => {
                   const alreadyAdded = items.some(i => i.productName === (product.name || product.title));
                   return (
                     <li key={product._id || product.id}>
@@ -474,11 +493,9 @@ export default function CreatePurchase() {
                         onClick={() => addProductToOrder(product)}
                         className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-50"
                       >
-                        {/* Icon */}
                         <div className="h-9 w-9 rounded-full bg-purple-50 flex items-center justify-center shrink-0">
                           <Package className="h-4 w-4 text-purple-500" />
                         </div>
-                        {/* Name + price */}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">{product.name || product.title}</p>
                           <p className="text-xs text-gray-400 mt-0.5">
@@ -486,11 +503,10 @@ export default function CreatePurchase() {
                             {product.sellingPrice ? ` · ${currency} ${parseFloat(String(product.sellingPrice)).toFixed(2)} selling` : ""}
                           </p>
                         </div>
-                        {/* Added badge / plus */}
                         {alreadyAdded ? (
                           <Badge variant="secondary" className="text-xs shrink-0">Added</Badge>
                         ) : (
-                          <div className="h-7 w-7 rounded-full border border-gray-200 flex items-center justify-center shrink-0 text-gray-400">
+                          <div className="h-7 w-7 rounded-full border border-purple-200 bg-purple-50 flex items-center justify-center shrink-0 text-purple-500">
                             <Plus className="h-3.5 w-3.5" />
                           </div>
                         )}
