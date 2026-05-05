@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, and, sql } from "drizzle-orm";
-import { purchaseReturns, purchaseReturnItems, purchases, inventory } from "@workspace/db";
+import { eq, and, sql, count } from "drizzle-orm";
+import { purchaseReturns, purchaseReturnItems, purchases, inventory, products } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
 import { notFound, badRequest } from "../lib/errors.js";
@@ -49,7 +49,13 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       reason,
       refundMethod: refundMethod ?? "cash",
       processedBy: req.attendant?.id ?? undefined,
-      returnNo: `PRE${Date.now()}`,
+      returnNo: await (async () => {
+        const now = new Date();
+        const d = now.getFullYear().toString().slice(-2) + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+        const [{ total: shopReturnCount }] = await db.select({ total: count() }).from(purchaseReturns).where(eq(purchaseReturns.shop, Number(shopId)));
+        const seq = String(Number(shopReturnCount) + 1).padStart(3, '0');
+        return `RET-${d}-${seq}`;
+      })(),
     }).returning();
 
     const itemRows = await db.insert(purchaseReturnItems).values(
@@ -115,7 +121,24 @@ router.get("/:id", requireAdminOrAttendant, async (req, res, next) => {
       with: { purchaseReturnItems: true },
     });
     if (!row) throw notFound("Purchase return not found");
-    return ok(res, row);
+
+    // Enrich items with product names
+    const productIds = [...new Set((row.purchaseReturnItems ?? []).map((i: any) => i.product).filter(Boolean))];
+    let productMap: Record<number, string> = {};
+    if (productIds.length > 0) {
+      const productRows = await db.select({ id: products.id, name: products.name })
+        .from(products)
+        .where(sql`${products.id} = ANY(ARRAY[${sql.join(productIds.map((id: any) => sql`${id}`), sql`, `)}]::int[])`);
+      productMap = Object.fromEntries(productRows.map(p => [p.id, p.name]));
+    }
+    const enriched = {
+      ...row,
+      purchaseReturnItems: (row.purchaseReturnItems ?? []).map((i: any) => ({
+        ...i,
+        productName: productMap[i.product] ?? `Product #${i.product}`,
+      })),
+    };
+    return ok(res, enriched);
   } catch (e) { next(e); }
 });
 

@@ -12,6 +12,7 @@ import { useCurrency } from "@/utils";
 interface PurchaseReturnItem {
   id: number;
   product: number;
+  productName: string;
   quantity: string;
   unitPrice: string;
 }
@@ -93,7 +94,7 @@ export default function PurchaseReturnDetails() {
 
   return (
     <DashboardLayout title="Purchase Return Details">
-      <div className="p-4 space-y-4 max-w-4xl mx-auto">
+      <div className="p-4 space-y-4">
 
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
@@ -206,7 +207,7 @@ export default function PurchaseReturnDetails() {
               <Table>
                 <TableHeader>
                   <TableRow className="text-xs">
-                    <TableHead className="pl-4">Product ID</TableHead>
+                    <TableHead className="pl-4">Product</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Unit Price</TableHead>
                     <TableHead className="pr-4 text-right">Total</TableHead>
@@ -215,7 +216,7 @@ export default function PurchaseReturnDetails() {
                 <TableBody>
                   {items.map((item) => (
                     <TableRow key={item.id} className="text-sm">
-                      <TableCell className="pl-4 font-mono">#{item.product}</TableCell>
+                      <TableCell className="pl-4 font-medium">{item.productName}</TableCell>
                       <TableCell>{parseFloat(item.quantity)}</TableCell>
                       <TableCell>{fmt(item.unitPrice)}</TableCell>
                       <TableCell className="pr-4 text-right font-medium">
