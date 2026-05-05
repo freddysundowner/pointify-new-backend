@@ -906,7 +906,7 @@ export default function ProductForm() {
                                         <SelectItem value="loading" disabled>Loading…</SelectItem>
                                       ) : (
                                         categories?.map((category: any) => (
-                                          <SelectItem key={category._id} value={category._id}>{category.name}</SelectItem>
+                                          <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>
                                         ))
                                       )}
                                     </SelectContent>
