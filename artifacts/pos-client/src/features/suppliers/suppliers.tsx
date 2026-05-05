@@ -303,8 +303,11 @@ export default function SuppliersPage() {
 
   return (
     <DashboardLayout title="Suppliers">
+      {/* Break out of DashboardLayout's padding so the sticky header sits flush */}
+      <div className="-mx-4 -mt-4 lg:-mx-6 lg:-mt-6">
+
       {/* ── Sticky header ───────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-20 bg-background border-b">
+      <div className="sticky top-0 z-20 bg-white border-b shadow-sm">
         <div className="px-3 sm:px-4 py-2.5 flex items-center gap-2">
           <button onClick={handleBack} className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0">
             <ArrowLeft className="h-4 w-4" />
@@ -332,7 +335,7 @@ export default function SuppliersPage() {
       </div>
 
       {/* ── Content ─────────────────────────────────────────────────────────── */}
-      <div className="px-3 sm:px-4 py-3">
+      <div className="px-3 sm:px-4 py-3 pb-24 lg:pb-6">
         {isLoading ? (
           <div className="py-16 text-center text-sm text-muted-foreground">Loading suppliers…</div>
         ) : filtered.length === 0 ? (
@@ -566,6 +569,8 @@ export default function SuppliersPage() {
         type="danger"
         confirmText={deleteMutation.isPending ? "Deleting…" : "Delete"}
       />
+
+      </div>{/* end -mx-4 -mt-4 wrapper */}
     </DashboardLayout>
   );
 }
