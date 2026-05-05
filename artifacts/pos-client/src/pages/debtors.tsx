@@ -2,10 +2,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Search, Eye, Users, AlertTriangle, ArrowLeft, RefreshCw, Download,
+  Phone, Mail, X,
 } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useAuth } from "@/features/auth/useAuth";
@@ -66,160 +65,190 @@ export default function DebtorsPage() {
     if (!debtors.length) return;
     const headers = ["Name", "Phone", "Email", "Customer No", "Type", "Outstanding Balance", "Wallet"];
     const rows = debtors.map(d => [
-      d.name,
-      d.phone ?? "",
-      d.email ?? "",
-      d.customerNo ?? "",
-      d.type ?? "",
+      d.name, d.phone ?? "", d.email ?? "", d.customerNo ?? "", d.type ?? "",
       Number(d.outstandingBalance ?? 0).toFixed(2),
       Number(d.wallet ?? 0).toFixed(2),
     ]);
-    const csvContent = [headers, ...rows]
+    const csv = [headers, ...rows]
       .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
       .join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `debtors-report-${new Date().toISOString().split("T")[0]}.csv`;
+    const a = Object.assign(document.createElement("a"), {
+      href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" })),
+      download: `debtors-${new Date().toISOString().split("T")[0]}.csv`,
+    });
     document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
     document.body.removeChild(a);
   };
 
   return (
     <DashboardLayout>
-      <div className="w-full space-y-4">
+      <div className="-mx-4 -mt-4 lg:-mx-6 lg:-mt-6">
 
-        {/* Header */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={goBack} className="hidden lg:flex gap-1 px-2">
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Button>
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-red-600" />
-            <h1 className="text-lg font-bold text-gray-900">Debtors Report</h1>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleDownload}>
-              <Download className="h-3.5 w-3.5" /> Export
-            </Button>
-            <Button size="sm" onClick={() => refetch()} disabled={isLoading} className="h-8 gap-1 bg-green-600 hover:bg-green-700">
-              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Refresh
-            </Button>
-          </div>
-        </div>
-
-        {/* Summary */}
-        {!isLoading && (
-          <div className="grid grid-cols-2 gap-3">
-            <Card className="border-0 shadow-sm bg-red-50">
-              <CardContent className="p-3">
-                <p className="text-xs text-red-500 font-medium">Total Outstanding Debt</p>
-                <p className="text-xl font-bold text-red-700 leading-tight mt-0.5">{fmt(totalDebt, currency)}</p>
-                <p className="text-xs text-red-400 mt-0.5">across all customers</p>
-              </CardContent>
-            </Card>
-            <Card className="border-0 shadow-sm bg-orange-50">
-              <CardContent className="p-3">
-                <p className="text-xs text-orange-500 font-medium">Debtors</p>
-                <p className="text-xl font-bold text-orange-700 leading-tight mt-0.5">{debtors.length}</p>
-                <p className="text-xs text-orange-400 mt-0.5">customers with unpaid balances</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Search + table */}
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        {/* ── Sticky header ────────────────────────────────────────────────── */}
+        <div className="sticky top-0 z-20 bg-white border-b shadow-sm">
+          <div className="px-3 sm:px-4 py-2.5 flex items-center gap-2">
+            <button onClick={goBack} className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-gray-100 shrink-0">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="Search by name, phone or email…"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="pl-9 h-9 text-sm"
+                className="pl-8 h-9 text-sm"
               />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 shrink-0" onClick={handleDownload} disabled={!debtors.length}>
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+            <Button size="sm" className="h-9 w-9 p-0 shrink-0" variant="outline" onClick={() => refetch()} disabled={isLoading}>
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </div>
 
-            {isLoading ? (
-              <div className="space-y-3">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse" />
+        {/* ── KPI strip ───────────────────────────────────────────────────── */}
+        {!isLoading && (
+          <div className="px-3 sm:px-4 py-2.5 flex gap-6 border-b bg-gray-50/60">
+            <div>
+              <p className="text-[10px] text-muted-foreground leading-none">Total Outstanding</p>
+              <p className="text-sm font-bold text-red-600 mt-0.5">{fmt(totalDebt, currency)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground leading-none">Debtors</p>
+              <p className="text-sm font-bold text-orange-600 mt-0.5">{debtors.length} customer{debtors.length !== 1 ? "s" : ""}</p>
+            </div>
+            {searchTerm && filtered.length !== debtors.length && (
+              <div>
+                <p className="text-[10px] text-muted-foreground leading-none">Matching</p>
+                <p className="text-sm font-bold text-gray-700 mt-0.5">{filtered.length}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Content ─────────────────────────────────────────────────────── */}
+        <div className="px-3 sm:px-4 py-3 pb-24 lg:pb-6">
+          {isLoading ? (
+            <div className="space-y-2 pt-1">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          ) : error ? (
+            <div className="py-16 text-center">
+              <AlertTriangle className="h-9 w-9 text-red-400 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground mb-3">Failed to load debtors</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>Try Again</Button>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="py-16 text-center">
+              <Users className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+              <p className="text-sm text-muted-foreground">
+                {searchTerm ? "No debtors match your search" : "No debtors — all customers are paid up"}
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* ── Mobile cards ──────────────────────────────────────── */}
+              <div className="sm:hidden space-y-2">
+                {filtered.map(d => (
+                  <div key={d.id} className="bg-white rounded-xl border border-gray-100 shadow-sm flex items-center gap-3 px-3 py-2.5">
+                    {/* Avatar */}
+                    <div className="h-9 w-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                      <span className="text-red-600 font-bold text-sm">{d.name.charAt(0).toUpperCase()}</span>
+                    </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{d.name}</p>
+                      <div className="flex flex-wrap gap-x-2 mt-0.5">
+                        {d.phone && (
+                          <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                            <Phone className="h-2.5 w-2.5" />{d.phone}
+                          </span>
+                        )}
+                        {d.email && (
+                          <span className="text-xs text-gray-400 flex items-center gap-0.5 truncate max-w-[140px]">
+                            <Mail className="h-2.5 w-2.5" />{d.email}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Amount + action */}
+                    <div className="shrink-0 text-right flex items-center gap-2">
+                      <p className="text-sm font-bold text-red-600">{fmt(d.outstandingBalance, currency)}</p>
+                      <Link href={`${customerOverviewRoute}?id=${d.id}`}>
+                        <Button size="sm" className="h-7 w-7 p-0 bg-blue-600 hover:bg-blue-700">
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
                 ))}
               </div>
-            ) : error ? (
-              <div className="py-12 text-center">
-                <AlertTriangle className="h-8 w-8 text-red-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-500 font-medium">Failed to load debtors</p>
-                <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>Try Again</Button>
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="py-12 text-center">
-                <Users className="h-8 w-8 text-gray-200 mx-auto mb-2" />
-                <p className="text-gray-400 font-medium">
-                  {searchTerm ? "No matching debtors" : "No debtors — all customers are paid up"}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
+
+              {/* ── Desktop table ─────────────────────────────────────── */}
+              <div className="hidden sm:block rounded-lg border overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-xs text-gray-400 border-b">
-                      <th className="text-left pb-2 font-medium">Customer</th>
-                      <th className="text-left pb-2 font-medium hidden sm:table-cell">Contact</th>
-                      <th className="text-right pb-2 font-medium">Outstanding</th>
-                      <th className="pb-2"></th>
+                    <tr className="bg-muted/40 border-b">
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contact</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Outstanding</th>
+                      <th className="px-4 py-2.5"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {filtered.map(debtor => (
-                      <tr key={debtor.id} className="hover:bg-gray-50">
-                        <td className="py-3">
+                  <tbody className="divide-y">
+                    {filtered.map(d => (
+                      <tr key={d.id} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                              <span className="text-red-600 font-semibold text-xs">
-                                {debtor.name.charAt(0).toUpperCase()}
-                              </span>
+                              <span className="text-red-600 font-bold text-xs">{d.name.charAt(0).toUpperCase()}</span>
                             </div>
                             <div>
-                              <p className="font-medium text-gray-900 leading-tight">{debtor.name}</p>
-                              {debtor.customerNo && (
-                                <p className="text-xs text-gray-400">#{debtor.customerNo}</p>
-                              )}
+                              <p className="font-medium text-gray-900 leading-tight">{d.name}</p>
+                              {d.customerNo && <p className="text-xs text-muted-foreground">#{d.customerNo}</p>}
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 hidden sm:table-cell">
+                        <td className="px-4 py-3">
                           <div className="space-y-0.5">
-                            {debtor.phone && <p className="text-gray-500 text-xs">{debtor.phone}</p>}
-                            {debtor.email && <p className="text-gray-400 text-xs">{debtor.email}</p>}
+                            {d.phone && <p className="text-xs text-gray-600 flex items-center gap-1"><Phone className="h-3 w-3" />{d.phone}</p>}
+                            {d.email && <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" />{d.email}</p>}
                           </div>
                         </td>
-                        <td className="py-3 text-right">
-                          <span className="font-semibold text-red-600">{fmt(debtor.outstandingBalance, currency)}</span>
+                        <td className="px-4 py-3 text-right">
+                          <span className="font-semibold text-red-600">{fmt(d.outstandingBalance, currency)}</span>
                         </td>
-                        <td className="py-3 text-right pl-3">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Badge variant="destructive" className="text-xs px-1.5 py-0">Debt</Badge>
-                            <Link href={`${customerOverviewRoute}?id=${debtor.id}`}>
-                              <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 gap-1">
-                                <Eye className="h-3 w-3" /> Pay
-                              </Button>
-                            </Link>
-                          </div>
+                        <td className="px-4 py-3 text-right">
+                          <Link href={`${customerOverviewRoute}?id=${d.id}`}>
+                            <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 gap-1">
+                              <Eye className="h-3 w-3" /> View
+                            </Button>
+                          </Link>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                <p className="text-xs text-gray-400 mt-3 text-right">{filtered.length} debtor{filtered.length !== 1 ? "s" : ""}</p>
+                <div className="px-4 py-2 bg-muted/20 border-t text-xs text-muted-foreground">
+                  {filtered.length} debtor{filtered.length !== 1 ? "s" : ""}
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </>
+          )}
+        </div>
+
       </div>
     </DashboardLayout>
   );
