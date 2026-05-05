@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, sql, count } from "drizzle-orm";
+import { eq, and, sql, count, ilike, or } from "drizzle-orm";
 import { purchaseReturns, purchaseReturnItems, purchases, inventory, products } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -16,7 +16,15 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
     const { page, limit, offset } = getPagination(req);
     const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
-    const where = shopId ? eq(purchaseReturns.shop, shopId) : undefined;
+    const search = req.query["search"] ? String(req.query["search"]).trim() : null;
+
+    const conditions = [];
+    if (shopId) conditions.push(eq(purchaseReturns.shop, shopId));
+    if (search) conditions.push(or(
+      ilike(purchaseReturns.returnNo, `%${search}%`),
+      ilike(purchaseReturns.reason, `%${search}%`),
+    ));
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     const rows = await db.query.purchaseReturns.findMany({
       where,
@@ -26,7 +34,25 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
       with: { purchaseReturnItems: true },
     });
     const total = await db.$count(purchaseReturns, where);
-    return paginated(res, rows, { total, page, limit });
+
+    // Enrich items with product names
+    const allProductIds = [...new Set(rows.flatMap(r => (r.purchaseReturnItems ?? []).map((i: any) => i.product).filter(Boolean)))];
+    let productMap: Record<number, string> = {};
+    if (allProductIds.length > 0) {
+      const productRows = await db.select({ id: products.id, name: products.name })
+        .from(products)
+        .where(sql`${products.id} = ANY(ARRAY[${sql.join(allProductIds.map((id: any) => sql`${id}`), sql`, `)}]::int[])`);
+      productMap = Object.fromEntries(productRows.map(p => [p.id, p.name]));
+    }
+    const enriched = rows.map(r => ({
+      ...r,
+      purchaseReturnItems: (r.purchaseReturnItems ?? []).map((i: any) => ({
+        ...i,
+        productName: productMap[i.product] ?? `Product #${i.product}`,
+      })),
+    }));
+
+    return paginated(res, enriched, { total, page, limit });
   } catch (e) { next(e); }
 });
 

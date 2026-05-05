@@ -148,26 +148,67 @@ export default function PurchaseReturns() {
       const { jsPDF } = await import("jspdf");
       const doc = new jsPDF();
       let y = drawShopHeader(doc, shopDetails, "Purchase Returns Report", `Generated ${new Date().toLocaleDateString()}`);
+
+      // Summary line
       doc.setFontSize(10);
-      doc.text(`Total Returns: ${returns.length}   Total Amount: ${fmtCurrency(totalReturnAmount)}`, 20, y);
-      y += 12;
-      const headers = ["Return #", "Amount", "Date", "Attendant", "Reason"];
-      const colW = [40, 30, 30, 40, 50];
-      let x = 20;
-      headers.forEach((h, i) => { doc.text(h, x, y); x += colW[i]; });
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Returns: ${returns.length}     Total Refunded: ${fmtCurrency(totalReturnAmount)}`, 20, y);
       y += 10;
+
+      const refundMethodLabel: Record<string, string> = {
+        credit: "Supplier Credit", refund: "Cash Refund", cash: "Cash Refund", exchange: "Exchange Items",
+      };
+
       returns.forEach((r: PurchaseReturn) => {
-        if (y > 270) { doc.addPage(); y = 20; }
-        x = 20;
-        [
-          r.returnNo,
-          fmtCurrency(parseFloat(r.refundAmount) || 0),
-          fmtDate(r.createdAt),
-          r.processedBy ? `#${r.processedBy}` : "—",
-          (r.reason || "N/A").substring(0, 20),
-        ].forEach((v, i) => { doc.text(String(v), x, y); x += colW[i]; });
-        y += 8;
+        if (y > 250) { doc.addPage(); y = 20; }
+
+        // Return header block
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Return: ${r.returnNo}`, 20, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Date: ${fmtDate(r.createdAt)}`, 90, y);
+        doc.text(`Amount: ${fmtCurrency(parseFloat(r.refundAmount) || 0)}`, 150, y);
+        y += 6;
+
+        doc.text(`Method: ${refundMethodLabel[r.refundMethod] ?? r.refundMethod ?? "—"}`, 20, y);
+        doc.text(`Processed By: ${r.processedBy ? `Attendant #${r.processedBy}` : "Admin"}`, 90, y);
+        if (r.reason) doc.text(`Reason: ${r.reason.substring(0, 40)}`, 20, y + 5);
+        y += r.reason ? 11 : 7;
+
+        // Items sub-table
+        const items = r.purchaseReturnItems ?? [];
+        if (items.length > 0) {
+          doc.setFontSize(8);
+          doc.setTextColor(100);
+          doc.text("Product", 25, y);
+          doc.text("Qty", 120, y);
+          doc.text("Unit Price", 140, y);
+          doc.text("Total", 170, y);
+          doc.setTextColor(0);
+          y += 5;
+
+          items.forEach((item: any) => {
+            if (y > 270) { doc.addPage(); y = 20; }
+            const name = (item.productName || `Product #${item.product}`).substring(0, 38);
+            const qty = parseFloat(item.quantity ?? 1);
+            const unit = parseFloat(item.unitPrice ?? 0);
+            doc.setFontSize(8);
+            doc.text(`• ${name}`, 25, y);
+            doc.text(String(qty), 120, y);
+            doc.text(`${currency} ${unit.toFixed(2)}`, 140, y);
+            doc.text(`${currency} ${(qty * unit).toFixed(2)}`, 170, y);
+            y += 5;
+          });
+        }
+
+        // Divider between returns
+        y += 3;
+        doc.setDrawColor(200);
+        doc.line(20, y, 190, y);
+        y += 6;
       });
+
       doc.save(`purchase-returns-${new Date().toISOString().split("T")[0]}.pdf`);
     } catch (e) {
       console.error(e);
