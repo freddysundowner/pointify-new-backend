@@ -1871,7 +1871,17 @@ export default function ProductGrid({
                         }`}
                         onClick={() => handleAddToCart(product)}
                       >
-                        <div className="w-6 h-6 lg:w-8 lg:h-8 bg-gray-200 rounded mx-auto mb-0.5"></div>
+                        {product.thumbnailUrl ? (
+                          <img
+                            src={product.thumbnailUrl}
+                            alt={productName}
+                            className="w-6 h-6 lg:w-8 lg:h-8 rounded mx-auto mb-0.5 object-cover"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 lg:w-8 lg:h-8 bg-gray-200 rounded mx-auto mb-0.5 flex items-center justify-center">
+                            <span className="text-gray-400 text-[8px] font-bold uppercase">{productName?.charAt(0) ?? "?"}</span>
+                          </div>
+                        )}
                         <p className="text-[9px] lg:text-[10px] font-semibold text-gray-800 truncate leading-tight">{productName}</p>
                         <p className="text-[9px] lg:text-[10px] text-primary font-bold mt-0.5">{currency} {(+price).toFixed(2)}</p>
                         <div className="mt-0.5 flex items-center justify-center">

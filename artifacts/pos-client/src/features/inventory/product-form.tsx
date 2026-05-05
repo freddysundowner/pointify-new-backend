@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { normalizeIds } from "@/lib/utils";
 import { useLocation } from "wouter";
-import { ArrowLeft, Plus, X, Package, Tag, ShoppingCart, Layers, ChevronDown, ChevronUp, DollarSign, Barcode, Calendar, Building2, Hash, AlignLeft, Percent, TrendingDown, Users, Store } from "lucide-react";
+import { ArrowLeft, Plus, X, Package, Tag, ShoppingCart, Layers, ChevronDown, ChevronUp, DollarSign, Barcode, Calendar, Building2, Hash, AlignLeft, Percent, TrendingDown, Users, Store, ImageIcon, Upload, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -184,6 +184,76 @@ export default function ProductForm() {
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
 
+  // Image upload state
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [currentImages, setCurrentImages] = useState<string[]>([]);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const uploadImageToProduct = async (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append("images", file);
+    const token = localStorage.getItem("authToken");
+    const resp = await fetch(`/api/products/${id}/images`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    return resp.json();
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    setImagePreview(preview);
+    if (isEditMode && productId) {
+      setIsUploadingImage(true);
+      try {
+        const result = await uploadImageToProduct(productId, file);
+        const imgs: string[] = result.data?.images ?? result.images ?? [];
+        setCurrentImages(imgs);
+        setImagePreview(result.data?.thumbnailUrl ?? result.thumbnailUrl ?? preview);
+        toast({ title: "Image uploaded" });
+        refreshProducts();
+      } catch {
+        toast({ title: "Failed to upload image", variant: "destructive" });
+      } finally {
+        setIsUploadingImage(false);
+      }
+    } else {
+      setPendingImageFile(file);
+    }
+    e.target.value = "";
+  };
+
+  const handleRemoveImage = async (imageUrl?: string) => {
+    if (!isEditMode || !productId) {
+      setCurrentImages([]);
+      setImagePreview(null);
+      setPendingImageFile(null);
+      return;
+    }
+    const urlToRemove = imageUrl ?? currentImages[0];
+    if (!urlToRemove) return;
+    try {
+      const token = localStorage.getItem("authToken");
+      const resp = await fetch(`/api/products/${productId}/images`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ urls: [urlToRemove] }),
+      });
+      const result = await resp.json();
+      const remaining: string[] = result.data?.images ?? result.images ?? [];
+      setCurrentImages(remaining);
+      setImagePreview(remaining[0] ?? null);
+      toast({ title: "Image removed" });
+      refreshProducts();
+    } catch {
+      toast({ title: "Failed to remove image", variant: "destructive" });
+    }
+  };
+
   const [expandedSections, setExpandedSections] = useState({
     manufacturer: false,
     wholesalePrice: false,
@@ -359,6 +429,11 @@ export default function ProductForm() {
 
       form.reset(formData as any);
 
+      // Load existing images
+      const existingImages: string[] = editData.productData.images ?? [];
+      setCurrentImages(existingImages);
+      setImagePreview(editData.productData.thumbnailUrl ?? existingImages[0] ?? null);
+
       setExpandedSections({
         manufacturer: !!formData.manufacturer,
         wholesalePrice: !!(formData.wholesalePrice && formData.wholesalePrice > 0),
@@ -444,6 +519,11 @@ export default function ProductForm() {
 
       form.reset(formData as any);
 
+      // Load existing images from API
+      const existingImgs: string[] = productData.images ?? [];
+      setCurrentImages(existingImgs);
+      setImagePreview(productData.thumbnailUrl ?? existingImgs[0] ?? null);
+
       setExpandedSections({
         manufacturer: !!formData.manufacturer,
         serialnumber: !!formData.serialnumber,
@@ -523,7 +603,16 @@ export default function ProductForm() {
 
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      // Upload pending image for newly created products
+      if (!isEditMode && pendingImageFile) {
+        const newId = data?.data?.id ?? data?.id;
+        if (newId) {
+          try {
+            await uploadImageToProduct(String(newId), pendingImageFile);
+          } catch { /* non-fatal */ }
+        }
+      }
       toast({
         title: "Success",
         description: `Product ${isEditMode ? "updated" : "created"} successfully!`,
@@ -534,7 +623,7 @@ export default function ProductForm() {
           queryKey: [ENDPOINTS.products.getById(productId || '')],
         });
       }
-        refreshProducts();
+      refreshProducts();
       navigate(productsRoute);
     },
     onError: (error: Error) => {
@@ -1206,6 +1295,63 @@ export default function ProductForm() {
                     >
                       Cancel
                     </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Product Image */}
+                <Card className="shadow-sm border-gray-100">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4 text-gray-400" />
+                      Product Image
+                      <span className="text-gray-400 font-normal normal-case tracking-normal text-xs ml-1">(optional)</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {imagePreview ? (
+                      <div className="relative group">
+                        <img
+                          src={imagePreview}
+                          alt="Product"
+                          className="w-full h-40 object-cover rounded-lg border border-gray-200"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                          <label className="cursor-pointer bg-white text-gray-800 text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 hover:bg-gray-100">
+                            <Upload className="h-3.5 w-3.5" />
+                            Replace
+                            <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} disabled={isUploadingImage} />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage()}
+                            className="bg-red-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 hover:bg-red-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Remove
+                          </button>
+                        </div>
+                        {isUploadingImage && (
+                          <div className="absolute inset-0 bg-white/70 rounded-lg flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-200 border-t-purple-600" />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-purple-300 hover:bg-purple-50 transition-colors group">
+                        <div className="flex flex-col items-center gap-2 text-gray-400 group-hover:text-purple-600">
+                          {isUploadingImage ? (
+                            <div className="animate-spin rounded-full h-8 w-8 border-2 border-purple-200 border-t-purple-600" />
+                          ) : (
+                            <>
+                              <Upload className="h-8 w-8" />
+                              <span className="text-sm font-medium">Click to upload image</span>
+                              <span className="text-xs">PNG, JPG, WEBP up to 10MB</span>
+                            </>
+                          )}
+                        </div>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} disabled={isUploadingImage} />
+                      </label>
+                    )}
                   </CardContent>
                 </Card>
 
