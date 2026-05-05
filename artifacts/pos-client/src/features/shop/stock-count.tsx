@@ -208,7 +208,7 @@ export default function StockCount() {
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="min-w-0 flex-1">
                           <div className="font-medium text-gray-900 text-sm leading-tight">{product.name}</div>
-                          {product.category && <div className="text-xs text-gray-400 mt-0.5">{product.category}</div>}
+                          {product.category && <div className="text-xs text-gray-400 mt-0.5">{typeof product.category === "object" ? product.category.name : product.category}</div>}
                         </div>
                         {isCounted && (
                           <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full shrink-0">
@@ -279,7 +279,7 @@ export default function StockCount() {
                       <tr key={pid} className={`hover:bg-gray-50 transition-colors ${isCounted ? "bg-green-50/40" : ""}`}>
                         <td className="px-4 py-2">
                           <div className="font-medium text-gray-900 leading-tight">{product.name}</div>
-                          {product.category && <div className="text-xs text-gray-400">{product.category}</div>}
+                          {product.category && <div className="text-xs text-gray-400">{typeof product.category === "object" ? product.category.name : product.category}</div>}
                         </td>
                         <td className="text-center px-3 py-2 text-gray-600">{systemQty}</td>
                         <td className="px-3 py-2">
