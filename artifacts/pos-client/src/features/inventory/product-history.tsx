@@ -429,17 +429,26 @@ export default function ProductHistory() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {salesEvents.map((s: any, i: number) => (
-                            <tr key={s.id ?? i} className="hover:bg-gray-50">
+                          {salesEvents.map((s: any, i: number) => {
+                            const receiptRoute = isAdmin
+                              ? `/receipt/${s.saleId}`
+                              : `/attendant/receipt/${s.saleId}`;
+                            return (
+                            <tr
+                              key={s.id ?? i}
+                              className="hover:bg-gray-50 cursor-pointer"
+                              onClick={() => navigate(receiptRoute)}
+                            >
                               <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(s.saleDate ?? s.createdAt)}</td>
-                              <td className="px-4 py-2 font-mono text-xs">{s.receiptNo || `#${s.saleId || s.id}`}</td>
+                              <td className="px-4 py-2 font-mono text-xs text-indigo-600 hover:underline">{s.receiptNo || `#${s.saleId || s.id}`}</td>
                               <td className="px-4 py-2 text-xs">{s.customerId ? `Customer #${s.customerId}` : "Walk-in"}</td>
                               <td className="px-4 py-2 text-xs capitalize">{s.saleType || "cash"}</td>
                               <td className="px-4 py-2 text-right text-red-600 font-medium">-{parseFloat(s.quantity ?? 1)}</td>
                               <td className="px-4 py-2 text-right text-xs">{currency} {parseFloat(s.unitPrice ?? 0).toFixed(2)}</td>
                               <td className="px-4 py-2 text-right font-medium">{currency} {(parseFloat(s.quantity ?? 1) * parseFloat(s.unitPrice ?? 0)).toFixed(2)}</td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
