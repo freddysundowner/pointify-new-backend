@@ -43,13 +43,8 @@ export default function PurchaseReturnDetails() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const passed = (window as any).__returnData;
-    if (passed && (String(passed.id) === String(id))) {
-      setReturnData(passed);
-      delete (window as any).__returnData;
-      setIsLoading(false);
-      return;
-    }
+    // Always fetch from API to get enriched product names — clear any stale window data
+    delete (window as any).__returnData;
     if (!id) { setIsLoading(false); return; }
     apiRequest("GET", `/api/purchase-returns/${id}`)
       .then(r => r.json())
@@ -63,6 +58,13 @@ export default function PurchaseReturnDetails() {
 
   const fmtDate = (d: string) =>
     d ? new Date(d).toLocaleString() : "—";
+
+  const refundMethodLabel: Record<string, string> = {
+    credit: "Supplier Credit",
+    refund: "Cash Refund",
+    cash: "Cash Refund",
+    exchange: "Exchange Items",
+  };
 
   if (isLoading) {
     return (
@@ -166,11 +168,11 @@ export default function PurchaseReturnDetails() {
             <CardContent className="px-4 pb-4 space-y-2.5 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Refund Method</span>
-                <span className="font-medium capitalize">{returnData.refundMethod || "—"}</span>
+                <span className="font-medium">{refundMethodLabel[returnData.refundMethod] ?? returnData.refundMethod ?? "—"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Processed By</span>
-                <span className="font-medium">{returnData.processedBy ? `Attendant #${returnData.processedBy}` : "—"}</span>
+                <span className="font-medium">{returnData.processedBy ? `Attendant #${returnData.processedBy}` : "Admin"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Original PO</span>
