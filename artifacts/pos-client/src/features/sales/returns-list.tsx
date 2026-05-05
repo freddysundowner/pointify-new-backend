@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, DollarSign, ShoppingCart, Users, Filter, Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Plus, Edit, Trash2, RefreshCw, Eye, MoreHorizontal, RotateCcw } from "lucide-react";
+import { TrendingUp, DollarSign, ShoppingCart, Users, Filter, Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Plus, Edit, Trash2, RefreshCw, Eye, MoreHorizontal, RotateCcw, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -19,11 +19,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { apiRequest } from "@/lib/queryClient";
+import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 
 function ReturnsList() {
   const { hasPermission, user } = usePermissions();
   const { admin } = useAuth();
   const { shopId, shopData } = usePrimaryShop();
+  const shopDetails = useShopDetails();
   const [location, setLocation] = useLocation();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
@@ -187,6 +189,57 @@ function ReturnsList() {
   );
 
 
+
+  const downloadReport = async () => {
+    try {
+      const { jsPDF } = await import("jspdf");
+      const doc = new jsPDF();
+      const dateRange = startDate || endDate
+        ? `${startDate || "—"} to ${endDate || "—"}`
+        : "All dates";
+      let y = drawShopHeader(doc, shopDetails, "Sales Returns Report", `Period: ${dateRange}   Generated: ${new Date().toLocaleDateString()}`);
+
+      doc.setFontSize(10);
+      doc.text(`Total Returns: ${totalCount}   Total Amount: ${primaryShopCurrency} ${totalReturnsAmount.toFixed(2)}`, 14, y);
+      y += 10;
+
+      // Table header
+      const cols = ["Receipt #", "Customer", "Amount", "Date", "Attendant", "Status", "Reason"];
+      const colW  = [30, 30, 28, 28, 35, 25, 30];
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      let x = 14;
+      cols.forEach((h, i) => { doc.text(h, x, y); x += colW[i]; });
+      doc.setFont("helvetica", "normal");
+      y += 7;
+      doc.setDrawColor(200);
+      doc.line(14, y - 3, 196, y - 3);
+
+      transformedReturns.forEach((r: any) => {
+        if (y > 272) { doc.addPage(); y = 20; }
+        x = 14;
+        const fmtDate = (d: string) => {
+          try { return new Date(d).toLocaleDateString(); } catch { return d || "—"; }
+        };
+        [
+          r.receiptNo || "—",
+          (r.customerName || "Walk-in").substring(0, 14),
+          `${primaryShopCurrency} ${parseFloat(r.totalAmount || 0).toFixed(2)}`,
+          fmtDate(r.returnDate),
+          (r.attendantName || "—").substring(0, 18),
+          (r.status || "—"),
+          (r.reason || "—").substring(0, 16),
+        ].forEach((v, i) => { doc.text(String(v), x, y); x += colW[i]; });
+        y += 7;
+      });
+
+      doc.save(`sales-returns-${new Date().toISOString().split("T")[0]}.pdf`);
+      toast({ title: "PDF downloaded", description: "Sales returns report saved." });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Export failed", description: "Could not generate PDF.", variant: "destructive" });
+    }
+  };
 
   // Reset to first page when filters change and refresh API data
   const handleStatusFilter = (status: string) => {
@@ -388,6 +441,15 @@ function ReturnsList() {
                   )}
                 </CardTitle>
                 <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline" size="sm"
+                    className="h-7 px-2 gap-1 text-xs"
+                    onClick={downloadReport}
+                    disabled={transformedReturns.length === 0}
+                  >
+                    <Download className="h-3 w-3" />
+                    <span className="hidden sm:inline">PDF</span>
+                  </Button>
                   <span className="text-xs text-muted-foreground">Show:</span>
                   <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
                     <SelectTrigger className="w-14 h-7 text-xs">
