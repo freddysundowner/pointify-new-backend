@@ -338,6 +338,28 @@ export const attributeVariants = pgTable("attribute_variants", {
   status: text("status").default("show"),
 });
 
+// ─── Product edit / audit log ─────────────────────────────────────────────────
+// One row per product mutation (create / update / delete).
+// `changes` holds a map of { fieldName: { from, to } } for update events.
+export const productEditLogs = pgTable(
+  "product_edit_logs",
+  {
+    id: serial("id").primaryKey(),
+    product: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+    shop: integer("shop_id").notNull().references(() => shops.id),
+    action: text("action").notNull(), // 'created' | 'updated' | 'deleted'
+    changes: jsonb("changes"),        // { [field]: { from: string|null, to: string|null } }
+    changedById: integer("changed_by_id"),
+    changedByName: text("changed_by_name"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("product_edit_logs_product_idx").on(table.product),
+    index("product_edit_logs_shop_idx").on(table.shop),
+    index("product_edit_logs_created_at_idx").on(table.createdAt),
+  ]
+);
+
 // ─── Schemas / types ──────────────────────────────────────────────────────────
 export const insertAttributeSchema = createInsertSchema(attributes).omit({ id: true });
 export const insertAttributeVariantSchema = createInsertSchema(attributeVariants).omit({ id: true });
@@ -384,3 +406,6 @@ export type InsertAttribute = z.infer<typeof insertAttributeSchema>;
 export type AttributeVariant = typeof attributeVariants.$inferSelect;
 export type InsertAttributeVariant = z.infer<typeof insertAttributeVariantSchema>;
 export type ProductHistory = typeof productHistory.$inferSelect;
+export const insertProductEditLogSchema = createInsertSchema(productEditLogs).omit({ id: true });
+export type ProductEditLog = typeof productEditLogs.$inferSelect;
+export type InsertProductEditLog = z.infer<typeof insertProductEditLogSchema>;

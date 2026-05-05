@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft, TrendingUp, TrendingDown, Package, AlertTriangle,
   ClipboardList, ArrowLeftRight, Clock, RefreshCw, ShoppingCart,
-  RotateCcw, Plus, Minus,
+  RotateCcw, Plus, Minus, Pencil, PackagePlus, Trash2,
 } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiCall } from "@/lib/api-config";
@@ -34,6 +34,9 @@ const EVENT_CONFIG: Record<string, { label: string; color: string; icon: any }> 
   transfer:           { label: "Transfer",       color: "bg-indigo-100 text-indigo-700 border-indigo-200", icon: ArrowLeftRight },
   sale_return:        { label: "Sale Return",    color: "bg-pink-100 text-pink-700 border-pink-200",     icon: RotateCcw },
   purchase_return:    { label: "Purchase Return",color: "bg-yellow-100 text-yellow-700 border-yellow-200", icon: RotateCcw },
+  product_create:     { label: "Created",        color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: PackagePlus },
+  product_update:     { label: "Edited",         color: "bg-sky-100 text-sky-700 border-sky-200",        icon: Pencil },
+  product_delete:     { label: "Deleted",        color: "bg-rose-100 text-rose-700 border-rose-200",     icon: Trash2 },
 };
 
 function EventBadge({ type }: { type: string }) {
@@ -298,30 +301,55 @@ export default function ProductHistory() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {auditEvents.map((e: any, i: number) => (
-                            <tr key={`${e.eventType}-${e.id}-${i}`} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(e.date)}</td>
-                              <td className="px-4 py-2"><EventBadge type={e.eventType} /></td>
-                              <td className="px-4 py-2 font-mono text-xs text-gray-600">{e.refNo || "—"}</td>
-                              <td className="px-4 py-2 text-right font-medium">
-                                {e.eventType === "adjustment_remove" || e.eventType === "bad_stock" || e.eventType === "transfer_out"
-                                  ? <span className="text-red-600">-{parseFloat(e.qty ?? 0)}</span>
-                                  : <span className="text-green-700">+{parseFloat(e.qty ?? 0)}</span>}
-                              </td>
-                              <td className="px-4 py-2 text-right text-gray-600">
-                                {e.price ? `${currency} ${parseFloat(e.price).toFixed(2)}` : "—"}
-                              </td>
-                              <td className="px-4 py-2 text-xs text-gray-500 max-w-[200px] truncate">
-                                {e.eventType === "stock_count"
-                                  ? `Physical: ${parseFloat(e.a ?? 0)} | System: ${parseFloat(e.b ?? 0)} | Variance: ${parseFloat(e.variance ?? 0) >= 0 ? "+" : ""}${parseFloat(e.variance ?? 0)}`
-                                  : e.eventType === "adjustment_add" || e.eventType === "adjustment_remove"
-                                  ? `${e.note || ""} (${parseFloat(e.b ?? 0)} → ${parseFloat(e.a ?? 0)})`
-                                  : e.customerName
-                                  ? `Customer: ${e.customerName}`
-                                  : e.note || "—"}
-                              </td>
-                            </tr>
-                          ))}
+                          {auditEvents.map((e: any, i: number) => {
+                            const isEditEvent = e.eventType === "product_create" || e.eventType === "product_update" || e.eventType === "product_delete";
+                            const changes: Record<string, { from: string | null; to: string | null }> = e.changes ?? {};
+                            const changedFields = Object.keys(changes);
+                            return (
+                              <tr key={`${e.eventType}-${e.id}-${i}`} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(e.date)}</td>
+                                <td className="px-4 py-2"><EventBadge type={e.eventType} /></td>
+                                <td className="px-4 py-2 font-mono text-xs text-gray-600">
+                                  {isEditEvent ? (e.changedByName || "—") : (e.refNo || "—")}
+                                </td>
+                                <td className="px-4 py-2 text-right font-medium">
+                                  {isEditEvent ? (
+                                    <span className="text-gray-400 text-xs">—</span>
+                                  ) : e.eventType === "adjustment_remove" || e.eventType === "bad_stock" || e.eventType === "transfer_out"
+                                    ? <span className="text-red-600">-{parseFloat(e.qty ?? 0)}</span>
+                                    : <span className="text-green-700">+{parseFloat(e.qty ?? 0)}</span>}
+                                </td>
+                                <td className="px-4 py-2 text-right text-gray-600">
+                                  {isEditEvent ? <span className="text-gray-400 text-xs">—</span>
+                                    : e.price ? `${currency} ${parseFloat(e.price).toFixed(2)}` : "—"}
+                                </td>
+                                <td className="px-4 py-2 text-xs text-gray-500 max-w-xs">
+                                  {isEditEvent && e.eventType === "product_update" && changedFields.length > 0 ? (
+                                    <div className="space-y-0.5">
+                                      {changedFields.map(field => (
+                                        <div key={field} className="flex flex-wrap gap-1 items-center">
+                                          <span className="font-medium text-gray-700 capitalize">{field.replace(/([A-Z])/g, " $1")}:</span>
+                                          <span className="line-through text-red-500">{changes[field].from ?? "—"}</span>
+                                          <span className="text-gray-400">→</span>
+                                          <span className="text-green-700">{changes[field].to ?? "—"}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : isEditEvent ? (
+                                    <span className="italic text-gray-400">
+                                      {e.eventType === "product_create" ? "Product added to inventory" : "Product removed"}
+                                    </span>
+                                  ) : e.eventType === "stock_count"
+                                    ? `Physical: ${parseFloat(e.a ?? 0)} | System: ${parseFloat(e.b ?? 0)} | Variance: ${parseFloat(e.variance ?? 0) >= 0 ? "+" : ""}${parseFloat(e.variance ?? 0)}`
+                                    : e.eventType === "adjustment_add" || e.eventType === "adjustment_remove"
+                                    ? `${e.note || ""} (${parseFloat(e.b ?? 0)} → ${parseFloat(e.a ?? 0)})`
+                                    : e.customerName
+                                    ? `Customer: ${e.customerName}`
+                                    : e.note || "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

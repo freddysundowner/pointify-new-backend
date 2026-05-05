@@ -7,7 +7,7 @@ import {
   bundleItems, saleItems, sales, purchaseItems, purchases,
   adjustments, badStocks, transferItems, productTransfers, shops,
   batches, productHistory, admins, stockCounts, stockCountItems,
-  customers, attendants,
+  customers, attendants, productEditLogs,
 } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -20,6 +20,50 @@ import { sendEmail } from "../lib/email.js";
 import multer from "multer";
 
 const router = Router();
+
+// ── Audit-log helper ─────────────────────────────────────────────────────────
+type FieldDiff = Record<string, { from: string | null; to: string | null }>;
+
+const TRACKED_FIELDS: Array<keyof typeof products.$inferSelect> = [
+  "name", "buyingPrice", "sellingPrice", "wholesalePrice", "dealerPrice",
+  "minSellingPrice", "maxDiscount", "measureUnit", "manufacturer",
+  "description", "barcode", "serialNumber", "type", "isTaxable",
+  "manageByPrice", "expiryDate", "category", "supplier",
+];
+
+function diffProducts(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): FieldDiff {
+  const diff: FieldDiff = {};
+  for (const field of TRACKED_FIELDS) {
+    const from = before[field] != null ? String(before[field]) : null;
+    const to   = after[field]  != null ? String(after[field])  : null;
+    if (from !== to) diff[field] = { from, to };
+  }
+  return diff;
+}
+
+async function writeEditLog(opts: {
+  productId: number;
+  shopId: number;
+  action: "created" | "updated" | "deleted";
+  changes?: FieldDiff;
+  req: import("express").Request;
+}) {
+  const adminId: number | undefined = (opts.req as any).admin?.id;
+  const adminName: string | undefined = (opts.req as any).admin?.name ?? (opts.req as any).admin?.email;
+  try {
+    await db.insert(productEditLogs).values({
+      product: opts.productId,
+      shop: opts.shopId,
+      action: opts.action,
+      changes: opts.changes ?? null,
+      changedById: adminId ?? null,
+      changedByName: adminName ?? null,
+    });
+  } catch (_) { /* non-critical — never block the main response */ }
+}
 
 // ── Upload storage ────────────────────────────────────────────────────────────
 const UPLOADS_DIR = path.join(process.cwd(), "uploads", "products");
@@ -495,6 +539,8 @@ router.post("/", requireAdmin, async (req, res, next) => {
       ).returning();
     }
 
+    await writeEditLog({ productId: product.id, shopId: Number(shopId), action: "created", req });
+
     return created(res, { ...product, bundleItems: createdBundleItems });
   } catch (e) { next(e); }
 });
@@ -682,13 +728,19 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
       }
     }
 
+    const diff = diffProducts(existing as any, updated as any);
+    if (Object.keys(diff).length > 0) {
+      await writeEditLog({ productId: existing.id, shopId: existing.shop, action: "updated", changes: diff, req });
+    }
+
     return ok(res, updated);
   } catch (e) { next(e); }
 });
 
 router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
-    const { id } = (req as any).product;
+    const { id, shop } = (req as any).product;
+    await writeEditLog({ productId: id, shopId: shop, action: "deleted", req });
     await db.update(products).set({ isDeleted: true }).where(eq(products.id, id));
     return noContent(res);
   } catch (e) { next(e); }
@@ -1050,7 +1102,7 @@ router.get("/:id/audit-trail", async (req, res, next) => {
       ...(to   ? [lte(col, to)]   : []),
     ];
 
-    const [salesRows, purchaseRows, adjRows, badRows, countRows, xferRows] = await Promise.all([
+    const [salesRows, purchaseRows, adjRows, badRows, countRows, xferRows, editRows] = await Promise.all([
       db.select({
         id: saleItems.id,
         date: saleItems.createdAt,
@@ -1163,6 +1215,16 @@ router.get("/:id/audit-trail", async (req, res, next) => {
         .leftJoin(productTransfers, eq(transferItems.transfer, productTransfers.id))
         .where(and(eq(transferItems.product, productId), ...(shopId ? [or(eq(productTransfers.fromShop, shopId), eq(productTransfers.toShop, shopId))] : []), ...dc(productTransfers.createdAt)))
         .limit(500),
+
+      db.select({
+        id: productEditLogs.id,
+        date: productEditLogs.createdAt,
+        action: productEditLogs.action,
+        changes: productEditLogs.changes,
+        changedByName: productEditLogs.changedByName,
+      }).from(productEditLogs)
+        .where(and(eq(productEditLogs.product, productId), ...dc(productEditLogs.createdAt)))
+        .limit(500),
     ]);
 
     const allEvents: any[] = [
@@ -1176,6 +1238,26 @@ router.get("/:id/audit-trail", async (req, res, next) => {
         eventType: shopId
           ? (r.fromShop === shopId ? 'transfer_out' : 'transfer_in')
           : 'transfer',
+      })),
+      ...editRows.map(r => ({
+        id: r.id,
+        date: r.date,
+        qty: null,
+        price: null,
+        refNo: null,
+        note: r.changedByName ? `by ${r.changedByName}` : null,
+        customerName: null,
+        b: null,
+        a: null,
+        variance: null,
+        fromShop: null,
+        toShop: null,
+        adjType: null,
+        changes: r.changes,
+        changedByName: r.changedByName,
+        eventType: r.action === 'created' ? 'product_create'
+                 : r.action === 'deleted' ? 'product_delete'
+                 : 'product_update',
       })),
     ].sort((a, b) => new Date(b.date as any).getTime() - new Date(a.date as any).getTime());
 
