@@ -783,31 +783,42 @@ export default function ProductForm() {
 
                     {/* Quantity */}
                     {productType === "product" && !manageByPrice && (
-                      <FormField
-                        control={form.control}
-                        name="quantity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-gray-700">
-                              {isBundle ? "Bundle Quantity Available" : "Initial Quantity"}
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="0"
-                                className="h-10"
-                                {...field}
-                                value={field.value || ""}
-                                onChange={(e) => field.onChange(e.target.value === "" ? undefined : parseInt(e.target.value))}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                            {isBundle && (
-                              <p className="text-xs text-gray-400 mt-1">Number of complete bundle units available for sale</p>
-                            )}
-                          </FormItem>
-                        )}
-                      />
+                      isEditMode ? (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-gray-700">{isBundle ? "Bundle Quantity Available" : "Current Stock"}</p>
+                          <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-gray-200 bg-gray-50">
+                            <span className="text-sm text-gray-700">{form.getValues("quantity") ?? 0}</span>
+                          </div>
+                          <p className="text-xs text-gray-400">To change stock, use a Stock Adjustment from the product history page.</p>
+                        </div>
+                      ) : (
+                        <FormField
+                          control={form.control}
+                          name="quantity"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-gray-700">
+                                {isBundle ? "Bundle Quantity Available" : "Initial Quantity"}
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="0"
+                                  min="0"
+                                  className="h-10"
+                                  {...field}
+                                  value={field.value != null ? field.value : ""}
+                                  onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                              {isBundle && (
+                                <p className="text-xs text-gray-400 mt-1">Number of complete bundle units available for sale</p>
+                              )}
+                            </FormItem>
+                          )}
+                        />
+                      )
                     )}
 
                     {/* Taxable toggle */}
