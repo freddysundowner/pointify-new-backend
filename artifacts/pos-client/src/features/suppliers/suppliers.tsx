@@ -160,95 +160,193 @@ export default function SuppliersPage() {
     setStatLoading(true);
     try {
       const sid = supplierId(supplier);
-      const res  = await apiRequest('GET', `${ENDPOINTS.suppliers.walletTransactions(sid)}?limit=200`);
-      const json = await res.json();
-      const txns: any[] = Array.isArray(json) ? json : (json.data ?? []);
+
+      // Fetch transactions + shop name in parallel
+      const [txnRes, shopRes] = await Promise.all([
+        apiRequest('GET', `${ENDPOINTS.suppliers.walletTransactions(sid)}?limit=500`),
+        shopId ? apiRequest('GET', ENDPOINTS.shops.getById(String(shopId))).catch(() => null) : Promise.resolve(null),
+      ]);
+      const txnJson = await txnRes.json();
+      const txns: any[] = Array.isArray(txnJson) ? txnJson : (txnJson.data ?? []);
+      const shopData = shopRes ? await shopRes.json().catch(() => null) : null;
+      const shopName: string = shopData?.data?.name ?? shopData?.name ?? 'Supplier Statement';
+      const shopContact: string = [shopData?.data?.address ?? shopData?.address, shopData?.data?.phone ?? shopData?.phone].filter(Boolean).join('  ·  ');
 
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pw  = doc.internal.pageSize.getWidth();
-      const W   = pw - 28;
+      const PW  = doc.internal.pageSize.getWidth();
+      const PH  = doc.internal.pageSize.getHeight();
+      const ML  = 14;
+      const MR  = PW - 14;
+      const CW  = MR - ML;
+      const purple: [number,number,number] = [76, 29, 149];
+      const purpleLight: [number,number,number] = [237, 233, 254];
+      const gray50: [number,number,number]  = [249, 250, 251];
+      const gray200: [number,number,number] = [229, 231, 235];
+      const gray500: [number,number,number] = [107, 114, 128];
+      const gray900: [number,number,number] = [17, 24, 39];
+      const red: [number,number,number]     = [220, 38, 38];
+      const green: [number,number,number]   = [22, 163, 74];
 
-      // Header bar
-      doc.setFillColor(88, 28, 135);
-      doc.rect(0, 0, pw, 28, 'F');
+      const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+      // ── Header band ────────────────────────────────────────────────────
+      doc.setFillColor(...purple);
+      doc.rect(0, 0, PW, 24, 'F');
+
+      // Shop name (left)
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Supplier Statement', 14, 12);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Generated: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`, 14, 20);
-
-      // Supplier info box
-      doc.setDrawColor(200, 200, 200);
-      doc.setFillColor(250, 248, 255);
-      doc.roundedRect(14, 34, W, 34, 2, 2, 'FD');
-      doc.setTextColor(50, 50, 50);
       doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.text(supplier.name, 20, 44);
-      doc.setFontSize(8.5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 100, 100);
-      const infoY = 51;
-      const infoParts: string[] = [];
-      if (supplier.phoneNumber) infoParts.push(`Phone: ${supplier.phoneNumber}`);
-      if (supplier.email)       infoParts.push(`Email: ${supplier.email}`);
-      if (supplier.address)     infoParts.push(`Address: ${supplier.address}`);
-      doc.text(infoParts.join('   |   '), 20, infoY);
+      doc.text(shopName.toUpperCase(), ML, 10);
 
-      // KPI boxes
-      const kpiY = 74;
-      const kpiW = (W - 6) / 2;
-      const wallet = parseFloat(fmt(supplier.wallet));
+      // "SUPPLIER STATEMENT" label (right-aligned)
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(200, 180, 255);
+      doc.text('SUPPLIER STATEMENT', MR, 10, { align: 'right' });
+
+      // Shop contact sub-line
+      if (shopContact) {
+        doc.setFontSize(7.5);
+        doc.setTextColor(200, 180, 255);
+        doc.text(shopContact, ML, 16);
+      }
+      doc.setTextColor(200, 180, 255);
+      doc.setFontSize(7.5);
+      doc.text(`Date: ${dateStr}`, MR, 16, { align: 'right' });
+
+      // ── Supplier info card ──────────────────────────────────────────────
+      const cardY  = 28;
+      const cardH  = 28;
+      doc.setFillColor(...gray50);
+      doc.setDrawColor(...gray200);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(ML, cardY, CW, cardH, 2, 2, 'FD');
+
+      // Left column: name + address
+      doc.setTextColor(...gray900);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(supplier.name, ML + 4, cardY + 9);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...gray500);
+      const leftLines: string[] = [];
+      if (supplier.address) leftLines.push(supplier.address);
+      if (leftLines.length) doc.text(leftLines.join('\n'), ML + 4, cardY + 15);
+
+      // Right column: phone + email
+      const rightX = ML + CW / 2 + 4;
+      doc.setFontSize(8);
+      doc.setTextColor(...gray500);
+      const rightLines: string[] = [];
+      if (supplier.phoneNumber) rightLines.push(`Phone:  ${supplier.phoneNumber}`);
+      if (supplier.email)       rightLines.push(`Email:  ${supplier.email}`);
+      if (rightLines.length) {
+        doc.text(rightLines[0], rightX, cardY + 9);
+        if (rightLines[1]) doc.text(rightLines[1], rightX, cardY + 15);
+      }
+
+      // ── KPI row ────────────────────────────────────────────────────────
+      const kpiY  = cardY + cardH + 5;
+      const kpiH  = 18;
+      const kpiW  = (CW - 6) / 3;
+      const wallet      = parseFloat(fmt(supplier.wallet));
       const outstanding = parseFloat(fmt(supplier.outstandingBalance));
 
-      const drawKpi = (x: number, label: string, value: string, color: [number,number,number]) => {
-        doc.setFillColor(...color);
-        doc.roundedRect(x, kpiY, kpiW, 20, 2, 2, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(7.5);
+      const drawKpi = (x: number, label: string, value: string, bg: [number,number,number], fg: [number,number,number]) => {
+        doc.setFillColor(...bg);
+        doc.setDrawColor(...gray200);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(x, kpiY, kpiW, kpiH, 1.5, 1.5, 'FD');
+        doc.setTextColor(...fg);
+        doc.setFontSize(6.5);
         doc.setFont('helvetica', 'normal');
-        doc.text(label.toUpperCase(), x + 4, kpiY + 7);
-        doc.setFontSize(12);
+        doc.text(label.toUpperCase(), x + 3, kpiY + 5.5);
+        doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text(value, x + 4, kpiY + 15);
+        doc.text(value, x + 3, kpiY + 13);
       };
-      drawKpi(14, 'Wallet Balance', `KES ${fmt(wallet)}`, [88, 28, 135]);
-      drawKpi(14 + kpiW + 6, 'Outstanding Balance', `KES ${fmt(outstanding)}`, outstanding > 0 ? [220, 38, 38] : [22, 163, 74]);
 
-      // Transactions table
-      doc.setTextColor(50, 50, 50);
+      drawKpi(ML,              'Wallet Balance',   `KES ${fmt(wallet)}`,      purpleLight, purple);
+      drawKpi(ML + kpiW + 3,  'Outstanding',       `KES ${fmt(outstanding)}`, outstanding > 0 ? [254, 226, 226] : [220, 252, 231], outstanding > 0 ? red : green);
+      drawKpi(ML + (kpiW + 3) * 2, 'Transactions', String(txns.length),      gray50,      gray500);
+
+      // ── Section title ──────────────────────────────────────────────────
+      const tableStartY = kpiY + kpiH + 6;
+      doc.setTextColor(...purple);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('Transaction History', 14, kpiY + 30);
+      doc.setFontSize(8.5);
+      doc.text('TRANSACTION HISTORY', ML, tableStartY - 1.5);
+      doc.setDrawColor(...purple);
+      doc.setLineWidth(0.5);
+      doc.line(ML, tableStartY + 1, MR, tableStartY + 1);
 
+      // ── Transactions table ─────────────────────────────────────────────
       if (txns.length === 0) {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(150, 150, 150);
-        doc.text('No transactions found.', 14, kpiY + 40);
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...gray500);
+        doc.text('No transactions recorded for this supplier.', ML, tableStartY + 12);
       } else {
         autoTable(doc, {
-          startY: kpiY + 34,
-          margin: { left: 14, right: 14 },
-          head: [['Date', 'Type', 'Ref / Payment No', 'Payment Method', 'Amount', 'Balance']],
-          body: txns.map((t: any) => [
-            new Date(t.createdAt).toLocaleDateString('en-GB'),
-            (t.type || '').charAt(0).toUpperCase() + (t.type || '').slice(1),
-            [t.paymentReference, t.paymentNo].filter(Boolean).join(' / ') || '—',
-            t.paymentType || '—',
-            `KES ${parseFloat(String(t.amount || 0)).toFixed(2)}`,
-            `KES ${parseFloat(String(t.balance || 0)).toFixed(2)}`,
-          ]),
-          headStyles: { fillColor: [88, 28, 135], textColor: 255, fontSize: 8, fontStyle: 'bold', cellPadding: 3 },
-          bodyStyles: { fontSize: 8, cellPadding: 2.5 },
-          alternateRowStyles: { fillColor: [250, 248, 255] },
+          startY: tableStartY + 4,
+          margin: { left: ML, right: 14 },
+          head: [['Date', 'Type', 'Reference', 'Method', 'Amount', 'Balance']],
+          body: txns.map((t: any) => {
+            const ref = [t.paymentReference, t.paymentNo].filter(Boolean).join(' / ') || '—';
+            const type = (t.type || '').replace(/_/g, ' ');
+            const capitalized = type.charAt(0).toUpperCase() + type.slice(1);
+            return [
+              new Date(t.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+              capitalized,
+              ref,
+              t.paymentType || '—',
+              `KES ${parseFloat(String(t.amount || 0)).toFixed(2)}`,
+              `KES ${parseFloat(String(t.balance || 0)).toFixed(2)}`,
+            ];
+          }),
+          headStyles: {
+            fillColor: purple,
+            textColor: [255, 255, 255],
+            fontSize: 7.5,
+            fontStyle: 'bold',
+            cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+            halign: 'left',
+          },
+          bodyStyles: {
+            fontSize: 7.5,
+            cellPadding: { top: 2, bottom: 2, left: 3, right: 3 },
+            textColor: gray900,
+          },
+          alternateRowStyles: { fillColor: [250, 249, 255] },
           columnStyles: {
-            0: { cellWidth: 22 },
-            1: { cellWidth: 22 },
+            0: { cellWidth: 24 },
+            1: { cellWidth: 30 },
+            2: { cellWidth: 'auto' },
+            3: { cellWidth: 24 },
             4: { halign: 'right', cellWidth: 28 },
-            5: { halign: 'right', cellWidth: 28 },
+            5: { halign: 'right', cellWidth: 28, fontStyle: 'bold' },
+          },
+          didDrawPage: (data) => {
+            // Footer on every page
+            const pageCount = (doc as any).internal.getNumberOfPages();
+            const currentPage = data.pageNumber;
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(...gray500);
+            doc.text(
+              `${shopName}  ·  ${supplier.name} Statement  ·  ${dateStr}`,
+              ML, PH - 6,
+            );
+            doc.text(
+              `Page ${currentPage} of ${pageCount}`,
+              MR, PH - 6, { align: 'right' },
+            );
+            doc.setDrawColor(...gray200);
+            doc.setLineWidth(0.3);
+            doc.line(ML, PH - 9, MR, PH - 9);
           },
         });
       }
