@@ -479,17 +479,27 @@ export default function ProductHistory() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {purchaseEvents.map((p: any, i: number) => (
-                            <tr key={p.id ?? i} className="hover:bg-gray-50">
-                              <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(p.purchaseDate ?? p.createdAt)}</td>
-                              <td className="px-4 py-2 font-mono text-xs">{p.purchaseNo || `#${p.purchaseId || p.id}`}</td>
-                              <td className="px-4 py-2 text-xs">{p.supplierId ? `Supplier #${p.supplierId}` : "Direct"}</td>
-                              <td className="px-4 py-2 text-xs text-gray-400">{p.batchCode || "—"}</td>
-                              <td className="px-4 py-2 text-right text-green-700 font-medium">+{parseFloat(p.quantity ?? 1)}</td>
-                              <td className="px-4 py-2 text-right text-xs">{currency} {parseFloat(p.unitPrice ?? 0).toFixed(2)}</td>
-                              <td className="px-4 py-2 text-right font-medium">{currency} {(parseFloat(p.quantity ?? 1) * parseFloat(p.unitPrice ?? 0)).toFixed(2)}</td>
-                            </tr>
-                          ))}
+                          {purchaseEvents.map((p: any, i: number) => {
+                            const purchaseId = p.purchaseId || p.id;
+                            const purchaseRoute = isAdmin
+                              ? `/purchases/view/${purchaseId}`
+                              : `/attendant/purchases/view/${purchaseId}`;
+                            return (
+                              <tr
+                                key={p.id ?? i}
+                                className="hover:bg-blue-50 cursor-pointer transition-colors"
+                                onClick={() => navigate(purchaseRoute)}
+                              >
+                                <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(p.purchaseDate ?? p.createdAt)}</td>
+                                <td className="px-4 py-2 font-mono text-xs text-blue-600 hover:underline">{p.purchaseNo || `#${purchaseId}`}</td>
+                                <td className="px-4 py-2 text-xs">{p.supplierId ? `Supplier #${p.supplierId}` : "Direct"}</td>
+                                <td className="px-4 py-2 text-xs text-gray-400">{p.batchCode || "—"}</td>
+                                <td className="px-4 py-2 text-right text-green-700 font-medium">+{parseFloat(p.quantity ?? 1)}</td>
+                                <td className="px-4 py-2 text-right text-xs">{currency} {parseFloat(p.unitPrice ?? 0).toFixed(2)}</td>
+                                <td className="px-4 py-2 text-right font-medium">{currency} {(parseFloat(p.quantity ?? 1) * parseFloat(p.unitPrice ?? 0)).toFixed(2)}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
