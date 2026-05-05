@@ -850,19 +850,20 @@ router.get("/reports/purchases", requireAdmin, async (req, res, next) => {
     const sid = shopId(req);
     const { from, to } = dateRange(req);
     const where = shopDateWhere(sid, from, to, purchases);
-    const [summary] = await db.select({
-      totalPurchases: sql<number>`COUNT(*)`,
-      totalAmount: sql<string>`COALESCE(SUM(${purchases.totalAmount}::numeric), 0)`,
-      totalPaid: sql<string>`COALESCE(SUM(${purchases.amountPaid}::numeric), 0)`,
-      totalOutstanding: sql<string>`COALESCE(SUM(${purchases.outstandingBalance}::numeric), 0)`,
-      totalReturns: sql<string>`COALESCE((
-        SELECT SUM(pr.refund_amount::numeric)
-        FROM purchase_returns pr
-        INNER JOIN purchases p2 ON p2.id = pr.purchase_id
-        WHERE p2.shop_id = ${sid}
-      ), 0)`,
-    }).from(purchases).where(where);
-    return ok(res, summary);
+    const [[summary], [returnsRow]] = await Promise.all([
+      db.select({
+        totalPurchases: sql<number>`COUNT(*)`,
+        totalAmount: sql<string>`COALESCE(SUM(${purchases.totalAmount}::numeric), 0)`,
+        totalPaid: sql<string>`COALESCE(SUM(${purchases.amountPaid}::numeric), 0)`,
+        totalOutstanding: sql<string>`COALESCE(SUM(${purchases.outstandingBalance}::numeric), 0)`,
+      }).from(purchases).where(where),
+      db.select({
+        totalReturns: sql<string>`COALESCE(SUM(${purchaseReturns.refundAmount}::numeric), 0)`,
+      }).from(purchaseReturns)
+        .innerJoin(purchases, eq(purchaseReturns.purchase, purchases.id))
+        .where(eq(purchases.shop, sid)),
+    ]);
+    return ok(res, { ...summary, totalReturns: returnsRow?.totalReturns ?? "0" });
   } catch (e) { next(e); }
 });
 
