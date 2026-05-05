@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, gte, lte, sql, count } from "drizzle-orm";
+import { eq, and, gte, lte, sql, count, ilike } from "drizzle-orm";
 import { purchases, purchaseItems, purchasePayments, batches, inventory, shops, products } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -16,16 +16,22 @@ const router = Router();
 router.get("/", requireAdmin, async (req, res, next) => {
   try {
     const { page, limit, offset } = getPagination(req);
-    const shopId = req.query["shopId"] ? Number(req.query["shopId"]) : null;
-    const supplierId = req.query["supplierId"] ? Number(req.query["supplierId"]) : null;
+    const shopId      = req.query["shopId"]      ? Number(req.query["shopId"])      : null;
+    const supplierId  = req.query["supplierId"]  ? Number(req.query["supplierId"])  : null;
+    const attendantId = req.query["attendantId"] ? Number(req.query["attendantId"]) : null;
+    const paymentType = req.query["paymentType"] ? String(req.query["paymentType"]) : null;
+    const search      = req.query["purchaseNo"]  ? String(req.query["purchaseNo"])  : null;
     const from = req.query["from"] ? new Date(String(req.query["from"])) : null;
-    const to = req.query["to"] ? new Date(String(req.query["to"])) : null;
+    const to   = req.query["to"]   ? (() => { const d = new Date(String(req.query["to"])); d.setHours(23, 59, 59, 999); return d; })() : null;
 
     const conditions = [];
-    if (shopId) conditions.push(eq(purchases.shop, shopId));
-    if (supplierId) conditions.push(eq(purchases.supplier, supplierId));
+    if (shopId)      conditions.push(eq(purchases.shop, shopId));
+    if (supplierId)  conditions.push(eq(purchases.supplier, supplierId));
+    if (attendantId) conditions.push(eq(purchases.createdBy, attendantId));
+    if (paymentType) conditions.push(eq(purchases.paymentType, paymentType));
+    if (search)      conditions.push(ilike(purchases.purchaseNo, `%${search}%`));
     if (from) conditions.push(gte(purchases.createdAt, from));
-    if (to) conditions.push(lte(purchases.createdAt, to));
+    if (to)   conditions.push(lte(purchases.createdAt, to));
     const where = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     const rows = await db.query.purchases.findMany({

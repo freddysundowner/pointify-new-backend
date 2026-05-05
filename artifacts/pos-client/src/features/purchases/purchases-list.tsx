@@ -887,7 +887,16 @@ export default function PurchasesList() {
         <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
           <SheetContent side="bottom" className="sm:hidden rounded-t-2xl p-0 max-h-[85vh] overflow-y-auto">
             <SheetHeader className="px-4 pt-4 pb-2 border-b">
-              <SheetTitle className="text-base">Filters</SheetTitle>
+              <div className="flex items-center justify-between">
+                <SheetTitle className="text-base">Filters</SheetTitle>
+                <Button
+                  variant="ghost" size="sm"
+                  className="h-8 text-xs text-purple-600 font-medium px-2"
+                  onClick={clearAllFilters}
+                >
+                  Clear all
+                </Button>
+              </div>
             </SheetHeader>
             <div className="px-4 py-4 space-y-4">
               {/* Search */}
