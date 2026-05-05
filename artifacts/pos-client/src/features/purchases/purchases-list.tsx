@@ -1031,17 +1031,27 @@ export default function PurchasesList() {
         {/* Summary Stats — compact horizontal scroll strip */}
         {!isLoading && !error && analyticsData && (
           <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-3 sm:mx-0 px-3 sm:px-0 sm:grid sm:grid-cols-5">
-            {[
-              { label: "Total",    value: analyticsData?.totalAmount,      color: "text-blue-600 dark:text-blue-400" },
-              { label: "Paid",     value: analyticsData?.totalPaid,        color: "text-green-600 dark:text-green-400" },
-              { label: "Unpaid",   value: analyticsData?.totalOutstanding, color: "text-orange-600 dark:text-orange-400" },
-              { label: "Cash",     value: analyticsData?.totalPaid,        color: "text-purple-600 dark:text-purple-400" },
-              { label: "Returns",  value: 0,                               color: "text-red-600 dark:text-red-400" },
-            ].map(({ label, value, color }) => (
+            {(() => {
+              const returnsTotal = analyticsData?.totalReturns
+                ? parseFloat(String(analyticsData.totalReturns))
+                : purchasesData.reduce((sum: number, p: any) => {
+                    const rets = Array.isArray(p.purchaseReturns) ? p.purchaseReturns : [];
+                    return sum + rets.reduce((s: number, r: any) => s + parseFloat(String(r.refundAmount || 0)), 0);
+                  }, 0);
+              const grossTotal = parseFloat(String(analyticsData?.totalAmount || 0));
+              const netTotal = Math.max(0, grossTotal - returnsTotal);
+              return [
+                { label: "Gross",   value: grossTotal,                                   color: "text-blue-600 dark:text-blue-400" },
+                { label: "Net",     value: netTotal,                                      color: "text-indigo-600 dark:text-indigo-400" },
+                { label: "Paid",    value: parseFloat(String(analyticsData?.totalPaid || 0)),        color: "text-green-600 dark:text-green-400" },
+                { label: "Unpaid",  value: parseFloat(String(analyticsData?.totalOutstanding || 0)), color: "text-orange-600 dark:text-orange-400" },
+                { label: "Returns", value: returnsTotal,                                  color: "text-red-600 dark:text-red-400" },
+              ];
+            })().map(({ label, value, color }) => (
               <div key={label} className="shrink-0 sm:shrink bg-white border rounded-lg px-3 py-2 min-w-[110px] sm:min-w-0">
                 <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
                 <p className={`text-sm font-bold truncate ${color}`}>
-                  {currency} {parseFloat(String(value || 0)).toFixed(2)}
+                  {currency} {value.toFixed(2)}
                 </p>
               </div>
             ))}

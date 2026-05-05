@@ -855,6 +855,12 @@ router.get("/reports/purchases", requireAdmin, async (req, res, next) => {
       totalAmount: sql<string>`COALESCE(SUM(${purchases.totalAmount}::numeric), 0)`,
       totalPaid: sql<string>`COALESCE(SUM(${purchases.amountPaid}::numeric), 0)`,
       totalOutstanding: sql<string>`COALESCE(SUM(${purchases.outstandingBalance}::numeric), 0)`,
+      totalReturns: sql<string>`COALESCE((
+        SELECT SUM(pr.refund_amount::numeric)
+        FROM purchase_returns pr
+        INNER JOIN purchases p2 ON p2.id = pr.purchase_id
+        WHERE p2.shop_id = ${sid}
+      ), 0)`,
     }).from(purchases).where(where);
     return ok(res, summary);
   } catch (e) { next(e); }
