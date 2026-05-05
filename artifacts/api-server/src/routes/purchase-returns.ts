@@ -23,6 +23,12 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
     if (search) conditions.push(or(
       ilike(purchaseReturns.returnNo, `%${search}%`),
       ilike(purchaseReturns.reason, `%${search}%`),
+      sql`EXISTS (
+        SELECT 1 FROM purchase_return_items pri
+        JOIN products p ON pri.product = p.id
+        WHERE pri.purchase_return = ${purchaseReturns.id}
+        AND p.name ILIKE ${'%' + search + '%'}
+      )`,
     ));
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
