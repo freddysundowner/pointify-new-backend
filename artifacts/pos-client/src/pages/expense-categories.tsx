@@ -21,9 +21,9 @@ import { ENDPOINTS } from "@/lib/api-endpoints";
 import { extractId } from "@/lib/utils";
 
 interface ExpenseCategory {
-  _id: string;
+  id: number;
   name: string;
-  shopId: string;
+  shop: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -50,7 +50,7 @@ export default function ExpenseCategories() {
       if (!effectiveShopId) return [];
       
       const params = new URLSearchParams({
-        shop: effectiveShopId
+        shopId: effectiveShopId
       });
       
       const response = await apiRequest('GET', `${ENDPOINTS.expenseCategories.getAll}?${params.toString()}`);
@@ -94,10 +94,10 @@ export default function ExpenseCategories() {
     mutationFn: async (data: ExpenseCategory) => {
       const categoryData = {
         name: data.name.trim(),
-        shopId: data.shopId
+        shopId: data.shop,
       };
       
-      const response = await apiRequest('PUT', ENDPOINTS.expenseCategories.update(data._id), categoryData);
+      const response = await apiRequest('PUT', ENDPOINTS.expenseCategories.update(String(data.id)), categoryData);
       return response.json();
     },
     onSuccess: () => {
@@ -119,8 +119,8 @@ export default function ExpenseCategories() {
 
   // Delete category mutation
   const deleteCategoryMutation = useMutation({
-    mutationFn: async (categoryId: string) => {
-      await apiRequest('DELETE', ENDPOINTS.expenseCategories.delete(categoryId));
+    mutationFn: async (categoryId: number) => {
+      await apiRequest('DELETE', ENDPOINTS.expenseCategories.delete(String(categoryId)));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expense-categories'] });
@@ -169,7 +169,7 @@ export default function ExpenseCategories() {
     updateCategoryMutation.mutate(editingCategory);
   };
 
-  const handleDeleteCategory = (categoryId: string) => {
+  const handleDeleteCategory = (categoryId: number) => {
     deleteCategoryMutation.mutate(categoryId);
   };
 
@@ -305,7 +305,7 @@ export default function ExpenseCategories() {
                 </TableHeader>
                 <TableBody>
                   {filteredCategories.map((category: ExpenseCategory) => (
-                    <TableRow key={category._id}>
+                    <TableRow key={category.id}>
                       <TableCell>
                         <div className="flex items-center">
                           <Tag className="h-4 w-4 text-gray-400 mr-2 shrink-0" />
@@ -347,7 +347,7 @@ export default function ExpenseCategories() {
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
-                                  onClick={() => handleDeleteCategory(category._id)}
+                                  onClick={() => handleDeleteCategory(category.id)}
                                   className="bg-red-600 hover:bg-red-700"
                                 >
                                   Delete

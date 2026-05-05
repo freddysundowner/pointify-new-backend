@@ -101,7 +101,7 @@ export default function Expenses() {
       if (!effectiveShopId) return [];
       
       const params = new URLSearchParams({
-        shop: effectiveShopId
+        shopId: effectiveShopId
       });
       
       // Add filter parameters
@@ -136,7 +136,7 @@ export default function Expenses() {
       if (!effectiveShopId) return [];
       
       const params = new URLSearchParams({
-        shop: effectiveShopId
+        shopId: effectiveShopId
       });
       
       const response = await apiRequest('GET', `${ENDPOINTS.expenseCategories.getAll}?${params.toString()}`);
@@ -153,7 +153,7 @@ export default function Expenses() {
       if (!effectiveShopId) return null;
       
       const params = new URLSearchParams({
-        shop: effectiveShopId,
+        shopId: effectiveShopId,
         page: '1',
         limit: '20'
       });

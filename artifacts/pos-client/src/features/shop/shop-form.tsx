@@ -14,7 +14,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 
 interface ShopCategory {
-  _id: string;
+  id: number;
   name: string;
 }
 
@@ -194,7 +194,7 @@ export default function ShopForm({
                     <SelectItem value="loading" disabled>Loading categories...</SelectItem>
                   ) : categories.length > 0 ? (
                     categories.map((category: ShopCategory) => (
-                      <SelectItem key={category._id} value={category._id}>
+                      <SelectItem key={category.id} value={String(category.id)}>
                         {category.name}
                       </SelectItem>
                     ))
