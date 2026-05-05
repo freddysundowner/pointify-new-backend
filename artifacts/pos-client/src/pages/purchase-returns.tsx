@@ -271,7 +271,7 @@ export default function PurchaseReturns() {
                   <RotateCcw className="h-3 w-3" />
                 </Button>
               </div>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              <div className="flex flex-wrap gap-2">
                 <Select value={supplierFilter} onValueChange={(v) => { setSupplierFilter(v); setCurrentPage(1); }}>
                   <SelectTrigger className="h-8 text-xs min-w-[130px]">
                     <SelectValue placeholder="All Suppliers" />
@@ -283,9 +283,11 @@ export default function PurchaseReturns() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }} className="h-8 text-xs flex-1 min-w-[120px]" />
-                <span className="self-center text-xs text-gray-400 shrink-0">–</span>
-                <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }} className="h-8 text-xs flex-1 min-w-[120px]" />
+                <div className="flex gap-2 items-center flex-1 min-w-[260px]">
+                  <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }} className="h-8 text-xs flex-1" />
+                  <span className="text-xs text-gray-400 shrink-0">–</span>
+                  <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }} className="h-8 text-xs flex-1" />
+                </div>
               </div>
             </CardContent>
           </Card>
