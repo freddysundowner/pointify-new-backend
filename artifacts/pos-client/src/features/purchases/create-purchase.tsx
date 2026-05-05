@@ -127,7 +127,9 @@ export default function CreatePurchase() {
       const purchaseItems = items.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
-        unitCost: item.unitCost,
+        buyingPrice: item.unitCost,
+        unitPrice: item.unitCost,
+        sellingPrice: (item as any).sellingPrice ?? 0,
         totalCost: item.totalCost,
       }));
       const payload = {
