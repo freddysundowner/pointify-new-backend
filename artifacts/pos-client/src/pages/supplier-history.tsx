@@ -397,22 +397,22 @@ export default function SupplierHistoryPage() {
         </div>
 
         {/* ── KPI strip ──────────────────────────────────────────────────────── */}
-        <div className="px-3 sm:px-4 py-2.5 flex gap-5 overflow-x-auto border-b bg-gray-50/60">
-          <div className="shrink-0">
-            <p className="text-xs text-muted-foreground">Orders</p>
-            <p className="text-sm font-bold text-blue-600 mt-0.5">{totalCount}</p>
+        <div className="px-3 sm:px-4 py-2.5 flex gap-4 sm:gap-6 overflow-x-auto border-b bg-gray-50">
+          <div className="shrink-0 border-r pr-4">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Orders</p>
+            <p className="text-base font-bold text-blue-600 leading-tight mt-0.5">{totalCount}</p>
+          </div>
+          <div className="shrink-0 border-r pr-4">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Total Amount</p>
+            <p className="text-base font-bold text-gray-800 leading-tight mt-0.5">{shopCurrency} {fmtAmt(totalAmount)}</p>
+          </div>
+          <div className="shrink-0 border-r pr-4">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Amount Paid</p>
+            <p className="text-base font-bold text-green-600 leading-tight mt-0.5">{shopCurrency} {fmtAmt(totalPaid)}</p>
           </div>
           <div className="shrink-0">
-            <p className="text-xs text-muted-foreground">Total Amount</p>
-            <p className="text-sm font-bold text-gray-800 mt-0.5">{shopCurrency} {fmtAmt(totalAmount)}</p>
-          </div>
-          <div className="shrink-0">
-            <p className="text-xs text-muted-foreground">Amount Paid</p>
-            <p className="text-sm font-bold text-green-600 mt-0.5">{shopCurrency} {fmtAmt(totalPaid)}</p>
-          </div>
-          <div className="shrink-0">
-            <p className="text-xs text-muted-foreground">Outstanding</p>
-            <p className={`text-sm font-bold mt-0.5 ${parseFloat(fmtAmt(totalOutstanding)) > 0 ? 'text-red-600' : 'text-gray-500'}`}>
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Outstanding</p>
+            <p className={`text-base font-bold leading-tight mt-0.5 ${parseFloat(fmtAmt(totalOutstanding)) > 0 ? 'text-red-600' : 'text-gray-400'}`}>
               {shopCurrency} {fmtAmt(totalOutstanding)}
             </p>
           </div>
