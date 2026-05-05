@@ -396,26 +396,19 @@ export default function SupplierHistoryPage() {
           </div>
         </div>
 
-        {/* ── KPI strip ──────────────────────────────────────────────────────── */}
-        <div className="px-3 sm:px-4 py-2.5 flex gap-4 sm:gap-6 overflow-x-auto border-b bg-gray-50">
-          <div className="shrink-0 border-r pr-4">
-            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Orders</p>
-            <p className="text-base font-bold text-blue-600 leading-tight mt-0.5">{totalCount}</p>
-          </div>
-          <div className="shrink-0 border-r pr-4">
-            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Total Amount</p>
-            <p className="text-base font-bold text-gray-800 leading-tight mt-0.5">{shopCurrency} {fmtAmt(totalAmount)}</p>
-          </div>
-          <div className="shrink-0 border-r pr-4">
-            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Amount Paid</p>
-            <p className="text-base font-bold text-green-600 leading-tight mt-0.5">{shopCurrency} {fmtAmt(totalPaid)}</p>
-          </div>
-          <div className="shrink-0">
-            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Outstanding</p>
-            <p className={`text-base font-bold leading-tight mt-0.5 ${parseFloat(fmtAmt(totalOutstanding)) > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-              {shopCurrency} {fmtAmt(totalOutstanding)}
-            </p>
-          </div>
+        {/* ── KPI cards ──────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-4 border-b">
+          {[
+            { label: 'Orders',       value: String(totalCount),                            accent: 'text-blue-600',  bg: 'bg-blue-50'  },
+            { label: 'Total Amount', value: `${shopCurrency} ${fmtAmt(totalAmount)}`,      accent: 'text-gray-800',  bg: 'bg-gray-50'  },
+            { label: 'Amount Paid',  value: `${shopCurrency} ${fmtAmt(totalPaid)}`,        accent: 'text-green-600', bg: 'bg-green-50' },
+            { label: 'Outstanding',  value: `${shopCurrency} ${fmtAmt(totalOutstanding)}`, accent: parseFloat(fmtAmt(totalOutstanding)) > 0 ? 'text-red-600' : 'text-gray-400', bg: parseFloat(fmtAmt(totalOutstanding)) > 0 ? 'bg-red-50' : 'bg-gray-50' },
+          ].map(({ label, value, accent, bg }, i, arr) => (
+            <div key={label} className={`${bg} px-3 py-3 ${i < arr.length - 1 ? 'border-r' : ''}`}>
+              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide truncate">{label}</p>
+              <p className={`text-sm font-bold ${accent} leading-tight mt-1 truncate`}>{value}</p>
+            </div>
+          ))}
         </div>
 
         {/* ── Content ────────────────────────────────────────────────────────── */}
