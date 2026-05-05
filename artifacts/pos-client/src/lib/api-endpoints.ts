@@ -40,6 +40,11 @@ export const ENDPOINTS = {
 
   // ─── Products ─────────────────────────────────────────────────────────────
 
+  measures: {
+    getAll:               "/api/measures",
+    create:               "/api/measures",
+  },
+
   products: {
     getAll:               "/api/products",
     getById:              (id: string | number) => `/api/products/${id}`,

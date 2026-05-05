@@ -1,7 +1,7 @@
 // Idempotent seed for super-admin-controlled global catalogs.
 // Runs once at server boot. Only inserts rows that don't already exist.
-import { paymentMethods, packages, settings, smsTemplates, permissions, shopCategories } from "@workspace/db";
-import { eq, like } from "drizzle-orm";
+import { paymentMethods, packages, settings, smsTemplates, permissions, shopCategories, measures } from "@workspace/db";
+import { eq, like, isNull } from "drizzle-orm";
 import { db } from "./db.js";
 import { logger } from "./logger.js";
 import { DEFAULT_SMS_TEMPLATES } from "./smsTemplates.js";
@@ -299,5 +299,48 @@ export async function seedDefaultShopCategories(): Promise<void> {
     }
   } catch (err) {
     logger.error({ err }, "seed: shop categories failed");
+  }
+}
+
+// ─── Default global measures (units of measure) ───────────────────────────────
+// shopId = null means system-wide / global.
+const DEFAULT_MEASURES = [
+  { name: "Pieces",      abbreviation: "pcs"  },
+  { name: "Kilograms",   abbreviation: "kg"   },
+  { name: "Grams",       abbreviation: "g"    },
+  { name: "Litres",      abbreviation: "L"    },
+  { name: "Millilitres", abbreviation: "ml"   },
+  { name: "Metres",      abbreviation: "m"    },
+  { name: "Centimetres", abbreviation: "cm"   },
+  { name: "Dozens",      abbreviation: "doz"  },
+  { name: "Crates",      abbreviation: "crt"  },
+  { name: "Boxes",       abbreviation: "box"  },
+  { name: "Packs",       abbreviation: "pk"   },
+  { name: "Bags",        abbreviation: "bag"  },
+  { name: "Bottles",     abbreviation: "btl"  },
+  { name: "Cartons",     abbreviation: "ctn"  },
+  { name: "Rolls",       abbreviation: "roll" },
+  { name: "Pairs",       abbreviation: "pr"   },
+  { name: "Sets",        abbreviation: "set"  },
+  { name: "Tonnes",      abbreviation: "t"    },
+  { name: "Gallons",     abbreviation: "gal"  },
+  { name: "Square Metres", abbreviation: "m²" },
+];
+
+export async function seedDefaultMeasures(): Promise<void> {
+  try {
+    const existing = await db.query.measures.findMany({ where: isNull(measures.shopId) });
+    const existingNames = new Set(existing.map((r) => r.name.trim().toLowerCase()));
+    const toInsert = DEFAULT_MEASURES.filter(
+      (m) => !existingNames.has(m.name.trim().toLowerCase()),
+    );
+    if (toInsert.length > 0) {
+      await db.insert(measures).values(toInsert.map((m) => ({ ...m, shopId: null })));
+      logger.info({ inserted: toInsert.map((m) => m.name) }, "seed: default measures inserted");
+    } else {
+      logger.info("seed: measures already present");
+    }
+  } catch (err) {
+    logger.error({ err }, "seed: measures failed");
   }
 }

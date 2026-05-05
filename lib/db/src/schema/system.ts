@@ -2,7 +2,8 @@
  * System / reference-data tables
  * Global lookup and config tables with no shop or admin scope.
  */
-import { pgTable, serial, text, boolean, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { shops } from "./shop";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -45,17 +46,22 @@ export const shopCategories = pgTable("shop_categories", {
 });
 
 // ─── Measure Units ────────────────────────────────────────────────────────────
-// Global (non-shop-scoped) lookup table of unit-of-measure labels.
-// Rendered as a dropdown when creating/editing products.
+// Lookup table of unit-of-measure labels.
+// shopId = null  → global/system unit (visible to all shops, seeded at boot)
+// shopId = X     → custom unit created by shop X (only visible to that shop)
 // Examples: Pieces, Kilograms, Litres, Crates, Dozens, Metres.
 export const measures = pgTable("measures", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(),
+  name: text("name").notNull(),
   // Short label shown in product cards (e.g. "kg", "pcs", "L")
   abbreviation: text("abbreviation"),
   isActive: boolean("is_active").notNull().default(true),
+  // null = global system unit; set = shop-specific custom unit
+  shopId: integer("shop_id").references(() => shops.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("measures_shop_id_idx").on(table.shopId),
+]);
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 // Free-form key/value config store for platform-wide configuration.

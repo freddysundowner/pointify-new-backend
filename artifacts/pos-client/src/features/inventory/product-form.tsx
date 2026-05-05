@@ -166,6 +166,22 @@ export default function ProductForm() {
     enabled: !!(shopId && adminId),
   });
 
+  // Fetch measures (global + shop-specific) for the dropdown
+  const { data: measuresData, isLoading: measuresLoading, refetch: refetchMeasures } = useQuery({
+    queryKey: [ENDPOINTS.measures.getAll, shopId],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: "200" });
+      if (shopId) params.set("shopId", shopId);
+      const response = await fetch(`${ENDPOINTS.measures.getAll}?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+      });
+      if (!response.ok) throw new Error("Failed to fetch measures");
+      const data = await response.json();
+      return (data.data || data || []) as Array<{ id: number; name: string; abbreviation?: string | null; shopId?: number | null }>;
+    },
+    enabled: !!(shopId),
+  });
+
   const isEditMode = location.includes("/edit-product");
   const productId = isEditMode ? location.split("/edit-product/")[1] : null;
 
@@ -183,6 +199,10 @@ export default function ProductForm() {
   const [isBundleDialogOpen, setIsBundleDialogOpen] = useState(false);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [isMeasureDialogOpen, setIsMeasureDialogOpen] = useState(false);
+  const [newMeasureName, setNewMeasureName] = useState("");
+  const [newMeasureAbbr, setNewMeasureAbbr] = useState("");
+  const [isAddingMeasure, setIsAddingMeasure] = useState(false);
 
   // Image upload state
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
@@ -251,6 +271,29 @@ export default function ProductForm() {
       refreshProducts();
     } catch {
       toast({ title: "Failed to remove image", variant: "destructive" });
+    }
+  };
+
+  const handleAddCustomMeasure = async () => {
+    if (!newMeasureName.trim()) return;
+    setIsAddingMeasure(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const resp = await fetch(ENDPOINTS.measures.create, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: newMeasureName.trim(), abbreviation: newMeasureAbbr.trim() || null, shopId: shopId ? Number(shopId) : null }),
+      });
+      if (!resp.ok) throw new Error("Failed");
+      await refetchMeasures();
+      toast({ title: `"${newMeasureName}" added as a custom unit` });
+      setNewMeasureName("");
+      setNewMeasureAbbr("");
+      setIsMeasureDialogOpen(false);
+    } catch {
+      toast({ title: "Failed to add unit", variant: "destructive" });
+    } finally {
+      setIsAddingMeasure(false);
     }
   };
 
@@ -830,9 +873,92 @@ export default function ProductForm() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-gray-700">Unit of Measure</FormLabel>
-                            <FormControl>
-                              <Input placeholder="e.g. kg, pcs, liters, boxes" className="h-10" {...field} />
-                            </FormControl>
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                <Select
+                                  onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)}
+                                  value={field.value || "__none__"}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger className="h-10">
+                                      <SelectValue placeholder="Select a unit" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">— None —</SelectItem>
+                                    {measuresLoading ? (
+                                      <SelectItem value="__loading__" disabled>Loading…</SelectItem>
+                                    ) : (
+                                      <>
+                                        {measuresData?.filter((m) => !m.shopId).length ? (
+                                          <>
+                                            <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Standard units</div>
+                                            {measuresData.filter((m) => !m.shopId).map((m) => (
+                                              <SelectItem key={m.id} value={m.name}>
+                                                {m.name}{m.abbreviation ? ` (${m.abbreviation})` : ""}
+                                              </SelectItem>
+                                            ))}
+                                          </>
+                                        ) : null}
+                                        {measuresData?.filter((m) => m.shopId).length ? (
+                                          <>
+                                            <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 mt-1">Your custom units</div>
+                                            {measuresData.filter((m) => m.shopId).map((m) => (
+                                              <SelectItem key={m.id} value={m.name}>
+                                                {m.name}{m.abbreviation ? ` (${m.abbreviation})` : ""}
+                                              </SelectItem>
+                                            ))}
+                                          </>
+                                        ) : null}
+                                      </>
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Dialog open={isMeasureDialogOpen} onOpenChange={setIsMeasureDialogOpen}>
+                                <DialogTrigger asChild>
+                                  <Button type="button" variant="outline" size="sm" className="h-10 px-3" title="Add custom unit">
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-sm">
+                                  <DialogHeader>
+                                    <DialogTitle>Add Custom Unit</DialogTitle>
+                                  </DialogHeader>
+                                  <p className="text-sm text-gray-500">This unit will only be visible to your shop.</p>
+                                  <div className="space-y-3 pt-1">
+                                    <div>
+                                      <label className="text-sm font-medium text-gray-700">Name <span className="text-red-500">*</span></label>
+                                      <Input
+                                        placeholder="e.g. Jerricans"
+                                        className="mt-1 h-9"
+                                        value={newMeasureName}
+                                        onChange={(e) => setNewMeasureName(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && handleAddCustomMeasure()}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium text-gray-700">Abbreviation <span className="text-gray-400 font-normal">(optional)</span></label>
+                                      <Input
+                                        placeholder="e.g. jer"
+                                        className="mt-1 h-9"
+                                        value={newMeasureAbbr}
+                                        onChange={(e) => setNewMeasureAbbr(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && handleAddCustomMeasure()}
+                                      />
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      className="w-full bg-purple-600 hover:bg-purple-700"
+                                      disabled={!newMeasureName.trim() || isAddingMeasure}
+                                      onClick={handleAddCustomMeasure}
+                                    >
+                                      {isAddingMeasure ? "Adding…" : "Add Unit"}
+                                    </Button>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}

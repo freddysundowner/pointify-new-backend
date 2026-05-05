@@ -4,6 +4,7 @@ import { startScheduler } from "./lib/scheduler";
 import {
   seedDefaultEmailConfig,
   seedDefaultEmailTemplates,
+  seedDefaultMeasures,
   seedDefaultPaymentMethods,
   seedDefaultPermissions,
   seedDefaultShopCategories,
@@ -35,6 +36,7 @@ app.listen(port, (err) => {
   void seedDefaultPaymentMethods();
   void seedDefaultPermissions();
   void seedDefaultShopCategories();
+  void seedDefaultMeasures();
   void seedDefaultSmsTemplates();
   void seedDefaultEmailTemplates();
   void seedDefaultEmailConfig();
