@@ -42,6 +42,28 @@ function normalizeForDiff(p: Record<string, unknown>): Record<string, unknown> {
   return result;
 }
 
+// Fields stored as NUMERIC in Postgres — compare as floats so "0" === "0.00",
+// and treat null / 0 / "" as equivalent (form always sends 0 for unset fields).
+const NUMERIC_FIELDS = new Set<string>([
+  "buyingPrice", "sellingPrice", "wholesalePrice",
+  "dealerPrice", "minSellingPrice", "maxDiscount",
+]);
+
+function canonicalise(field: string, raw: unknown): { display: string | null; cmp: string | number | null } {
+  if (raw == null || raw === "") return { display: null, cmp: null };
+
+  if (NUMERIC_FIELDS.has(field)) {
+    const n = parseFloat(String(raw));
+    if (isNaN(n) || n === 0) return { display: null, cmp: null }; // treat 0 same as unset
+    return { display: String(raw), cmp: n };
+  }
+
+  // String fields: empty string === null (form sends "" for unset fields)
+  const s = String(raw).trim();
+  if (s === "") return { display: null, cmp: null };
+  return { display: s, cmp: s };
+}
+
 function diffProducts(
   before: Record<string, unknown>,
   after: Record<string, unknown>,
@@ -50,9 +72,9 @@ function diffProducts(
   const b = normalizeForDiff(after);
   const diff: FieldDiff = {};
   for (const field of TRACKED_FIELDS) {
-    const from = a[field] != null ? String(a[field]) : null;
-    const to   = b[field] != null ? String(b[field]) : null;
-    if (from !== to) diff[field] = { from, to };
+    const { display: fromDisplay, cmp: fromCmp } = canonicalise(field, a[field]);
+    const { display: toDisplay,   cmp: toCmp   } = canonicalise(field, b[field]);
+    if (fromCmp !== toCmp) diff[field] = { from: fromDisplay, to: toDisplay };
   }
   return diff;
 }
