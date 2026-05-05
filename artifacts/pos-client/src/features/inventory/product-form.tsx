@@ -102,6 +102,37 @@ const productSchema = z.object({
 
 type ProductFormData = z.infer<typeof productSchema>;
 
+function QuantityInput({ value, onChange, placeholder, className }: {
+  value: number | undefined;
+  onChange: (v: number | undefined) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [raw, setRaw] = useState(value != null ? String(value) : "");
+  useEffect(() => {
+    const external = value != null ? String(value) : "";
+    setRaw(prev => {
+      const asNum = prev === "" ? undefined : Number(prev);
+      return asNum === value ? prev : external;
+    });
+  }, [value]);
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      placeholder={placeholder ?? "0"}
+      className={className}
+      value={raw}
+      onChange={(e) => {
+        const cleaned = e.target.value.replace(/[^0-9]/g, "");
+        setRaw(cleaned);
+        onChange(cleaned === "" ? undefined : Number(cleaned));
+      }}
+    />
+  );
+}
+
 export default function ProductForm() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
@@ -792,18 +823,11 @@ export default function ProductForm() {
                               {isBundle ? "Bundle Quantity Available" : isEditMode ? "Stock Quantity" : "Initial Quantity"}
                             </FormLabel>
                             <FormControl>
-                              <Input
-                                type="text"
-                                inputMode="numeric"
-                                pattern="[0-9]*"
+                              <QuantityInput
+                                value={field.value}
+                                onChange={field.onChange}
                                 placeholder="0"
                                 className="h-10"
-                                {...field}
-                                value={field.value != null ? String(field.value) : ""}
-                                onChange={(e) => {
-                                  const raw = e.target.value.replace(/[^0-9]/g, "");
-                                  field.onChange(raw === "" ? undefined : Number(raw));
-                                }}
                               />
                             </FormControl>
                             <FormMessage />
