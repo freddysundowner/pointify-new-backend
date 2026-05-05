@@ -193,183 +193,100 @@ export default function CreatePurchase() {
 
   return (
     <DashboardLayout title="New Purchase Order">
-      {/* Two-column layout on desktop; stacked on mobile */}
-      <div className="-mx-4 sm:mx-0 flex flex-col lg:flex-row lg:h-[calc(100vh-56px)] lg:overflow-hidden">
+      <div className="-mx-4 -mt-4 lg:-mx-6 lg:-mt-6 flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
 
-        {/* ── Mobile sticky top bar ── */}
-        <div className="lg:hidden sticky top-0 z-20 bg-white border-b px-3 py-2.5 flex items-center justify-between gap-2 shadow-sm">
-          <div className="flex items-center gap-2 min-w-0">
+        {/* ── Sticky header ── */}
+        <div className="sticky top-0 z-20 bg-white border-b shadow-sm shrink-0">
+          <div className="px-3 sm:px-4 h-12 flex items-center gap-2">
             <button onClick={handleBack} className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-gray-100 shrink-0">
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <div className="min-w-0">
-              <h1 className="text-sm font-bold text-gray-900 truncate">New Purchase Order</h1>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-sm font-bold text-gray-900 leading-tight">New Purchase</h1>
               {items.length > 0 && (
-                <p className="text-xs text-purple-600 font-medium">{items.length} item{items.length !== 1 ? "s" : ""} · {currency} {calculateTotal().toFixed(2)}</p>
+                <p className="text-xs text-purple-600 font-medium leading-none mt-0.5">{items.length} item{items.length !== 1 ? "s" : ""} · {currency} {calculateTotal().toFixed(2)}</p>
               )}
             </div>
+            <Button onClick={handleSave} disabled={isSubmitting || items.length === 0} size="sm" className="h-8 gap-1 text-xs px-3 bg-purple-600 hover:bg-purple-700 shrink-0">
+              <Save className="h-3.5 w-3.5" />
+              {isSubmitting ? "Saving…" : "Save"}
+            </Button>
           </div>
-          <Button onClick={handleSave} disabled={isSubmitting || items.length === 0} size="sm" className="h-8 gap-1 text-xs px-3 bg-purple-600 hover:bg-purple-700 shrink-0">
-            <Save className="h-3.5 w-3.5" />
-            {isSubmitting ? "Saving…" : "Save"}
-          </Button>
         </div>
 
-        {/* ── LEFT PANEL — Order details ── */}
-        <div className="lg:w-72 xl:w-80 lg:border-r lg:flex-shrink-0 lg:flex lg:flex-col lg:overflow-y-auto bg-white">
-
-          {/* Desktop panel header */}
-          <div className="hidden lg:flex items-center gap-2 px-4 py-3 border-b bg-gray-50/60 shrink-0">
-            <button onClick={handleBack} className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-gray-100 shrink-0">
-              <ArrowLeft className="h-4 w-4 text-gray-600" />
-            </button>
-            <div>
-              <h1 className="text-sm font-bold text-gray-900">New Purchase Order</h1>
-              <p className="text-[11px] text-gray-400">Fill in the order details</p>
-            </div>
-          </div>
-
-          <div className="px-3 lg:px-4 py-4 space-y-4 flex-1">
-
-            {/* Supplier */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-                <User className="h-3 w-3" /> Supplier
-              </Label>
-              <div className="flex gap-1.5">
+        {/* ── Details bar ── */}
+        <div className="bg-white border-b px-3 sm:px-4 py-3 shrink-0">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2.5">
+            <div className="col-span-2 sm:col-span-1 space-y-1">
+              <Label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1"><User className="h-2.5 w-2.5" /> Supplier</Label>
+              <div className="flex gap-1">
                 <Select value={supplierName} onValueChange={setSupplierName}>
-                  <SelectTrigger className="h-9 text-sm flex-1">
-                    <SelectValue placeholder="Select supplier (optional)" />
-                  </SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Optional" /></SelectTrigger>
                   <SelectContent>
-                    {suppliersLoading ? (
-                      <SelectItem value="loading">Loading…</SelectItem>
-                    ) : suppliers.length > 0 ? (
-                      suppliers.map((supplier: any) => (
-                        <SelectItem key={supplier._id} value={supplier.name}>{supplier.name}</SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="none">No suppliers yet</SelectItem>
-                    )}
+                    {suppliersLoading ? <SelectItem value="loading">Loading…</SelectItem>
+                      : suppliers.length > 0 ? suppliers.map((s: any) => <SelectItem key={s._id} value={s.name}>{s.name}</SelectItem>)
+                      : <SelectItem value="none">No suppliers yet</SelectItem>}
                   </SelectContent>
                 </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 w-9 p-0 shrink-0"
-                  title="Add new supplier"
-                  onClick={() => setAddSupplierOpen(true)}
-                >
-                  <Plus className="h-4 w-4" />
+                <Button type="button" variant="outline" size="sm" className="h-8 w-8 p-0 shrink-0" title="Add supplier" onClick={() => setAddSupplierOpen(true)}>
+                  <Plus className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
-
-            {/* Invoice # */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-                <FileText className="h-3 w-3" /> Invoice #
-              </Label>
-              <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="Invoice number" className="h-9 text-sm" />
+            <div className="space-y-1">
+              <Label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1"><FileText className="h-2.5 w-2.5" /> Invoice #</Label>
+              <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="Optional" className="h-8 text-xs" />
             </div>
-
-            {/* Dates row */}
-            <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-                  <CalendarDays className="h-3 w-3" /> Order Date
-                </Label>
-                <Input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className="h-9 text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-                  <Truck className="h-3 w-3" /> Expected Delivery
-                </Label>
-                <Input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} className="h-9 text-sm" />
-              </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1"><CalendarDays className="h-2.5 w-2.5" /> Order Date</Label>
+              <Input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className="h-8 text-xs" />
             </div>
-
-            {/* Batch tracking */}
-            <div className="flex items-start gap-2.5 p-3 bg-gray-50 rounded-lg border border-gray-100">
-              <Checkbox
-                id="trackBatches"
-                checked={trackBatches}
-                onCheckedChange={(checked) => setTrackBatches(checked === true)}
-                className="mt-0.5"
-              />
-              <label htmlFor="trackBatches" className="text-xs text-gray-600 cursor-pointer select-none leading-snug">
-                <span className="font-medium text-gray-700">Enable batch tracking</span>
-                <br />Track individual lots with expiry dates
-              </label>
+            <div className="space-y-1">
+              <Label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1"><Truck className="h-2.5 w-2.5" /> Delivery Date</Label>
+              <Input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} className="h-8 text-xs" />
             </div>
-
           </div>
-
-          {/* Desktop save button at bottom of left panel */}
-          <div className="hidden lg:block px-4 py-3 border-t bg-gray-50/60 shrink-0">
-            <Button
-              onClick={handleSave}
-              disabled={isSubmitting || items.length === 0}
-              className="w-full h-10 bg-purple-600 hover:bg-purple-700 font-medium gap-2"
-            >
-              <Save className="h-4 w-4" />
-              {isSubmitting
-                ? "Saving…"
-                : items.length > 0
-                  ? `Save · ${currency} ${calculateTotal().toFixed(2)}`
-                  : "Save Order"}
-            </Button>
+          <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-gray-100">
+            <Checkbox id="trackBatches" checked={trackBatches} onCheckedChange={(c) => setTrackBatches(c === true)} />
+            <label htmlFor="trackBatches" className="text-xs cursor-pointer select-none">
+              <span className="font-medium text-gray-800">Enable batch tracking</span>
+              <span className="text-gray-400"> — track individual lots with expiry dates</span>
+            </label>
           </div>
         </div>
 
-        {/* ── RIGHT PANEL — Items ── */}
-        <div className="flex-1 flex flex-col lg:overflow-hidden bg-gray-50/30">
-
-          {/* Items panel header */}
-          <div className="flex items-center justify-between px-3 lg:px-4 py-2.5 bg-white border-b sticky top-0 lg:static z-10 shrink-0">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4 text-purple-600" />
-              <span className="text-sm font-semibold text-gray-800">Items</span>
-              {items.length > 0 && (
-                <Badge className="text-xs px-1.5 py-0 h-5 bg-purple-100 text-purple-700 border-0">{items.length}</Badge>
-              )}
-            </div>
-            <Button
-              size="sm"
-              onClick={() => setProductSearchOpen(true)}
-              className="h-8 gap-1.5 text-xs px-3 bg-purple-600 hover:bg-purple-700"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Product
+        {/* ── Items header ── */}
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 bg-white border-b shrink-0">
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="h-4 w-4 text-purple-600" />
+            <span className="text-sm font-semibold text-gray-800">Items</span>
+            {items.length > 0 && <Badge className="text-xs px-1.5 py-0 h-5 bg-purple-100 text-purple-700 border-0">{items.length}</Badge>}
+          </div>
+          <Button size="sm" onClick={() => setProductSearchOpen(true)} className="h-8 gap-1.5 text-xs px-3 bg-purple-600 hover:bg-purple-700">
+            <Plus className="h-3.5 w-3.5" />
+            Add Product
             </Button>
           </div>
 
-          {/* Items list */}
-          <div className="flex-1 lg:overflow-y-auto">
-            {items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
-                <div className="h-16 w-16 rounded-2xl bg-gray-100 flex items-center justify-center">
-                  <ShoppingCart className="h-8 w-8 opacity-40" />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium text-gray-500">No items yet</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Tap "Add Product" to start building your order</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setProductSearchOpen(true)}
-                  className="mt-1 gap-1.5 text-xs border-purple-200 text-purple-600 hover:bg-purple-50"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Product
-                </Button>
+        {/* ── Items list ── */}
+        <div className="flex-1 overflow-y-auto bg-gray-50/30">
+          {items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
+              <div className="h-16 w-16 rounded-2xl bg-gray-100 flex items-center justify-center">
+                <ShoppingCart className="h-8 w-8 opacity-40" />
               </div>
-            ) : (
-              <div className="divide-y divide-gray-100 bg-white lg:mx-0">
-                {items.map((item, index) => (
-                  <div key={index} className="px-3 lg:px-4 py-3">
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-500">No items yet</p>
+                <p className="text-xs text-gray-400 mt-0.5">Tap "Add Product" to start building your order</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setProductSearchOpen(true)} className="mt-1 gap-1.5 text-xs border-purple-200 text-purple-600 hover:bg-purple-50">
+                <Plus className="h-3.5 w-3.5" /> Add Product
+              </Button>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 bg-white">
+              {items.map((item, index) => (
+                <div key={index} className="px-3 sm:px-4 py-3">
                     {/* Row 1: name + qty controls + total + delete */}
                     <div className="flex items-center gap-2">
                       {/* Product icon */}
@@ -460,32 +377,18 @@ export default function CreatePurchase() {
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Order total + mobile save — always visible at bottom of right panel */}
-          {items.length > 0 && (
-            <div className="border-t bg-white px-3 lg:px-4 py-3 shrink-0">
-              <div className="flex items-center justify-between mb-2.5">
-                <div>
-                  <p className="text-xs text-gray-400">Order Total</p>
-                  <p className="text-[11px] text-gray-400">{items.reduce((s, i) => s + i.quantity, 0)} unit{items.reduce((s, i) => s + i.quantity, 0) !== 1 ? "s" : ""} · {items.length} product{items.length !== 1 ? "s" : ""}</p>
-                </div>
-                <span className="text-xl font-bold text-purple-600 tabular-nums">
-                  {currency} {calculateTotal().toFixed(2)}
-                </span>
-              </div>
-              {/* Mobile-only save button */}
-              <Button
-                onClick={handleSave}
-                disabled={isSubmitting || items.length === 0}
-                className="w-full h-10 bg-purple-600 hover:bg-purple-700 font-medium gap-2 lg:hidden"
-              >
-                <Save className="h-4 w-4" />
-                {isSubmitting ? "Creating Order…" : "Create Purchase Order"}
-              </Button>
-            </div>
-          )}
         </div>
+
+        {/* ── Order total footer ── */}
+        {items.length > 0 && (
+          <div className="border-t bg-white px-3 sm:px-4 py-3 shrink-0 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-500 font-medium">Order Total</p>
+              <p className="text-xs text-gray-400">{items.reduce((s, i) => s + i.quantity, 0)} unit{items.reduce((s, i) => s + i.quantity, 0) !== 1 ? "s" : ""} · {items.length} product{items.length !== 1 ? "s" : ""}</p>
+            </div>
+            <span className="text-xl font-bold text-purple-600 tabular-nums">{currency} {calculateTotal().toFixed(2)}</span>
+          </div>
+        )}
       </div>
 
       {/* Product search overlay */}
