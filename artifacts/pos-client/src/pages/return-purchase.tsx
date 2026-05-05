@@ -144,14 +144,14 @@ export default function ReturnPurchase() {
     const itemsToReturn = returnItems.filter(item => item.shouldReturn);
     
     if (itemsToReturn.length === 0) {
-      alert('Please select at least one item to return');
+      toast({ title: "No items selected", description: "Please select at least one item to return.", variant: "destructive" });
       return;
     }
 
     // Check if all selected items have return reasons
     const missingReasons = itemsToReturn.filter(item => !item.returnReason.trim());
     if (missingReasons.length > 0) {
-      alert('Please provide return reasons for all selected items');
+      toast({ title: "Missing return reasons", description: `Please provide a return reason for: ${missingReasons.map(i => i.productName).join(", ")}.`, variant: "destructive" });
       return;
     }
 

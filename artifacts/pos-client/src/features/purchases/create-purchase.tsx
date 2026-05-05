@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Save, Plus, Trash2, Package, Search, ShoppingCart, X, CalendarDays, FileText, Truck, User } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -27,6 +28,7 @@ export default function CreatePurchase() {
   const currency = useSelector((state: RootState) => state.currency) as string;
   const { shopId } = usePrimaryShop();
   const { shop } = useShop();
+  const { toast } = useToast();
   const isAttendant = location.startsWith("/attendant/");
 
   const { data: suppliersResponse, isLoading: suppliersLoading } = useQuery({
@@ -145,11 +147,11 @@ export default function CreatePurchase() {
         setLocation(isAttendant ? "/attendant/purchases" : "/purchases", { replace: true });
       } else {
         const error = await response.text();
-        alert(`Failed to create purchase order: ${error}`);
+        toast({ title: "Failed to save order", description: error || "An error occurred.", variant: "destructive" });
       }
     } catch (error) {
       console.error("Error creating purchase order:", error);
-      alert("Failed to create purchase order. Please try again.");
+      toast({ title: "Failed to save order", description: "Please try again.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
