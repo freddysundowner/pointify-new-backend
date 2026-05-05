@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, sql, count, ilike, or } from "drizzle-orm";
+import { eq, and, sql, count, ilike, or, inArray } from "drizzle-orm";
 import { purchaseReturns, purchaseReturnItems, purchases, inventory, products } from "@workspace/db";
 import { db } from "../lib/db.js";
 import { ok, created, noContent, paginated } from "../lib/response.js";
@@ -20,16 +20,22 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
 
     const conditions = [];
     if (shopId) conditions.push(eq(purchaseReturns.shop, shopId));
-    if (search) conditions.push(or(
-      ilike(purchaseReturns.returnNo, `%${search}%`),
-      ilike(purchaseReturns.reason, `%${search}%`),
-      sql`EXISTS (
-        SELECT 1 FROM purchase_return_items pri
-        JOIN products p ON pri.product = p.id
-        WHERE pri.purchase_return = ${purchaseReturns.id}
-        AND p.name ILIKE ${'%' + search + '%'}
-      )`,
-    ));
+    if (search) {
+      // Find return IDs that have items matching the product name
+      const productMatches = await db
+        .select({ purchaseReturn: purchaseReturnItems.purchaseReturn })
+        .from(purchaseReturnItems)
+        .innerJoin(products, eq(purchaseReturnItems.product, products.id))
+        .where(ilike(products.name, `%${search}%`));
+      const productMatchIds = productMatches.map(r => r.purchaseReturn);
+
+      const searchConditions = [
+        ilike(purchaseReturns.returnNo, `%${search}%`),
+        ilike(purchaseReturns.reason, `%${search}%`),
+        ...(productMatchIds.length > 0 ? [inArray(purchaseReturns.id, productMatchIds)] : []),
+      ];
+      conditions.push(or(...searchConditions));
+    }
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     const rows = await db.query.purchaseReturns.findMany({
