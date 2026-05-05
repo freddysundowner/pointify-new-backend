@@ -397,21 +397,25 @@ export default function SupplierHistoryPage() {
         </div>
 
         {/* ── KPI strip ──────────────────────────────────────────────────────── */}
-        <div className="px-3 sm:px-4 py-2 grid grid-cols-4 gap-1 border-b bg-gray-50/60">
-          {[
-            { icon: Package,    label: 'Orders',      value: String(totalCount),                            color: 'text-blue-600'  },
-            { icon: DollarSign, label: 'Total',        value: `${shopCurrency} ${fmtAmt(totalAmount)}`,      color: 'text-gray-800'  },
-            { icon: CreditCard, label: 'Paid',         value: `${shopCurrency} ${fmtAmt(totalPaid)}`,        color: 'text-green-600' },
-            { icon: Receipt,    label: 'Outstanding',  value: `${shopCurrency} ${fmtAmt(totalOutstanding)}`, color: 'text-red-600'   },
-          ].map(({ icon: Icon, label, value, color }) => (
-            <div key={label} className="flex flex-col items-center sm:flex-row sm:items-center sm:gap-1.5 py-1">
-              <Icon className={`h-3.5 w-3.5 ${color} shrink-0 mb-0.5 sm:mb-0`} />
-              <div className="text-center sm:text-left min-w-0">
-                <p className="text-[10px] text-muted-foreground leading-none">{label}</p>
-                <p className={`text-xs font-bold ${color} leading-tight mt-0.5 truncate`}>{value}</p>
-              </div>
-            </div>
-          ))}
+        <div className="px-3 sm:px-4 py-2.5 flex gap-5 overflow-x-auto border-b bg-gray-50/60">
+          <div className="shrink-0">
+            <p className="text-xs text-muted-foreground">Orders</p>
+            <p className="text-sm font-bold text-blue-600 mt-0.5">{totalCount}</p>
+          </div>
+          <div className="shrink-0">
+            <p className="text-xs text-muted-foreground">Total Amount</p>
+            <p className="text-sm font-bold text-gray-800 mt-0.5">{shopCurrency} {fmtAmt(totalAmount)}</p>
+          </div>
+          <div className="shrink-0">
+            <p className="text-xs text-muted-foreground">Amount Paid</p>
+            <p className="text-sm font-bold text-green-600 mt-0.5">{shopCurrency} {fmtAmt(totalPaid)}</p>
+          </div>
+          <div className="shrink-0">
+            <p className="text-xs text-muted-foreground">Outstanding</p>
+            <p className={`text-sm font-bold mt-0.5 ${parseFloat(fmtAmt(totalOutstanding)) > 0 ? 'text-red-600' : 'text-gray-500'}`}>
+              {shopCurrency} {fmtAmt(totalOutstanding)}
+            </p>
+          </div>
         </div>
 
         {/* ── Content ────────────────────────────────────────────────────────── */}
