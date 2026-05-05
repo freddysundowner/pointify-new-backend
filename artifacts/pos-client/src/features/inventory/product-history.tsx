@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import {
   ArrowLeft, TrendingUp, TrendingDown, Package, AlertTriangle,
   ClipboardList, ArrowLeftRight, Clock, RefreshCw, ShoppingCart,
   RotateCcw, Plus, Minus, Pencil, PackagePlus, Trash2,
+  ChevronDown, ChevronRight,
 } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { apiCall } from "@/lib/api-config";
@@ -135,6 +136,9 @@ export default function ProductHistory() {
 
   // Per-tab page state
   const [auditPage,    setAuditPage]    = useState(1);
+  const [expandedAuditRows, setExpandedAuditRows] = useState<Set<string>>(new Set());
+  const toggleAuditRow = (key: string) =>
+    setExpandedAuditRows(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const [editsPage,    setEditsPage]    = useState(1);
   const [salesPage,    setSalesPage]    = useState(1);
   const [purchasePage, setPurchasePage] = useState(1);
@@ -405,49 +409,67 @@ export default function ProductHistory() {
                             const isEditEvent = e.eventType === "product_create" || e.eventType === "product_update" || e.eventType === "product_delete";
                             const changes: Record<string, { from: string | null; to: string | null }> = e.changes ?? {};
                             const changedFields = Object.keys(changes);
+                            const rowKey = `${e.eventType}-${e.id}-${i}`;
+                            const isExpanded = expandedAuditRows.has(rowKey);
+                            const hasChanges = isEditEvent && e.eventType === "product_update" && changedFields.length > 0;
                             return (
-                              <tr key={`${e.eventType}-${e.id}-${i}`} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(e.date)}</td>
-                                <td className="px-4 py-2"><EventBadge type={e.eventType} /></td>
-                                <td className="px-4 py-2 font-mono text-xs text-gray-600">
-                                  {isEditEvent ? (e.changedByName || "—") : (e.refNo || "—")}
-                                </td>
-                                <td className="px-4 py-2 text-right font-medium">
-                                  {isEditEvent ? (
-                                    <span className="text-gray-400 text-xs">—</span>
-                                  ) : e.eventType === "adjustment_remove" || e.eventType === "bad_stock" || e.eventType === "transfer_out"
-                                    ? <span className="text-red-600">-{parseFloat(e.qty ?? 0)}</span>
-                                    : <span className="text-green-700">+{parseFloat(e.qty ?? 0)}</span>}
-                                </td>
-                                <td className="px-4 py-2 text-right text-gray-600">
-                                  {isEditEvent ? <span className="text-gray-400 text-xs">—</span>
-                                    : e.price ? `${currency} ${parseFloat(e.price).toFixed(2)}` : "—"}
-                                </td>
-                                <td className="px-4 py-2 text-xs text-gray-500 max-w-xs">
-                                  {isEditEvent && e.eventType === "product_update" && changedFields.length > 0 ? (
-                                    <div className="space-y-0.5">
-                                      {changedFields.map(field => (
-                                        <div key={field} className="flex flex-wrap gap-1 items-center">
-                                          <span className="font-medium text-gray-700">{fieldLabel(field)}:</span>
-                                          <span className="line-through text-red-500">{changes[field].from ?? "—"}</span>
-                                          <span className="text-gray-400">→</span>
-                                          <span className="text-green-700">{changes[field].to ?? "—"}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : isEditEvent ? (
-                                    <span className="italic text-gray-400">
-                                      {e.eventType === "product_create" ? "Product added to inventory" : "Product removed"}
-                                    </span>
-                                  ) : e.eventType === "stock_count"
-                                    ? `Physical: ${parseFloat(e.a ?? 0)} | System: ${parseFloat(e.b ?? 0)} | Variance: ${parseFloat(e.variance ?? 0) >= 0 ? "+" : ""}${parseFloat(e.variance ?? 0)}`
-                                    : e.eventType === "adjustment_add" || e.eventType === "adjustment_remove"
-                                    ? `${e.note || ""} (${parseFloat(e.b ?? 0)} → ${parseFloat(e.a ?? 0)})`
-                                    : e.customerName
-                                    ? `Customer: ${e.customerName}`
-                                    : e.note || "—"}
-                                </td>
-                              </tr>
+                              <Fragment key={rowKey}>
+                                <tr className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{fmt(e.date)}</td>
+                                  <td className="px-4 py-2"><EventBadge type={e.eventType} /></td>
+                                  <td className="px-4 py-2 font-mono text-xs text-gray-600">
+                                    {isEditEvent ? (e.changedByName || "—") : (e.refNo || "—")}
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-medium">
+                                    {isEditEvent ? (
+                                      <span className="text-gray-400 text-xs">—</span>
+                                    ) : e.eventType === "adjustment_remove" || e.eventType === "bad_stock" || e.eventType === "transfer_out"
+                                      ? <span className="text-red-600">-{parseFloat(e.qty ?? 0)}</span>
+                                      : <span className="text-green-700">+{parseFloat(e.qty ?? 0)}</span>}
+                                  </td>
+                                  <td className="px-4 py-2 text-right text-gray-600">
+                                    {isEditEvent ? <span className="text-gray-400 text-xs">—</span>
+                                      : e.price ? `${currency} ${parseFloat(e.price).toFixed(2)}` : "—"}
+                                  </td>
+                                  <td className="px-4 py-2 text-xs text-gray-500">
+                                    {hasChanges ? (
+                                      <button
+                                        onClick={() => toggleAuditRow(rowKey)}
+                                        className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 font-medium transition-colors"
+                                      >
+                                        {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                        {changedFields.length} {changedFields.length === 1 ? "change" : "changes"}
+                                      </button>
+                                    ) : isEditEvent ? (
+                                      <span className="italic text-gray-400">
+                                        {e.eventType === "product_create" ? "Product added" : "Product removed"}
+                                      </span>
+                                    ) : e.eventType === "stock_count"
+                                      ? `Physical: ${parseFloat(e.a ?? 0)} | System: ${parseFloat(e.b ?? 0)} | Variance: ${parseFloat(e.variance ?? 0) >= 0 ? "+" : ""}${parseFloat(e.variance ?? 0)}`
+                                      : e.eventType === "adjustment_add" || e.eventType === "adjustment_remove"
+                                      ? `${e.note || ""} (${parseFloat(e.b ?? 0)} → ${parseFloat(e.a ?? 0)})`
+                                      : e.customerName
+                                      ? `Customer: ${e.customerName}`
+                                      : e.note || "—"}
+                                  </td>
+                                </tr>
+                                {hasChanges && isExpanded && (
+                                  <tr className="bg-purple-50 border-b border-purple-100">
+                                    <td colSpan={6} className="px-8 py-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5">
+                                        {changedFields.map(field => (
+                                          <div key={field} className="flex flex-wrap gap-1 items-baseline text-xs">
+                                            <span className="font-semibold text-gray-700 shrink-0">{fieldLabel(field)}:</span>
+                                            <span className="line-through text-red-500">{changes[field].from ?? "—"}</span>
+                                            <span className="text-gray-400">→</span>
+                                            <span className="text-green-700 font-medium">{changes[field].to ?? "—"}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
                             );
                           })}
                         </tbody>
