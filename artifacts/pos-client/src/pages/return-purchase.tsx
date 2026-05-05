@@ -154,13 +154,6 @@ export default function ReturnPurchase() {
       return;
     }
 
-    // Check if all selected items have return reasons
-    const missingReasons = itemsToReturn.filter(item => !item.returnReason.trim());
-    if (missingReasons.length > 0) {
-      toast({ title: "Missing return reasons", description: `Please provide a return reason for: ${missingReasons.map(i => i.productName).join(", ")}.`, variant: "destructive" });
-      return;
-    }
-
     setIsProcessing(true);
 
 
