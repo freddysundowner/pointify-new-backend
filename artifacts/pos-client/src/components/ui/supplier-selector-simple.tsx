@@ -23,6 +23,7 @@ export default function SupplierSelector({
       const params = new URLSearchParams({
         shopId: shopId || "",
         adminId: adminId || "",
+        limit: "1000",
       });
       
       const response = await fetch(`${ENDPOINTS.suppliers.getAll}?${params.toString()}`, {

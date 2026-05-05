@@ -51,7 +51,7 @@ export default function PurchaseEditPage() {
     queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
       if (!shopId) return [];
-      const response = await apiRequest("GET", `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
+      const response = await apiRequest("GET", `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}&limit=1000`);
       const json = await response.json();
       return Array.isArray(json) ? json : (json.data ?? []);
     },

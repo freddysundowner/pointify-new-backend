@@ -115,7 +115,7 @@ export default function PurchaseOrderDialog({ isOpen, onClose, onSuccess }: Purc
     queryFn: async () => {
       const shopId = getShopId();
       if (!shopId) return [];
-      const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}&limit=1000`);
       const data = await response.json();
       const list = Array.isArray(data) ? data : data?.data || [];
       return normalizeIds(list);

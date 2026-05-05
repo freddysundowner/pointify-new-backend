@@ -67,7 +67,7 @@ export default function CreatePurchase() {
   const { data: suppliersResponse, isLoading: suppliersLoading } = useQuery({
     queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
-      const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
+      const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}&limit=1000`);
       return response.json();
     },
     enabled: !!admin?._id && !!shopId,

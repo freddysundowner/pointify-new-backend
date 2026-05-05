@@ -49,8 +49,12 @@ export default function SupplierSelector({
   // Fetch suppliers from API
   const { data: suppliersResponse, isLoading, error } = useQuery({
     queryKey: [ENDPOINTS.suppliers.getAll, shopId],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}&limit=1000`);
+      return response.json();
+    },
     enabled: !!shopId && isOpen,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 
   const suppliers = normalizeIds(

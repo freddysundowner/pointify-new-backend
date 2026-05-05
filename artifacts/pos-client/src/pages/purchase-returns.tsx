@@ -108,7 +108,7 @@ export default function PurchaseReturns() {
     queryKey: [ENDPOINTS.suppliers.getAll, shopId],
     queryFn: async () => {
       if (!shopId) return [];
-      const res = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`, {
+      const res = await fetch(`${ENDPOINTS.suppliers.getAll}?shopId=${shopId}&limit=1000`, {
         headers: {
           Authorization: `Bearer ${admin ? localStorage.getItem("authToken") : localStorage.getItem("attendantToken")}`,
         },
