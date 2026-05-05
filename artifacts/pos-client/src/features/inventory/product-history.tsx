@@ -139,7 +139,6 @@ export default function ProductHistory() {
   const [expandedAuditRows, setExpandedAuditRows] = useState<Set<string>>(new Set());
   const toggleAuditRow = (key: string) =>
     setExpandedAuditRows(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
-  const [editsPage,    setEditsPage]    = useState(1);
   const [salesPage,    setSalesPage]    = useState(1);
   const [purchasePage, setPurchasePage] = useState(1);
   const [adjPage,      setAdjPage]      = useState(1);
@@ -147,7 +146,7 @@ export default function ProductHistory() {
   const [countPage,    setCountPage]    = useState(1);
   const [xferPage,     setXferPage]     = useState(1);
 
-  const resetPages = () => { setAuditPage(1); setEditsPage(1); setSalesPage(1); setPurchasePage(1); setAdjPage(1); setBadPage(1); setCountPage(1); setXferPage(1); };
+  const resetPages = () => { setAuditPage(1); setSalesPage(1); setPurchasePage(1); setAdjPage(1); setBadPage(1); setCountPage(1); setXferPage(1); };
 
   // ── Queries ──────────────────────────────────────────────────────────────────
 
@@ -173,13 +172,6 @@ export default function ProductHistory() {
     queryKey: ["audit-trail", productId, shopId, from, to, auditPage],
     queryFn: async () => (await apiCall(`${ENDPOINTS.products.auditTrail(productId || "")}${qs("", auditPage)}`)).json(),
     enabled: !!productId && activeTab === "audit",
-    staleTime: 0,
-  });
-
-  const { data: editsResp, isLoading: editsLoading } = useQuery({
-    queryKey: ["edit-logs", productId, from, to, editsPage],
-    queryFn: async () => (await apiCall(`${ENDPOINTS.products.editLogs(productId || "")}?from=${from}&to=${to}&page=${editsPage}&limit=20`)).json(),
-    enabled: !!productId && activeTab === "edits",
     staleTime: 0,
   });
 
@@ -226,7 +218,6 @@ export default function ProductHistory() {
   });
 
   const auditEvents    = auditResp?.data    ?? [];
-  const editsEvents    = editsResp?.data    ?? [];
   const salesEvents    = salesResp?.data    ?? [];
   const purchaseEvents = purchaseResp?.data ?? [];
   const adjEvents      = Array.isArray(adjResp?.data) ? adjResp.data : Array.isArray(adjResp) ? adjResp : [];
@@ -319,72 +310,8 @@ export default function ProductHistory() {
             <TabsTrigger value="badstock"    className="text-sm gap-1.5"><AlertTriangle className="h-3.5 w-3.5" />Bad Stock</TabsTrigger>
             <TabsTrigger value="counts"      className="text-sm gap-1.5"><ClipboardList className="h-3.5 w-3.5" />Stock Counts</TabsTrigger>
             <TabsTrigger value="transfers"   className="text-sm gap-1.5"><ArrowLeftRight className="h-3.5 w-3.5" />Transfers</TabsTrigger>
-            <TabsTrigger value="edits"       className="text-sm gap-1.5"><Pencil className="h-3.5 w-3.5" />Edits</TabsTrigger>
             <TabsTrigger value="audit"       className="text-sm gap-1.5"><Clock className="h-3.5 w-3.5" />Audit Trail</TabsTrigger>
           </TabsList>
-
-          {/* ── EDITS (product field changes) ── */}
-          <TabsContent value="edits">
-            <Card>
-              <CardContent className="p-0">
-                {editsLoading ? <Loading /> : editsEvents.length === 0
-                  ? <EmptyState icon={Pencil} text="No edits found for this period" />
-                  : (
-                  <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                            <th className="text-left px-4 py-2">Date & Time</th>
-                            <th className="text-left px-4 py-2">Action</th>
-                            <th className="text-left px-4 py-2">Changed By</th>
-                            <th className="text-left px-4 py-2">Changes</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {editsEvents.map((e: any, i: number) => {
-                            const changes: Record<string, { from: string | null; to: string | null }> = e.changes ?? {};
-                            const changedFields = Object.keys(changes);
-                            const actionType = e.action === "created" ? "product_create"
-                                             : e.action === "deleted" ? "product_delete"
-                                             : "product_update";
-                            return (
-                              <tr key={e.id ?? i} className="hover:bg-gray-50 transition-colors align-top">
-                                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(e.createdAt)}</td>
-                                <td className="px-4 py-3"><EventBadge type={actionType} /></td>
-                                <td className="px-4 py-3 text-xs text-gray-600">{e.changedByName || "—"}</td>
-                                <td className="px-4 py-3 text-xs">
-                                  {e.action === "created" ? (
-                                    <span className="italic text-gray-400">Product added to inventory</span>
-                                  ) : e.action === "deleted" ? (
-                                    <span className="italic text-gray-400">Product removed from inventory</span>
-                                  ) : changedFields.length === 0 ? (
-                                    <span className="italic text-gray-400">No field changes recorded</span>
-                                  ) : (
-                                    <div className="space-y-1">
-                                      {changedFields.map(field => (
-                                        <div key={field} className="flex flex-wrap gap-1 items-baseline">
-                                          <span className="font-medium text-gray-700 shrink-0">{fieldLabel(field)}:</span>
-                                          <span className="line-through text-red-500">{changes[field].from ?? "—"}</span>
-                                          <span className="text-gray-400">→</span>
-                                          <span className="text-green-700 font-medium">{changes[field].to ?? "—"}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    <Pagination page={editsPage} totalPages={pg(editsResp).totalPages} onPage={setEditsPage} />
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* ── AUDIT TRAIL ── */}
           <TabsContent value="audit">
