@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import {
@@ -56,9 +56,13 @@ function supplierId(s: Supplier): string {
   return String(s._id ?? s.id);
 }
 
+const PAGE_SIZE = 20;
+
 export default function SuppliersPage() {
   const [, navigate] = useLocation();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm]     = useState('');
+  const [debouncedSearch, setDebounced] = useState('');
+  const [page, setPage]                 = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen]     = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -67,6 +71,12 @@ export default function SuppliersPage() {
   const [payAmount, setPayAmount]       = useState(0);
   const [statLoading, setStatLoading]   = useState(false);
   const { toast } = useToast();
+
+  // Debounce search → reset to page 1 on new term
+  useEffect(() => {
+    const t = setTimeout(() => { setDebounced(searchTerm); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   const { admin } = useAuth();
   const { attendant } = useAttendantAuth();
@@ -82,17 +92,27 @@ export default function SuppliersPage() {
   const editForm   = useForm<SupplierFormData>({ defaultValues: { name: '', phoneNumber: '', email: '', address: '' } });
 
   // ── Fetch ────────────────────────────────────────────────────────────────────
-  const { data: suppliers = [], isLoading } = useQuery({
-    queryKey: [ENDPOINTS.suppliers.getAll, shopId],
+  const { data: queryResult, isLoading, isFetching } = useQuery({
+    queryKey: [ENDPOINTS.suppliers.getAll, shopId, page, debouncedSearch],
     queryFn: async () => {
-      if (!shopId) return [];
-      const res  = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?shopId=${shopId}`);
+      if (!shopId) return { rows: [], total: 0, totalPages: 0 };
+      const params = new URLSearchParams({ shopId: String(shopId), page: String(page), limit: String(PAGE_SIZE) });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      const res  = await apiRequest('GET', `${ENDPOINTS.suppliers.getAll}?${params}`);
       const json = await res.json();
-      const rows = Array.isArray(json) ? json : (json.data ?? []);
-      return rows.map((s: any) => ({ ...s, phoneNumber: s.phoneNumber ?? s.phone ?? '' }));
+      const rows = (Array.isArray(json) ? json : (json.data ?? [])).map(
+        (s: any) => ({ ...s, phoneNumber: s.phoneNumber ?? s.phone ?? '' })
+      );
+      const meta = json.meta ?? {};
+      return { rows, total: meta.total ?? rows.length, totalPages: meta.totalPages ?? 1 };
     },
     enabled: !!shopId,
+    placeholderData: (prev) => prev,
   });
+
+  const suppliers: Supplier[] = queryResult?.rows ?? [];
+  const totalPages = queryResult?.totalPages ?? 1;
+  const total      = queryResult?.total ?? 0;
 
   // ── Mutations ────────────────────────────────────────────────────────────────
   const invalidate = () => queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll] });
@@ -262,14 +282,7 @@ export default function SuppliersPage() {
     navigate(`${route}?supplierId=${supplierId(s)}&supplierName=${encodeURIComponent(s.name)}`);
   };
 
-  // ── Filter ───────────────────────────────────────────────────────────────────
-  const filtered = (suppliers as Supplier[]).filter(s =>
-    !searchTerm ||
-    s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.phoneNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.address?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Backend handles search + pagination — `suppliers` is already the current page slice
 
   // ── Supplier Form (reused for create & edit) ──────────────────────────────────
   const SupplierForm = ({
@@ -335,16 +348,16 @@ export default function SuppliersPage() {
       </div>
 
       {/* ── Content ─────────────────────────────────────────────────────────── */}
-      <div className="px-3 sm:px-4 py-3 pb-24 lg:pb-6">
+      <div className={`px-3 sm:px-4 py-3 pb-24 lg:pb-6 transition-opacity duration-150 ${isFetching && !isLoading ? 'opacity-60' : 'opacity-100'}`}>
         {isLoading ? (
           <div className="py-16 text-center text-sm text-muted-foreground">Loading suppliers…</div>
-        ) : filtered.length === 0 ? (
+        ) : suppliers.length === 0 ? (
           <div className="py-16 text-center">
             <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground mb-3">
-              {searchTerm ? 'No suppliers match your search' : 'No suppliers yet'}
+              {debouncedSearch ? 'No suppliers match your search' : 'No suppliers yet'}
             </p>
-            {!searchTerm && (
+            {!debouncedSearch && (
               <Button size="sm" variant="outline" onClick={() => setIsCreateOpen(true)}>
                 <Plus className="h-3.5 w-3.5 mr-1.5" /> Add First Supplier
               </Button>
@@ -354,12 +367,11 @@ export default function SuppliersPage() {
           <>
             {/* ── Mobile card list ─────────────────────────────────────── */}
             <div className="sm:hidden space-y-2">
-              {filtered.map(s => {
+              {suppliers.map(s => {
                 const owed      = parseFloat(fmt(s.outstandingBalance));
                 const walletBal = parseFloat(fmt(s.wallet));
                 return (
                   <div key={supplierId(s)} className="bg-white rounded-xl border border-gray-100 shadow-sm">
-                    {/* Top row */}
                     <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-gray-900 truncate">{s.name}</p>
@@ -390,7 +402,6 @@ export default function SuppliersPage() {
                         )}
                       </div>
                     </div>
-                    {/* Action row */}
                     <div className="flex items-center gap-1 px-3 pb-2.5 border-t border-gray-50 pt-2">
                       {owed > 0 && (
                         <Button variant="default" size="sm" onClick={() => openPay(s)}
@@ -430,7 +441,7 @@ export default function SuppliersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filtered.map(s => {
+                  {suppliers.map(s => {
                     const owed      = parseFloat(fmt(s.outstandingBalance));
                     const walletBal = parseFloat(fmt(s.wallet));
                     return (
@@ -492,10 +503,56 @@ export default function SuppliersPage() {
                   })}
                 </tbody>
               </table>
-              <div className="px-4 py-2 bg-muted/20 border-t text-xs text-muted-foreground">
-                {filtered.length} supplier{filtered.length !== 1 ? 's' : ''}
+              {/* Desktop table footer with pagination */}
+              <div className="px-4 py-2 bg-muted/20 border-t flex items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {total} supplier{total !== 1 ? 's' : ''}
+                  {totalPages > 1 && ` · page ${page} of ${totalPages}`}
+                </span>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs"
+                      disabled={page <= 1 || isFetching} onClick={() => setPage(p => p - 1)}>
+                      ← Prev
+                    </Button>
+                    {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                      const p = totalPages <= 7 ? i + 1
+                        : page <= 4 ? i + 1
+                        : page >= totalPages - 3 ? totalPages - 6 + i
+                        : page - 3 + i;
+                      return (
+                        <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm"
+                          className={`h-7 w-7 p-0 text-xs ${p === page ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                          disabled={isFetching} onClick={() => setPage(p)}>
+                          {p}
+                        </Button>
+                      );
+                    })}
+                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs"
+                      disabled={page >= totalPages || isFetching} onClick={() => setPage(p => p + 1)}>
+                      Next →
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Mobile pagination bar */}
+            {totalPages > 1 && (
+              <div className="sm:hidden flex items-center justify-between mt-3 px-1">
+                <Button variant="outline" size="sm" className="h-8 px-3 text-xs"
+                  disabled={page <= 1 || isFetching} onClick={() => setPage(p => p - 1)}>
+                  ← Prev
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {page} / {totalPages}
+                </span>
+                <Button variant="outline" size="sm" className="h-8 px-3 text-xs"
+                  disabled={page >= totalPages || isFetching} onClick={() => setPage(p => p + 1)}>
+                  Next →
+                </Button>
+              </div>
+            )}
           </>
         )}
       </div>
