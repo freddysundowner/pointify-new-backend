@@ -25,17 +25,27 @@ import { useCurrency } from "@/utils";
 import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 
 interface PurchaseReturn {
-  _id: string;
-  purchaseId: string;
+  id: number;
+  _id?: string;
+  purchase?: number;
+  purchaseId?: string;
   reason: string;
   totalAmount?: number;
   refundAmount?: number;
   returnDate?: string;
   createdAt?: string;
+  returnNo?: string;
   purchaseReturnNo?: string;
-  attendantId: { _id: string; username: string };
-  shopId: { _id: string; name: string; currency: string };
-  items: Array<{
+  processedBy?: number;
+  attendantId?: { _id: string; username: string };
+  shopId?: { _id: string; name: string; currency: string };
+  refundMethod?: string;
+  purchaseReturnItems?: Array<{
+    product: number;
+    quantity: string;
+    unitPrice: string;
+  }>;
+  items?: Array<{
     product: { _id: string; name: string };
     quantity: number;
     unitPrice: number;
@@ -162,10 +172,10 @@ export default function PurchaseReturns() {
         if (y > 270) { doc.addPage(); y = 20; }
         x = 20;
         [
-          r.purchaseReturnNo || r._id,
+          r.returnNo || r.purchaseReturnNo || String(r.id),
           fmtCurrency(r.refundAmount || r.totalAmount || 0),
           fmtDate(r.createdAt || r.returnDate || ""),
-          r.attendantId?.username || "Unknown",
+          r.attendantId?.username || "—",
           (r.reason || "N/A").substring(0, 20),
         ].forEach((v, i) => { doc.text(String(v), x, y); x += colW[i]; });
         y += 8;
@@ -179,7 +189,8 @@ export default function PurchaseReturns() {
   const handleView = (r: PurchaseReturn) => {
     (window as any).__returnData = r;
     const isAttendant = window.location.pathname.startsWith("/attendant/");
-    setLocation(isAttendant ? `/attendant/purchase-return-details/${r._id}` : `/purchase-return-details/${r._id}`);
+    const rid = r._id || String(r.id);
+    setLocation(isAttendant ? `/attendant/purchase-return-details/${rid}` : `/purchase-return-details/${rid}`);
   };
 
   return (
@@ -315,9 +326,9 @@ export default function PurchaseReturns() {
                     </TableHeader>
                     <TableBody>
                       {returns.map((r: PurchaseReturn) => (
-                        <TableRow key={r._id} className="text-xs">
+                        <TableRow key={r.id ?? r._id} className="text-xs">
                           <TableCell className="py-2 px-3 font-medium">
-                            {r.purchaseReturnNo || r._id.slice(-6).toUpperCase()}
+                            {r.returnNo || r.purchaseReturnNo || `RET-${String(r.id).padStart(4, "0")}`}
                           </TableCell>
                           <TableCell className="py-2 px-3">
                             {fmtCurrency(r.refundAmount || r.totalAmount || 0)}
@@ -326,7 +337,7 @@ export default function PurchaseReturns() {
                             {fmtDate(r.createdAt || r.returnDate || "")}
                           </TableCell>
                           <TableCell className="py-2 px-3 text-gray-500 hidden sm:table-cell">
-                            {r.attendantId?.username || "—"}
+                            {r.attendantId?.username || (r.processedBy ? `#${r.processedBy}` : "—")}
                           </TableCell>
                           <TableCell className="py-2 px-3">
                             <Button
