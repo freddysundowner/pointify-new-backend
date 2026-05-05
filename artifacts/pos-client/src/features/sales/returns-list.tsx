@@ -154,9 +154,9 @@ function ReturnsList() {
 
   // API now returns paginated structure with data and pagination metadata
   const returnsData = (returnsResponse as any)?.data || [];
-  const totalCount = (returnsResponse as any)?.pagination?.total || 0;
-  const apiTotalPages = (returnsResponse as any)?.pagination?.totalPages || 1;
-  const currentApiPage = (returnsResponse as any)?.pagination?.page || 1;
+  const totalCount = (returnsResponse as any)?.meta?.total || 0;
+  const apiTotalPages = (returnsResponse as any)?.meta?.totalPages || 1;
+  const currentApiPage = (returnsResponse as any)?.meta?.page || 1;
 
   // Transform API data to match expected format
   const transformedReturns = returnsData.map((returnItem: any) => ({
