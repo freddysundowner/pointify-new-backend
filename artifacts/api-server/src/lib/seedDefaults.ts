@@ -238,6 +238,28 @@ export async function seedDefaultSmsTemplates(): Promise<void> {
 // Only inserts categories that don't already exist (by name). Never overwrites.
 const DEFAULT_SHOP_CATEGORIES = [
   { name: "HARDWARE" },
+  { name: "GENERAL STORE" },
+  { name: "SUPERMARKET" },
+  { name: "MINIMART" },
+  { name: "WHOLESALE" },
+  { name: "GROCERY" },
+  { name: "PHARMACY / CHEMIST" },
+  { name: "RESTAURANT" },
+  { name: "HOTEL" },
+  { name: "BUTCHERY" },
+  { name: "BAKERY" },
+  { name: "ELECTRONICS" },
+  { name: "CLOTHING / FASHION" },
+  { name: "SALON / BEAUTY" },
+  { name: "BARBERSHOP" },
+  { name: "BAR / PUB" },
+  { name: "BOOKSHOP / STATIONERY" },
+  { name: "MOBILE / PHONE SHOP" },
+  { name: "SHOES / FOOTWEAR" },
+  { name: "AGROVET" },
+  { name: "SPARE PARTS" },
+  { name: "LAUNDRY" },
+  { name: "FUEL STATION" },
 ];
 
 export async function seedDefaultShopCategories(): Promise<void> {
