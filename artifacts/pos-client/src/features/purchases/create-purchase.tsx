@@ -5,12 +5,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ArrowLeft, Save, Plus, Trash2, Package, Search, ShoppingCart, X, CalendarDays, FileText, Truck, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { normalizeIds } from "@/lib/utils";
 import { useAuth } from "@/features/auth/useAuth";
 import { useProducts } from "@/contexts/ProductsContext";
@@ -29,7 +30,39 @@ export default function CreatePurchase() {
   const { shopId } = usePrimaryShop();
   const { shop } = useShop();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const isAttendant = location.startsWith("/attendant/");
+
+  // ── Quick-add supplier ──────────────────────────────────────────────────
+  const [addSupplierOpen, setAddSupplierOpen] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [newSupplierPhone, setNewSupplierPhone] = useState("");
+  const [newSupplierEmail, setNewSupplierEmail] = useState("");
+  const [savingSupplier, setSavingSupplier] = useState(false);
+
+  const handleAddSupplier = async () => {
+    if (!newSupplierName.trim()) return;
+    setSavingSupplier(true);
+    try {
+      const res = await apiRequest("POST", ENDPOINTS.suppliers.getAll, {
+        name: newSupplierName.trim(),
+        phone: newSupplierPhone.trim() || undefined,
+        email: newSupplierEmail.trim() || undefined,
+        shopId: Number(shopId),
+      });
+      const json = await res.json();
+      const created = json?.data ?? json;
+      await queryClient.invalidateQueries({ queryKey: [ENDPOINTS.suppliers.getAll, shopId] });
+      setSupplierName(created.name);
+      setAddSupplierOpen(false);
+      setNewSupplierName(""); setNewSupplierPhone(""); setNewSupplierEmail("");
+      toast({ title: "Supplier added", description: `${created.name} was added successfully.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to add supplier.", variant: "destructive" });
+    } finally {
+      setSavingSupplier(false);
+    }
+  };
 
   const { data: suppliersResponse, isLoading: suppliersLoading } = useQuery({
     queryKey: [ENDPOINTS.suppliers.getAll, shopId],
@@ -202,22 +235,34 @@ export default function CreatePurchase() {
               <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
                 <User className="h-3 w-3" /> Supplier
               </Label>
-              <Select value={supplierName} onValueChange={setSupplierName}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Select supplier (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliersLoading ? (
-                    <SelectItem value="loading">Loading…</SelectItem>
-                  ) : suppliers.length > 0 ? (
-                    suppliers.map((supplier: any) => (
-                      <SelectItem key={supplier._id} value={supplier.name}>{supplier.name}</SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="none">No suppliers</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-1.5">
+                <Select value={supplierName} onValueChange={setSupplierName}>
+                  <SelectTrigger className="h-9 text-sm flex-1">
+                    <SelectValue placeholder="Select supplier (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {suppliersLoading ? (
+                      <SelectItem value="loading">Loading…</SelectItem>
+                    ) : suppliers.length > 0 ? (
+                      suppliers.map((supplier: any) => (
+                        <SelectItem key={supplier._id} value={supplier.name}>{supplier.name}</SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none">No suppliers yet</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 w-9 p-0 shrink-0"
+                  title="Add new supplier"
+                  onClick={() => setAddSupplierOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             {/* Invoice # */}
@@ -523,6 +568,56 @@ export default function CreatePurchase() {
           </div>
         </div>
       )}
+      {/* ── Quick-add Supplier Dialog ── */}
+      <Dialog open={addSupplierOpen} onOpenChange={setAddSupplierOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="h-4 w-4" /> Add New Supplier
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Name <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="Supplier name"
+                value={newSupplierName}
+                onChange={(e) => setNewSupplierName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddSupplier()}
+                autoFocus
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Phone <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Input
+                placeholder="+1 234 567 890"
+                value={newSupplierPhone}
+                onChange={(e) => setNewSupplierPhone(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Email <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Input
+                type="email"
+                placeholder="supplier@example.com"
+                value={newSupplierEmail}
+                onChange={(e) => setNewSupplierEmail(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setAddSupplierOpen(false)} disabled={savingSupplier}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleAddSupplier} disabled={!newSupplierName.trim() || savingSupplier}>
+              {savingSupplier ? "Saving…" : "Add Supplier"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
