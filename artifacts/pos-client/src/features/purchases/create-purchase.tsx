@@ -58,6 +58,7 @@ export default function CreatePurchase() {
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [qtyInputs, setQtyInputs] = useState<Record<number, string>>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setInvoiceNumber(generateInvoiceNumber()); }, []);
@@ -319,9 +320,20 @@ export default function CreatePurchase() {
                           <input
                             type="number"
                             min="1"
-                            value={item.quantity}
-                            onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                            className="w-10 h-7 text-center text-sm font-bold border border-gray-200 rounded-lg bg-gray-50 outline-none focus:border-purple-400"
+                            value={qtyInputs[index] !== undefined ? qtyInputs[index] : String(item.quantity)}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              setQtyInputs(prev => ({ ...prev, [index]: raw }));
+                              const n = parseInt(raw);
+                              if (!isNaN(n) && n > 0) updateItem(index, 'quantity', n);
+                            }}
+                            onBlur={() => {
+                              const raw = qtyInputs[index];
+                              const n = raw !== undefined ? (parseInt(raw) || 1) : item.quantity;
+                              updateItem(index, 'quantity', Math.max(1, n));
+                              setQtyInputs(prev => { const next = { ...prev }; delete next[index]; return next; });
+                            }}
+                            className="w-10 h-7 text-center text-sm font-bold border border-gray-200 rounded-lg bg-gray-50 outline-none focus:border-purple-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           />
                           <button
                             onClick={() => updateItem(index, 'quantity', item.quantity + 1)}
