@@ -39,7 +39,7 @@ router.get("/", requireAdmin, async (req, res, next) => {
       limit,
       offset,
       orderBy: (p, { desc }) => [desc(p.createdAt)],
-      with: { purchaseItems: true, purchasePayments: true },
+      with: { purchaseItems: true, purchasePayments: true, supplier: true },
     });
     const total = await db.$count(purchases, where);
 

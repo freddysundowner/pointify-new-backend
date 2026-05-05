@@ -334,9 +334,9 @@ export default function PurchasesList() {
   const filteredPurchases = purchasesData
     .map((purchase: any) => ({
       id: purchase._id || purchase.id,
-      supplierName: purchase.supplier?.name || 
-                   purchase.supplierId?.name || 
-                   supplierMap[purchase.supplierId] || 
+      supplierName: purchase.supplier?.name ||
+                   supplierMap[purchase.supplier] ||
+                   supplierMap[purchase.supplierId] ||
                    "Direct Purchase",
       items: (purchase.purchaseItems || purchase.items || []).map((item: any) => ({
         productName: item.product?.name || "Unknown Product",
