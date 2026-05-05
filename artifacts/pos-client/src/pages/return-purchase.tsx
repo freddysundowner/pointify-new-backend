@@ -23,7 +23,7 @@ import { useAttendantAuth } from "@/contexts/AttendantAuthContext";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
 import { useProducts } from "@/contexts/ProductsContext";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ENDPOINTS } from "@/lib/api-endpoints";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
@@ -202,7 +202,11 @@ export default function ReturnPurchase() {
         const result = await response.json();
         console.log('Purchase return processed successfully:', result);
         
-        // Show success notification
+        // Invalidate purchases and related queries so the list refreshes
+        queryClient.invalidateQueries({ queryKey: [ENDPOINTS.purchases.getAll] });
+        queryClient.invalidateQueries({ queryKey: [ENDPOINTS.purchases.reportFilter] });
+        queryClient.invalidateQueries({ queryKey: [ENDPOINTS.purchaseReturns.getAll] });
+
         toast({
           title: "Success",
           description: "Purchase return processed successfully!",
