@@ -474,61 +474,122 @@ export default function PurchasesList() {
 
   const exportToPDF = () => {
     const doc = new jsPDF();
-    const currentDate = new Date().toLocaleDateString();
-    const periodLabel = startDate && endDate
-      ? `${startDate} to ${endDate}`
-      : startDate
-      ? `From ${startDate}`
-      : endDate
-      ? `Until ${endDate}`
-      : "All dates";
-    let y = drawShopHeader(doc, shopDetails, "Purchase Report", `Period: ${periodLabel}   Generated: ${currentDate}`);
-    
-    const cur = currency || filteredPurchases[0]?.currency || 'KES';
+    const PW = 210;
+    const ML = 14;
+    const MR = 196;
 
-    // Summary section
-    doc.setFontSize(10);
+    // ── Palette ─────────────────────────────────────────────────────────────
+    const NAVY   = [15,  23,  42]  as [number,number,number];
+    const ACCENT = [59,  130, 246] as [number,number,number];
+    const SLATE  = [71,  85,  105] as [number,number,number];
+    const LIGHT  = [248, 250, 252] as [number,number,number];
+    const WHITE  = [255, 255, 255] as [number,number,number];
+
+    const cur = currency || filteredPurchases[0]?.currency || 'KES';
+    const fmt = (n: number) => `${cur} ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const periodLabel = startDate && endDate ? `${startDate} → ${endDate}`
+      : startDate ? `From ${startDate}` : endDate ? `Until ${endDate}` : "All dates";
+
+    // ── Top accent bar ───────────────────────────────────────────────────────
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 0, PW, 12, 'F');
+
+    // ── Shop name block ──────────────────────────────────────────────────────
+    const shop = shopDetails as any;
+    doc.setTextColor(...WHITE);
     doc.setFont('helvetica', 'bold');
-    doc.text('SUMMARY', 20, y);
-    y += 6;
+    doc.setFontSize(11);
+    doc.text((shop?.name || 'Shop').toUpperCase(), PW / 2, 8, { align: 'center' });
+
+    let y = 20;
+    doc.setTextColor(...SLATE);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Total Purchases: ${filteredOrdersCount}`, 20, y); y += 5;
-    doc.text(`Total Amount: ${cur} ${filteredTotalAmount.toFixed(2)}`, 20, y); y += 5;
-    doc.text(`Paid Amount: ${cur} ${filteredSpent.toFixed(2)}`, 20, y); y += 5;
-    doc.text(`Unpaid Count: ${filteredUnpaidCount}`, 20, y); y += 5;
-    doc.text(`Unique Suppliers: ${filteredSuppliers}`, 20, y); y += 8;
-    
-    // Build flat table: one purchase header row + item rows beneath it
-    type RowMeta = { type: 'purchase' | 'item-header' | 'item' };
+    doc.setFontSize(8.5);
+    const addrParts = [shop?.address, shop?.city, shop?.country].filter(Boolean).join('  ·  ');
+    if (addrParts) { doc.text(addrParts, PW / 2, y, { align: 'center' }); y += 5; }
+    if (shop?.phone) { doc.text(`Tel: ${shop.phone}`, PW / 2, y, { align: 'center' }); y += 5; }
+    y += 2;
+
+    // ── Report title ─────────────────────────────────────────────────────────
+    doc.setTextColor(...NAVY);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('PURCHASES REPORT', PW / 2, y, { align: 'center' });
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...SLATE);
+    doc.text(`Period: ${periodLabel}`, PW / 2 - 2, y, { align: 'right' });
+    doc.text(`Generated: ${new Date().toLocaleString()}`, PW / 2 + 2, y, { align: 'left' });
+    y += 7;
+
+    // ── Thin accent rule ─────────────────────────────────────────────────────
+    doc.setDrawColor(...ACCENT);
+    doc.setLineWidth(0.6);
+    doc.line(ML, y, MR, y);
+    y += 6;
+
+    // ── KPI stat strip (4 boxes) ─────────────────────────────────────────────
+    const kpis = [
+      { label: 'Total Orders',   value: String(filteredOrdersCount) },
+      { label: 'Total Amount',   value: fmt(filteredTotalAmount) },
+      { label: 'Paid',           value: fmt(filteredSpent) },
+      { label: 'Unpaid Orders',  value: String(filteredUnpaidCount) },
+    ];
+    const boxW = (MR - ML) / kpis.length;
+    kpis.forEach((kpi, i) => {
+      const bx = ML + i * boxW;
+      doc.setFillColor(...LIGHT);
+      doc.roundedRect(bx + 1, y, boxW - 2, 15, 1.5, 1.5, 'F');
+      doc.setDrawColor(220, 226, 234);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(bx + 1, y, boxW - 2, 15, 1.5, 1.5, 'S');
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(...SLATE);
+      doc.text(kpi.label.toUpperCase(), bx + boxW / 2, y + 5.5, { align: 'center' });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(i <= 1 ? 8 : 10);
+      doc.setTextColor(...NAVY);
+      doc.text(kpi.value, bx + boxW / 2, y + 12, { align: 'center' });
+    });
+    y += 22;
+
+    // ── Build table rows ─────────────────────────────────────────────────────
+    type RowMeta = { type: 'purchase' | 'item-header' | 'item'; status?: string };
     const tableBody: string[][] = [];
     const rowMeta: RowMeta[] = [];
 
     for (const purchase of filteredPurchases) {
-      const shortNo = (() => {
-        const s = purchase.invoiceNumber || '';
-        const digits = s.replace(/\D/g, '');
-        return digits.length >= 6 ? 'PUR-' + digits.slice(-6) : s || 'N/A';
-      })();
+      const poNo = purchase.invoiceNumber || `#${purchase.id || ''}`;
+      const date = purchase.orderDate ? new Date(purchase.orderDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
       tableBody.push([
-        shortNo,
+        poNo,
         purchase.supplierName || 'Direct Purchase',
-        new Date(purchase.orderDate).toLocaleDateString(),
-        `${cur} ${parseFloat(String(purchase.totalAmount || 0)).toFixed(2)}`,
-        purchase.status.toUpperCase(),
+        date,
+        fmt(parseFloat(String(purchase.totalAmount || 0))),
+        (purchase.status || '').toUpperCase(),
         `${purchase.items?.length ?? 0} item(s)`,
       ]);
-      rowMeta.push({ type: 'purchase' });
+      rowMeta.push({ type: 'purchase', status: purchase.status });
 
       const items: any[] = purchase.items || [];
       if (items.length > 0) {
         tableBody.push(['  Product', 'Qty', 'Unit Price', 'Line Total', '', '']);
         rowMeta.push({ type: 'item-header' });
         for (const item of items) {
+          const qty  = parseFloat(String(item.quantity  ?? 0));
+          const unit = parseFloat(String(item.unitCost  ?? item.buyingPrice ?? 0));
+          const line = parseFloat(String(item.totalCost ?? 0)) || qty * unit;
           tableBody.push([
-            `  ${item.productName || 'Unknown'}`,
-            String(item.quantity ?? ''),
-            `${cur} ${parseFloat(String(item.unitCost || 0)).toFixed(2)}`,
-            `${cur} ${parseFloat(String(item.totalCost || 0)).toFixed(2)}`,
+            `    ${item.productName || 'Unknown'}`,
+            String(qty),
+            fmt(unit),
+            fmt(line),
             '', '',
           ]);
           rowMeta.push({ type: 'item' });
@@ -536,49 +597,94 @@ export default function PurchasesList() {
       }
     }
 
-    // Add table
+    // ── autoTable ────────────────────────────────────────────────────────────
     autoTable(doc, {
       startY: y,
       head: [['PO Number', 'Supplier', 'Date', 'Amount', 'Status', 'Items']],
       body: tableBody,
       styles: {
         fontSize: 8,
-        cellPadding: 3,
+        cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
+        lineColor: [226, 232, 240],
+        lineWidth: 0.15,
       },
       headStyles: {
-        fillColor: [66, 139, 202],
-        textColor: 255,
+        fillColor: NAVY,
+        textColor: WHITE,
         fontStyle: 'bold',
+        fontSize: 8,
+        cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
       },
-      margin: { left: 20, right: 20 },
+      columnStyles: {
+        3: { halign: 'right' },
+        4: { halign: 'center' },
+        5: { halign: 'center' },
+      },
+      margin: { left: ML, right: PW - MR },
+      alternateRowStyles: { fillColor: WHITE },
       didParseCell: (data) => {
         if (data.section !== 'body') return;
         const meta = rowMeta[data.row.index];
         if (!meta) return;
+
         if (meta.type === 'purchase') {
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [235, 242, 252];
+          data.cell.styles.fontSize  = 8.5;
+          data.cell.styles.fillColor = [241, 245, 249];
+
+          // Colour-code status cell
+          if (data.column.index === 4) {
+            const st = meta.status ?? '';
+            data.cell.styles.textColor =
+              st === 'paid'    ? [22,  163, 74]  :
+              st === 'partial' ? [217, 119, 6]   :
+              st === 'unpaid'  ? [220, 38,  38]  :
+                                 [100, 100, 100];
+          }
+
         } else if (meta.type === 'item-header') {
-          data.cell.styles.fontSize = 7;
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [248, 248, 248];
-          data.cell.styles.textColor = [100, 100, 100];
+          data.cell.styles.fontSize   = 7;
+          data.cell.styles.fontStyle  = 'bold';
+          data.cell.styles.fillColor  = [248, 250, 252];
+          data.cell.styles.textColor  = SLATE;
+
         } else if (meta.type === 'item') {
-          data.cell.styles.fontSize = 7.5;
-          data.cell.styles.fillColor = [252, 252, 252];
-          data.cell.styles.textColor = [60, 60, 60];
+          data.cell.styles.fontSize   = 7.5;
+          data.cell.styles.fillColor  = WHITE;
+          data.cell.styles.textColor  = [51, 65, 85];
+          if (data.column.index === 3) data.cell.styles.fontStyle = 'bold';
         }
       },
+      didDrawPage: (data) => {
+        // Footer bar on every page
+        const pageH = doc.internal.pageSize.getHeight();
+        doc.setFillColor(...NAVY);
+        doc.rect(0, pageH - 8, PW, 8, 'F');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(...WHITE);
+        doc.text(
+          `${shop?.name || ''} · Purchases Report · ${new Date().toLocaleDateString()}`,
+          PW / 2, pageH - 3, { align: 'center' }
+        );
+      },
     });
-    
-    // Save the PDF
-    const filename = `Purchase_Report_${startDate}_to_${endDate}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+    // ── Grand total bar ──────────────────────────────────────────────────────
+    const finalY = (doc as any).lastAutoTable?.finalY ?? y;
+    const barY = finalY + 3;
+    doc.setFillColor(...NAVY);
+    doc.roundedRect(ML, barY, MR - ML, 11, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...WHITE);
+    doc.text('GRAND TOTAL', ML + 4, barY + 7.2);
+    doc.text(fmt(filteredTotalAmount), MR - 4, barY + 7.2, { align: 'right' });
+
+    const filename = `Purchase_Report_${new Date().toISOString().split('T')[0]}.pdf`;
     doc.save(filename);
-    
-    toast({
-      title: "Success",
-      description: "Purchase report exported successfully",
-    });
+
+    toast({ title: 'Exported', description: 'Purchase report saved successfully.' });
   };
 
   // Calculate filtered stats
