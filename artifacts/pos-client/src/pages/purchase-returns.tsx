@@ -26,32 +26,20 @@ import { useShopDetails, drawShopHeader } from "@/hooks/useShopDetails";
 
 interface PurchaseReturn {
   id: number;
-  _id?: string;
-  purchase?: number;
-  purchaseId?: string;
+  purchase: number;
+  shop: number;
+  refundAmount: string;
   reason: string;
-  totalAmount?: number;
-  refundAmount?: number;
-  returnDate?: string;
-  createdAt?: string;
-  returnNo?: string;
-  purchaseReturnNo?: string;
-  processedBy?: number;
-  attendantId?: { _id: string; username: string };
-  shopId?: { _id: string; name: string; currency: string };
-  refundMethod?: string;
+  refundMethod: string;
+  processedBy: number | null;
+  returnNo: string;
+  createdAt: string;
   purchaseReturnItems?: Array<{
+    id: number;
     product: number;
     quantity: string;
     unitPrice: string;
   }>;
-  items?: Array<{
-    product: { _id: string; name: string };
-    quantity: number;
-    unitPrice: number;
-    totalPrice?: number;
-  }>;
-  status?: string;
 }
 
 interface PurchaseReturnsResponse {
@@ -100,7 +88,7 @@ export default function PurchaseReturns() {
         ...(supplierFilter !== "all" && { supplierId: supplierFilter }),
         ...(startDate && { fromDate: startDate }),
         ...(endDate && { toDate: endDate }),
-        ...(attendant && { attendantId: attendant._id }),
+        ...(attendant && { attendantId: attendant.id }),
       });
       const responseObj = await apiCall(`${ENDPOINTS.purchaseReturns.getAll}?${params}`);
       const response = await responseObj.json();
@@ -136,7 +124,7 @@ export default function PurchaseReturns() {
   const totalReturns = returnsData?.total || 0;
   const totalPages = Math.ceil(totalReturns / itemsPerPage);
   const totalReturnAmount = returns.reduce(
-    (sum: number, r: PurchaseReturn) => sum + (r.refundAmount || r.totalAmount || 0), 0,
+    (sum: number, r: PurchaseReturn) => sum + (parseFloat(r.refundAmount) || 0), 0,
   );
 
   const clearFilters = () => {
@@ -172,10 +160,10 @@ export default function PurchaseReturns() {
         if (y > 270) { doc.addPage(); y = 20; }
         x = 20;
         [
-          r.returnNo || r.purchaseReturnNo || String(r.id),
-          fmtCurrency(r.refundAmount || r.totalAmount || 0),
-          fmtDate(r.createdAt || r.returnDate || ""),
-          r.attendantId?.username || "—",
+          r.returnNo,
+          fmtCurrency(parseFloat(r.refundAmount) || 0),
+          fmtDate(r.createdAt),
+          r.processedBy ? `#${r.processedBy}` : "—",
           (r.reason || "N/A").substring(0, 20),
         ].forEach((v, i) => { doc.text(String(v), x, y); x += colW[i]; });
         y += 8;
@@ -189,8 +177,7 @@ export default function PurchaseReturns() {
   const handleView = (r: PurchaseReturn) => {
     (window as any).__returnData = r;
     const isAttendant = window.location.pathname.startsWith("/attendant/");
-    const rid = r._id || String(r.id);
-    setLocation(isAttendant ? `/attendant/purchase-return-details/${rid}` : `/purchase-return-details/${rid}`);
+    setLocation(isAttendant ? `/attendant/purchase-return-details/${r.id}` : `/purchase-return-details/${r.id}`);
   };
 
   return (
@@ -292,7 +279,7 @@ export default function PurchaseReturns() {
                   <SelectContent>
                     <SelectItem value="all">All Suppliers</SelectItem>
                     {(suppliers as any[]).map((s: any) => (
-                      <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -326,18 +313,18 @@ export default function PurchaseReturns() {
                     </TableHeader>
                     <TableBody>
                       {returns.map((r: PurchaseReturn) => (
-                        <TableRow key={r.id ?? r._id} className="text-xs">
+                        <TableRow key={r.id} className="text-xs">
                           <TableCell className="py-2 px-3 font-medium">
-                            {r.returnNo || r.purchaseReturnNo || `RET-${String(r.id).padStart(4, "0")}`}
+                            {r.returnNo}
                           </TableCell>
                           <TableCell className="py-2 px-3">
-                            {fmtCurrency(r.refundAmount || r.totalAmount || 0)}
+                            {fmtCurrency(parseFloat(r.refundAmount) || 0)}
                           </TableCell>
                           <TableCell className="py-2 px-3 text-gray-500">
-                            {fmtDate(r.createdAt || r.returnDate || "")}
+                            {fmtDate(r.createdAt)}
                           </TableCell>
                           <TableCell className="py-2 px-3 text-gray-500 hidden sm:table-cell">
-                            {r.attendantId?.username || (r.processedBy ? `#${r.processedBy}` : "—")}
+                            {r.processedBy ? `#${r.processedBy}` : "—"}
                           </TableCell>
                           <TableCell className="py-2 px-3">
                             <Button
@@ -425,7 +412,7 @@ export default function PurchaseReturns() {
                   <SelectContent>
                     <SelectItem value="all">All Suppliers</SelectItem>
                     {(suppliers as any[]).map((s: any) => (
-                      <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
