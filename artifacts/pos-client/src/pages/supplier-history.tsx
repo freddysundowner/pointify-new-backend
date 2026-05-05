@@ -351,12 +351,12 @@ export default function SupplierHistoryPage() {
             </Button>
           </div>
 
-          {/* Filter row */}
-          <div className="px-3 sm:px-4 pb-2.5 flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[140px]">
+          {/* Filter row 1: search + status */}
+          <div className="px-3 sm:px-4 pb-1 flex items-center gap-2">
+            <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
-                placeholder="Purchase no…"
+                placeholder="Search by purchase no…"
                 value={searchTerm}
                 onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 className="pl-8 h-8 text-xs"
@@ -369,7 +369,7 @@ export default function SupplierHistoryPage() {
               )}
             </div>
             <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setCurrentPage(1); }}>
-              <SelectTrigger className="h-8 text-xs w-28">
+              <SelectTrigger className="h-8 text-xs w-24 shrink-0">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -378,12 +378,18 @@ export default function SupplierHistoryPage() {
                 <SelectItem value="credit">Credit</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Filter row 2: date range + clear */}
+          <div className="px-3 sm:px-4 pb-2.5 flex items-center gap-2">
             <Input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setCurrentPage(1); }}
-              className="h-8 text-xs w-32" />
+              className="h-8 text-xs flex-1" />
+            <span className="text-xs text-muted-foreground shrink-0">to</span>
             <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setCurrentPage(1); }}
-              className="h-8 text-xs w-32" />
+              className="h-8 text-xs flex-1" />
             {hasFilters && (
-              <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+              <button onClick={clearFilters}
+                className="shrink-0 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 px-1">
                 <X className="h-3 w-3" />Clear
               </button>
             )}
@@ -391,18 +397,18 @@ export default function SupplierHistoryPage() {
         </div>
 
         {/* ── KPI strip ──────────────────────────────────────────────────────── */}
-        <div className="px-3 sm:px-4 py-2.5 flex gap-2 sm:gap-4 border-b bg-gray-50/60 overflow-x-auto">
+        <div className="px-3 sm:px-4 py-2 grid grid-cols-4 gap-1 border-b bg-gray-50/60">
           {[
-            { icon: Package,     label: 'Orders',      value: String(totalCount),                              color: 'text-blue-600'   },
-            { icon: DollarSign,  label: 'Total',        value: `${shopCurrency} ${fmtAmt(totalAmount)}`,        color: 'text-gray-900'   },
-            { icon: CreditCard,  label: 'Paid',         value: `${shopCurrency} ${fmtAmt(totalPaid)}`,          color: 'text-green-600'  },
-            { icon: Receipt,     label: 'Outstanding',  value: `${shopCurrency} ${fmtAmt(totalOutstanding)}`,   color: 'text-red-600'    },
+            { icon: Package,    label: 'Orders',      value: String(totalCount),                            color: 'text-blue-600'  },
+            { icon: DollarSign, label: 'Total',        value: `${shopCurrency} ${fmtAmt(totalAmount)}`,      color: 'text-gray-800'  },
+            { icon: CreditCard, label: 'Paid',         value: `${shopCurrency} ${fmtAmt(totalPaid)}`,        color: 'text-green-600' },
+            { icon: Receipt,    label: 'Outstanding',  value: `${shopCurrency} ${fmtAmt(totalOutstanding)}`, color: 'text-red-600'   },
           ].map(({ icon: Icon, label, value, color }) => (
-            <div key={label} className="flex items-center gap-1.5 shrink-0">
-              <Icon className={`h-3.5 w-3.5 ${color} shrink-0`} />
-              <div>
+            <div key={label} className="flex flex-col items-center sm:flex-row sm:items-center sm:gap-1.5 py-1">
+              <Icon className={`h-3.5 w-3.5 ${color} shrink-0 mb-0.5 sm:mb-0`} />
+              <div className="text-center sm:text-left min-w-0">
                 <p className="text-[10px] text-muted-foreground leading-none">{label}</p>
-                <p className={`text-xs font-semibold ${color} leading-tight mt-0.5`}>{value}</p>
+                <p className={`text-xs font-bold ${color} leading-tight mt-0.5 truncate`}>{value}</p>
               </div>
             </div>
           ))}
