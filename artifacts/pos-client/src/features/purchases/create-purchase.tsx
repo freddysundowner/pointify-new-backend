@@ -76,8 +76,8 @@ export default function CreatePurchase() {
 
   const filteredProducts = useMemo(() =>
     products.filter((p: any) =>
-      !searchTerm ||
-      (p.name || p.title || '').toLowerCase().includes(searchTerm.toLowerCase())
+      p.type !== "service" &&
+      (!searchTerm || (p.name || p.title || '').toLowerCase().includes(searchTerm.toLowerCase()))
     ),
     [products, searchTerm]
   );
@@ -403,7 +403,7 @@ export default function CreatePurchase() {
 
       {/* Full-screen product search overlay */}
       {productSearchOpen && (
-        <div className="fixed inset-0 z-50 bg-white flex flex-col animate-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed inset-0 z-50 bg-white flex flex-col animate-in slide-in-from-bottom-4 duration-200 lg:left-60 lg:inset-y-0 lg:right-0">
           {/* Search bar header */}
           <div className="flex items-center gap-2 px-3 py-2.5 border-b bg-white">
             <button
