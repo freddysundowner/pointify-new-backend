@@ -70,7 +70,7 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
 
 router.post("/", requireAdminOrAttendant, async (req, res, next) => {
   try {
-    const { purchaseId, shopId, items, reason, refundMethod } = req.body;
+    const { purchaseId, shopId, items, reason, refundMethod, attendantId } = req.body;
     if (!purchaseId || !shopId || !items?.length) throw badRequest("purchaseId, shopId and items required");
     await assertShopOwnership(req, Number(shopId));
 
@@ -86,7 +86,7 @@ router.post("/", requireAdminOrAttendant, async (req, res, next) => {
       refundAmount: String(refundAmount),
       reason,
       refundMethod: refundMethod ?? "cash",
-      processedBy: req.attendant?.id ?? undefined,
+      processedBy: req.attendant?.id ?? (attendantId ? Number(attendantId) : undefined),
       returnNo: await (async () => {
         const now = new Date();
         const d = now.getFullYear().toString().slice(-2) + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');

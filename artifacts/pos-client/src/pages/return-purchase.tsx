@@ -168,6 +168,7 @@ export default function ReturnPurchase() {
     const returnPayload = {
       purchaseId: originalPurchase._id || originalPurchase.id,
       shopId,
+      attendantId: attendantId || (attendant as any)?.id || (attendant as any)?._id || undefined,
       items: itemsToReturn.map(item => ({
         productId: item.productId,
         purchaseItemId: item.purchaseItemId,
