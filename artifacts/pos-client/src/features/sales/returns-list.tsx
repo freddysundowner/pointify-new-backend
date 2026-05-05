@@ -14,7 +14,7 @@ import { PermissionGuard } from "@/components/PermissionGuard";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/features/auth/useAuth";
 import { usePrimaryShop } from "@/hooks/usePrimaryShop";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { ENDPOINTS } from "@/lib/api-endpoints";
@@ -32,6 +32,7 @@ function ReturnsList() {
   const [endDate, setEndDate] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
   const [dateFilter, setDateFilter] = useState<string>("today");
   const [reportType, setReportType] = useState<string>("all");
@@ -498,49 +499,95 @@ function ReturnsList() {
                         </thead>
                         <tbody>
                           {transformedReturns.map((returnItem: any) => (
-                            <tr key={returnItem.id} className="border-b hover:bg-muted/50">
-                              <td className="px-3 py-2">
-                                <div className="font-medium text-xs">{returnItem.receiptNo}</div>
-                              </td>
-                              <td className="px-3 py-2 text-xs">{returnItem.customerName}</td>
-                              <td className="px-3 py-2">
-                                <div className="font-medium text-xs">
-                                  {getReturnCurrency(returnItem)} {parseFloat(returnItem.totalAmount).toFixed(2)}
-                                </div>
-                              </td>
-                              <td className="px-3 py-2">
-                                <div className="text-xs">{new Date(returnItem.returnDate).toLocaleDateString()}</div>
-                                <div className="text-xs text-muted-foreground">{new Date(returnItem.returnDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                              </td>
-                              <td className="px-3 py-2">
-                                <div className="text-xs">{returnItem.attendantName}</div>
-                              </td>
-                              <td className="px-3 py-2">
-                                <Badge variant={getStatusBadgeVariant(returnItem.status)} className="text-xs px-1.5 py-0">
-                                  {returnItem.status}
-                                </Badge>
-                              </td>
-                              <td className="px-3 py-2">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="h-8 w-8 p-0">
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <PermissionGuard permission="returns_delete">
-                                      <DropdownMenuItem 
-                                        onClick={() => handleDeleteReturn(returnItem)}
-                                        className="text-red-600"
-                                      >
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        Delete
-                                      </DropdownMenuItem>
-                                    </PermissionGuard>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </td>
-                            </tr>
+                            <Fragment key={returnItem.id}>
+                              <tr
+                                className="border-b hover:bg-muted/50 cursor-pointer"
+                                onClick={() => setExpandedRow(expandedRow === returnItem.id ? null : returnItem.id)}
+                              >
+                                <td className="px-3 py-2">
+                                  <div className="flex items-center gap-1">
+                                    {expandedRow === returnItem.id
+                                      ? <ChevronUp className="h-3 w-3 text-muted-foreground shrink-0" />
+                                      : <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />}
+                                    <div className="font-medium text-xs">{returnItem.receiptNo}</div>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2 text-xs">{returnItem.customerName}</td>
+                                <td className="px-3 py-2">
+                                  <div className="font-medium text-xs">
+                                    {getReturnCurrency(returnItem)} {parseFloat(returnItem.totalAmount).toFixed(2)}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2">
+                                  <div className="text-xs">{new Date(returnItem.returnDate).toLocaleDateString()}</div>
+                                  <div className="text-xs text-muted-foreground">{new Date(returnItem.returnDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                </td>
+                                <td className="px-3 py-2">
+                                  <div className="text-xs">{returnItem.attendantName}</div>
+                                </td>
+                                <td className="px-3 py-2">
+                                  <Badge variant={getStatusBadgeVariant(returnItem.status)} className="text-xs px-1.5 py-0">
+                                    {returnItem.status}
+                                  </Badge>
+                                </td>
+                                <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <PermissionGuard permission="returns_delete">
+                                        <DropdownMenuItem 
+                                          onClick={() => handleDeleteReturn(returnItem)}
+                                          className="text-red-600"
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Delete
+                                        </DropdownMenuItem>
+                                      </PermissionGuard>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </td>
+                              </tr>
+                              {expandedRow === returnItem.id && (
+                                <tr key={`${returnItem.id}-items`} className="bg-muted/30 border-b">
+                                  <td colSpan={7} className="px-6 py-2">
+                                    {returnItem.items.length === 0 ? (
+                                      <p className="text-xs text-muted-foreground py-1">No item details available</p>
+                                    ) : (
+                                      <div className="space-y-0">
+                                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Returned Products</p>
+                                        <table className="w-full text-xs">
+                                          <thead>
+                                            <tr className="text-muted-foreground">
+                                              <th className="text-left font-medium pb-1">Product</th>
+                                              <th className="text-right font-medium pb-1 w-16">Qty</th>
+                                              <th className="text-right font-medium pb-1 w-28">Unit Price</th>
+                                              <th className="text-right font-medium pb-1 w-28">Subtotal</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-border/50">
+                                            {returnItem.items.map((item: any, idx: number) => (
+                                              <tr key={idx}>
+                                                <td className="py-1">{item.product?.name || `Product #${item.product}`}</td>
+                                                <td className="py-1 text-right">{parseFloat(item.quantity)}</td>
+                                                <td className="py-1 text-right">{getReturnCurrency(returnItem)} {parseFloat(item.unitPrice).toFixed(2)}</td>
+                                                <td className="py-1 text-right">{getReturnCurrency(returnItem)} {(parseFloat(item.quantity) * parseFloat(item.unitPrice)).toFixed(2)}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                        {returnItem.reason && (
+                                          <p className="text-xs text-muted-foreground mt-1.5">Reason: {returnItem.reason}</p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
                           ))}
                         </tbody>
                       </table>
@@ -550,32 +597,61 @@ function ReturnsList() {
                   {/* Mobile Cards */}
                   <div className="lg:hidden p-2 space-y-2">
                     {transformedReturns.map((returnItem: any) => (
-                      <div key={returnItem.id} className="border rounded-lg px-3 py-2 flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold truncate">{returnItem.receiptNo}</div>
-                          <div className="text-xs text-muted-foreground truncate">{returnItem.customerName} · {returnItem.attendantName}</div>
-                          <div className="text-xs text-muted-foreground">{new Date(returnItem.returnDate).toLocaleDateString()}</div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <div className="text-right">
-                            <div className="text-xs font-semibold">{getReturnCurrency(returnItem)} {parseFloat(returnItem.totalAmount).toFixed(2)}</div>
-                            <Badge variant={getStatusBadgeVariant(returnItem.status)} className="text-xs px-1.5 py-0">{returnItem.status}</Badge>
+                      <div key={returnItem.id} className="border rounded-lg overflow-hidden">
+                        <div
+                          className="px-3 py-2 flex items-center justify-between gap-2 cursor-pointer"
+                          onClick={() => setExpandedRow(expandedRow === returnItem.id ? null : returnItem.id)}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1">
+                              {expandedRow === returnItem.id
+                                ? <ChevronUp className="h-3 w-3 text-muted-foreground shrink-0" />
+                                : <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />}
+                              <div className="text-xs font-semibold truncate">{returnItem.receiptNo}</div>
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate pl-4">{returnItem.customerName} · {returnItem.attendantName}</div>
+                            <div className="text-xs text-muted-foreground pl-4">{new Date(returnItem.returnDate).toLocaleDateString()}</div>
                           </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                                <MoreHorizontal className="h-3.5 w-3.5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <PermissionGuard permission="returns_delete">
-                                <DropdownMenuItem onClick={() => handleDeleteReturn(returnItem)} className="text-red-600">
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                </DropdownMenuItem>
-                              </PermissionGuard>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="text-right">
+                              <div className="text-xs font-semibold">{getReturnCurrency(returnItem)} {parseFloat(returnItem.totalAmount).toFixed(2)}</div>
+                              <Badge variant={getStatusBadgeVariant(returnItem.status)} className="text-xs px-1.5 py-0">{returnItem.status}</Badge>
+                            </div>
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <PermissionGuard permission="returns_delete">
+                                    <DropdownMenuItem onClick={() => handleDeleteReturn(returnItem)} className="text-red-600">
+                                      <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                    </DropdownMenuItem>
+                                  </PermissionGuard>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
                         </div>
+                        {expandedRow === returnItem.id && returnItem.items.length > 0 && (
+                          <div className="bg-muted/30 border-t px-4 py-2">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Returned Products</p>
+                            <div className="space-y-1">
+                              {returnItem.items.map((item: any, idx: number) => (
+                                <div key={idx} className="flex items-center justify-between text-xs">
+                                  <span className="truncate flex-1">{item.product?.name || `Product #${item.product}`}</span>
+                                  <span className="ml-2 shrink-0 text-muted-foreground">×{parseFloat(item.quantity)}</span>
+                                  <span className="ml-3 shrink-0 font-medium">{getReturnCurrency(returnItem)} {(parseFloat(item.quantity) * parseFloat(item.unitPrice)).toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                            {returnItem.reason && (
+                              <p className="text-xs text-muted-foreground mt-1.5">Reason: {returnItem.reason}</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

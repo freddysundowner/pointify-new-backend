@@ -34,7 +34,7 @@ router.get("/", requireAdminOrAttendant, async (req, res, next) => {
       offset,
       orderBy: (r, { desc }) => [desc(r.createdAt)],
       with: {
-        saleReturnItems: true,
+        saleReturnItems: { with: { product: { columns: { id: true, name: true } } } },
         processedBy: { columns: { id: true, username: true } },
         customer: { columns: { id: true, name: true } },
         shop: { columns: { id: true }, with: { admin: { columns: { id: true, username: true, attendant: true } } } },
