@@ -255,7 +255,7 @@ export default function SuppliersPage() {
   const handlePayDebt = (supplier: Supplier) => {
     setSelectedSupplier(supplier);
     // Convert negative wallet to positive payment amount
-    setPaymentAmount(Math.abs(supplier.wallet || 0));
+    setPaymentAmount(Math.abs(parseFloat(supplier.wallet ?? "0") || 0));
     setIsPaymentDialogOpen(true);
   };
 
@@ -443,14 +443,14 @@ export default function SuppliersPage() {
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           {supplier.wallet !== undefined && supplier.wallet !== null && (
-                            <Badge variant={supplier.wallet > 0 ? "destructive" : "default"} className="text-xs">
-                              {supplier.wallet.toFixed(2)}
+                            <Badge variant={parseFloat(supplier.wallet) > 0 ? "destructive" : "default"} className="text-xs">
+                              {parseFloat(supplier.wallet ?? 0).toFixed(2)}
                             </Badge>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 mt-2 pt-2 border-t border-gray-50">
-                        {supplier.wallet && supplier.wallet < 0 && (
+                        {parseFloat(supplier.wallet ?? "0") < 0 && (
                           <Button variant="default" size="sm" onClick={() => handlePayDebt(supplier)} className="h-7 text-xs bg-green-600 hover:bg-green-700 gap-1">
                             <CreditCard className="h-3 w-3" /> Pay Debt
                           </Button>
@@ -522,8 +522,8 @@ export default function SuppliersPage() {
                         </TableCell>
                         <TableCell>
                           {supplier.wallet !== undefined && supplier.wallet !== null ? (
-                            <Badge variant={supplier.wallet > 0 ? "destructive" : "default"}>
-                              {supplier.wallet.toFixed(2)}
+                            <Badge variant={parseFloat(supplier.wallet) > 0 ? "destructive" : "default"}>
+                              {parseFloat(supplier.wallet ?? 0).toFixed(2)}
                             </Badge>
                           ) : (
                             <span className="text-muted-foreground">0.00</span>
@@ -531,12 +531,12 @@ export default function SuppliersPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {supplier.wallet && supplier.wallet < 0 && (
+                            {parseFloat(supplier.wallet ?? "0") < 0 && (
                               <Button
                                 variant="default"
                                 size="sm"
                                 onClick={() => handlePayDebt(supplier)}
-                                title={`Pay Debt: ${Math.abs(supplier.wallet).toFixed(2)}`}
+                                title={`Pay Debt: ${Math.abs(parseFloat(supplier.wallet ?? "0")).toFixed(2)}`}
                                 className="bg-green-600 hover:bg-green-700"
                               >
                                 <CreditCard className="h-3 w-3" />
