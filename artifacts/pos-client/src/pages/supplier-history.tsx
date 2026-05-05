@@ -132,31 +132,146 @@ export default function SupplierHistoryPage() {
   const handleDownloadStatement = () => {
     try {
       const statementPurchases = purchasesData?.data || [];
-      const doc  = new jsPDF();
-      let   hY   = drawShopHeader(doc, shopDetails, "Supplier Statement", `Statement Date: ${new Date().toLocaleDateString()}`);
 
-      doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-      doc.text(`Supplier: ${supplierName || 'Supplier'}   Period: ${dateFrom || '—'}  to  ${dateTo || '—'}`, 20, hY); hY += 6;
-      doc.text(`Total Amount: ${shopCurrency} ${fmtAmt(totalAmount)}   Paid: ${shopCurrency} ${fmtAmt(totalPaid)}   Outstanding: ${shopCurrency} ${fmtAmt(totalOutstanding)}`, 20, hY); hY += 6;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const PW  = doc.internal.pageSize.getWidth();
+      const PH  = doc.internal.pageSize.getHeight();
+      const ML  = 14;
+      const MR  = PW - 14;
+      const CW  = MR - ML;
+      const purple: [number,number,number]      = [76, 29, 149];
+      const purpleLight: [number,number,number] = [237, 233, 254];
+      const gray50: [number,number,number]      = [249, 250, 251];
+      const gray200: [number,number,number]     = [229, 231, 235];
+      const gray500: [number,number,number]     = [107, 114, 128];
+      const gray900: [number,number,number]     = [17, 24, 39];
+      const red: [number,number,number]         = [220, 38, 38];
+      const green: [number,number,number]       = [22, 163, 74];
 
-      if (statementPurchases.length > 0) {
+      const shopName    = shopDetails.name    || 'Supplier Statement';
+      const shopAddress = shopDetails.address || '';
+      const shopPhone   = shopDetails.phone   || '';
+      const shopContact = [shopAddress, shopPhone].filter(Boolean).join('  ·  ');
+      const dateStr     = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      const periodStr   = `${dateFrom || '—'}  to  ${dateTo || '—'}`;
+
+      // ── Header band ──────────────────────────────────────────────────
+      doc.setFillColor(...purple);
+      doc.rect(0, 0, PW, 24, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text(shopName.toUpperCase(), ML, 10);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(200, 180, 255);
+      doc.text('SUPPLIER STATEMENT', MR, 10, { align: 'right' });
+      if (shopContact) doc.text(shopContact, ML, 16);
+      doc.text(`Date: ${dateStr}`, MR, 16, { align: 'right' });
+
+      // ── Supplier info card ──────────────────────────────────────────
+      const cardY = 28;
+      const cardH = 22;
+      doc.setFillColor(...gray50);
+      doc.setDrawColor(...gray200);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(ML, cardY, CW, cardH, 2, 2, 'FD');
+      doc.setTextColor(...gray900);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(supplierName || 'Supplier', ML + 4, cardY + 8);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...gray500);
+      doc.text(`Period: ${periodStr}`, ML + 4, cardY + 15);
+
+      // ── KPI pills ────────────────────────────────────────────────────
+      const kpiY = cardY + cardH + 5;
+      const kpiH = 18;
+      const kpiW = (CW - 9) / 4;
+
+      const drawKpi = (x: number, label: string, value: string, bg: [number,number,number], fg: [number,number,number]) => {
+        doc.setFillColor(...bg);
+        doc.setDrawColor(...gray200);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(x, kpiY, kpiW, kpiH, 1.5, 1.5, 'FD');
+        doc.setTextColor(...fg);
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'normal');
+        doc.text(label.toUpperCase(), x + 3, kpiY + 5.5);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text(value, x + 3, kpiY + 13);
+      };
+
+      const gap = 3;
+      drawKpi(ML,                       'Total Amount', `${shopCurrency} ${fmtAmt(totalAmount)}`,      purpleLight,      purple);
+      drawKpi(ML + (kpiW + gap),        'Amount Paid',  `${shopCurrency} ${fmtAmt(totalPaid)}`,        [220,252,231],    green);
+      drawKpi(ML + (kpiW + gap) * 2,    'Outstanding',  `${shopCurrency} ${fmtAmt(totalOutstanding)}`, totalOutstanding > 0 ? [254,226,226] : [220,252,231], totalOutstanding > 0 ? red : green);
+      drawKpi(ML + (kpiW + gap) * 3,    'Orders',       String(statementPurchases.length),             gray50,           gray500);
+
+      // ── Section title ────────────────────────────────────────────────
+      const tableStartY = kpiY + kpiH + 6;
+      doc.setTextColor(...purple);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.text('PURCHASE HISTORY', ML, tableStartY - 1.5);
+      doc.setDrawColor(...purple);
+      doc.setLineWidth(0.5);
+      doc.line(ML, tableStartY + 1, MR, tableStartY + 1);
+
+      // ── Purchases table ──────────────────────────────────────────────
+      if (statementPurchases.length === 0) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...gray500);
+        doc.text('No purchases found for this period.', ML, tableStartY + 12);
+      } else {
         autoTable(doc, {
-          head: [['Purchase No', 'Date', 'Total', 'Paid', 'Outstanding', 'Status']],
+          startY: tableStartY + 4,
+          margin: { left: ML, right: 14 },
+          head: [['Purchase No', 'Date', 'Items', 'Total', 'Paid', 'Outstanding', 'Status']],
           body: statementPurchases.map((p: any) => {
             const outstanding = parseFloat(String(p.outstandingBalance ?? 0));
+            const itemCount   = p.items?.length ?? 0;
             return [
-              p.purchaseNo || '',
-              new Date(p.createdAt).toLocaleDateString(),
+              p.purchaseNo || `P-${p._id?.slice(-6)}`,
+              new Date(p.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+              itemCount > 0 ? `${itemCount} item${itemCount !== 1 ? 's' : ''}` : '—',
               `${shopCurrency} ${fmtAmt(p.totalAmount)}`,
               `${shopCurrency} ${fmtAmt(p.amountPaid)}`,
               `${shopCurrency} ${fmtAmt(outstanding)}`,
               getPurchaseStatus(p) === 'paid' ? 'Paid' : 'Credit',
             ];
           }),
-          startY: hY,
-          styles: { fontSize: 8 },
-          headStyles: { fillColor: [76, 29, 149] },
-          columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+          headStyles: {
+            fillColor: purple, textColor: [255, 255, 255],
+            fontSize: 7.5, fontStyle: 'bold',
+            cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+          },
+          bodyStyles: { fontSize: 7.5, cellPadding: { top: 2, bottom: 2, left: 3, right: 3 }, textColor: gray900 },
+          alternateRowStyles: { fillColor: [250, 249, 255] },
+          columnStyles: {
+            0: { cellWidth: 28 },
+            1: { cellWidth: 22 },
+            2: { cellWidth: 18 },
+            3: { halign: 'right', cellWidth: 26 },
+            4: { halign: 'right', cellWidth: 26 },
+            5: { halign: 'right', cellWidth: 26, fontStyle: 'bold' },
+            6: { cellWidth: 16 },
+          },
+          didDrawPage: (data) => {
+            const pageCount   = (doc as any).internal.getNumberOfPages();
+            const currentPage = data.pageNumber;
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(...gray500);
+            doc.text(`${shopName}  ·  ${supplierName} Statement  ·  ${dateStr}`, ML, PH - 6);
+            doc.text(`Page ${currentPage} of ${pageCount}`, MR, PH - 6, { align: 'right' });
+            doc.setDrawColor(...gray200);
+            doc.setLineWidth(0.3);
+            doc.line(ML, PH - 9, MR, PH - 9);
+          },
         });
       }
 
