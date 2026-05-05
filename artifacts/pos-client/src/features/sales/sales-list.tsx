@@ -1396,14 +1396,15 @@ function SalesList() {
                   <div className="py-6 text-center text-gray-500 text-sm">No sales found for the selected filters</div>
                 ) : (
                   paginatedData.map((sale: any) => (
-                    <div key={sale.id} className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
+                    <div
+                      key={sale.id}
+                      className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden cursor-pointer active:bg-gray-50"
+                      onClick={() => handleViewSale(sale)}
+                    >
                       <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
-                        <button
-                          onClick={() => handleViewSale(sale)}
-                          className="text-xs font-mono font-semibold text-primary hover:underline"
-                        >
+                        <span className="text-xs font-mono font-semibold text-primary">
                           #{sale.receiptNo}
-                        </button>
+                        </span>
                         <span className="text-xs font-bold text-gray-900">
                           {getSaleCurrency(sale)} {Number(sale.totalAmount).toFixed(2)}
                         </span>
@@ -1414,7 +1415,7 @@ function SalesList() {
                             {sale.customerName} · {new Date(sale.saleDate).toLocaleDateString()}
                           </p>
                         </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                           <span className="text-[10px] capitalize text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{sale.paymentTag}</span>
                           <Badge variant={getStatusBadgeVariant(sale.status)} className="text-[10px] px-1.5 py-0">
                             {sale.status}
@@ -1526,16 +1527,11 @@ function SalesList() {
                       paginatedData.map((sale: any) => (
                         <tr
                           key={sale.id}
-                          className="border-b hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                          className="border-b hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
+                          onClick={() => handleViewSale(sale)}
                         >
                           <td className="py-2 px-3 text-sm font-mono">
-                            <button
-                              onClick={() => handleViewSale(sale)}
-                              className="hover:text-blue-600 hover:underline cursor-pointer"
-                              title="View sale details"
-                            >
-                              #{sale.receiptNo}
-                            </button>
+                            #{sale.receiptNo}
                           </td>
                           <td className="py-2 px-3 text-sm">
                             {sale.customerName}
@@ -1561,7 +1557,7 @@ function SalesList() {
                           <td className="py-2 px-3 text-sm">
                             {sale.attendantName}
                           </td>
-                          <td className="py-2 px-3">
+                          <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="h-8 w-8 p-0">
